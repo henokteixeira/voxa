@@ -33,11 +33,16 @@ describe("buildSystemPrompt: a safe place to make mistakes", () => {
     expect(prompt).toMatch(/may say a word or a sentence in their first language/);
     expect(prompt).toMatch(/This is not a mistake: do not list it in `issues`/);
     expect(prompt).toMatch(/In `reply`, give the en words for it/);
+    expect(prompt).toMatch(/When you also give a `hint` or `nextHint`, start it with those words too/);
   });
 
   it("tells the tutor to admit what it does not know", () => {
     expect(prompt).toMatch(/When you do not know something, say so plainly/);
-    expect(prompt).toMatch(/When you are not sure it is a mistake, leave it out/);
+    expect(prompt).toMatch(/When you are not sure something is a mistake, leave it out of `issues`/);
+  });
+
+  it("keeps the correction checks strict", () => {
+    expect(prompt).toMatch(/Being kind does not change how you judge `severity` and `pendingResolved`/);
   });
 });
 

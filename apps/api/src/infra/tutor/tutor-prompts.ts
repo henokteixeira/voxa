@@ -32,9 +32,11 @@ export function buildSystemPrompt({ mode, language, learnerContext }: TutorConte
       `The learner may say a word or a sentence in their first language when they do not know it in ${language}. ` +
         "This is not a mistake: do not list it in `issues`. " +
         `In \`reply\`, give the ${language} words for it in a short, natural way and invite the learner to use them, ` +
-        "then go on with the scene.",
-      "When you do not know something, say so plainly instead of guessing: a fact about the learner's work, " +
-        "a term from their field, or whether a phrase sounds natural. When you are not sure it is a mistake, leave it out.",
+        "then go on with the scene. When you also give a `hint` or `nextHint`, start it with those words too, " +
+        "because only the hint is said on that turn.",
+      "When you do not know something, say so plainly in `reply` instead of guessing: a fact about the learner's " +
+        "work or a term from their field. When you are not sure something is a mistake, leave it out of `issues`.",
+      "Being kind does not change how you judge `severity` and `pendingResolved`: decide them strictly.",
     ].join("\n"),
     `## Scene\n${SCENES[mode]}`,
     learnerContext.trim()
