@@ -1,4 +1,4 @@
-import type { TurnResult } from "@/lib/api";
+import type { SessionSummary, TurnResult } from "@/lib/api";
 import type { VoiceErrorCode } from "@/lib/voice/voice-socket";
 
 /** What is happening in the live session. Pure reducer, so the flow is unit-tested. */
@@ -60,7 +60,8 @@ export interface SessionState {
   /** What to resend on "Try again" after a failure mid-turn. */
   retry: Retry | null;
   turn: Turn;
-  mistakesSaved: number | null;
+  /** What the server returned when the session ended; null if it could not be reached. */
+  summary: SessionSummary | null;
 }
 
 export type Retry = { kind: "text"; text: string } | { kind: "speak" } | { kind: "listen" };
@@ -82,7 +83,7 @@ export type SessionAction =
   | { type: "recover" }
   | { type: "restart" }
   | { type: "ending" }
-  | { type: "ended"; mistakes: number | null };
+  | { type: "ended"; summary: SessionSummary | null };
 
 const freshTurn = (request: Request, text: string | null = null): Turn => ({
   request,
@@ -106,7 +107,7 @@ export const initialSessionState: SessionState = {
   failure: null,
   retry: null,
   turn: freshTurn("speak"),
-  mistakesSaved: null,
+  summary: null,
 };
 
 /** Failures that do not stop the session: say "didn't catch that" and listen again. */
@@ -179,7 +180,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case "ending":
       return { ...state, phase: "ending" };
     case "ended":
-      return { ...state, phase: "ended", mistakesSaved: action.mistakes };
+      return { ...state, phase: "ended", summary: action.summary };
   }
 }
 

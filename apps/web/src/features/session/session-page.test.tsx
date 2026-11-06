@@ -21,8 +21,9 @@ const api = {
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   endSession: vi.fn(),
+  rateConfidence: vi.fn(),
   voiceUrl: (id: string) => `ws://api/api/sessions/${id}/voice`,
-} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession"]: ReturnType<typeof vi.fn> };
+} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "rateConfidence"]: ReturnType<typeof vi.fn> };
 
 const deps: VoiceDeps = {
   openMicrophone: vi.fn(async (handlers: MicrophoneHandlers) => {
@@ -65,6 +66,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   api.health.mockResolvedValue({ status: "ok" });
   api.endSession.mockResolvedValue({ sessionId: "s1", mode: "daily", mistakes: [], selfCorrections: 0 });
+  api.rateConfidence.mockResolvedValue(undefined);
   api.startSession.mockResolvedValue({
     sessionId: "s1",
     mode: "daily",
@@ -179,7 +181,7 @@ describe("live session", () => {
     await userEvent.click(screen.getByRole("button", { name: "Pause" }));
     await userEvent.click(screen.getByRole("button", { name: "End session" }));
     expect(await screen.findByText("2 mistakes saved to your mistake bank.")).toBeInTheDocument();
-    expect(api.endSession).toHaveBeenCalledWith("s1");
+    expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ pausesMs: expect.any(Array) }));
     expect(mic.stop).toHaveBeenCalled();
     expect(socket.close).toHaveBeenCalled();
   });
@@ -198,7 +200,7 @@ describe("live session", () => {
     expect(screen.queryByRole("dialog", { name: "Paused" })).toBeNull();
     // Unmounting the screen (e.g. the back button) closes the session.
     cleanupApp();
-    expect(api.endSession).toHaveBeenCalledWith("s1");
+    expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ pausesMs: expect.any(Array) }));
   });
 
   it("lets the learner send early or stop the tutor by tapping the ball", async () => {
@@ -213,5 +215,69 @@ describe("live session", () => {
     expect(router.state.location.pathname).toBe("/");
     await userEvent.click(await screen.findByRole("link", { name: /Sprint review/ }));
     expect(router.state.location.pathname).toBe("/session/review");
+  });
+});
+
+describe("fluency timing", () => {
+  it("sends the pause before answering and the speaking time it measured", async () => {
+    const now = vi.spyOn(performance, "now");
+    now.mockReturnValue(0);
+    renderSession();
+    await screen.findByText("Morning! What did you work on yesterday?");
+    act(() => socketHandlers.onOpen());
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
+    act(() => socketHandlers.onDone());
+    now.mockReturnValue(3000);
+    await act(async () => finishPlayback());
+
+    now.mockReturnValue(4500);
+    act(() => micHandlers.onSpeechStart());
+    now.mockReturnValue(9700);
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+
+    await userEvent.click(screen.getByRole("button", { name: "Pause" }));
+    await userEvent.click(screen.getByRole("button", { name: "End session" }));
+    await screen.findByRole("heading", { name: "Session saved" });
+    expect(api.endSession).toHaveBeenCalledWith("s1", { tutorSpeechMs: 3000, pausesMs: [1500], learnerSpeechMs: 4000 });
+    now.mockRestore();
+  });
+
+  it("counts no pause before answering when the learner paused the tutor mid-line", async () => {
+    const now = vi.spyOn(performance, "now");
+    now.mockReturnValue(0);
+    renderSession();
+    await screen.findByText("Morning! What did you work on yesterday?");
+    act(() => socketHandlers.onOpen());
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
+    act(() => socketHandlers.onDone());
+    speaker.stop.mockImplementation(() => finishPlayback());
+    now.mockReturnValue(1000);
+    await userEvent.click(screen.getByRole("button", { name: "Pause" }));
+    now.mockReturnValue(120_000);
+    await userEvent.click(screen.getByRole("button", { name: "Resume" }));
+    now.mockReturnValue(121_000);
+    act(() => micHandlers.onSpeechStart());
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+
+    await userEvent.click(screen.getByRole("button", { name: "Pause" }));
+    await userEvent.click(screen.getByRole("button", { name: "End session" }));
+    await screen.findByRole("heading", { name: "Session saved" });
+    expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ pausesMs: [] }));
+    now.mockRestore();
+  });
+
+  it("stores the confidence from the check-in once the session exists", async () => {
+    const router = createMemoryRouter(routes, {
+      initialEntries: [{ pathname: "/session/daily", state: { confidenceBefore: 2 } }],
+    });
+    cleanupApp = render(
+      <ApiProvider value={api}>
+        <VoiceDepsContext.Provider value={deps}>
+          <RouterProvider router={router} />
+        </VoiceDepsContext.Provider>
+      </ApiProvider>,
+    ).unmount;
+    await screen.findByText("Morning! What did you work on yesterday?");
+    expect(api.rateConfidence).toHaveBeenCalledWith("s1", "before", 2);
   });
 });
