@@ -22,6 +22,14 @@ function sameText(a: string, b: string): boolean {
   return normalize(a) === normalize(b);
 }
 
+/** On-screen help must not give away the correction the learner is working on. */
+function safeSupport(support: string | null, correction: string | undefined): string | null {
+  const text = support?.trim() ?? "";
+  if (!text) return null;
+  if (correction && text.toLowerCase().includes(correction.trim().toLowerCase())) return null;
+  return text;
+}
+
 export class SessionNotFoundError extends Error {}
 export class SessionEndedError extends Error {}
 
@@ -62,17 +70,22 @@ export class ConversationService {
     const session = await this.openSession(sessionId);
     const [history, known, learnerContext] = await Promise.all([
       this.sessions.history(sessionId),
-      this.mistakes.mostFrequent(session.language, KNOWN_MISTAKES_LIMIT),
+      // Twice the limit, so new words don't push real mistakes out of the list.
+      this.mistakes.mostFrequent(session.language, KNOWN_MISTAKES_LIMIT * 2),
       this.learnerContext.load(),
     ]);
 
+    const toKnown = ({ original, correction, category }: (typeof known)[number]) => ({ original, correction, category });
+    const knownMistakes = known.filter((m) => m.category !== NEW_WORD_CATEGORY).slice(0, KNOWN_MISTAKES_LIMIT);
+    const knownNewWords = known.filter((m) => m.category === NEW_WORD_CATEGORY).slice(0, KNOWN_MISTAKES_LIMIT);
     const verdict = await this.tutor.evaluate({
       mode: session.mode,
       language: session.language,
       learnerContext,
       history,
       pending: session.pending,
-      knownMistakes: known.map(({ original, correction, category }) => ({ original, correction, category })),
+      knownMistakes: knownMistakes.map(toKnown),
+      knownNewWords: knownNewWords.map(toKnown),
       utterance,
     });
     const decision = decide(session.pending, verdict);
@@ -94,7 +107,11 @@ export class ConversationService {
       if (!mistake || (pending && sameText(mistake.original, pending.original))) continue;
       await this.mistakes.recordCorrectUse(sessionId, { language: session.language, original: mistake.original });
     }
+    // A new word is never a mistake: skip one the tutor also listed as an issue, the pending one, or a repeat.
+    const taken = [...verdict.issues.map((i) => i.original), ...(pending ? [pending.original] : [])];
     for (const word of verdict.newWords) {
+      if (taken.some((t) => sameText(t, word.said))) continue;
+      taken.push(word.said);
       await this.mistakes.record(
         { language: session.language, original: word.said, correction: word.words, category: NEW_WORD_CATEGORY },
         { sessionId, severity: "minor" },
@@ -112,7 +129,7 @@ export class ConversationService {
       kind: decision.kind,
       message: decision.message,
       selfCorrected: decision.selfCorrected,
-      support: verdict.support?.trim() || null,
+      support: safeSupport(verdict.support, decision.nextPending?.correction),
     };
   }
 

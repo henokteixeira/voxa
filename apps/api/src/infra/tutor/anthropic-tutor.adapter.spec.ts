@@ -20,6 +20,7 @@ const request: TutorRequest = {
   history: [{ role: "assistant", content: "Morning! What did you do yesterday?" }],
   pending: null,
   knownMistakes: [],
+  knownNewWords: [],
   utterance: "I fixed the upload.",
 };
 

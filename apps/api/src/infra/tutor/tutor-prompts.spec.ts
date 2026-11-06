@@ -8,21 +8,21 @@ describe("buildSystemPrompt", () => {
   });
 
   it("includes the mode's scene, the language and the learner context", () => {
-    const prompt = buildSystemPrompt({ mode: "daily", language: "en", learnerContext: "Works on Oral Collector." });
+    const prompt = buildSystemPrompt({ mode: "daily", language: "en", learnerContext: "Works on Oral Collector." }, "pt-BR");
     expect(prompt).toContain(SCENES.daily);
     expect(prompt).toContain("spoken en");
     expect(prompt).toContain("Works on Oral Collector.");
   });
 
   it("asks for hints that never contain the corrected words", () => {
-    const prompt = buildSystemPrompt({ mode: "review", language: "en", learnerContext: "" });
+    const prompt = buildSystemPrompt({ mode: "review", language: "en", learnerContext: "" }, "pt-BR");
     expect(prompt).toMatch(/Never include the corrected words/);
     expect(prompt).toContain("No details were given");
   });
 });
 
 describe("buildSystemPrompt: a safe place to make mistakes", () => {
-  const prompt = buildSystemPrompt({ mode: "free_talk", language: "en", learnerContext: "" });
+  const prompt = buildSystemPrompt({ mode: "free_talk", language: "en", learnerContext: "" }, "pt-BR");
 
   it("welcomes mistakes and never grades the learner", () => {
     expect(prompt).toMatch(/Mistakes are welcome/);
@@ -35,6 +35,8 @@ describe("buildSystemPrompt: a safe place to make mistakes", () => {
     expect(prompt).toMatch(/In `reply`, give the en words for it/);
     expect(prompt).toMatch(/When you also give a `hint` or `nextHint`, start it with those words too/);
     expect(prompt).toMatch(/List each one in `newWords`/);
+    expect(prompt).toMatch(/A new word is never a mistake/);
+    expect(prompt).toMatch(/`reply`, `hint` and `nextHint` are spoken: write them only in en/);
   });
 
   it("writes support in the learner's first language, for the screen only", () => {
@@ -50,7 +52,7 @@ describe("buildSystemPrompt: a safe place to make mistakes", () => {
 
   it("asks which known mistakes the learner got right, by their exact text", () => {
     expect(prompt).toMatch(/List in `correctUses` each known mistake the learner avoided/);
-    expect(prompt).toMatch(/Copy its `original` text from the known mistakes list exactly/);
+    expect(prompt).toMatch(/Copy its `original` text from the known mistakes or new words list exactly/);
   });
 
   it("keeps the correction checks strict", () => {
@@ -64,14 +66,17 @@ describe("buildTurnMessage", () => {
       utterance: "I goed there",
       pending: { original: "I goed", correction: "I went", category: "grammar", hintsGiven: 1, revealed: false },
       knownMistakes: [{ original: "more better", correction: "better", category: "grammar" }],
+      knownNewWords: [{ original: "prazo", correction: "deadline", category: "new_word" }],
     });
+    expect(message).toContain('<new_words>\n- "prazo" → "deadline"\n</new_words>');
     expect(message).toContain('"more better" → "better" (grammar)');
     expect(message).toContain('"I goed" should be "I went" (grammar). Hints already given: 1.');
     expect(message).toContain("<utterance>\nI goed there\n</utterance>");
   });
 
   it("says none when there is nothing to check against", () => {
-    const message = buildTurnMessage({ utterance: "Hi", pending: null, knownMistakes: [] });
+    const message = buildTurnMessage({ utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [] });
+    expect(message).toContain("<new_words>\nnone\n</new_words>");
     expect(message).toContain("<known_mistakes>\nnone\n</known_mistakes>");
     expect(message).toContain("<pending_correction>\nnone\n</pending_correction>");
   });

@@ -323,6 +323,40 @@ describe("ConversationService.respond: words in the learner's first language", (
     expect(mistakes.events).toMatchObject([{ original: "prazo", severity: "minor" }]);
   });
 
+  it("sends new words to the tutor apart from the known mistakes", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ newWords: [prazo], issues: [article] }), verdict({}));
+    await service.respond(session.id, "I opened PR before the prazo");
+    await service.respond(session.id, "Next one");
+
+    expect(tutor.requests[1].knownMistakes.map((m) => m.original)).toEqual(["I opened PR"]);
+    expect(tutor.requests[1].knownNewWords).toEqual([{ original: "prazo", correction: "deadline", category: NEW_WORD_CATEGORY }]);
+  });
+
+  it("does not save a new word that is also listed as a mistake, or twice", async () => {
+    const { session } = await service.start("daily", "en");
+    const both = { ...article, original: "prazo", correction: "deadline" };
+    tutor.verdicts.push(verdict({ issues: [both], newWords: [prazo, { said: "reunião", words: "meeting" }, { said: "reunião", words: "meeting" }] }));
+    await service.respond(session.id, "prazo da reunião");
+    expect(mistakes.events.map((e) => e.original)).toEqual(["prazo", "reunião"]);
+  });
+
+  it("drops written support that gives away the pending correction", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed], support: "Diga: I went to the meeting" }));
+    const result = await service.respond(session.id, "I goed to the meeting");
+    expect(result.kind).toBe("hint");
+    expect(result.support).toBeNull();
+  });
+
+  it("counts a new word said in English later as a correct use", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ newWords: [prazo] }), verdict({ correctUses: ["prazo"] }));
+    await service.respond(session.id, "The prazo is Friday");
+    await service.respond(session.id, "The deadline is Friday");
+    expect(mistakes.correctUses).toMatchObject([{ original: "prazo" }]);
+  });
+
   it("does not count new words as mistakes in the fluency signals", async () => {
     const { session } = await service.start("daily", "en");
     tutor.verdicts.push(verdict({ newWords: [prazo], issues: [article] }));
