@@ -12,7 +12,7 @@ export type VoiceErrorCode =
   | "server"
   /** The session is already open in another tab (close code 4409). */
   | "in_use"
-  /** The turn was too long to send (close code 1009). */
+  /** The turn was too long to send (close code 1009); the socket is closed and needs a reconnect. */
   | "too_long"
   /** The socket closed or never opened. */
   | "disconnected";

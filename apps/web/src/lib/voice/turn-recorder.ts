@@ -40,6 +40,11 @@ export class TurnRecorder {
     return null;
   }
 
+  /** Learns the room's noise without making turns (while the microphone is paused). */
+  learn(frame: Float32Array): void {
+    this.detector.learn(rms(frame), (frame.length / this.sampleRate) * 1000);
+  }
+
   /** Ends the turn now (the learner tapped to send). Null when nobody was talking. */
   flush(): ArrayBuffer | null {
     if (!this.detector.isSpeaking) return null;

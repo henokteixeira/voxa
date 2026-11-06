@@ -49,16 +49,16 @@ export class TurnDetector {
   /** Feeds one frame's RMS level and length; returns "start" or "end" when the turn changes. */
   push(level: number, frameMs: number): TurnEvent {
     const { minSpeechMs, endSilenceMs, maxTurnMs, floorRatio, minLevel, calibrationMs } = this.options;
+    // Calibration and the noise floor are shared with learn().
     if (this.heardMs < calibrationMs) {
-      this.heardMs += frameMs;
-      this.floor = this.floor * 0.8 + level * 0.2;
+      this.learn(level, frameMs);
       return null;
     }
     const loud = level > Math.max(this.floor * floorRatio, minLevel);
 
     if (!this.speaking) {
       // Follow the room's noise while nobody talks: fall fast, rise slowly so speech does not hide itself.
-      this.floor += (level - this.floor) * (level < this.floor ? 0.05 : 0.01);
+      this.learn(level, frameMs);
       if (!loud) {
         this.loudMs = 0;
         return null;
@@ -78,6 +78,16 @@ export class TurnDetector {
       return "end";
     }
     return null;
+  }
+
+  /** Learns the room's noise from a frame nobody is answering in (the tutor's turn); never starts a turn. */
+  learn(level: number, frameMs: number): void {
+    if (this.heardMs < this.options.calibrationMs) {
+      this.heardMs += frameMs;
+      this.floor = this.floor * 0.8 + level * 0.2;
+    } else {
+      this.floor += (level - this.floor) * (level < this.floor ? 0.05 : 0.01);
+    }
   }
 
   /** Forgets the current turn (keeps the learned noise floor). */
