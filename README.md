@@ -24,7 +24,7 @@ docker compose up --build     # http://localhost:5173 (API: http://localhost:300
 ```
 
 This starts Postgres, applies the migrations, and runs the API, the web app and the voice service.
-The first start downloads the voice models (~800 MB, kept in a Docker volume), so live voice works only
+The first start downloads the voice models (~1.8 GB, kept in a Docker volume), so live voice works only
 once `docker compose ps` shows `voice` as healthy. The microphone stays in your browser; the containers
 only receive the audio the web app sends. Inside Docker the API reaches Postgres and the voice service by
 service name, so `DATABASE_URL` and `VOICE_SERVICE_URL` in `.env` are ignored there.

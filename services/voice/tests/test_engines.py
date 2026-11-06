@@ -60,3 +60,18 @@ def test_whisper_prompt_can_be_overridden_per_call():
 def test_whisper_unknown_language_becomes_input_error():
     with pytest.raises(InputError):
         stt_with(FakeWhisperModel(error=ValueError("'xx' is not a valid language code"))).transcribe("a.wav", "xx")
+
+
+def test_whisper_from_env_defaults_to_medium_with_the_mixed_prompt():
+    from engines import MIXED_PROMPT
+    from main import whisper_from_env
+
+    stt = whisper_from_env({})
+    assert (stt.model_name, stt.initial_prompt) == ("medium", MIXED_PROMPT)
+
+
+def test_whisper_from_env_empty_prompt_means_none():
+    from main import whisper_from_env
+
+    stt = whisper_from_env({"WHISPER_MODEL": "small", "WHISPER_INITIAL_PROMPT": " "})
+    assert (stt.model_name, stt.initial_prompt) == ("small", None)

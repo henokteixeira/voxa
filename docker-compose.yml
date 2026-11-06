@@ -49,9 +49,11 @@ services:
     build: services/voice
     environment:
       WHISPER_MODEL: ${WHISPER_MODEL:-medium}
+      # Passed only when set; empty means no prompt. Unset uses the service's mixed prompt.
+      WHISPER_INITIAL_PROMPT:
       KOKORO_VOICE: ${KOKORO_VOICE:-af_heart}
     volumes:
-      # Downloaded models survive rebuilds (the first start downloads over 1 GB).
+      # Downloaded models survive rebuilds (the first start downloads ~1.8 GB).
       - voxa-models:/root/.cache/huggingface
       # Voice evaluation input and output stay on the host (both gitignored).
       - ./services/voice/eval/recordings:/app/eval/recordings

@@ -9,7 +9,7 @@ pip install -r requirements.txt
 uvicorn main:app --port 8001
 ```
 
-Both models load at startup (the first run downloads them: Whisper `small` ~470 MB, Kokoro ~300 MB),
+Both models load at startup (the first run downloads them: Whisper `medium` ~1.5 GB, Kokoro ~300 MB),
 so the server answers only once they are ready. `VOICE_WARMUP=0` loads them lazily instead, but then
 the first request can exceed the API's timeout. Kokoro may also need `espeak-ng` installed on the system.
 
@@ -54,8 +54,8 @@ python -m eval.mixed_language --models small medium --out eval/results/mixed.md
   (cleaner than a real voice, so your recordings are the real test). Compares each model with and
   without a "verbatim" prompt.
 - **Portuguese words:** checks whether Whisper keeps the Portuguese words a learner says when stuck
-  ("The prazo is Friday") or swaps them for English ("deadline"). Compares forced English (today),
-  forced English with a mixed prompt, and language detection. Needs your own recordings.
+  ("The prazo is Friday") or swaps them for English ("deadline"). Compares forced English, forced
+  English with the mixed prompt (the service default), and language detection. Needs your own recordings.
 - **Latency:** STT and TTS times (p50/p95) for a short, medium and long tutor line. Claude's time is
   not included, nor the browser's webm/opus encoding and the API hop; D4 measures the full loop.
 

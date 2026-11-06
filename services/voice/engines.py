@@ -60,7 +60,7 @@ class WhisperStt:
 
     def __init__(self, model: str, initial_prompt: str | None = None):
         self.model_name = model
-        self.initial_prompt = initial_prompt or None
+        self.initial_prompt = (initial_prompt or "").strip() or None
         self._model = None
         self._lock = threading.Lock()
 
