@@ -59,7 +59,7 @@ Every mistake the tutor detects, serious or small, becomes a record in the mista
 
 - **Record:** language (BCP 47), what the user said, the correct form, category (grammar, vocabulary, pronunciation, ...), occurrences, first and last seen, the session it came from.
 - **Repeat detection:** a mistake that matches an existing record increases its count instead of creating a new one; a mistake already in the bank counts as serious (see Correction rules).
-- **Status:** Open, Improving or Mastered. Improving when the learner fixed the latest occurrence alone; Mastered after 3 such fixes in a row, or when the mistake has not come back in 5 sessions.
+- **Status:** Open, Improving or Mastered (approved in the prototype).
 - **"This isn't a mistake":** the user can dismiss a record, for example when the speech-to-text misheard him; it leaves the bank and does not count again.
 - **Summary at the end of a session:** the mistakes of the session (serious and small) with their correct forms, plus the 4 fluency signals: self-correction rate, mistakes per 100 words, pause before answering, share of speaking time.
 - **Confidence check:** before and after a session, the user rates how ready he feels for that meeting type (1 to 5), as in the approved prototype.
@@ -154,7 +154,7 @@ After the MVP is in daily use, each later phase (2 to 8 in Scope) becomes its ow
 
 ## Open questions and risks
 
-- [x] Rule for moving a mistake between Open, Improving and Mastered: Improving when the learner fixed the latest occurrence alone; Mastered after 3 such fixes in a row or 5 sessions without it (confirmed on 2026-11-06).
+- [ ] Rule for moving a mistake between Open, Improving and Mastered (not defined yet).
 - [ ] Latency target for the voice loop (to set after measuring on the user's PC).
 - [ ] Does Whisper hide grammar mistakes by cleaning up the transcript? If so, how to work around it.
 - [ ] How the tutor tells serious from small mistakes in practice (Claude's judgment with the rule above, to tune with real sessions).

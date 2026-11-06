@@ -192,21 +192,6 @@ describe("DrizzleMistakeRepository as the mistake bank", () => {
     expect(list[0].lastSeenAt).toBeInstanceOf(Date);
   });
 
-  it("counts the practice sessions in the same language held after the latest occurrence", async () => {
-    const before = await sessions.create({ language: "en", mode: "daily" });
-    await sessions.appendTurn(before.id, { role: "user", content: "Hi" });
-    const s = await sessions.create({ language: "en", mode: "daily" });
-    await mistakes.record(goed, { sessionId: s.id, severity: "serious" });
-
-    for (const language of ["en", "en", "es"]) {
-      const later = await sessions.create({ language, mode: "daily" });
-      await sessions.appendTurn(later.id, { role: "user", content: "Hello" });
-    }
-    await sessions.create({ language: "en", mode: "daily" }); // opened, but the learner never spoke
-
-    expect((await mistakes.list("en"))[0].sessionsSince).toBe(2);
-  });
-
   it("takes a dismissed mistake out of the bank for good", async () => {
     const s = await sessions.create({ language: "en", mode: "daily" });
     const saved = await mistakes.record(goed, { sessionId: s.id, severity: "serious" });

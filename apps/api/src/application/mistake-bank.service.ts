@@ -26,7 +26,7 @@ export class MistakeBankService {
 
   async list(language: string): Promise<MistakeView[]> {
     const entries = await this.bank.list(language);
-    return entries.map(({ id, language, original, correction, category, occurrences, lastSeenAt, fixedByLearner, sessionsSince }) => ({
+    return entries.map(({ id, language, original, correction, category, occurrences, lastSeenAt, fixedByLearner }) => ({
       id,
       language,
       original,
@@ -34,7 +34,7 @@ export class MistakeBankService {
       category,
       occurrences,
       lastSeenAt,
-      status: mistakeStatus({ fixedByLearner, sessionsSince }),
+      status: mistakeStatus(fixedByLearner),
     }));
   }
 
