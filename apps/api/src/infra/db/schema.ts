@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import { bigserial, boolean, integer, jsonb, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 import type { PendingCorrection } from "../../domain/conversation/types.js";
 
 // Every record carries its language (BCP 47 code, e.g. "en") to support other languages.
@@ -16,6 +16,8 @@ export const sessions = pgTable("sessions", {
 export const turns = pgTable("turns", {
   id: uuid("id").primaryKey().defaultRandom(),
   sessionId: uuid("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
+  /** Insertion order. Timestamps can tie, so ordering never relies on them. */
+  seq: bigserial("seq", { mode: "number" }).notNull(),
   role: varchar("role", { length: 16 }).notNull(), // user | assistant
   content: text("content").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -40,6 +42,8 @@ export const mistakeOccurrences = pgTable("mistake_occurrences", {
   mistakeId: uuid("mistake_id").notNull().references(() => mistakes.id, { onDelete: "cascade" }),
   sessionId: uuid("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
   language: varchar("language", { length: 16 }).notNull(),
+  /** Insertion order. Timestamps can tie, so ordering never relies on them. */
+  seq: bigserial("seq", { mode: "number" }).notNull(),
   severity: varchar("severity", { length: 16 }).notNull(), // serious | minor
   selfCorrected: boolean("self_corrected").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
