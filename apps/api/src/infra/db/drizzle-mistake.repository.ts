@@ -37,7 +37,8 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
   }
 
   async recordCorrectUse(sessionId: string, mistake: { language: string; original: string }): Promise<void> {
-    const [found] = await this.db
+    await this.db.transaction(async (tx) => {
+    const [found] = await tx
       .select({ id: mistakes.id })
       .from(mistakes)
       .where(
@@ -46,16 +47,17 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
       .limit(1);
     if (!found) return;
     // Only a session after the mistake counts.
-    const [madeHere] = await this.db
+    const [madeHere] = await tx
       .select({ id: mistakeOccurrences.id })
       .from(mistakeOccurrences)
       .where(and(eq(mistakeOccurrences.mistakeId, found.id), eq(mistakeOccurrences.sessionId, sessionId)))
       .limit(1);
     if (madeHere) return;
-    await this.db
+    await tx
       .insert(mistakeCorrectUses)
       .values({ mistakeId: found.id, sessionId, language: mistake.language })
       .onConflictDoNothing();
+    });
   }
 
   async markSelfCorrected(sessionId: string, mistake: { language: string; original: string }): Promise<void> {

@@ -3,7 +3,7 @@ import type { PendingCorrection } from "../../domain/conversation/types.js";
 import type { Database } from "./db.module.js";
 import { DrizzleMistakeRepository } from "./drizzle-mistake.repository.js";
 import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
-import { mistakeOccurrences, turns } from "./schema.js";
+import { mistakeCorrectUses, mistakeOccurrences, turns } from "./schema.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
@@ -205,6 +205,17 @@ describe("DrizzleMistakeRepository as the mistake bank", () => {
     await mistakes.recordCorrectUse(s3.id, { ...goed, original: "not in the bank" });
 
     expect((await mistakes.list("en"))[0].sessionsCorrect).toBe(2);
+  });
+
+  it("gives no correct use to a dismissed mistake", async () => {
+    const s1 = await sessions.create({ language: "en", mode: "daily" });
+    const saved = await mistakes.record(goed, { sessionId: s1.id, severity: "serious" });
+    await mistakes.dismiss(saved.id, "both_correct");
+    const s2 = await sessions.create({ language: "en", mode: "daily" });
+
+    await mistakes.recordCorrectUse(s2.id, goed);
+
+    expect(await db.select().from(mistakeCorrectUses)).toEqual([]);
   });
 
   it("starts the count again when the mistake comes back", async () => {

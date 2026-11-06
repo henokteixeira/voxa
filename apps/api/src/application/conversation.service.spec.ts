@@ -392,6 +392,18 @@ describe("correct uses of known mistakes", () => {
     expect(mistakes.correctUses).toEqual([{ sessionId: session.id, language: "en", original: goed.original }]);
   });
 
+  it("keeps a correct use of another known mistake while a correction is pending", async () => {
+    const { session: old } = await service.start("daily", "en");
+    await mistakes.record({ language: "en", original: article.original, correction: article.correction, category: "grammar" }, { sessionId: old.id, severity: "minor" });
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true, correctUses: [goed.original, article.original] }));
+
+    await service.respond(session.id, "I goed to the meeting");
+    await service.respond(session.id, "I went to the meeting and I opened a PR");
+
+    expect(mistakes.correctUses).toEqual([{ sessionId: session.id, language: "en", original: article.original }]);
+  });
+
   it("does not count a retry of a pending correction as a correct use", async () => {
     const { session } = await service.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true, correctUses: [goed.original] }));
