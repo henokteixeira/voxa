@@ -1,24 +1,29 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "@/lib/api";
 import { ApiError } from "@/lib/api";
+import { LocaleProvider } from "@/lib/i18n/locale-provider";
 import { ApiProvider } from "./api-context";
 import { routes } from "./router";
 
-function renderApp(path: string, health: ApiClient["health"]) {
+function renderApp(path: string, health: ApiClient["health"], { withLocale = false } = {}) {
   const api = { health, listMistakes: vi.fn().mockResolvedValue([]) } as unknown as ApiClient;
   const router = createMemoryRouter(routes, { initialEntries: [path] });
-  render(
+  const app = (
     <ApiProvider value={api}>
       <RouterProvider router={router} />
-    </ApiProvider>,
+    </ApiProvider>
   );
+  render(withLocale ? <LocaleProvider>{app}</LocaleProvider> : app);
   return router;
 }
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  localStorage.clear();
+});
 
 const up = () => vi.fn().mockResolvedValue({ status: "ok" });
 const down = () => vi.fn().mockRejectedValue(new ApiError("offline", "Can't reach the Voxa API."));
@@ -54,6 +59,36 @@ describe("Today", () => {
     renderApp("/", up());
     expect(await screen.findByRole("link", { name: "Start" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Good (morning|afternoon|evening)$/);
+  });
+
+  it("says mistakes are welcome, Portuguese is fine and Voxa can be wrong too", async () => {
+    renderApp("/", up());
+    const welcome = screen.getByRole("region", { name: "Mistakes are welcome here" });
+    expect(welcome).toHaveTextContent("Say it in Portuguese");
+    expect(welcome).toHaveTextContent("Voxa's AI makes mistakes too");
+  });
+
+  it("keeps the welcome card when the server is down or the browser is offline", async () => {
+    renderApp("/", down());
+    expect(await screen.findByRole("heading", { name: "Voxa's server isn't running" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Mistakes are welcome here" })).toBeInTheDocument();
+    cleanup();
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    renderApp("/", up());
+    expect(screen.getByRole("region", { name: "Mistakes are welcome here" })).toBeInTheDocument();
+  });
+
+  it("starts in Portuguese and switches the interface to English", async () => {
+    renderApp("/", up(), { withLocale: true });
+    expect(await screen.findByRole("link", { name: "Começar" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Aqui, errar faz parte" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Principal" })).toHaveTextContent("HojeErrosProgresso");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^(Bom dia|Boa tarde|Boa noite)$/);
+
+    await userEvent.click(screen.getByRole("button", { name: "English" }));
+    expect(screen.getByRole("link", { name: "Start" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "English" })).toHaveAttribute("aria-pressed", "true");
+    expect(document.documentElement.lang).toBe("en");
   });
 
   it("says the server isn't running and lets you check again", async () => {

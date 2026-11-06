@@ -1,4 +1,5 @@
 import { MODES, type Mode } from "@/lib/api";
+import { type Copy, useCopy } from "@/lib/i18n/locale";
 
 export interface ModeInfo {
   title: string;
@@ -15,6 +16,26 @@ export const MODE_INFO: Record<Mode, ModeInfo> = {
   daily: { title: "Daily stand-up", meta: "Tech lead · about 6 min", color: "var(--color-mist)", meeting: "daily" },
   review: { title: "Sprint review", meta: "Product owner · about 10 min", color: "var(--color-sage)", meeting: "sprint review" },
 };
+
+type ModeText = Omit<ModeInfo, "color">;
+
+const MODE_COLOR = (mode: Mode) => MODE_INFO[mode].color;
+
+const MODE_TEXT: Copy<Record<Mode, ModeText>> = {
+  en: MODE_INFO,
+  "pt-BR": {
+    presentation: { title: "Apresentar seu projeto", meta: "Patrocinador · cerca de 8 min", meeting: "apresentação de projeto" },
+    free_talk: { title: "Conversar com um colega", meta: "Colega · cerca de 5 min", meeting: "conversa com um colega" },
+    daily: { title: "Daily stand-up", meta: "Tech lead · cerca de 6 min", meeting: "daily" },
+    review: { title: "Sprint review", meta: "Product owner · cerca de 10 min", meeting: "sprint review" },
+  },
+};
+
+/** Each mode's title and details in the interface language. */
+export function useModeInfo(): Record<Mode, ModeInfo> {
+  const text = useCopy(MODE_TEXT);
+  return Object.fromEntries(MODES.map((m) => [m, { ...text[m], color: MODE_COLOR(m) }])) as Record<Mode, ModeInfo>;
+}
 
 export function isMode(value: string | undefined): value is Mode {
   return MODES.includes(value as Mode);

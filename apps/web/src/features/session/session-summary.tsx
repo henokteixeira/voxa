@@ -5,7 +5,7 @@ import { VoiceBall } from "@/components/voice-ball";
 import type { FluencySignals, Mode, SessionMistake, SessionSummary } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { ConfidenceScale } from "./confidence-scale";
-import { MODE_INFO } from "./modes";
+import { MODE_INFO, useModeInfo } from "./modes";
 
 type Step = "result" | "mistakes" | "confidence" | "saved";
 
@@ -20,6 +20,7 @@ export function SummaryFlow(props: {
   onRate: (value: number) => void;
 }) {
   const { summary, mode } = props;
+  const modes = useModeInfo();
   const [step, setStep] = useState<Step>(summary ? "result" : "saved");
   const [after, setAfter] = useState<number | null>(null);
 
@@ -31,7 +32,7 @@ export function SummaryFlow(props: {
       <>
         <div className="flex flex-col gap-1 pt-2">
           <span className="text-label text-taupe">
-            {MODE_INFO[mode].title} · {props.elapsed}
+            {modes[mode].title} · {props.elapsed}
           </span>
           <h1 className="m-0 text-title">Session done</h1>
         </div>
