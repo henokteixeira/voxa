@@ -140,7 +140,7 @@ function Signals({ signals, mistakes }: { signals: FluencySignals; mistakes: Ses
 const RESOLUTION = {
   fixed: { text: "Fixed after a hint", className: "bg-sage-soft text-sage-ink" },
   answer: { text: "Needed the answer", className: "bg-honey-soft text-honey-ink" },
-  small: { text: "Small, no stop", className: "bg-sand-soft text-taupe" },
+  small: { text: "Small mistake", className: "bg-sand-soft text-taupe" },
 };
 
 function MistakeRow({ mistake }: { mistake: SessionMistake }) {

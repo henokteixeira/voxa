@@ -299,7 +299,7 @@ describe("session summary", () => {
     expect(items.map((item) => item.querySelector("span")?.textContent)).toEqual([
       "Fixed after a hint",
       "Needed the answer",
-      "Small, no stop",
+      "Small mistake",
     ]);
     expect(items[1]).toHaveTextContent("I'm waiting for the keys");
 
@@ -378,7 +378,7 @@ describe("fluency timing", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Pause" }));
     await userEvent.click(screen.getByRole("button", { name: "End session" }));
-    await screen.findByRole("heading", { name: "Session saved" });
+    await screen.findByRole("heading", { name: "Session done" });
     expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ pausesMs: [] }));
     now.mockRestore();
   });
