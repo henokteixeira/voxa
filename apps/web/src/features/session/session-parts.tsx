@@ -39,7 +39,7 @@ export function CaptionCard({ caption }: { caption: Caption }) {
   return (
     <div className="flex flex-col gap-1 rounded-md bg-paper px-[18px] py-4 shadow-card">
       <span className="text-label text-taupe">{caption.who === "tutor" ? parts.tutor : parts.you}</span>
-      <p className="m-0 text-body">{caption.text}</p>
+      <p lang="en" className="m-0 text-body">{caption.text}</p>
     </div>
   );
 }
@@ -58,8 +58,12 @@ export function HintCard({ step, said, tip }: { step: number; said: string | nul
       </div>
       <section aria-label={parts.hintOf(step)} className="flex flex-col gap-2 rounded-md bg-honey-soft p-4">
         <span className="text-label text-honey-ink">{parts.hint}</span>
-        {said && <span className="text-phrase">“{said}”</span>}
-        <p className="m-0 text-body">{tip}</p>
+        {said && (
+          <span lang="en" className="text-phrase">
+            “{said}”
+          </span>
+        )}
+        <p lang="en" className="m-0 text-body">{tip}</p>
       </section>
     </>
   );
@@ -71,7 +75,7 @@ export function RevealCard({ message }: { message: string }) {
     <>
       <section aria-label={parts.correctForm} className="flex flex-col gap-2 rounded-md bg-sage-soft p-4">
         <span className="text-label text-sage-ink">{parts.correctForm}</span>
-        <p className="m-0 text-phrase">{message}</p>
+        <p lang="en" className="m-0 text-phrase">{message}</p>
       </section>
       <span className="text-center text-caption text-taupe">{parts.savedToBank}</span>
     </>

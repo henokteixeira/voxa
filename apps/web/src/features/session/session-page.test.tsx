@@ -413,5 +413,14 @@ describe("a safe place to speak", () => {
     expect(screen.getByText("É só falar. Travou numa palavra? Diga em português.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Digitar em vez de falar" })).toBeInTheDocument();
     expect(screen.getByText("Daily stand-up")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Pausar" }));
+    expect(screen.getByRole("dialog", { name: "Sessão pausada" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continuar" })).toBeInTheDocument();
+  });
+
+  it("marks the conversation text as English for screen readers", async () => {
+    await startAndListen({ withLocale: true });
+    expect(screen.getByText("Morning! What did you work on yesterday?")).toHaveAttribute("lang", "en");
   });
 });

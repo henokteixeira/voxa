@@ -122,7 +122,9 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
           <span aria-live="polite" className={`text-label ${labelClass(stage.ball)}`}>
             {stage.label}
           </span>
-          {stage.hint && <span className="text-caption text-taupe">{stage.hint}</span>}
+          <span aria-live="polite" className="text-caption text-taupe">
+            {stage.hint}
+          </span>
           {state.audioBlocked && <span className="text-caption text-taupe">{page.tapToHear}</span>}
         </div>
       )}
