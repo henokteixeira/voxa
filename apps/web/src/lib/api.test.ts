@@ -28,6 +28,11 @@ describe("createApiClient", () => {
     expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({ text: "I goed" });
   });
 
+  it("builds the voice socket address from the API address", () => {
+    expect(createApiClient("http://localhost:3000").voiceUrl("s1")).toBe("ws://localhost:3000/api/sessions/s1/voice");
+    expect(createApiClient("https://voxa.local").voiceUrl("s 1")).toBe("wss://voxa.local/api/sessions/s%201/voice");
+  });
+
   it.each([
     [400, "invalid"],
     [404, "not_found"],
