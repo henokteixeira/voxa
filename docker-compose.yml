@@ -1,0 +1,13 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: voxa
+      POSTGRES_PASSWORD: voxa
+      POSTGRES_DB: voxa
+    ports:
+      - "5432:5432"
+    volumes:
+      - voxa-pg:/var/lib/postgresql/data
+volumes:
+  voxa-pg:
