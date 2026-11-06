@@ -263,6 +263,15 @@ describe("confidence check-in", () => {
     expect(api.rateConfidence).toHaveBeenCalledWith("s1", "before", 2);
   });
 
+  it("asks in Portuguese and says there is no wrong answer", async () => {
+    renderSession("/session/presentation/check-in", { withLocale: true });
+    expect(
+      screen.getByRole("heading", { name: "Quão confiante você se sente para uma apresentação de projeto de verdade agora?" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Não existe resposta errada/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pular" })).toBeInTheDocument();
+  });
+
   it("can be skipped", async () => {
     renderSession("/session/daily/check-in");
     await userEvent.click(screen.getByRole("button", { name: "Skip" }));
@@ -300,7 +309,7 @@ describe("session summary", () => {
     const items = screen.getAllByRole("listitem");
     expect(items.map((item) => item.querySelector("span")?.textContent)).toEqual([
       "Fixed after a hint",
-      "Needed the answer",
+      "Learned with help",
       "Small mistake",
     ]);
     expect(items[1]).toHaveTextContent("I'm waiting for the keys");
@@ -314,6 +323,7 @@ describe("session summary", () => {
     expect(api.rateConfidence).toHaveBeenCalledWith("s1", "after", 4);
     expect(screen.getByRole("heading", { name: "Session saved" })).toBeInTheDocument();
     expect(screen.getByText("3 mistakes saved to your mistake bank.")).toBeInTheDocument();
+    expect(screen.getByText("Every mistake today is something you'll say better next time.")).toBeInTheDocument();
   });
 
   it("goes straight to the check-out without mistakes, and the check-out can be skipped", async () => {

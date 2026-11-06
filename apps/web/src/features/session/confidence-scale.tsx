@@ -4,6 +4,9 @@ import { cn } from "@/lib/utils";
 /** The 1–5 confidence check. `before` outlines the learner's answer from before the session. */
 export function ConfidenceScale(props: {
   label: string;
+  /** Words under each end of the scale. */
+  low: string;
+  high: string;
   value: number | null;
   onChange: (value: number) => void;
   before?: number | null;
@@ -35,8 +38,8 @@ export function ConfidenceScale(props: {
         ))}
       </div>
       <div className="flex justify-between text-caption text-taupe" aria-hidden="true">
-        <span>Not at all</span>
-        <span>Fully</span>
+        <span>{props.low}</span>
+        <span>{props.high}</span>
       </div>
     </fieldset>
   );
