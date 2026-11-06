@@ -52,6 +52,8 @@ export interface SessionState {
   revealed: boolean;
   /** The learner just fixed a mistake alone. */
   fixed: boolean;
+  /** The tutor's written help in the learner's first language, for this turn only. Never spoken. */
+  support: string | null;
   /** "Didn't catch that": the last turn held no speech. */
   missed: boolean;
   /** The browser blocked the tutor's voice until the page gets a tap. */
@@ -102,6 +104,7 @@ export const initialSessionState: SessionState = {
   hintFor: null,
   revealed: false,
   fixed: false,
+  support: null,
   missed: false,
   audioBlocked: false,
   failure: null,
@@ -145,7 +148,11 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       };
     }
     case "tutor":
-      return { ...withTutor(state, action.result), turn: { ...state.turn, tutor: true } };
+      return {
+        ...withTutor(state, action.result),
+        support: action.result.support ?? null,
+        turn: { ...state.turn, tutor: true },
+      };
     case "speech":
       if (state.phase !== "thinking") return { ...state, turn: { ...state.turn, speech: true } };
       return { ...state, phase: "speaking", audioBlocked: false, turn: { ...state.turn, speech: true } };

@@ -4,7 +4,7 @@ import { useApi } from "@/hooks/use-api";
 import type { BankMistake, DismissReason } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCopy, useLocale } from "@/lib/i18n/locale";
-import { categoryLabel, STATUS_CHIP_LABEL } from "./format";
+import { categoryLabel, originalProps, STATUS_CHIP_LABEL } from "./format";
 import { MISTAKES_COPY } from "./mistakes-copy";
 
 const REASONS: DismissReason[] = ["transcript_error", "both_correct", "not_needed"];
@@ -106,7 +106,7 @@ export function MistakeSheet({
                 {statusLabel[mistake.status]}
               </span>
             </div>
-            <span lang="en" className="text-[15px] text-taupe line-through">
+            <span {...originalProps(mistake.category)}>
               {mistake.original}
             </span>
             <span lang="en" className="font-serif text-2xl leading-[1.3]">

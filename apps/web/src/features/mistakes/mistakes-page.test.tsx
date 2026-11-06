@@ -60,6 +60,13 @@ describe("Mistakes", () => {
     expect(await screen.findByText("All caught up. Nice work.")).toBeInTheDocument();
   });
 
+  it("shows a word said in Portuguese as a new word", async () => {
+    const word = { ...mistake("w1", "open", "prazo", "deadline"), category: "new_word" };
+    renderPage({ listMistakes: vi.fn().mockResolvedValue([word]) });
+    expect(await screen.findByText("New word")).toBeInTheDocument();
+    expect(screen.getByText("prazo")).not.toHaveClass("line-through");
+  });
+
   it("says when the bank is empty", async () => {
     renderPage({ listMistakes: vi.fn().mockResolvedValue([]) });
     expect(await screen.findByText("No mistakes yet")).toBeInTheDocument();

@@ -56,6 +56,17 @@ describe("sessionReducer", () => {
     expect(state.revealed).toBe(true);
   });
 
+  it("keeps the tutor's written support for the current turn only", () => {
+    const withSupport: SessionAction = {
+      type: "tutor",
+      result: { kind: "reply", message: "Sure.", selfCorrected: false, support: "“Prazo” em inglês é “deadline”." },
+    };
+    let state = run(started, withSupport);
+    expect(state.support).toBe("“Prazo” em inglês é “deadline”.");
+    state = sessionReducer(state, hint());
+    expect(state.support).toBeNull();
+  });
+
   it("celebrates a fix after a hint and closes the ladder", () => {
     const state = run(
       started,

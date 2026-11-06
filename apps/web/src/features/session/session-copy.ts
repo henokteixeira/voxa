@@ -55,6 +55,7 @@ export interface SessionCopy {
     hintOf: (step: number) => string;
     correctForm: string;
     savedToBank: string;
+    help: string;
   };
 }
 
@@ -211,6 +212,7 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       hintOf: (step) => `Hint ${step} of 2`,
       correctForm: "The correct form",
       savedToBank: "Saved to your mistake bank",
+      help: "Help",
     },
   },
   "pt-BR": {
@@ -255,6 +257,7 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       hintOf: (step) => `Dica ${step} de 2`,
       correctForm: "A forma correta",
       savedToBank: "Salvo no seu banco de erros",
+      help: "Ajuda",
     },
   },
 };

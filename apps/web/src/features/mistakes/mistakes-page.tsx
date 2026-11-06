@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { useApi } from "@/hooks/use-api";
 import type { BankMistake, MistakeStatus } from "@/lib/api";
 import { useCopy, useLocale } from "@/lib/i18n/locale";
-import { categoryLabel, seenAgo, STATUS_LABEL } from "./format";
+import { categoryLabel, originalProps, seenAgo, STATUS_LABEL } from "./format";
 import { MISTAKES_COPY } from "./mistakes-copy";
 import { MistakeSheet } from "./mistake-sheet";
 
@@ -102,7 +102,7 @@ export function MistakesPage(props: { now?: Date }) {
                   {m.occurrences}× · {seenAgo(m.lastSeenAt, now, locale)}
                 </span>
               </span>
-              <span lang="en" className="text-[15px] text-taupe line-through">
+              <span {...originalProps(m.category)}>
                 {m.original}
               </span>
               <span lang="en" className="font-serif text-[19px]">

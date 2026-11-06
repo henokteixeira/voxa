@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { VoiceBall } from "@/components/voice-ball";
-import type { FluencySignals, Mode, SessionMistake, SessionSummary } from "@/lib/api";
+import { type FluencySignals, type Mode, NEW_WORD_CATEGORY, type SessionMistake, type SessionSummary } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { ConfidenceScale } from "./confidence-scale";
 import { useCopy, useLocale } from "@/lib/i18n/locale";
@@ -27,8 +27,9 @@ export function SummaryFlow(props: {
   const [step, setStep] = useState<Step>(summary ? "result" : "saved");
   const [after, setAfter] = useState<number | null>(null);
 
-  if (!summary || step === "saved") return <Saved mistakes={summary?.mistakes.length ?? null} />;
-  const { mistakes } = summary;
+  const { mistakes } = summary ?? { mistakes: [] };
+  const realMistakes = mistakes.filter((m) => !isNewWord(m));
+  if (!summary || step === "saved") return <Saved mistakes={summary ? realMistakes.length : null} />;
 
   if (step === "result") {
     return (
@@ -49,12 +50,12 @@ export function SummaryFlow(props: {
   }
 
   if (step === "mistakes") {
-    const fixed = mistakes.filter((m) => m.selfCorrected).length;
+    const fixed = realMistakes.filter((m) => m.selfCorrected).length;
     return (
       <>
         <div className="flex flex-col gap-1 pt-2">
           <span className="text-label text-honey-ink">
-            {copy.mistakesLine(mistakes.length, fixed)}
+            {copy.mistakesLine(realMistakes.length, fixed, mistakes.length - realMistakes.length)}
           </span>
           <h1 className="m-0 text-title">{copy.whatToKeep}</h1>
         </div>
@@ -149,11 +150,22 @@ const RESOLUTION_CLASS = {
   fixed: "bg-sage-soft text-sage-ink",
   answer: "bg-honey-soft text-honey-ink",
   small: "bg-sand-soft text-taupe",
+  newWord: "bg-sage-soft text-sage-ink",
 };
+
+/** A word the learner said in their first language: something learned, never a mistake. */
+const isNewWord = (mistake: SessionMistake) => mistake.category === NEW_WORD_CATEGORY;
 
 function MistakeRow({ mistake }: { mistake: SessionMistake }) {
   const copy = useCopy(REFLECTION_COPY);
-  const resolution = mistake.severity === "minor" ? "small" : mistake.selfCorrected ? "fixed" : "answer";
+  const newWord = isNewWord(mistake);
+  const resolution = newWord
+    ? "newWord"
+    : mistake.severity === "minor"
+      ? "small"
+      : mistake.selfCorrected
+        ? "fixed"
+        : "answer";
   return (
     <div className="flex flex-col gap-2">
       <span className={cn("self-start rounded-pill px-2.5 py-1 text-[12px] font-bold", RESOLUTION_CLASS[resolution])}>
@@ -161,14 +173,24 @@ function MistakeRow({ mistake }: { mistake: SessionMistake }) {
       </span>
       <div className="flex flex-col gap-1.5 rounded-md bg-paper px-4 py-3.5 shadow-card">
         <span className="flex justify-between gap-3 text-caption text-taupe">
-          <span lang="en" className="capitalize">
-            {mistake.category}
-          </span>
+          {newWord ? (
+            <span />
+          ) : (
+            <span lang="en" className="capitalize">
+              {mistake.category}
+            </span>
+          )}
           <span>{mistake.occurrences > 1 ? copy.seen(mistake.occurrences) : copy.isNew}</span>
         </span>
-        <span lang="en" className="text-small text-taupe line-through">
-          {mistake.original}
-        </span>
+        {newWord ? (
+          <span lang="pt-BR" className="text-small text-taupe">
+            {mistake.original}
+          </span>
+        ) : (
+          <span lang="en" className="text-small text-taupe line-through">
+            {mistake.original}
+          </span>
+        )}
         <span lang="en" className="text-phrase">
           {mistake.correction}
         </span>

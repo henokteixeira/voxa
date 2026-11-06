@@ -81,3 +81,14 @@ export function RevealCard({ message }: { message: string }) {
     </>
   );
 }
+
+/** The tutor's help in the learner's first language: written only, never spoken. */
+export function SupportNote({ text }: { text: string }) {
+  const { parts } = useCopy(SESSION_COPY);
+  return (
+    <aside role="note" aria-label={parts.help} className="flex flex-col gap-1 rounded-md bg-sand-soft px-[18px] py-4">
+      <span className="text-label text-taupe">{parts.help}</span>
+      <p lang="pt-BR" className="m-0 text-body">{text}</p>
+    </aside>
+  );
+}

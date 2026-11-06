@@ -59,7 +59,7 @@ describe("openVoiceSocket", () => {
     fake.open();
     const wav = new ArrayBuffer(4);
     fake.receive({ type: "transcript", text: "I finish it" });
-    fake.receive({ type: "tutor", kind: "hint", message: "When?", selfCorrected: false });
+    fake.receive({ type: "tutor", kind: "hint", message: "When?", selfCorrected: false, support: "Pense no passado." });
     fake.receive(wav);
     fake.receive({ type: "error", code: "voice_unavailable", message: "Down." });
     fake.receive({ type: "done" });
@@ -67,7 +67,7 @@ describe("openVoiceSocket", () => {
 
     expect(handlers.onOpen).toHaveBeenCalled();
     expect(handlers.onTranscript).toHaveBeenCalledWith("I finish it");
-    expect(handlers.onTutor).toHaveBeenCalledWith({ kind: "hint", message: "When?", selfCorrected: false });
+    expect(handlers.onTutor).toHaveBeenCalledWith({ kind: "hint", message: "When?", selfCorrected: false, support: "Pense no passado." });
     expect(handlers.onSpeech).toHaveBeenCalledWith(wav);
     expect(handlers.onError).toHaveBeenCalledWith("voice_unavailable", "Down.");
     expect(handlers.onDone).toHaveBeenCalledTimes(1);

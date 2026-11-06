@@ -14,7 +14,7 @@ export interface ReflectionCopy {
   skip: string;
   sessionDone: string;
   seeMistakes: string;
-  mistakesLine: (count: number, fixed: number) => string;
+  mistakesLine: (count: number, fixed: number, newWords: number) => string;
   whatToKeep: string;
   sessionMistakes: string;
   signalsLabel: string;
@@ -32,7 +32,7 @@ export interface ReflectionCopy {
     notMeasured: string;
     ofTotal: (fixed: number, total: number) => string;
   };
-  resolution: { fixed: string; answer: string; small: string };
+  resolution: { fixed: string; answer: string; small: string; newWord: string };
   seen: (times: number) => string;
   isNew: string;
   saved: string;
@@ -58,7 +58,9 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     skip: "Skip",
     sessionDone: "Session done",
     seeMistakes: "See your mistakes",
-    mistakesLine: (count, fixed) => `${plural(count, "mistake", "mistakes")} · ${fixed} fixed by you`,
+    mistakesLine: (count, fixed, newWords) =>
+      `${plural(count, "mistake", "mistakes")} · ${fixed} fixed by you` +
+      (newWords ? ` · ${plural(newWords, "new word", "new words")}` : ""),
     whatToKeep: "What to keep",
     sessionMistakes: "Mistakes from this session",
     signalsLabel: "Fluency signals",
@@ -76,7 +78,7 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
       notMeasured: "not measured",
       ofTotal: (fixed, total) => `${fixed} of ${total}`,
     },
-    resolution: { fixed: "Fixed after a hint", answer: "Learned with help", small: "Small mistake" },
+    resolution: { fixed: "Fixed after a hint", answer: "Learned with help", small: "Small mistake", newWord: "New word" },
     seen: (times) => `Seen ${times} times`,
     isNew: "New",
     saved: "Session saved",
@@ -98,8 +100,9 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     skip: "Pular",
     sessionDone: "Sessão concluída",
     seeMistakes: "Ver seus erros",
-    mistakesLine: (count, fixed) =>
-      `${plural(count, "erro", "erros")} · ${plural(fixed, "corrigido", "corrigidos")} por você`,
+    mistakesLine: (count, fixed, newWords) =>
+      `${plural(count, "erro", "erros")} · ${plural(fixed, "corrigido", "corrigidos")} por você` +
+      (newWords ? ` · ${plural(newWords, "palavra nova", "palavras novas")}` : ""),
     whatToKeep: "Para guardar",
     sessionMistakes: "Erros desta sessão",
     signalsLabel: "Sinais de fluência",
@@ -117,7 +120,7 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
       notMeasured: "não medido",
       ofTotal: (fixed, total) => `${fixed} de ${total}`,
     },
-    resolution: { fixed: "Corrigido depois de uma dica", answer: "Aprendido com ajuda", small: "Erro pequeno" },
+    resolution: { fixed: "Corrigido depois de uma dica", answer: "Aprendido com ajuda", small: "Erro pequeno", newWord: "Palavra nova" },
     seen: (times) => `Visto ${times} vezes`,
     isNew: "Novo",
     saved: "Sessão salva",
