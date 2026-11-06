@@ -14,12 +14,13 @@ prompt that mixes in Portuguese words) and `auto` (language detection).
 """
 
 import argparse
+from collections import Counter
 from pathlib import Path
 
 from engines import EngineError, InputError, WhisperStt
 from eval.cleanup_risk import RECORDINGS
 from eval.mixed_cases import MIXED_CASES
-from eval.scoring import score_mixed, summarize
+from eval.scoring import MixedOutcome, score_mixed, summarize
 
 MIXED_RECORDINGS = RECORDINGS / "mixed"
 # Portuguese words that are not in the test cases, so the prompt does not give answers away.
@@ -51,7 +52,7 @@ def main() -> None:
 
     models = {m: WhisperStt(m) for m in args.models}
     variants = {f"{m}/{v}": (models[m], lang, prompt) for m in args.models for v, (lang, prompt) in VARIANTS.items()}
-    rows, outcomes = [], {name: [] for name in variants}
+    rows, outcomes, errors = [], {name: [] for name in variants}, Counter()
 
     for case, clip in cases:
         cells = []
@@ -61,6 +62,7 @@ def main() -> None:
                     result = stt.transcribe(audio, language, initial_prompt=prompt)
             except (EngineError, InputError) as e:
                 print(f"[{name}] {case.id}: error | {e}")
+                errors[name] += 1
                 cells.append(f"error: {e}")
                 continue
             outcome = score_mixed(case, result.text)
@@ -68,6 +70,7 @@ def main() -> None:
             detected = f" ({result.language})" if language is None else ""
             cells.append(f"{outcome.value}{detected}: {result.text}")
             print(f"[{name}] {case.id}: {outcome.value}{detected} | {result.text}")
+        cells = [c.replace("|", "/").replace("\n", " ") for c in cells]
         rows.append(f"| {case.id} | {case.text} | " + " | ".join(cells) + " |")
 
     names = list(variants)
@@ -75,14 +78,18 @@ def main() -> None:
         "# Whisper and Portuguese words in English sentences",
         "",
         "`kept` = the Portuguese words survived (good); `translated` = swapped for English (risk); "
-        "`other` = misheard. For `auto`, the detected language is in brackets.",
+        "`portuguese` = kept, but the English around them came out in Portuguese (risk); `other` = misheard. "
+        "For `auto`, the detected language is in brackets. Kept rate counts errors as not kept.",
         "",
-        "| Variant | Kept | Translated | Other | Kept rate |",
-        "| --- | --- | --- | --- | --- |",
+        "| Variant | Kept | Translated | Portuguese | Other | Errors | Kept rate |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for name in names:
-        s = summarize(outcomes[name])
-        lines.append(f"| {name} | {s['kept']} | {s['translated']} | {s['other']} | {s['kept_rate']:.0%} |")
+        s = summarize(outcomes[name], MixedOutcome)
+        rate = s["kept"] / len(cases)
+        lines.append(
+            f"| {name} | {s['kept']} | {s['translated']} | {s['portuguese']} | {s['other']} | {errors[name]} | {rate:.0%} |"
+        )
     lines += ["", "| Case | Said | " + " | ".join(names) + " |", "| --- " * (2 + len(names)) + "|"]
     lines += rows
     report = "\n".join(lines) + "\n"

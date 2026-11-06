@@ -69,11 +69,21 @@ def test_mixed_other_when_misheard():
     assert score_mixed(PRAZO, "The price for the report is Friday.") is MixedOutcome.OTHER
 
 
+def test_mixed_portuguese_when_the_english_around_it_is_lost():
+    assert score_mixed(PRAZO, "O prazo do relatório é sexta-feira.") is MixedOutcome.PORTUGUESE
+
+
 def test_summarize_counts_mixed_outcomes():
-    counts = summarize([MixedOutcome.KEPT, MixedOutcome.TRANSLATED])
-    assert counts == {"kept": 1, "translated": 1, "other": 0, "kept_rate": 0.5}
+    counts = summarize([MixedOutcome.KEPT, MixedOutcome.TRANSLATED], MixedOutcome)
+    assert counts == {"kept": 1, "translated": 1, "portuguese": 0, "other": 0, "kept_rate": 0.5}
+
+
+def test_summarize_of_nothing_keeps_the_given_kinds():
+    assert summarize([], MixedOutcome)["translated"] == 0
 
 
 def test_every_mixed_case_portuguese_part_appears_in_its_own_text():
     for case in MIXED_CASES:
         assert fold(case.pt) in fold(case.text), case.id
+        assert fold(case.anchor) in fold(case.text), case.id
+        assert fold(case.anchor) not in fold(case.pt), case.id

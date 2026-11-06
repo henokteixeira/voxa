@@ -34,6 +34,7 @@ def score(case: Case, transcript: str) -> Outcome:
 class MixedOutcome(str, Enum):
     KEPT = "kept"  # the Portuguese words survived: good, the tutor can teach them
     TRANSLATED = "translated"  # Whisper swapped them for English: the risk we are testing
+    PORTUGUESE = "portuguese"  # kept, but the English around them came out in Portuguese
     OTHER = "other"  # neither: misheard
 
 
@@ -46,14 +47,13 @@ def fold(text: str) -> str:
 def score_mixed(case: MixedCase, transcript: str) -> MixedOutcome:
     heard = f" {fold(transcript)} "
     if f" {fold(case.pt)} " in heard:
-        return MixedOutcome.KEPT
+        return MixedOutcome.KEPT if f" {fold(case.anchor)} " in heard else MixedOutcome.PORTUGUESE
     if any(f" {fold(en)} " in heard for en in case.en):
         return MixedOutcome.TRANSLATED
     return MixedOutcome.OTHER
 
 
-def summarize(outcomes: list[Outcome] | list[MixedOutcome]) -> dict:
-    kinds = type(outcomes[0]) if outcomes else Outcome
+def summarize(outcomes: list, kinds: type[Enum] = Outcome) -> dict:
     counts = {o.value: outcomes.count(o) for o in kinds}
     counts["kept_rate"] = round(counts["kept"] / len(outcomes), 2) if outcomes else 0.0
     return counts
