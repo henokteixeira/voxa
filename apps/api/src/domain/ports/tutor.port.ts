@@ -30,4 +30,7 @@ export interface TutorPort {
   evaluate(request: TutorRequest): Promise<TutorVerdict>;
 }
 
+/** The tutor could not answer (provider down, refusal, cut-off or invalid output). */
+export class TutorUnavailableError extends Error {}
+
 export const TUTOR_PORT = Symbol("TUTOR_PORT");
