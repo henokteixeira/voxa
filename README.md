@@ -47,3 +47,10 @@ curl -s -X POST localhost:3000/api/sessions/<sessionId>/end
 ```
 
 Modes: `presentation`, `free_talk`, `daily`, `review`.
+
+### Live voice
+
+After starting a session over HTTP, the app opens a WebSocket at `ws://localhost:3000/api/sessions/<sessionId>/voice`
+(protocol in `apps/api/src/voice/voice-socket.server.ts`). Each binary frame is one finished turn of speech (WAV);
+the API answers with the transcript, the tutor's turn, the tutor's speech (WAV) and `done`.
+It needs the voice service running (`services/voice`).
