@@ -6,7 +6,7 @@ export interface ModeInfo {
   /** Who the tutor plays, and about how long. */
   meta: string;
   color: string;
-  /** The real-life meeting it trains for, as in "a real daily". */
+  /** The real-life meeting it trains for: "daily" in "a real daily"; in Portuguese with its article ("uma daily"). */
   meeting: string;
 }
 
@@ -24,10 +24,10 @@ const MODE_COLOR = (mode: Mode) => MODE_INFO[mode].color;
 const MODE_TEXT: Copy<Record<Mode, ModeText>> = {
   en: MODE_INFO,
   "pt-BR": {
-    presentation: { title: "Apresentar seu projeto", meta: "Patrocinador · cerca de 8 min", meeting: "apresentação de projeto" },
-    free_talk: { title: "Conversar com um colega", meta: "Colega · cerca de 5 min", meeting: "conversa com um colega" },
-    daily: { title: "Daily stand-up", meta: "Tech lead · cerca de 6 min", meeting: "daily" },
-    review: { title: "Sprint review", meta: "Product owner · cerca de 10 min", meeting: "sprint review" },
+    presentation: { title: "Apresentar seu projeto", meta: "Patrocinador · cerca de 8 min", meeting: "uma apresentação de projeto" },
+    free_talk: { title: "Conversar com um colega", meta: "Colega · cerca de 5 min", meeting: "uma conversa com um colega" },
+    daily: { title: "Daily stand-up", meta: "Tech lead · cerca de 6 min", meeting: "uma daily" },
+    review: { title: "Sprint review", meta: "Product owner · cerca de 10 min", meeting: "uma sprint review" },
   },
 };
 

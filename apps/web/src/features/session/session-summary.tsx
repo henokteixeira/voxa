@@ -5,7 +5,7 @@ import { VoiceBall } from "@/components/voice-ball";
 import type { FluencySignals, Mode, SessionMistake, SessionSummary } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { ConfidenceScale } from "./confidence-scale";
-import { useCopy } from "@/lib/i18n/locale";
+import { useCopy, useLocale } from "@/lib/i18n/locale";
 import { useModeInfo } from "./modes";
 import { REFLECTION_COPY } from "./reflection-copy";
 
@@ -102,6 +102,8 @@ export function SummaryFlow(props: {
 
 function Signals({ signals, mistakes }: { signals: FluencySignals; mistakes: SessionMistake[] }) {
   const copy = useCopy(REFLECTION_COPY);
+  const { locale } = useLocale();
+  const decimal = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
   const t = copy.signals;
   const hinted = mistakes.filter((m) => m.severity === "serious");
   const tiles = [
@@ -119,13 +121,13 @@ function Signals({ signals, mistakes }: { signals: FluencySignals; mistakes: Ses
     },
     {
       name: t.pause,
-      value: signals.averagePauseMs === null ? null : `${(signals.averagePauseMs / 1000).toFixed(1)} s`,
+      value: signals.averagePauseMs === null ? null : `${decimal.format(signals.averagePauseMs / 1000)} s`,
       note: t.average,
       empty: t.notMeasured,
     },
     {
       name: t.mistakes,
-      value: signals.mistakesPer100Words === null ? null : String(Math.round(signals.mistakesPer100Words * 10) / 10),
+      value: signals.mistakesPer100Words === null ? null : decimal.format(signals.mistakesPer100Words),
       note: t.per100,
       empty: t.noWords,
     },
@@ -159,7 +161,9 @@ function MistakeRow({ mistake }: { mistake: SessionMistake }) {
       </span>
       <div className="flex flex-col gap-1.5 rounded-md bg-paper px-4 py-3.5 shadow-card">
         <span className="flex justify-between gap-3 text-caption text-taupe">
-          <span className="capitalize">{mistake.category}</span>
+          <span lang="en" className="capitalize">
+            {mistake.category}
+          </span>
           <span>{mistake.occurrences > 1 ? copy.seen(mistake.occurrences) : copy.isNew}</span>
         </span>
         <span lang="en" className="text-small text-taupe line-through">
@@ -180,7 +184,7 @@ function Saved({ mistakes }: { mistakes: number | null }) {
       <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
         <VoiceBall state="success" size={160} />
         <h1 className="m-0 text-title">{copy.saved}</h1>
-        <p className="m-0 text-caption text-taupe">{mistakes === null ? copy.savedSession : copy.savedToBank(mistakes)}</p>
+        <p className="m-0 text-caption text-taupe">{mistakes ? copy.savedToBank(mistakes) : copy.savedSession}</p>
         {mistakes ? <p className="m-0 text-body text-ink-soft">{copy.savedEncouragement}</p> : null}
       </div>
       <Button block asChild>

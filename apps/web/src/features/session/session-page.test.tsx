@@ -266,7 +266,7 @@ describe("confidence check-in", () => {
   it("asks in Portuguese and says there is no wrong answer", async () => {
     renderSession("/session/presentation/check-in", { withLocale: true });
     expect(
-      screen.getByRole("heading", { name: "Quão confiante você se sente para uma apresentação de projeto de verdade agora?" }),
+      screen.getByRole("heading", { name: "Quanta confiança você tem agora para uma apresentação de projeto?" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/Não existe resposta errada/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Pular" })).toBeInTheDocument();
@@ -316,7 +316,7 @@ describe("session summary", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByRole("heading", { name: "And now, how confident do you feel about a real daily?" })).toBeInTheDocument();
-    expect(screen.getByText("Outlined: what you said before the session (3).")).toBeInTheDocument();
+    expect(screen.getByText("The circled number is your answer from before (3).")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("radio", { name: "4" }));
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
 
@@ -336,7 +336,8 @@ describe("session summary", () => {
     await userEvent.click(screen.getByRole("button", { name: "Skip" }));
 
     expect(api.rateConfidence).not.toHaveBeenCalled();
-    expect(screen.getByText("0 mistakes saved to your mistake bank.")).toBeInTheDocument();
+    expect(screen.getByText("Your session is saved.")).toBeInTheDocument();
+    expect(screen.queryByText(/Every mistake today/)).toBeNull();
   });
 
   it("shows only the saved step when the summary can't be loaded", async () => {
