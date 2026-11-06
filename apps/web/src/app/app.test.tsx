@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { ApiProvider } from "./api-context";
@@ -17,6 +17,8 @@ function renderApp(path: string, health: ApiClient["health"]) {
   );
   return router;
 }
+
+afterEach(() => vi.restoreAllMocks());
 
 const up = () => vi.fn().mockResolvedValue({ status: "ok" });
 const down = () => vi.fn().mockRejectedValue(new ApiError("offline", "Can't reach the Voxa API."));
@@ -68,6 +70,26 @@ describe("Today", () => {
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
     renderApp("/", up());
     expect(screen.getByRole("status")).toHaveTextContent("You're offline");
-    vi.restoreAllMocks();
+  });
+
+  it("says sessions need a connection when offline, not that the server is down", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    renderApp("/", down());
+    expect(await screen.findByText("Sessions need a connection")).toBeInTheDocument();
+    expect(screen.queryByText("Voxa's server isn't running")).toBeNull();
+  });
+
+  it("says the server has a problem when it answers with an error", async () => {
+    renderApp("/", vi.fn().mockRejectedValue(new ApiError("server", "Request failed (500).", 500)));
+    expect(await screen.findByRole("heading", { name: "Voxa's server has a problem" })).toBeInTheDocument();
+  });
+
+  it("checks again when the connection comes back", async () => {
+    const health = down();
+    renderApp("/", health);
+    await screen.findByRole("heading", { name: "Voxa's server isn't running" });
+    health.mockResolvedValue({ status: "ok" });
+    window.dispatchEvent(new Event("online"));
+    expect(await screen.findByRole("link", { name: "Start" })).toBeInTheDocument();
   });
 });
