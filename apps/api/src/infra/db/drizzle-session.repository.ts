@@ -37,7 +37,7 @@ export class DrizzleSessionRepository implements SessionRepository {
       .select({ role: turns.role, content: turns.content })
       .from(turns)
       .where(eq(turns.sessionId, sessionId))
-      .orderBy(asc(turns.createdAt), asc(turns.id));
+      .orderBy(asc(turns.seq));
     return rows.map((r) => ({ role: r.role === "user" ? "user" : "assistant", content: r.content }));
   }
 

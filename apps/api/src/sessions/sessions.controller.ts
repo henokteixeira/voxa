@@ -1,6 +1,5 @@
 import {
   BadGatewayException,
-  BadRequestException,
   Body,
   ConflictException,
   Controller,
@@ -15,16 +14,13 @@ import {
   SessionEndedError,
   SessionNotFoundError,
 } from "../application/conversation.service.js";
+import { Language, parse } from "../common/http.js";
 import { MODES } from "../domain/conversation/mode.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 
 const StartBody = z.object({
   mode: z.enum(MODES),
-  // BCP 47, e.g. "en" or "en-US".
-  language: z
-    .string()
-    .regex(/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/)
-    .default("en"),
+  language: Language,
 });
 const TurnBody = z.object({ text: z.string().trim().min(1).max(2000) });
 const Ms = z.number().int().min(0).max(24 * 60 * 60 * 1000);
@@ -36,12 +32,6 @@ const EndBody = z
   .default({});
 const ConfidenceBody = z.object({ moment: z.enum(["before", "after"]), value: z.number().int().min(1).max(5) });
 const SessionId = z.uuid();
-
-function parse<T>(schema: z.ZodType<T>, value: unknown): T {
-  const result = schema.safeParse(value);
-  if (!result.success) throw new BadRequestException(z.prettifyError(result.error));
-  return result.data;
-}
 
 /** Maps domain errors to HTTP. */
 async function handle<T>(work: () => Promise<T>): Promise<T> {

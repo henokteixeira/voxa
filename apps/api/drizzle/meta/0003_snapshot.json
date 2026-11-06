@@ -1,5 +1,5 @@
 {
-  "id": "57f20344-1fd1-442a-ab6f-b927b62442b9",
+  "id": "9daa5881-ff65-4eff-b92e-1cfc0130a2d4",
   "prevId": "7ac26c4b-13a5-4586-adca-e2aaa8df1d18",
   "version": "7",
   "dialect": "postgresql",
@@ -137,6 +137,18 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "dismissed_at": {
+          "name": "dismissed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dismiss_reason": {
+          "name": "dismiss_reason",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -186,24 +198,6 @@
         "ended_at": {
           "name": "ended_at",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "timing": {
-          "name": "timing",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "confidence_before": {
-          "name": "confidence_before",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "confidence_after": {
-          "name": "confidence_after",
-          "type": "smallint",
           "primaryKey": false,
           "notNull": false
         }

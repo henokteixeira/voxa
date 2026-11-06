@@ -3,6 +3,7 @@ import type { PendingCorrection } from "../../domain/conversation/types.js";
 import type { Database } from "./db.module.js";
 import { DrizzleMistakeRepository } from "./drizzle-mistake.repository.js";
 import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
+import { mistakeOccurrences, turns } from "./schema.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
@@ -45,6 +46,16 @@ describe("DrizzleSessionRepository", () => {
       { role: "user", content: "Hello" },
       { role: "assistant", content: "How was your week?" },
     ]);
+  });
+
+  it("keeps insertion order when turns share a timestamp", async () => {
+    const { id } = await sessions.create({ language: "en", mode: "daily" });
+    const at = new Date("2026-11-06T12:00:00Z");
+    const contents = Array.from({ length: 12 }, (_, i) => `turn ${i}`);
+    for (const content of contents) {
+      await db.insert(turns).values({ sessionId: id, role: "user", content, createdAt: at });
+    }
+    expect((await sessions.history(id)).map((t) => t.content)).toEqual(contents);
   });
 
   it("stores and clears the pending correction", async () => {
@@ -156,5 +167,48 @@ describe("DrizzleMistakeRepository", () => {
     await mistakes.markSelfCorrected(s.id, { language: "en", original: "I goed" });
 
     expect((await mistakes.forSession(s.id))[0].selfCorrected).toBe(false);
+  });
+});
+
+describe("DrizzleMistakeRepository as the mistake bank", () => {
+  const unknownId = "00000000-0000-0000-0000-000000000000";
+
+  it("lists mistakes of one language, most recently seen first, with who fixed each occurrence", async () => {
+    const s1 = await sessions.create({ language: "en", mode: "daily" });
+    const s2 = await sessions.create({ language: "en", mode: "daily" });
+    const rare = { ...goed, original: "more better", correction: "better" };
+    await mistakes.record(goed, { sessionId: s1.id, severity: "serious" });
+    await mistakes.markSelfCorrected(s1.id, goed);
+    await mistakes.record({ ...goed, language: "es" }, { sessionId: s1.id, severity: "minor" });
+    await mistakes.record(rare, { sessionId: s1.id, severity: "minor" });
+    await mistakes.record(goed, { sessionId: s2.id, severity: "serious" });
+
+    const list = await mistakes.list("en");
+    expect(list.map((m) => [m.original, m.occurrences, m.fixedByLearner])).toEqual([
+      ["I goed", 2, [false, true]],
+      ["more better", 1, [false]],
+    ]);
+    expect(list[0]).toMatchObject({ language: "en", correction: "I went", category: "grammar" });
+    expect(list[0].lastSeenAt).toBeInstanceOf(Date);
+  });
+
+  it("takes a dismissed mistake out of the bank for good", async () => {
+    const s = await sessions.create({ language: "en", mode: "daily" });
+    const saved = await mistakes.record(goed, { sessionId: s.id, severity: "serious" });
+
+    expect(await mistakes.dismiss(saved.id, "transcript_error")).toBe(true);
+    const again = await mistakes.record(goed, { sessionId: s.id, severity: "serious" });
+
+    expect(again.occurrences).toBe(1);
+    expect(again.lastSeenAt).toEqual(saved.lastSeenAt);
+    expect(await db.select().from(mistakeOccurrences)).toHaveLength(1);
+
+    expect(await mistakes.list("en")).toEqual([]);
+    expect(await mistakes.mostFrequent("en", 10)).toEqual([]);
+    expect(await mistakes.forSession(s.id)).toEqual([]);
+  });
+
+  it("says when there is no mistake to dismiss", async () => {
+    expect(await mistakes.dismiss(unknownId, "not_needed")).toBe(false);
   });
 });
