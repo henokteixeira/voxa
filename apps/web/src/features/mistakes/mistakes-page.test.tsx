@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ApiProvider } from "@/app/api-context";
 import { ApiError, type ApiClient, type BankMistake } from "@/lib/api";
+import { LocaleProvider } from "@/lib/i18n/locale-provider";
 import { MistakesPage } from "./mistakes-page";
 
 const now = new Date("2026-11-06T12:00:00");
@@ -22,12 +23,13 @@ const bank = [
   mistake("m3", "improving", "on the next sprint", "in the next sprint"),
 ];
 
-function renderPage(api: Partial<ApiClient>) {
-  render(
+function renderPage(api: Partial<ApiClient>, { withLocale = false } = {}) {
+  const page = (
     <ApiProvider value={api as ApiClient}>
       <MistakesPage now={now} />
-    </ApiProvider>,
+    </ApiProvider>
   );
+  render(withLocale ? <LocaleProvider>{page}</LocaleProvider> : page);
 }
 
 describe("Mistakes", () => {
@@ -53,9 +55,31 @@ describe("Mistakes", () => {
     expect(screen.getByText("Nothing here yet.")).toBeInTheDocument();
   });
 
+  it("celebrates when nothing is left open", async () => {
+    renderPage({ listMistakes: vi.fn().mockResolvedValue([bank[2]]) });
+    expect(await screen.findByText("All caught up. Nice work.")).toBeInTheDocument();
+  });
+
   it("says when the bank is empty", async () => {
     renderPage({ listMistakes: vi.fn().mockResolvedValue([]) });
     expect(await screen.findByText("No mistakes yet")).toBeInTheDocument();
+    expect(screen.getByText(/Mistakes are how you learn/)).toBeInTheDocument();
+  });
+
+  it("speaks Portuguese, keeping the learner's sentences marked as English", async () => {
+    renderPage({ listMistakes: vi.fn().mockResolvedValue(bank) }, { withLocale: true });
+    expect(await screen.findByRole("heading", { name: "Erros" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abertos · 2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Melhorando · 1" })).toBeInTheDocument();
+    expect(screen.getAllByText("Gramática")).toHaveLength(2);
+    expect(screen.getAllByText(/anteontem/)).toHaveLength(2);
+    expect(screen.getByText("Yesterday I finished the screen")).toHaveAttribute("lang", "en");
+
+    await userEvent.click(screen.getByRole("button", { name: /I'm waiting the keys/ }));
+    expect(within(screen.getByRole("dialog")).getByText("Aberto")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("I'm waiting for the keys")).toHaveAttribute("lang", "en");
+    await userEvent.click(screen.getByRole("button", { name: "Isso não é um erro" }));
+    expect(screen.getByRole("heading", { name: "Por que não é um erro?" })).toBeInTheDocument();
   });
 
   it("says when the mistakes can't load, and tries again", async () => {
