@@ -1,6 +1,6 @@
-"""Serviço de voz local do Voxa: Whisper (escuta) + Kokoro (fala).
+"""Voxa local voice service: Whisper (speech-to-text) + Kokoro (text-to-speech).
 
-Os modelos são carregados sob demanda na primeira chamada, para o servidor subir rápido.
+Models load lazily on first use so the server starts fast.
 """
 
 import io
@@ -15,7 +15,7 @@ from pydantic import BaseModel
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
 KOKORO_VOICE = os.getenv("KOKORO_VOICE", "af_heart")
 
-# Kokoro usa códigos próprios de idioma; mapeamos a partir de BCP 47.
+# Kokoro uses its own language codes; map them from BCP 47.
 KOKORO_LANG = {"en": "a", "en-US": "a", "en-GB": "b"}
 
 app = FastAPI(title="voxa-voice")

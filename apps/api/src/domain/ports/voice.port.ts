@@ -8,7 +8,7 @@ export interface SpeechToTextPort {
 }
 
 export interface TextToSpeechPort {
-  /** Retorna áudio (WAV) da fala. */
+  /** Returns the speech audio (WAV). */
   synthesize(text: string, language: string): Promise<Buffer>;
 }
 

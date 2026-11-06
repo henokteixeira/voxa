@@ -11,7 +11,7 @@ export default defineConfig({
       manifest: {
         name: "Voxa",
         short_name: "Voxa",
-        description: "Conversação por voz para destravar a fala em outro idioma.",
+        description: "Voice conversation practice to unlock speaking in another language.",
         theme_color: "#111827",
         background_color: "#111827",
         display: "standalone",

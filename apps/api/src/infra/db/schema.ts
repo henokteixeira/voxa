@@ -1,6 +1,6 @@
 import { integer, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 
-// Todo registro carrega o idioma (código BCP 47, ex.: "en"), para suportar outros idiomas.
+// Every record carries its language (BCP 47 code, e.g. "en") to support other languages.
 
 export const sessions = pgTable("sessions", {
   id: uuid("id").primaryKey().defaultRandom(),

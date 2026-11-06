@@ -15,7 +15,7 @@ export interface NewMistake {
   category: string;
 }
 
-/** Banco de erros e expressões. Implementação concreta fica em infra/. */
+/** Bank of mistakes and expressions. The concrete implementation lives in infra/. */
 export interface MistakeRepository {
   record(mistake: NewMistake): Promise<Mistake>;
   mostFrequent(language: string, limit: number): Promise<Mistake[]>;

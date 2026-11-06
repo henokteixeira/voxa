@@ -1,7 +1,7 @@
 import swc from "unplugin-swc";
 import { defineConfig } from "vitest/config";
 
-// SWC é necessário para os decorators/metadata do NestJS nos testes.
+// SWC is required for NestJS decorators/metadata in tests.
 export default defineConfig({
   plugins: [swc.vite()],
   test: { include: ["src/**/*.spec.ts"] },
