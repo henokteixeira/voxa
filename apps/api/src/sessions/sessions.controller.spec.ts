@@ -7,7 +7,7 @@ import {
   SessionEndedError,
   SessionNotFoundError,
 } from "../application/conversation.service.js";
-import { TutorUnavailableError } from "../infra/tutor/anthropic-tutor.adapter.js";
+import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import { SessionsController } from "./sessions.controller.js";
 
 const id = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";

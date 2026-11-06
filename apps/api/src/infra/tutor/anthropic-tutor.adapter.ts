@@ -4,7 +4,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { z } from "zod";
 import type { TutorVerdict } from "../../domain/conversation/correction-policy.js";
-import type { TutorContext, TutorPort, TutorRequest } from "../../domain/ports/tutor.port.js";
+import { type TutorContext, type TutorPort, type TutorRequest, TutorUnavailableError } from "../../domain/ports/tutor.port.js";
 import { buildSystemPrompt, buildTurnMessage, OPENING_REQUEST } from "./tutor-prompts.js";
 
 export const ANTHROPIC_CLIENT = Symbol("ANTHROPIC_CLIENT");
@@ -12,7 +12,11 @@ export const ANTHROPIC_CLIENT = Symbol("ANTHROPIC_CLIENT");
 /** The subset of the SDK the adapter uses, so tests can pass a fake. */
 export type AnthropicMessages = Pick<Anthropic["messages"], "create" | "parse">;
 
-export class TutorUnavailableError extends Error {}
+/** Reads ANTHROPIC_API_KEY from the environment. */
+export const anthropicClientProvider = {
+  provide: ANTHROPIC_CLIENT,
+  useFactory: (): AnthropicMessages => new Anthropic().messages,
+};
 
 const VerdictSchema = z.object({
   reply: z.string(),
@@ -76,7 +80,11 @@ export class AnthropicTutorAdapter implements TutorPort {
         messages: [
           { role: "user", content: OPENING_REQUEST },
           ...request.history.map((t) => ({ role: t.role, content: t.content })),
-          { role: "user", content: buildTurnMessage(request) },
+          // Cache the conversation so far: each turn only pays for the new part.
+          {
+            role: "user",
+            content: [{ type: "text", text: buildTurnMessage(request), cache_control: { type: "ephemeral" } }],
+          },
         ],
       }),
     );
@@ -96,7 +104,7 @@ export class AnthropicTutorAdapter implements TutorPort {
       throw new TutorUnavailableError(`Claude API request failed: ${(error as Error).message}`, { cause: error });
     }
     if (response.stop_reason === "refusal") throw new TutorUnavailableError("The model declined to answer.");
-    if (response.stop_reason === "max_tokens") throw new TutorUnavailableError("The tutor's answer was cut off.");
+    if (response.stop_reason === "max_tokens" || response.stop_reason === "model_context_window_exceeded") throw new TutorUnavailableError("The tutor's answer was cut off.");
     return response;
   }
 }

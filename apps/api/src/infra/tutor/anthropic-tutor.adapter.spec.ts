@@ -1,7 +1,7 @@
 import type { ConfigService } from "@nestjs/config";
 import { describe, expect, it, vi } from "vitest";
-import type { TutorRequest } from "../../domain/ports/tutor.port.js";
-import { type AnthropicMessages, AnthropicTutorAdapter, TutorUnavailableError } from "./anthropic-tutor.adapter.js";
+import { type TutorRequest, TutorUnavailableError } from "../../domain/ports/tutor.port.js";
+import { type AnthropicMessages, AnthropicTutorAdapter } from "./anthropic-tutor.adapter.js";
 import { OPENING_REQUEST } from "./tutor-prompts.js";
 
 const config = (values: Record<string, string> = {}) => ({ get: (key: string) => values[key] }) as unknown as ConfigService;
@@ -58,13 +58,15 @@ describe("AnthropicTutorAdapter.evaluate", () => {
     expect(params.output_config.effort).toBe("medium");
     expect(params.output_config.format).toBeDefined();
     expect(params.messages.map((m: { role: string }) => m.role)).toEqual(["user", "assistant", "user"]);
-    expect(params.messages[2].content).toContain("I fixed the upload.");
+    expect(params.messages[2].content[0].text).toContain("I fixed the upload.");
+    expect(params.messages[2].content[0].cache_control).toEqual({ type: "ephemeral" });
   });
 
   it.each([
     ["the answer does not match the schema", { stop_reason: "end_turn", parsed_output: null }],
     ["the model refuses", { stop_reason: "refusal", parsed_output: null }],
     ["the answer is cut off", { stop_reason: "max_tokens", parsed_output: null }],
+    ["the context window is full", { stop_reason: "model_context_window_exceeded", parsed_output: null }],
   ])("fails when %s", async (_, response) => {
     const { messages } = fakeMessages(response);
     const adapter = new AnthropicTutorAdapter(messages, config());
@@ -75,5 +77,16 @@ describe("AnthropicTutorAdapter.evaluate", () => {
     const parse = vi.fn().mockRejectedValue(new Error("529 overloaded"));
     const adapter = new AnthropicTutorAdapter({ create: vi.fn(), parse } as unknown as AnthropicMessages, config());
     await expect(adapter.evaluate(request)).rejects.toThrow(/529 overloaded/);
+  });
+});
+
+describe("AnthropicTutorAdapter.open when the context window is full", () => {
+  it("fails instead of returning a partial line", async () => {
+    const { messages } = fakeMessages({
+      stop_reason: "model_context_window_exceeded",
+      content: [{ type: "text", text: "Morn" }],
+    });
+    const adapter = new AnthropicTutorAdapter(messages, config());
+    await expect(adapter.open(request)).rejects.toBeInstanceOf(TutorUnavailableError);
   });
 });

@@ -16,7 +16,7 @@ import {
   SessionNotFoundError,
 } from "../application/conversation.service.js";
 import { MODES } from "../domain/conversation/mode.js";
-import { TutorUnavailableError } from "../infra/tutor/anthropic-tutor.adapter.js";
+import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 
 const StartBody = z.object({
   mode: z.enum(MODES),

@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { ConversationService } from "./application/conversation.service.js";
@@ -11,7 +10,7 @@ import { HealthController } from "./health/health.controller.js";
 import { DbModule } from "./infra/db/db.module.js";
 import { DrizzleMistakeRepository } from "./infra/db/drizzle-mistake.repository.js";
 import { DrizzleSessionRepository } from "./infra/db/drizzle-session.repository.js";
-import { ANTHROPIC_CLIENT, AnthropicTutorAdapter } from "./infra/tutor/anthropic-tutor.adapter.js";
+import { AnthropicTutorAdapter, anthropicClientProvider } from "./infra/tutor/anthropic-tutor.adapter.js";
 import { FileLearnerContext } from "./infra/tutor/file-learner-context.js";
 import { LocalVoiceAdapter } from "./infra/voice/local-voice.adapter.js";
 import { SessionsController } from "./sessions/sessions.controller.js";
@@ -23,8 +22,7 @@ import { SessionsController } from "./sessions/sessions.controller.js";
   controllers: [HealthController, SessionsController],
   providers: [
     ConversationService,
-    // Reads ANTHROPIC_API_KEY from the environment.
-    { provide: ANTHROPIC_CLIENT, useFactory: () => new Anthropic().messages },
+    anthropicClientProvider,
     { provide: TUTOR_PORT, useClass: AnthropicTutorAdapter },
     { provide: LEARNER_CONTEXT_PORT, useClass: FileLearnerContext },
     { provide: SESSION_REPOSITORY, useClass: DrizzleSessionRepository },
