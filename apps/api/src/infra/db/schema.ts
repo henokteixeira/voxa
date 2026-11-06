@@ -1,12 +1,14 @@
-import { integer, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import type { PendingCorrection } from "../../domain/conversation/types.js";
 
 // Every record carries its language (BCP 47 code, e.g. "en") to support other languages.
 
 export const sessions = pgTable("sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
   language: varchar("language", { length: 16 }).notNull(),
-  mode: varchar("mode", { length: 32 }).notNull(), // work_scenario | free_talk | micro_fluency
-  scenario: varchar("scenario", { length: 64 }), // daily | planning | review | presentation
+  mode: varchar("mode", { length: 32 }).notNull(), // presentation | free_talk | daily | review
+  /** The serious mistake the conversation is paused on, if any. */
+  pending: jsonb("pending").$type<PendingCorrection>(),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   endedAt: timestamp("ended_at", { withTimezone: true }),
 });
@@ -27,4 +29,14 @@ export const mistakes = pgTable("mistakes", {
   category: varchar("category", { length: 32 }).notNull(), // grammar | vocabulary | pronunciation | ...
   occurrences: integer("occurrences").notNull().default(1),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Each time a mistake shows up in a session. */
+export const mistakeOccurrences = pgTable("mistake_occurrences", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  mistakeId: uuid("mistake_id").notNull().references(() => mistakes.id, { onDelete: "cascade" }),
+  sessionId: uuid("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
+  severity: varchar("severity", { length: 16 }).notNull(), // serious | minor
+  selfCorrected: boolean("self_corrected").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
