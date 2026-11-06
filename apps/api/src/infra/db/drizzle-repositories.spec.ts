@@ -138,3 +138,42 @@ describe("DrizzleMistakeRepository", () => {
     expect((await mistakes.forSession(s.id))[0].selfCorrected).toBe(false);
   });
 });
+
+describe("DrizzleMistakeRepository as the mistake bank", () => {
+  const unknownId = "00000000-0000-0000-0000-000000000000";
+
+  it("lists mistakes of one language, most recently seen first, with who fixed each occurrence", async () => {
+    const s1 = await sessions.create({ language: "en", mode: "daily" });
+    const s2 = await sessions.create({ language: "en", mode: "daily" });
+    const rare = { ...goed, original: "more better", correction: "better" };
+    await mistakes.record(goed, { sessionId: s1.id, severity: "serious" });
+    await mistakes.markSelfCorrected(s1.id, goed);
+    await mistakes.record({ ...goed, language: "es" }, { sessionId: s1.id, severity: "minor" });
+    await mistakes.record(rare, { sessionId: s1.id, severity: "minor" });
+    await mistakes.record(goed, { sessionId: s2.id, severity: "serious" });
+
+    const list = await mistakes.list("en");
+    expect(list.map((m) => [m.original, m.occurrences, m.fixedByLearner])).toEqual([
+      ["I goed", 2, [false, true]],
+      ["more better", 1, [false]],
+    ]);
+    expect(list[0]).toMatchObject({ language: "en", correction: "I went", category: "grammar" });
+    expect(list[0].lastSeenAt).toBeInstanceOf(Date);
+  });
+
+  it("takes a dismissed mistake out of the bank for good", async () => {
+    const s = await sessions.create({ language: "en", mode: "daily" });
+    const saved = await mistakes.record(goed, { sessionId: s.id, severity: "serious" });
+
+    expect(await mistakes.dismiss(saved.id, "transcript_error")).toBe(true);
+    await mistakes.record(goed, { sessionId: s.id, severity: "serious" });
+
+    expect(await mistakes.list("en")).toEqual([]);
+    expect(await mistakes.mostFrequent("en", 10)).toEqual([]);
+    expect(await mistakes.forSession(s.id)).toEqual([]);
+  });
+
+  it("says when there is no mistake to dismiss", async () => {
+    expect(await mistakes.dismiss(unknownId, "not_needed")).toBe(false);
+  });
+});
