@@ -12,7 +12,8 @@ services:
     volumes:
       - voxa-pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U voxa -d voxa"]
+      # -h: on first start the init server answers on the socket only; wait for TCP.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U voxa -d voxa"]
       interval: 2s
       timeout: 5s
       retries: 30
@@ -20,7 +21,7 @@ services:
   # Applies the database migrations, then exits.
   migrate:
     build: { context: ., dockerfile: apps/api/Dockerfile }
-    command: ["pnpm", "db:migrate"]
+    command: ["node_modules/.bin/drizzle-kit", "migrate"]
     environment:
       DATABASE_URL: postgres://voxa:voxa@postgres:5432/voxa
     depends_on:

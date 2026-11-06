@@ -38,5 +38,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Builds every image `docker compose up` needs (the voice image also checks its Python pins).
+      # Builds every image `docker compose up` needs (the voice image is too heavy to build anywhere else in CI).
       - run: docker compose build

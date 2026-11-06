@@ -9,6 +9,8 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 # av<14: newer PyAV breaks faster-whisper (unexpected "metadata_errors" argument).
 RUN pip install --no-cache-dir -r requirements.txt "av<14"
+# Kokoro's English phonemizer installs this spaCy model at runtime if missing; bake it in.
+RUN python -m spacy download en_core_web_sm
 COPY . .
 EXPOSE 8001
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
