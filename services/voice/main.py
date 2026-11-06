@@ -1,53 +1,19 @@
-"""Voxa local voice service: Whisper (speech-to-text) + Kokoro (text-to-speech).
-
-Models load lazily on first use so the server starts fast.
-"""
+"""Voxa local voice service: Whisper (speech-to-text) + Kokoro (text-to-speech)."""
 
 import io
 import os
-import tempfile
-from functools import lru_cache
+import time
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, Form, UploadFile
+import soundfile as sf
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
-KOKORO_VOICE = os.getenv("KOKORO_VOICE", "af_heart")
+from engines import KOKORO_LANG, EngineError, InputError, KokoroTts, SpeechToText, TextToSpeech, WhisperStt
 
-# Kokoro uses its own language codes; map them from BCP 47.
-KOKORO_LANG = {"en": "a", "en-US": "a", "en-GB": "b"}
-
-app = FastAPI(title="voxa-voice")
-
-
-@lru_cache(maxsize=1)
-def whisper():
-    from faster_whisper import WhisperModel
-
-    return WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
-
-
-@lru_cache(maxsize=4)
-def kokoro(lang_code: str):
-    from kokoro import KPipeline
-
-    return KPipeline(lang_code=lang_code)
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-
-@app.post("/stt")
-async def stt(audio: UploadFile = File(...), language: str = Form("en")):
-    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(audio.filename or "")[1]) as tmp:
-        tmp.write(await audio.read())
-        tmp.flush()
-        segments, info = whisper().transcribe(tmp.name, language=language.split("-")[0])
-        text = " ".join(s.text.strip() for s in segments)
-    return {"text": text, "language": info.language}
+MAX_TTS_CHARS = 2000
+MAX_AUDIO_BYTES = 25 * 1024 * 1024
 
 
 class TtsRequest(BaseModel):
@@ -55,13 +21,78 @@ class TtsRequest(BaseModel):
     language: str = "en"
 
 
-@app.post("/tts")
-def tts(req: TtsRequest):
-    import numpy as np
-    import soundfile as sf
+def _elapsed_ms(start: float) -> int:
+    return round((time.perf_counter() - start) * 1000)
 
-    pipeline = kokoro(KOKORO_LANG.get(req.language, "a"))
-    chunks = [r.audio.numpy() for r in pipeline(req.text, voice=KOKORO_VOICE) if r.audio is not None]
-    buf = io.BytesIO()
-    sf.write(buf, np.concatenate(chunks), 24000, format="WAV")
-    return Response(content=buf.getvalue(), media_type="audio/wav")
+
+def create_app(stt: SpeechToText, tts: TextToSpeech, warmup: bool = False) -> FastAPI:
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        if warmup:
+            stt.load()
+            tts.load()
+        yield
+
+    app = FastAPI(title="voxa-voice", lifespan=lifespan)
+
+    @app.get("/health")
+    def health():
+        return {"status": "ok"}
+
+    @app.post("/stt")
+    def transcribe(audio: UploadFile = File(...), language: str = Form("en")):
+        data = audio.file.read(MAX_AUDIO_BYTES + 1)
+        if not data:
+            raise HTTPException(400, "Empty audio")
+        if len(data) > MAX_AUDIO_BYTES:
+            raise HTTPException(413, "Audio larger than 25 MB")
+        start = time.perf_counter()
+        try:
+            # In memory, not a temp file: a still-open temp file cannot be reopened on Windows.
+            result = stt.transcribe(io.BytesIO(data), language.split("-")[0].lower())
+        except InputError as e:
+            raise HTTPException(422, str(e)) from e
+        except EngineError as e:
+            raise HTTPException(503, str(e)) from e
+        return {
+            "text": result.text,
+            # Echo the caller's BCP 47 tag (e.g. en-US): records must keep the region.
+            "language": language,
+            "audioMs": result.audio_ms,
+            "processingMs": _elapsed_ms(start),
+        }
+
+    @app.post("/tts")
+    def synthesize(req: TtsRequest):
+        text = req.text.strip()
+        if not text:
+            raise HTTPException(400, "Empty text")
+        if len(text) > MAX_TTS_CHARS:
+            raise HTTPException(413, f"Text longer than {MAX_TTS_CHARS} characters")
+        if req.language not in KOKORO_LANG:
+            raise HTTPException(422, f"Unsupported language: {req.language}")
+        start = time.perf_counter()
+        try:
+            samples, rate = tts.synthesize(text, req.language)
+        except EngineError as e:
+            raise HTTPException(503, str(e)) from e
+        buf = io.BytesIO()
+        sf.write(buf, samples, rate, format="WAV")
+        return Response(
+            content=buf.getvalue(),
+            media_type="audio/wav",
+            headers={"X-Processing-Ms": str(_elapsed_ms(start))},
+        )
+
+    return app
+
+
+def _default_app() -> FastAPI:
+    return create_app(
+        WhisperStt(os.getenv("WHISPER_MODEL", "small"), os.getenv("WHISPER_INITIAL_PROMPT")),
+        KokoroTts(os.getenv("KOKORO_VOICE", "af_heart")),
+        warmup=os.getenv("VOICE_WARMUP", "1") == "1",
+    )
+
+
+app = _default_app()
