@@ -33,3 +33,10 @@ jobs:
       # Only the web layer is installed here; the speech models are too heavy for CI.
       - run: pip install fastapi python-multipart httpx pytest numpy soundfile
       - run: pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Builds every image `docker compose up` needs (the voice image also checks its Python pins).
+      - run: docker compose build

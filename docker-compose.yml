@@ -1,3 +1,5 @@
+# Whole app: `docker compose up --build`, then open http://localhost:5173.
+# The microphone stays in the browser on the host; containers only see the audio the web app sends.
 services:
   postgres:
     image: postgres:17
@@ -9,5 +11,70 @@ services:
       - "5432:5432"
     volumes:
       - voxa-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voxa -d voxa"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # Applies the database migrations, then exits.
+  migrate:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    command: ["pnpm", "db:migrate"]
+    environment:
+      DATABASE_URL: postgres://voxa:voxa@postgres:5432/voxa
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      API_PORT: "3000"
+      DATABASE_URL: postgres://voxa:voxa@postgres:5432/voxa
+      VOICE_SERVICE_URL: http://voice:8001
+      TUTOR_CONTEXT_FILE: /config/tutor-context.md
+    volumes:
+      # The repository root, read-only, so the API finds the optional tutor-context.md.
+      - ./:/config:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  voice:
+    build: services/voice
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      KOKORO_VOICE: ${KOKORO_VOICE:-af_heart}
+    volumes:
+      # Downloaded models survive rebuilds (the first start downloads ~800 MB).
+      - voxa-models:/root/.cache/huggingface
+      # Voice evaluation input and output stay on the host (both gitignored).
+      - ./services/voice/eval/recordings:/app/eval/recordings
+      - ./services/voice/eval/results:/app/eval/results
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10m
+      retries: 3
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
 volumes:
   voxa-pg:
+  voxa-models:
