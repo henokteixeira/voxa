@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { VoiceBall } from "@/components/voice-ball";
 import { MODE_INFO } from "@/features/session/modes";
-import { useApiStatus } from "@/hooks/use-api-status";
+import { type ApiStatus, useApiStatus } from "@/hooks/use-api-status";
+import { useOnline } from "@/hooks/use-online";
 import { MODES } from "@/lib/api";
 
 function greeting(now: Date): string {
@@ -14,10 +15,26 @@ function greeting(now: Date): string {
   return "Good evening";
 }
 
+const PROBLEM: Record<Extract<ApiStatus, "unreachable" | "error">, { title: string; detail: ReactNode }> = {
+  unreachable: {
+    title: "Voxa's server isn't running",
+    detail: (
+      <>
+        Start the API on your PC (<code>pnpm dev:api</code>), then check again.
+      </>
+    ),
+  },
+  error: {
+    title: "Voxa's server has a problem",
+    detail: "It answered with an error. Check the API logs on your PC, then try again.",
+  },
+};
+
 /** Today: one suggested session, everything else secondary. */
 export function TodayPage() {
   const [now] = useState(() => new Date());
   const { status, retry } = useApiStatus();
+  const online = useOnline();
   const date = now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 
   return (
@@ -25,13 +42,16 @@ export function TodayPage() {
       <span className="flex min-h-11 items-center text-label text-taupe">{date}</span>
       <h1 className="m-0 text-display">{greeting(now)}</h1>
 
-      {status === "down" ? (
+      {!online ? (
+        <Card>
+          <span className="text-body-strong">Sessions need a connection</span>
+          <span className="text-caption text-taupe">Connect to the internet and Voxa checks again on its own.</span>
+        </Card>
+      ) : status === "unreachable" || status === "error" ? (
         <Card className="items-center gap-4 px-5 py-7 text-center">
           <VoiceBall state="idle" size={120} face={false} dimmed />
-          <h2 className="m-0 text-title">Voxa's server isn't running</h2>
-          <p className="m-0 text-caption text-taupe">
-            Start the API on your PC (<code>pnpm dev:api</code>), then check again.
-          </p>
+          <h2 className="m-0 text-title">{PROBLEM[status].title}</h2>
+          <p className="m-0 text-caption text-taupe">{PROBLEM[status].detail}</p>
           <Button block onClick={retry}>
             Check again
           </Button>
@@ -39,7 +59,7 @@ export function TodayPage() {
       ) : (
         <Card className="items-center gap-4 px-5 py-7 text-center">
           <VoiceBall state="idle" size={120} />
-          <h2 className="m-0 font-serif text-[22px] leading-[1.3] font-normal">Your first session is ready</h2>
+          <h2 className="m-0 text-heading">Your first session is ready</h2>
           <p className="m-0 text-caption text-taupe">
             Daily stand-up · about 6 min. Your mistake bank and progress start filling from here.
           </p>
@@ -49,7 +69,7 @@ export function TodayPage() {
         </Card>
       )}
 
-      {status !== "down" && (
+      {online && status === "ok" && (
         <nav aria-label="Other practice" className="flex flex-col gap-3 pb-2">
           <h2 className="m-0 text-label text-taupe">Other practice</h2>
           {MODES.map((mode) => (

@@ -15,7 +15,7 @@ export function AppLayout() {
         )}
         <Outlet />
       </main>
-      <div className="sticky bottom-0 bg-linen px-5 pt-3 pb-6">
+      <div className="sticky bottom-0 bg-linen px-5 pt-3 pb-[max(24px,env(safe-area-inset-bottom))]">
         <TabBar />
       </div>
     </div>
