@@ -36,9 +36,12 @@ describe("app shell", () => {
     expect(screen.getByRole("link", { name: "Mistakes" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("opens a session full screen, without the tab bar", async () => {
+  it("opens a session full screen, without the tab bar, after the confidence check-in", async () => {
     const router = renderApp("/", up());
     await userEvent.click(await screen.findByRole("link", { name: "Start" }));
+    expect(router.state.location.pathname).toBe("/session/daily/check-in");
+    expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
     expect(router.state.location.pathname).toBe("/session/daily");
     expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
   });
