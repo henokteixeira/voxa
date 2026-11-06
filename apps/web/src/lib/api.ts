@@ -37,6 +37,8 @@ export type MistakeStatus = "open" | "improving" | "mastered";
 /** A mistake in the bank, as the Mistakes screen shows it. */
 export interface BankMistake {
   id: string;
+  /** BCP 47 tag, e.g. "en". */
+  language: string;
   original: string;
   correction: string;
   category: string;

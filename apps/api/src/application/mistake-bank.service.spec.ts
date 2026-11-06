@@ -33,9 +33,9 @@ describe("MistakeBankService", () => {
       new FakeBank([entry("a", [false]), entry("b", [true, false]), entry("c", [true, true, true])]),
     );
     expect(await service.list("en")).toEqual([
-      { id: "a", original: "said a", correction: "right a", category: "grammar", occurrences: 1, lastSeenAt: seen, status: "open" },
-      { id: "b", original: "said b", correction: "right b", category: "grammar", occurrences: 2, lastSeenAt: seen, status: "improving" },
-      { id: "c", original: "said c", correction: "right c", category: "grammar", occurrences: 3, lastSeenAt: seen, status: "mastered" },
+      { id: "a", language: "en", original: "said a", correction: "right a", category: "grammar", occurrences: 1, lastSeenAt: seen, status: "open" },
+      { id: "b", language: "en", original: "said b", correction: "right b", category: "grammar", occurrences: 2, lastSeenAt: seen, status: "improving" },
+      { id: "c", language: "en", original: "said c", correction: "right c", category: "grammar", occurrences: 3, lastSeenAt: seen, status: "mastered" },
     ]);
   });
 

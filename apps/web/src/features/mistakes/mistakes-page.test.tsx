@@ -8,6 +8,7 @@ import { MistakesPage } from "./mistakes-page";
 const now = new Date("2026-11-06T12:00:00");
 const mistake = (id: string, status: BankMistake["status"], original: string, correction: string): BankMistake => ({
   id,
+  language: "en",
   original,
   correction,
   category: "grammar",
@@ -77,6 +78,7 @@ describe("Mistakes", () => {
     await userEvent.click(within(sheet).getByRole("button", { name: "This isn't a mistake" }));
 
     expect(within(sheet).getByRole("heading", { name: "Why isn't it a mistake?" })).toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "Remove from bank" })).toBeDisabled();
     await userEvent.click(within(sheet).getByRole("button", { name: "Both ways are correct" }));
     await userEvent.click(within(sheet).getByRole("button", { name: "Remove from bank" }));
 
@@ -92,6 +94,7 @@ describe("Mistakes", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: /I'm waiting the keys/ }));
     await userEvent.click(screen.getByRole("button", { name: "This isn't a mistake" }));
+    await userEvent.click(screen.getByRole("button", { name: "I don't need this one" }));
     await userEvent.click(screen.getByRole("button", { name: "Remove from bank" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't remove it. Try again.");
@@ -105,5 +108,13 @@ describe("Mistakes", () => {
     await userEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(dismissMistake).not.toHaveBeenCalled();
+  });
+
+  it("closes the sheet with Escape", async () => {
+    renderPage({ listMistakes: vi.fn().mockResolvedValue(bank) });
+    await userEvent.click(await screen.findByRole("button", { name: /I'm waiting the keys/ }));
+    expect(screen.getByRole("dialog")).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

@@ -11,6 +11,7 @@ export class MistakeNotFoundError extends Error {}
 /** One mistake as the Mistakes screen shows it. */
 export interface MistakeView {
   id: string;
+  language: string;
   original: string;
   correction: string;
   category: string;
@@ -25,8 +26,9 @@ export class MistakeBankService {
 
   async list(language: string): Promise<MistakeView[]> {
     const entries = await this.bank.list(language);
-    return entries.map(({ id, original, correction, category, occurrences, lastSeenAt, fixedByLearner }) => ({
+    return entries.map(({ id, language, original, correction, category, occurrences, lastSeenAt, fixedByLearner }) => ({
       id,
+      language,
       original,
       correction,
       category,

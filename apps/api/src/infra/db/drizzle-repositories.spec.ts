@@ -3,6 +3,7 @@ import type { PendingCorrection } from "../../domain/conversation/types.js";
 import type { Database } from "./db.module.js";
 import { DrizzleMistakeRepository } from "./drizzle-mistake.repository.js";
 import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
+import { mistakeOccurrences } from "./schema.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
@@ -166,7 +167,11 @@ describe("DrizzleMistakeRepository as the mistake bank", () => {
     const saved = await mistakes.record(goed, { sessionId: s.id, severity: "serious" });
 
     expect(await mistakes.dismiss(saved.id, "transcript_error")).toBe(true);
-    await mistakes.record(goed, { sessionId: s.id, severity: "serious" });
+    const again = await mistakes.record(goed, { sessionId: s.id, severity: "serious" });
+
+    expect(again.occurrences).toBe(1);
+    expect(again.lastSeenAt).toEqual(saved.lastSeenAt);
+    expect(await db.select().from(mistakeOccurrences)).toHaveLength(1);
 
     expect(await mistakes.list("en")).toEqual([]);
     expect(await mistakes.mostFrequent("en", 10)).toEqual([]);

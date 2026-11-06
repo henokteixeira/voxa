@@ -25,6 +25,7 @@ describe("GET /mistakes", () => {
     service.list.mockResolvedValue([
       {
         id,
+        language: "en",
         original: "I goed",
         correction: "I went",
         category: "grammar",
@@ -39,6 +40,7 @@ describe("GET /mistakes", () => {
       mistakes: [
         {
           id,
+          language: "en",
           original: "I goed",
           correction: "I went",
           category: "grammar",

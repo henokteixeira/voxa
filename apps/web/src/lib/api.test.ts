@@ -29,7 +29,7 @@ describe("createApiClient", () => {
   });
 
   it("lists the mistake bank in a language", async () => {
-    const mistake = { id: "m1", original: "I goed", correction: "I went", category: "grammar", occurrences: 2, lastSeenAt: "2026-11-05T10:00:00.000Z", status: "open" };
+    const mistake = { id: "m1", language: "en", original: "I goed", correction: "I went", category: "grammar", occurrences: 2, lastSeenAt: "2026-11-05T10:00:00.000Z", status: "open" };
     const fetchImpl = respond(200, { mistakes: [mistake] });
     const api = createApiClient("http://api", fetchImpl);
 

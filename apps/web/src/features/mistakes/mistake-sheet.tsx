@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useApi } from "@/hooks/use-api";
 import type { BankMistake, DismissReason } from "@/lib/api";
@@ -29,10 +29,19 @@ export function MistakeSheet({
 }) {
   const api = useApi();
   const [asking, setAsking] = useState(false);
-  const [reason, setReason] = useState<DismissReason>("transcript_error");
+  const [reason, setReason] = useState<DismissReason | null>(null);
   const [state, setState] = useState<"idle" | "saving" | "failed">("idle");
+  const dialog = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    dialog.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   async function remove() {
+    if (!reason) return;
     setState("saving");
     try {
       await api.dismissMistake(mistake.id, reason);
@@ -46,10 +55,12 @@ export function MistakeSheet({
     <div className="fixed inset-0 z-10 flex flex-col bg-[rgba(46,37,32,0.32)]">
       <button type="button" aria-label="Close" className="flex-1 cursor-pointer border-none bg-transparent" onClick={onClose} />
       <div
+        ref={dialog}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={asking ? "Why isn't it a mistake?" : "Mistake"}
-        className="mx-auto flex w-full max-w-[480px] flex-col gap-3 rounded-t-[28px] bg-linen px-5 pt-3 pb-8"
+        className="mx-auto flex w-full max-w-[480px] flex-col gap-3 rounded-t-[28px] bg-linen px-5 pt-3 pb-8 outline-none"
       >
         <span className="h-[5px] w-10 self-center rounded-[3px] bg-sand" aria-hidden="true" />
         {asking ? (
@@ -82,7 +93,7 @@ export function MistakeSheet({
                 Couldn't remove it. Try again.
               </span>
             )}
-            <Button block disabled={state === "saving"} onClick={remove}>
+            <Button block disabled={!reason || state === "saving"} onClick={remove}>
               Remove from bank
             </Button>
           </>
