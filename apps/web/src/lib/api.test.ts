@@ -28,6 +28,26 @@ describe("createApiClient", () => {
     expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({ text: "I goed" });
   });
 
+  it("lists the mistake bank in a language", async () => {
+    const mistake = { id: "m1", original: "I goed", correction: "I went", category: "grammar", occurrences: 2, lastSeenAt: "2026-11-05T10:00:00.000Z", status: "open" };
+    const fetchImpl = respond(200, { mistakes: [mistake] });
+    const api = createApiClient("http://api", fetchImpl);
+
+    await expect(api.listMistakes()).resolves.toEqual([mistake]);
+    expect(fetchImpl.mock.calls[0][0]).toBe("http://api/api/mistakes?language=en");
+  });
+
+  it("dismisses a mistake with a reason and accepts an empty answer", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const api = createApiClient("http://api", fetchImpl);
+
+    await expect(api.dismissMistake("m1", "transcript_error")).resolves.toBeUndefined();
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("http://api/api/mistakes/m1/dismiss");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ reason: "transcript_error" });
+  });
+
   it.each([
     [400, "invalid"],
     [404, "not_found"],

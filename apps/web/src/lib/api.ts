@@ -32,6 +32,23 @@ export interface SessionSummary {
   selfCorrections: number;
 }
 
+export type MistakeStatus = "open" | "improving" | "mastered";
+
+/** A mistake in the bank, as the Mistakes screen shows it. */
+export interface BankMistake {
+  id: string;
+  original: string;
+  correction: string;
+  category: string;
+  occurrences: number;
+  /** ISO 8601 date-time. */
+  lastSeenAt: string;
+  status: MistakeStatus;
+}
+
+/** Why the learner says a record is not a mistake. */
+export type DismissReason = "transcript_error" | "both_correct" | "not_needed";
+
 /** What went wrong, in terms the screens can act on. */
 export type ApiErrorKind = "offline" | "not_found" | "ended" | "tutor_unavailable" | "invalid" | "server";
 
@@ -72,6 +89,7 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
       const message = typeof body?.message === "string" ? body.message : `Request failed (${response.status}).`;
       throw new ApiError(kindFor(response.status), message, response.status);
     }
+    if (response.status === 204) return undefined as T;
     return (await response.json()) as T;
   }
 
@@ -83,6 +101,10 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
       request<TurnResult>(`/sessions/${encodeURIComponent(sessionId)}/turns`, { method: "POST", body: { text } }),
     endSession: (sessionId: string) =>
       request<SessionSummary>(`/sessions/${encodeURIComponent(sessionId)}/end`, { method: "POST" }),
+    listMistakes: async (language = "en") =>
+      (await request<{ mistakes: BankMistake[] }>(`/mistakes?language=${encodeURIComponent(language)}`)).mistakes,
+    dismissMistake: (id: string, reason: DismissReason) =>
+      request<void>(`/mistakes/${encodeURIComponent(id)}/dismiss`, { method: "POST", body: { reason } }),
   };
 }
 

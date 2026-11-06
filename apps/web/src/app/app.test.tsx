@@ -8,7 +8,7 @@ import { ApiProvider } from "./api-context";
 import { routes } from "./router";
 
 function renderApp(path: string, health: ApiClient["health"]) {
-  const api = { health } as ApiClient;
+  const api = { health, listMistakes: vi.fn().mockResolvedValue([]) } as unknown as ApiClient;
   const router = createMemoryRouter(routes, { initialEntries: [path] });
   render(
     <ApiProvider value={api}>
