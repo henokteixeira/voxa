@@ -3,8 +3,10 @@ import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { VoiceBall } from "@/components/voice-ball";
+import { MODE_INFO } from "@/features/session/modes";
 import { type ApiStatus, useApiStatus } from "@/hooks/use-api-status";
 import { useOnline } from "@/hooks/use-online";
+import { MODES } from "@/lib/api";
 
 function greeting(now: Date): string {
   const hour = now.getHours();
@@ -65,6 +67,25 @@ export function TodayPage() {
             <Link to="/session/daily">Start</Link>
           </Button>
         </Card>
+      )}
+
+      {online && status === "ok" && (
+        <nav aria-label="Other practice" className="flex flex-col gap-3 pb-2">
+          <h2 className="m-0 text-label text-taupe">Other practice</h2>
+          {MODES.map((mode) => (
+            <Link
+              key={mode}
+              to={`/session/${mode}`}
+              className="flex min-h-14 items-center gap-3 rounded-md bg-paper px-5 py-4 text-ink no-underline shadow-card"
+            >
+              <span aria-hidden="true" className="size-3.5 shrink-0 rounded-full" style={{ background: MODE_INFO[mode].color }} />
+              <span className="flex flex-1 flex-col gap-0.5">
+                <b className="text-body-strong">{MODE_INFO[mode].title}</b>
+                <span className="text-caption text-taupe">{MODE_INFO[mode].meta}</span>
+              </span>
+            </Link>
+          ))}
+        </nav>
       )}
     </>
   );
