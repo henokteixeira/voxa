@@ -45,12 +45,17 @@ python -m eval.record                                    # optional: record your
 python -m eval.cleanup_risk --models small medium --out eval/results/cleanup.md
 uvicorn main:app --port 8001 &                           # then, with the service running:
 python -m eval.latency --runs 5 --out eval/results/latency.md
+python -m eval.record --mixed                            # record 10 English sentences with Portuguese words
+python -m eval.mixed_language --models small medium --out eval/results/mixed.md
 ```
 
 - **Clean-up risk:** checks whether Whisper keeps 20 typical mistakes ("He don't have access") or
   silently fixes them. Uses your recordings in `eval/recordings/` when present, else Kokoro speech
   (cleaner than a real voice, so your recordings are the real test). Compares each model with and
   without a "verbatim" prompt.
+- **Portuguese words:** checks whether Whisper keeps the Portuguese words a learner says when stuck
+  ("The prazo is Friday") or swaps them for English ("deadline"). Compares forced English (today),
+  forced English with a mixed prompt, and language detection. Needs your own recordings.
 - **Latency:** STT and TTS times (p50/p95) for a short, medium and long tutor line. Claude's time is
   not included, nor the browser's webm/opus encoding and the API hop; D4 measures the full loop.
 

@@ -2,9 +2,11 @@
 
 import math
 import re
+import unicodedata
 from enum import Enum
 
 from eval.cases import Case
+from eval.mixed_cases import MixedCase
 
 
 class Outcome(str, Enum):
@@ -29,8 +31,30 @@ def score(case: Case, transcript: str) -> Outcome:
     return Outcome.OTHER
 
 
-def summarize(outcomes: list[Outcome]) -> dict:
-    counts = {o.value: outcomes.count(o) for o in Outcome}
+class MixedOutcome(str, Enum):
+    KEPT = "kept"  # the Portuguese words survived: good, the tutor can teach them
+    TRANSLATED = "translated"  # Whisper swapped them for English: the risk we are testing
+    OTHER = "other"  # neither: misheard
+
+
+def fold(text: str) -> str:
+    """`normalize`, also without accents: Whisper may write "reuniao" for "reunião"."""
+    decomposed = unicodedata.normalize("NFKD", normalize(text))
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
+def score_mixed(case: MixedCase, transcript: str) -> MixedOutcome:
+    heard = f" {fold(transcript)} "
+    if f" {fold(case.pt)} " in heard:
+        return MixedOutcome.KEPT
+    if any(f" {fold(en)} " in heard for en in case.en):
+        return MixedOutcome.TRANSLATED
+    return MixedOutcome.OTHER
+
+
+def summarize(outcomes: list[Outcome] | list[MixedOutcome]) -> dict:
+    kinds = type(outcomes[0]) if outcomes else Outcome
+    counts = {o.value: outcomes.count(o) for o in kinds}
     counts["kept_rate"] = round(counts["kept"] / len(outcomes), 2) if outcomes else 0.0
     return counts
 
