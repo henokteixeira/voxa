@@ -63,7 +63,7 @@ describe("decide", () => {
   it("shows the correct form after two hints and asks to repeat", () => {
     const d = decide(pending({ hintsGiven: 2 }), verdict({ nextHint: "Another clue" }));
     expect(d.kind).toBe("reveal");
-    expect(d.message).toContain("Yesterday I fixed the upload");
+    expect(d.message).toBe('That\'s okay. Here is one way to say it: "Yesterday I fixed the upload". Try saying it yourself.');
     expect(d.nextPending?.revealed).toBe(true);
   });
 
@@ -86,7 +86,7 @@ describe("decide", () => {
   it("still gives the second hint when the tutor returns none", () => {
     const d = decide(pending(), verdict({ nextHint: null }));
     expect(d.kind).toBe("hint");
-    expect(d.message).toBe("Almost. Check the verb tense in that sentence and try again.");
+    expect(d.message).toBe("Nice try. Look at the verb tense in that sentence and try once more.");
     expect(d.nextPending?.hintsGiven).toBe(2);
   });
 
@@ -121,10 +121,10 @@ describe("safeHint", () => {
   });
 
   it("replaces a hint that contains the corrected sentence", () => {
-    expect(safeHint('Say "yesterday I fixed the upload".', target)).toContain("Check the verb tense");
+    expect(safeHint('Say "yesterday I fixed the upload".', target)).toContain("Look at the verb tense");
   });
 
   it("replaces an empty hint", () => {
-    expect(safeHint("  ", target)).toContain("Check the verb tense");
+    expect(safeHint("  ", target)).toContain("Look at the verb tense");
   });
 });
