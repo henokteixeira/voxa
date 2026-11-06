@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useReducer, useRef, useState } from "react";
 import { useApi } from "@/hooks/use-api";
-import type { Mode } from "@/lib/api";
+import type { ApiClient, ConfidenceMoment, Mode } from "@/lib/api";
 import { type Microphone, MicrophoneUnavailableError } from "@/lib/voice/microphone";
 import { DEFAULT_TURN_OPTIONS } from "@/lib/voice/turn-detector";
 import { AudioBlockedError, type Speaker } from "@/lib/voice/speaker";
@@ -13,6 +13,14 @@ import { VoiceDepsContext } from "./voice-deps";
 const START_FAILURES: FailureCode[] = ["mic_blocked", "mic_missing", "mic_busy", "mic_unsupported", "start_failed"];
 /** Failures that need a new socket on the same session. */
 const SOCKET_FAILURES: FailureCode[] = ["disconnected", "in_use"];
+
+/** Stores a confidence rating without holding up the screen; one retry if the first try fails. */
+function rateConfidence(api: ApiClient, sessionId: string, moment: ConfidenceMoment, value: number) {
+  return api
+    .rateConfidence(sessionId, moment, value)
+    .catch(() => new Promise((resolve) => setTimeout(resolve, 2000)).then(() => api.rateConfidence(sessionId, moment, value)))
+    .catch(() => {});
+}
 
 /** What to send once a (re)connected socket opens. */
 type OnOpen = Retry | { kind: "nothing" };
@@ -71,6 +79,8 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
             })
             .finally(() => {
               clock.current.tutorStopped(performance.now());
+              // Stopped by the pause sheet: the wait until resume is not a pause before answering.
+              if (paused.current) clock.current.interrupt();
               dispatch({ type: "playback_end" });
             });
         },
@@ -123,7 +133,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
         if (cancelled || ended.current) return void api.endSession(started.sessionId).catch(() => {});
         speaker.current = deps.createSpeaker();
         dispatch({ type: "started", sessionId: started.sessionId, message: started.message });
-        if (confidenceBefore) void api.rateConfidence(started.sessionId, "before", confidenceBefore).catch(() => {});
+        if (confidenceBefore) void rateConfidence(api, started.sessionId, "before", confidenceBefore);
         connect(started.sessionId, { kind: "speak" });
       } catch {
         if (!cancelled) dispatch({ type: "failed", code: "start_failed" });
@@ -226,7 +236,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
   /** The confidence check-out on the summary. Best effort: the summary does not wait for it. */
   const rateAfter = useCallback(
     (value: number) => {
-      if (state.sessionId) void api.rateConfidence(state.sessionId, "after", value).catch(() => {});
+      if (state.sessionId) void rateConfidence(api, state.sessionId, "after", value);
     },
     [api, state.sessionId],
   );

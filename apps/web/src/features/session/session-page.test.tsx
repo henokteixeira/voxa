@@ -242,6 +242,30 @@ describe("fluency timing", () => {
     now.mockRestore();
   });
 
+  it("counts no pause before answering when the learner paused the tutor mid-line", async () => {
+    const now = vi.spyOn(performance, "now");
+    now.mockReturnValue(0);
+    renderSession();
+    await screen.findByText("Morning! What did you work on yesterday?");
+    act(() => socketHandlers.onOpen());
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
+    act(() => socketHandlers.onDone());
+    speaker.stop.mockImplementation(() => finishPlayback());
+    now.mockReturnValue(1000);
+    await userEvent.click(screen.getByRole("button", { name: "Pause" }));
+    now.mockReturnValue(120_000);
+    await userEvent.click(screen.getByRole("button", { name: "Resume" }));
+    now.mockReturnValue(121_000);
+    act(() => micHandlers.onSpeechStart());
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+
+    await userEvent.click(screen.getByRole("button", { name: "Pause" }));
+    await userEvent.click(screen.getByRole("button", { name: "End session" }));
+    await screen.findByRole("heading", { name: "Session saved" });
+    expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ pausesMs: [] }));
+    now.mockRestore();
+  });
+
   it("stores the confidence from the check-in once the session exists", async () => {
     const router = createMemoryRouter(routes, {
       initialEntries: [{ pathname: "/session/daily", state: { confidenceBefore: 2 } }],
