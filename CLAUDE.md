@@ -1,10 +1,11 @@
-# Voxa — instruções para o Claude
+# Voxa — instructions for Claude
 
-- Monorepo pnpm: `apps/web` (React + Vite PWA), `apps/api` (NestJS), `services/voice` (FastAPI, Python).
-- Arquitetura de portas e adaptadores: casos de uso dependem só das interfaces em `apps/api/src/domain/ports`.
-  Nada de SDK de fornecedor (Anthropic, Supabase, etc.) fora de `apps/api/src/infra`.
-- Todo dado de aprendizado carrega `language` (BCP 47), para suportar outros idiomas.
-- Banco: Postgres puro + Drizzle. Não usar Supabase Auth/SDK. Migrations com `pnpm --filter @voxa/api db:generate`.
-- A API usa TypeScript 6 (o Nest CLI ainda não suporta o TS 7).
-- Checagens antes de commitar: `pnpm lint`, `pnpm test`, `pnpm build`.
-- Correção de erros do usuário: por pistas (prompts), não por recasts.
+- Everything in this repository is written in English: code, comments, docs, commit messages and PRs.
+- pnpm monorepo: `apps/web` (React + Vite PWA), `apps/api` (NestJS), `services/voice` (FastAPI, Python).
+- Ports and adapters: use cases depend only on the interfaces in `apps/api/src/domain/ports`.
+  No vendor SDK (Anthropic, Supabase, etc.) outside `apps/api/src/infra`.
+- Every learning record carries `language` (BCP 47) so other languages can be supported.
+- Database: plain Postgres + Drizzle. Do not use Supabase Auth/SDK. Generate migrations with `pnpm --filter @voxa/api db:generate`.
+- The API uses TypeScript 6 (the Nest CLI does not support TypeScript 7 yet).
+- Checks before committing: `pnpm lint`, `pnpm test`, `pnpm build`.
+- Correcting the learner's mistakes: use hints (prompts), not recasts.

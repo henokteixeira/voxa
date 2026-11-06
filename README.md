@@ -1,32 +1,30 @@
 # Voxa
 
-App pessoal de idiomas focado em conversação por voz, com correção por pistas, banco de erros,
-repetição espaçada e acompanhamento da evolução.
+Personal language app focused on voice conversation, with hint-based correction, a mistake bank,
+spaced repetition and progress tracking.
 
-Plano: https://claude.ai/artifact/TNbF1vNZyJj6Q32sQfZQ3N
+## Structure
 
-## Estrutura
-
-| Pasta | O que é |
+| Folder | What it is |
 | --- | --- |
-| `apps/web` | PWA em React + Vite |
-| `apps/api` | API em NestJS (TypeScript), Postgres via Drizzle |
-| `services/voice` | Serviço local em Python: Whisper (escuta) + Kokoro (fala) |
+| `apps/web` | PWA in React + Vite |
+| `apps/api` | NestJS API (TypeScript), Postgres via Drizzle |
+| `services/voice` | Local Python service: Whisper (speech-to-text) + Kokoro (text-to-speech) |
 
-A API depende só de interfaces (`apps/api/src/domain/ports`). As implementações concretas
-(Claude, voz local, Postgres) ficam em `apps/api/src/infra` e são ligadas em `app.module.ts`.
+The API depends only on interfaces (`apps/api/src/domain/ports`). Concrete implementations
+(Claude, local voice, Postgres) live in `apps/api/src/infra` and are wired in `app.module.ts`.
 
-## Rodando localmente
+## Running locally
 
-Pré-requisitos: Node 22+, pnpm 10+, Python 3.11+, Docker (para o Postgres).
+Requirements: Node 22+, pnpm 10+, Python 3.11+, Docker (for Postgres).
 
 ```bash
-cp .env.example .env          # preencha ANTHROPIC_API_KEY
+cp .env.example .env          # fill in ANTHROPIC_API_KEY
 pnpm install
-pnpm db:up                    # sobe o Postgres
-pnpm db:migrate               # cria as tabelas
+pnpm db:up                    # start Postgres
+pnpm db:migrate               # create the tables
 pnpm dev:api                  # http://localhost:3000/api/health
 pnpm dev:web                  # http://localhost:5173
 ```
 
-Serviço de voz: veja `services/voice/README.md`.
+Voice service: see `services/voice/README.md`.

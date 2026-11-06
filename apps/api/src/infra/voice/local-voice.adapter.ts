@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { SpeechToTextPort, TextToSpeechPort, Transcription } from "../../domain/ports/voice.port.js";
 
-/** Fala com o serviço Python local (services/voice): Whisper + Kokoro. */
+/** Talks to the local Python service (services/voice): Whisper + Kokoro. */
 @Injectable()
 export class LocalVoiceAdapter implements SpeechToTextPort, TextToSpeechPort {
   private readonly baseUrl: string;
@@ -16,7 +16,7 @@ export class LocalVoiceAdapter implements SpeechToTextPort, TextToSpeechPort {
     form.append("audio", new Blob([new Uint8Array(audio)]), "audio.webm");
     form.append("language", language);
     const res = await fetch(`${this.baseUrl}/stt`, { method: "POST", body: form });
-    if (!res.ok) throw new Error(`STT falhou: ${res.status}`);
+    if (!res.ok) throw new Error(`STT failed: ${res.status}`);
     return (await res.json()) as Transcription;
   }
 
@@ -26,7 +26,7 @@ export class LocalVoiceAdapter implements SpeechToTextPort, TextToSpeechPort {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, language }),
     });
-    if (!res.ok) throw new Error(`TTS falhou: ${res.status}`);
+    if (!res.ok) throw new Error(`TTS failed: ${res.status}`);
     return Buffer.from(await res.arrayBuffer());
   }
 }

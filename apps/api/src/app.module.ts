@@ -9,8 +9,8 @@ import { DrizzleMistakeRepository } from "./infra/db/drizzle-mistake.repository.
 import { AnthropicLlmAdapter } from "./infra/llm/anthropic-llm.adapter.js";
 import { LocalVoiceAdapter } from "./infra/voice/local-voice.adapter.js";
 
-// Aqui é o único lugar que liga portas a implementações concretas.
-// Trocar banco, IA ou voz = trocar o useClass/useExisting abaixo.
+// The only place that binds ports to concrete implementations.
+// Swapping the database, AI or voice provider = changing useClass/useExisting below.
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ["../../.env"] }), DbModule],
   controllers: [HealthController],

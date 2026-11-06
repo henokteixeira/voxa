@@ -1,11 +1,11 @@
-/** Mensagem de conversa independente de fornecedor de IA. */
+/** Conversation message, independent of the AI provider. */
 export interface ChatTurn {
   role: "user" | "assistant";
   content: string;
 }
 
 export interface LlmPort {
-  /** Gera a próxima fala do tutor a partir do histórico e do prompt de sistema. */
+  /** Generates the tutor's next line from the history and the system prompt. */
   reply(system: string, history: ChatTurn[]): Promise<string>;
 }
 

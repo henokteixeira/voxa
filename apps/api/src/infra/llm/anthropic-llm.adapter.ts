@@ -5,7 +5,7 @@ import type { ChatTurn, LlmPort } from "../../domain/ports/llm.port.js";
 
 @Injectable()
 export class AnthropicLlmAdapter implements LlmPort {
-  private readonly client = new Anthropic(); // lê ANTHROPIC_API_KEY do ambiente
+  private readonly client = new Anthropic(); // reads ANTHROPIC_API_KEY from the environment
   private readonly model: string;
 
   constructor(config: ConfigService) {
@@ -16,13 +16,13 @@ export class AnthropicLlmAdapter implements LlmPort {
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 16000,
-      // Conversa rápida: esforço baixo reduz latência e custo.
+      // Fast conversation: low effort reduces latency and cost.
       output_config: { effort: "low" },
       system,
       messages: history,
     });
     if (response.stop_reason === "refusal") {
-      throw new Error(`Resposta recusada pelo modelo: ${response.stop_details?.category ?? "sem categoria"}`);
+      throw new Error(`Model refused to respond: ${response.stop_details?.category ?? "no category"}`);
     }
     return response.content
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
