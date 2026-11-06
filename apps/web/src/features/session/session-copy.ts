@@ -46,6 +46,11 @@ const MIC_STEPS = [
 
 export const FAILURE_COPY: Record<FailureCode, FailureCopy> = {
   mic_blocked: { title: "Voxa can't hear you", body: "The browser is blocking the microphone.", action: "Try again", steps: MIC_STEPS },
+  mic_busy: {
+    title: "The microphone is busy",
+    body: "Another app may be using it. Close that app, or pick another microphone, then try again.",
+    action: "Try again",
+  },
   mic_missing: { title: "No microphone found", body: "Plug in a microphone or a headset, then try again.", action: "Try again" },
   mic_unsupported: { title: "This browser can't record", body: "Open Voxa in a recent Chrome, Edge or Safari.", action: "Try again" },
   start_failed: {

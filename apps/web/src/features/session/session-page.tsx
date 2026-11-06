@@ -30,12 +30,14 @@ function LiveSession({ mode }: { mode: Mode }) {
   const session = useVoiceSession(mode);
   const { state } = session;
   const [showTranscript, setShowTranscript] = useState(false);
-  const [typing, setTyping] = useState(false);
   const elapsed = useElapsed(state.sessionId !== null && state.phase !== "paused" && state.phase !== "ended");
   const stage = stageFor(state);
   const lastCaption = state.captions.at(-1);
   const lastTutor = state.captions.findLast((c) => c.who === "tutor");
+  const { typing, setTyping } = session;
   const yourTurn = state.phase === "listening" || state.phase === "hearing";
+  const ballAction =
+    state.phase === "hearing" ? "Send now" : state.phase === "speaking" ? "Stop the tutor" : undefined;
 
   if (state.phase === "ended" || state.phase === "ending") {
     const ended = state.phase === "ended";
@@ -66,7 +68,6 @@ function LiveSession({ mode }: { mode: Mode }) {
     const field = event.currentTarget.elements.namedItem("text") as HTMLInputElement;
     const text = field.value.trim();
     if (!text) return;
-    setTyping(false);
     session.sendText(text);
   };
 
@@ -82,8 +83,8 @@ function LiveSession({ mode }: { mode: Mode }) {
   }
 
   return (
-    <Screen>
-      <header className="flex min-h-11 items-center justify-between gap-3">
+    <Screen onPointerDown={session.unlock}>
+      <header inert={state.phase === "paused"} className="flex min-h-11 items-center justify-between gap-3">
         <IconButton label="Pause" onClick={session.pause}>
           <PauseIcon />
         </IconButton>
@@ -100,7 +101,7 @@ function LiveSession({ mode }: { mode: Mode }) {
       </header>
 
       {showTranscript ? (
-        <ol aria-label="Transcript" className="m-0 flex flex-1 list-none flex-col gap-3 overflow-y-auto p-0">
+        <ol aria-label="Transcript" inert={state.phase === "paused"} className="m-0 flex flex-1 list-none flex-col gap-3 overflow-y-auto p-0">
           {state.captions.map((caption, i) => (
             <li key={i}>
               <CaptionCard caption={caption} />
@@ -108,23 +109,24 @@ function LiveSession({ mode }: { mode: Mode }) {
           ))}
         </ol>
       ) : (
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-          <VoiceBall
-            state={stage.ball}
-            size={state.hintStep > 0 ? 180 : 200}
-            dimmed={state.phase === "failed"}
-            label={stage.label}
-            onPress={state.phase === "hearing" || state.phase === "speaking" ? session.tapBall : undefined}
-          />
+        <div inert={state.phase === "paused"} className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+          {ballAction ? (
+            <VoiceBall state={stage.ball} size={200} label={ballAction} onPress={session.tapBall} />
+          ) : (
+            <VoiceBall state={stage.ball} size={state.hintStep > 0 ? 180 : 200} dimmed={state.phase === "failed"} label="Voxa" />
+          )}
           <span aria-live="polite" className={`text-label ${labelClass(stage.ball)}`}>
             {stage.label}
           </span>
           {stage.hint && <span className="text-caption text-taupe">{stage.hint}</span>}
+          {state.audioBlocked && <span className="text-caption text-taupe">Tap anywhere to hear Voxa.</span>}
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
-        {bottom}
+      <div inert={state.phase === "paused"} className="flex flex-col gap-3">
+        <div aria-live="polite" className="flex flex-col gap-3">
+          {bottom}
+        </div>
         {yourTurn &&
           (typing ? (
             <form onSubmit={submit} className="flex gap-2">
@@ -155,8 +157,15 @@ function LiveSession({ mode }: { mode: Mode }) {
   );
 }
 
-function Screen({ children }: { children: ReactNode }) {
-  return <main className="relative mx-auto flex min-h-dvh w-full max-w-[480px] flex-col gap-4 px-5 pt-7 pb-8">{children}</main>;
+function Screen({ children, onPointerDown }: { children: ReactNode; onPointerDown?: () => void }) {
+  return (
+    <main
+      onPointerDown={onPointerDown}
+      className="relative mx-auto flex min-h-dvh w-full max-w-[480px] flex-col gap-4 px-5 pt-7 pb-8"
+    >
+      {children}
+    </main>
+  );
 }
 
 function FailureCard({ code, onRetry, onEnd }: { code: FailureCode; onRetry: () => void; onEnd?: () => void }) {
@@ -195,6 +204,14 @@ function FailureCard({ code, onRetry, onEnd }: { code: FailureCode; onRetry: () 
 }
 
 function PausedSheet(props: { elapsed: string; onResume: () => void; onRepeat: () => void; onEnd: () => void }) {
+  const { onResume } = props;
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onResume();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onResume]);
   return (
     <div className="fixed inset-0 z-10 flex flex-col justify-end bg-[rgba(46,37,32,0.32)]">
       <section

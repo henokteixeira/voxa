@@ -11,9 +11,9 @@ import { type VoiceDeps, VoiceDepsContext } from "./voice-deps";
 
 let micHandlers: MicrophoneHandlers;
 let socketHandlers: VoiceSocketHandlers;
-const mic = { pause: vi.fn(), resume: vi.fn(), sendNow: vi.fn(), stop: vi.fn() };
+const mic = { pause: vi.fn(), resume: vi.fn(), sendNow: vi.fn(), unlock: vi.fn(), stop: vi.fn() };
 const socket = { sendTurn: vi.fn(), sendText: vi.fn(), speakLast: vi.fn(), close: vi.fn() };
-const speaker = { play: vi.fn(), stop: vi.fn(), close: vi.fn() };
+const speaker = { play: vi.fn(), stop: vi.fn(), unlock: vi.fn(), close: vi.fn() };
 let finishPlayback: () => void;
 
 const api = {
@@ -36,15 +36,17 @@ const deps: VoiceDeps = {
   createSpeaker: () => speaker,
 };
 
+let cleanupApp: () => void = () => {};
+
 function renderSession(path = "/session/daily") {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
-  render(
+  cleanupApp = render(
     <ApiProvider value={api}>
       <VoiceDepsContext.Provider value={deps}>
         <RouterProvider router={router} />
       </VoiceDepsContext.Provider>
     </ApiProvider>,
-  );
+  ).unmount;
   return router;
 }
 
@@ -62,6 +64,7 @@ async function startAndListen() {
 beforeEach(() => {
   vi.clearAllMocks();
   api.health.mockResolvedValue({ status: "ok" });
+  api.endSession.mockResolvedValue({ sessionId: "s1", mode: "daily", mistakes: [], selfCorrections: 0 });
   api.startSession.mockResolvedValue({
     sessionId: "s1",
     mode: "daily",
@@ -179,6 +182,30 @@ describe("live session", () => {
     expect(api.endSession).toHaveBeenCalledWith("s1");
     expect(mic.stop).toHaveBeenCalled();
     expect(socket.close).toHaveBeenCalled();
+  });
+
+  it("keeps the microphone off while the learner types", async () => {
+    await startAndListen();
+    mic.pause.mockClear();
+    await userEvent.click(screen.getByRole("button", { name: "Type instead" }));
+    expect(mic.pause).toHaveBeenCalled();
+  });
+
+  it("ends the session on the server when the learner leaves mid-session", async () => {
+    await startAndListen();
+    await userEvent.click(screen.getByRole("button", { name: "Pause" }));
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Paused" })).toBeNull();
+    // Unmounting the screen (e.g. the back button) closes the session.
+    cleanupApp();
+    expect(api.endSession).toHaveBeenCalledWith("s1");
+  });
+
+  it("lets the learner send early or stop the tutor by tapping the ball", async () => {
+    await startAndListen();
+    act(() => micHandlers.onSpeechStart());
+    await userEvent.click(screen.getByRole("button", { name: "Send now" }));
+    expect(mic.sendNow).toHaveBeenCalled();
   });
 
   it("sends Today's mode picker to the right session and rejects unknown modes", async () => {
