@@ -65,6 +65,8 @@ describe("sessionReducer", () => {
     expect(state.support).toBe("“Prazo” em inglês é “deadline”.");
     state = sessionReducer(state, hint());
     expect(state.support).toBeNull();
+    state = run(started, withSupport, { type: "sent", request: "audio" });
+    expect(state.support).toBeNull();
   });
 
   it("celebrates a fix after a hint and closes the ladder", () => {

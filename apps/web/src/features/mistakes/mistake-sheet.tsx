@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useApi } from "@/hooks/use-api";
-import type { BankMistake, DismissReason } from "@/lib/api";
+import { type BankMistake, type DismissReason, NEW_WORD_CATEGORY } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCopy, useLocale } from "@/lib/i18n/locale";
 import { categoryLabel, originalProps, STATUS_CHIP_LABEL } from "./format";
@@ -33,6 +33,7 @@ export function MistakeSheet({
   const copy = useCopy(MISTAKES_COPY);
   const statusLabel = useCopy(STATUS_CHIP_LABEL);
   const { locale } = useLocale();
+  const newWord = mistake.category === NEW_WORD_CATEGORY;
 
   useEffect(() => {
     dialog.current?.focus();
@@ -60,7 +61,7 @@ export function MistakeSheet({
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label={asking ? copy.whyNot : copy.mistake}
+        aria-label={asking ? copy.whyNot : newWord ? categoryLabel(mistake.category, locale) : copy.mistake}
         className="mx-auto flex w-full max-w-[480px] flex-col gap-3 rounded-t-[28px] bg-linen px-5 pt-3 pb-8 outline-none"
       >
         <span className="h-[5px] w-10 self-center rounded-[3px] bg-sand" aria-hidden="true" />
@@ -113,9 +114,11 @@ export function MistakeSheet({
               {mistake.correction}
             </span>
             <span className="text-caption text-taupe">{copy.timesSoFar(mistake.occurrences)}</span>
-            <Button block variant="ghost" onClick={() => setAsking(true)}>
-              {copy.notAMistake}
-            </Button>
+            {!newWord && (
+              <Button block variant="ghost" onClick={() => setAsking(true)}>
+                {copy.notAMistake}
+              </Button>
+            )}
           </>
         )}
       </div>

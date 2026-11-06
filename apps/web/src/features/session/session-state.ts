@@ -131,6 +131,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         phase: "thinking",
         missed: false,
         fixed: false,
+        support: null,
         failure: null,
         retry: null,
         turn: freshTurn(action.request, action.request === "text" ? action.text : null),

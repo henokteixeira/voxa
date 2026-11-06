@@ -65,6 +65,10 @@ describe("Mistakes", () => {
     renderPage({ listMistakes: vi.fn().mockResolvedValue([word]) });
     expect(await screen.findByText("New word")).toBeInTheDocument();
     expect(screen.getByText("prazo")).not.toHaveClass("line-through");
+    await userEvent.click(screen.getByText("prazo"));
+    const sheet = screen.getByRole("dialog", { name: "New word" });
+    expect(within(sheet).getByText("prazo")).toHaveAttribute("lang", "pt-BR");
+    expect(within(sheet).queryByRole("button", { name: "This isn't a mistake" })).toBeNull();
   });
 
   it("says when the bank is empty", async () => {
