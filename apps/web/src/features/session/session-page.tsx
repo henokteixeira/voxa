@@ -6,6 +6,7 @@ import type { Mode } from "@/lib/api";
 import { isMode, MODE_INFO } from "./modes";
 import { FAILURE_COPY, FINAL_FAILURES, labelClass, stageFor } from "./session-copy";
 import { CaptionCard, HintCard, IconButton, PauseIcon, RevealCard, TranscriptIcon } from "./session-parts";
+import { SummaryFlow } from "./session-summary";
 import type { FailureCode } from "./session-state";
 import { useVoiceSession } from "./use-voice-session";
 
@@ -45,26 +46,20 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
   const ballAction =
     state.phase === "hearing" ? "Send now" : state.phase === "speaking" ? "Stop the tutor" : undefined;
 
-  if (state.phase === "ended" || state.phase === "ending") {
-    const ended = state.phase === "ended";
+  if (state.phase === "ended") {
+    return (
+      <Screen>
+        <SummaryFlow mode={mode} elapsed={elapsed} summary={state.summary} onRate={session.rateAfter} />
+      </Screen>
+    );
+  }
+  if (state.phase === "ending") {
     return (
       <Screen>
         <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
-          <VoiceBall state={ended ? "success" : "thinking"} size={160} />
-          <h1 className="m-0 text-title">{ended ? "Session saved" : "Saving your session"}</h1>
-          {ended && (
-            <p className="m-0 text-caption text-taupe">
-              {state.summary === null
-                ? "Your session is saved."
-                : `${state.summary.mistakes.length} ${state.summary.mistakes.length === 1 ? "mistake" : "mistakes"} saved to your mistake bank.`}
-            </p>
-          )}
+          <VoiceBall state="thinking" size={160} />
+          <h1 className="m-0 text-title">Saving your session</h1>
         </div>
-        {ended && (
-          <Button block asChild>
-            <Link to="/">Back to Today</Link>
-          </Button>
-        )}
       </Screen>
     );
   }

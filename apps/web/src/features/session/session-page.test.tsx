@@ -39,6 +39,27 @@ const deps: VoiceDeps = {
 
 let cleanupApp: () => void = () => {};
 
+const noSignals = { selfCorrectionRate: null, mistakesPer100Words: null, averagePauseMs: null, speakingShare: null };
+function summaryWith(mistakes: unknown[], extra: Record<string, unknown> = {}) {
+  return {
+    sessionId: "s1",
+    mode: "daily",
+    mistakes,
+    selfCorrections: 0,
+    signals: noSignals,
+    confidence: { before: null, after: null },
+    ...extra,
+  };
+}
+const mistake = (severity: "serious" | "minor", selfCorrected: boolean, original: string, correction: string) => ({
+  original,
+  correction,
+  category: "grammar",
+  severity,
+  selfCorrected,
+  occurrences: 1,
+});
+
 function renderSession(path = "/session/daily") {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
   cleanupApp = render(
@@ -65,7 +86,7 @@ async function startAndListen() {
 beforeEach(() => {
   vi.clearAllMocks();
   api.health.mockResolvedValue({ status: "ok" });
-  api.endSession.mockResolvedValue({ sessionId: "s1", mode: "daily", mistakes: [], selfCorrections: 0 });
+  api.endSession.mockResolvedValue(summaryWith([]));
   api.rateConfidence.mockResolvedValue(undefined);
   api.startSession.mockResolvedValue({
     sessionId: "s1",
@@ -169,7 +190,6 @@ describe("live session", () => {
   });
 
   it("pauses, repeats the last question and ends the session", async () => {
-    api.endSession.mockResolvedValue({ sessionId: "s1", mode: "daily", mistakes: [{}, {}], selfCorrections: 0 });
     await startAndListen();
 
     await userEvent.click(screen.getByRole("button", { name: "Pause" }));
@@ -180,7 +200,7 @@ describe("live session", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Pause" }));
     await userEvent.click(screen.getByRole("button", { name: "End session" }));
-    expect(await screen.findByText("2 mistakes saved to your mistake bank.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Session done" })).toBeInTheDocument();
     expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ pausesMs: expect.any(Array) }));
     expect(mic.stop).toHaveBeenCalled();
     expect(socket.close).toHaveBeenCalled();
@@ -214,7 +234,105 @@ describe("live session", () => {
     const router = renderSession("/session/karaoke");
     expect(router.state.location.pathname).toBe("/");
     await userEvent.click(await screen.findByRole("link", { name: /Sprint review/ }));
-    expect(router.state.location.pathname).toBe("/session/review");
+    expect(router.state.location.pathname).toBe("/session/review/check-in");
+    await act(() => router.navigate("/session/karaoke/check-in"));
+    expect(router.state.location.pathname).toBe("/");
+  });
+});
+
+async function endFromPause() {
+  await userEvent.click(screen.getByRole("button", { name: "Pause" }));
+  await userEvent.click(screen.getByRole("button", { name: "End session" }));
+}
+
+describe("confidence check-in", () => {
+  it("asks before the session and stores the answer once the session exists", async () => {
+    renderSession("/session/presentation/check-in");
+    expect(
+      screen.getByRole("heading", { name: "How confident do you feel about a real project presentation right now?" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+
+    await userEvent.click(screen.getByRole("radio", { name: "2" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await screen.findByText("Morning! What did you work on yesterday?");
+    expect(api.startSession).toHaveBeenCalledWith("presentation");
+    expect(api.rateConfidence).toHaveBeenCalledWith("s1", "before", 2);
+  });
+
+  it("can be skipped", async () => {
+    renderSession("/session/daily/check-in");
+    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+    await screen.findByText("Morning! What did you work on yesterday?");
+    expect(api.rateConfidence).not.toHaveBeenCalled();
+  });
+});
+
+describe("session summary", () => {
+  it("shows the signals, the mistakes, the check-out, then saves", async () => {
+    api.endSession.mockResolvedValue(
+      summaryWith(
+        [
+          mistake("serious", true, "Yesterday I finish it", "Yesterday I finished it"),
+          mistake("serious", false, "I'm waiting the keys", "I'm waiting for the keys"),
+          mistake("minor", false, "on the next sprint", "in the next sprint"),
+        ],
+        {
+          signals: { selfCorrectionRate: 0.5, mistakesPer100Words: 4.25, averagePauseMs: 1840, speakingShare: 0.594 },
+          confidence: { before: 3, after: null },
+        },
+      ),
+    );
+    await startAndListen();
+    await endFromPause();
+
+    const signals = await screen.findByLabelText("Fluency signals");
+    expect(signals).toHaveTextContent("You spoke59%of the time");
+    expect(signals).toHaveTextContent("Fixed yourself1 of 2after a hint");
+    expect(signals).toHaveTextContent("Pause before answering1.8 saverage");
+    expect(signals).toHaveTextContent("Mistakes4.3per 100 words");
+
+    await userEvent.click(screen.getByRole("button", { name: "See your mistakes" }));
+    expect(screen.getByText("3 mistakes · 1 fixed by you")).toBeInTheDocument();
+    const items = screen.getAllByRole("listitem");
+    expect(items.map((item) => item.querySelector("span")?.textContent)).toEqual([
+      "Fixed after a hint",
+      "Needed the answer",
+      "Small mistake",
+    ]);
+    expect(items[1]).toHaveTextContent("I'm waiting for the keys");
+
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByRole("heading", { name: "And now, how confident do you feel about a real daily?" })).toBeInTheDocument();
+    expect(screen.getByText("Outlined: what you said before the session (3).")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: "4" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(api.rateConfidence).toHaveBeenCalledWith("s1", "after", 4);
+    expect(screen.getByRole("heading", { name: "Session saved" })).toBeInTheDocument();
+    expect(screen.getByText("3 mistakes saved to your mistake bank.")).toBeInTheDocument();
+  });
+
+  it("goes straight to the check-out without mistakes, and the check-out can be skipped", async () => {
+    await startAndListen();
+    await endFromPause();
+
+    expect(await screen.findByLabelText("Fluency signals")).toHaveTextContent("Fixed yourself–no hints needed");
+    expect(screen.getByLabelText("Fluency signals")).toHaveTextContent("You spoke–not measured");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    expect(api.rateConfidence).not.toHaveBeenCalled();
+    expect(screen.getByText("0 mistakes saved to your mistake bank.")).toBeInTheDocument();
+  });
+
+  it("shows only the saved step when the summary can't be loaded", async () => {
+    api.endSession.mockRejectedValue(new Error("offline"));
+    await startAndListen();
+    await endFromPause();
+    expect(await screen.findByRole("heading", { name: "Session saved" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Fluency signals")).toBeNull();
   });
 });
 
@@ -235,9 +353,8 @@ describe("fluency timing", () => {
     now.mockReturnValue(9700);
     act(() => micHandlers.onTurn(new ArrayBuffer(16)));
 
-    await userEvent.click(screen.getByRole("button", { name: "Pause" }));
-    await userEvent.click(screen.getByRole("button", { name: "End session" }));
-    await screen.findByRole("heading", { name: "Session saved" });
+    await endFromPause();
+    await screen.findByRole("heading", { name: "Session done" });
     expect(api.endSession).toHaveBeenCalledWith("s1", { tutorSpeechMs: 3000, pausesMs: [1500], learnerSpeechMs: 4000 });
     now.mockRestore();
   });
@@ -261,7 +378,7 @@ describe("fluency timing", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Pause" }));
     await userEvent.click(screen.getByRole("button", { name: "End session" }));
-    await screen.findByRole("heading", { name: "Session saved" });
+    await screen.findByRole("heading", { name: "Session done" });
     expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ pausesMs: [] }));
     now.mockRestore();
   });

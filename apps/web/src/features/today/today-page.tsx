@@ -64,7 +64,7 @@ export function TodayPage() {
             Daily stand-up · about 6 min. Your mistake bank and progress start filling from here.
           </p>
           <Button block asChild>
-            <Link to="/session/daily">Start</Link>
+            <Link to="/session/daily/check-in">Start</Link>
           </Button>
         </Card>
       )}
@@ -75,7 +75,7 @@ export function TodayPage() {
           {MODES.map((mode) => (
             <Link
               key={mode}
-              to={`/session/${mode}`}
+              to={`/session/${mode}/check-in`}
               className="flex min-h-14 items-center gap-3 rounded-md bg-paper px-5 py-4 text-ink no-underline shadow-card"
             >
               <span aria-hidden="true" className="size-3.5 shrink-0 rounded-full" style={{ background: MODE_INFO[mode].color }} />
