@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decide, type TutorVerdict } from "./correction-policy.js";
+import { decide, safeHint, type TutorVerdict } from "./correction-policy.js";
 import type { Issue, PendingCorrection } from "./types.js";
 
 const issue = (over: Partial<Issue> = {}): Issue => ({
@@ -81,5 +81,50 @@ describe("decide", () => {
     const d = decide(pending(), verdict({ pendingResolved: true, issues: [issue({ original: "other" })] }));
     expect(d.kind).toBe("reply");
     expect(d.nextPending).toBeNull();
+  });
+
+  it("still gives the second hint when the tutor returns none", () => {
+    const d = decide(pending(), verdict({ nextHint: null }));
+    expect(d.kind).toBe("hint");
+    expect(d.message).toBe("Almost. Check the verb tense in that sentence and try again.");
+    expect(d.nextPending?.hintsGiven).toBe(2);
+  });
+
+  it("keeps the pending correction when the learner fails again with a new mistake", () => {
+    const d = decide(pending(), verdict({ nextHint: "Add -ed.", issues: [issue({ original: "other", correction: "x" })] }));
+    expect(d.kind).toBe("hint");
+    expect(d.nextPending?.original).toBe("Yesterday I fix the upload");
+  });
+
+  it("resolves normally when fixed after the second hint", () => {
+    const d = decide(pending({ hintsGiven: 2 }), verdict({ pendingResolved: true }));
+    expect(d).toMatchObject({ kind: "reply", nextPending: null, selfCorrected: true });
+  });
+
+  it("does not start a new correction right after the repeat request", () => {
+    const d = decide(pending({ hintsGiven: 2, revealed: true }), verdict({ issues: [issue({ original: "other" })] }));
+    expect(d.kind).toBe("reply");
+    expect(d.nextPending).toBeNull();
+  });
+
+  it("goes on with the tutor's reply for a minor mistake", () => {
+    const d = decide(null, verdict({ issues: [issue({ severity: "minor" })] }));
+    expect(d.message).toBe("Nice. What's next?");
+  });
+});
+
+describe("safeHint", () => {
+  const target = { correction: "Yesterday I fixed the upload", category: "verb tense" };
+
+  it("keeps a hint that does not give the answer away", () => {
+    expect(safeHint("Yesterday is in the past.", target)).toBe("Yesterday is in the past.");
+  });
+
+  it("replaces a hint that contains the corrected sentence", () => {
+    expect(safeHint('Say "yesterday I fixed the upload".', target)).toContain("Check the verb tense");
+  });
+
+  it("replaces an empty hint", () => {
+    expect(safeHint("  ", target)).toContain("Check the verb tense");
   });
 });

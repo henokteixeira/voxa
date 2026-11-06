@@ -1,6 +1,6 @@
 import type { Issue, PendingCorrection } from "./types.js";
 
-/** After this many hints the tutor shows the correct form. Confirmed by Henok on 2026-11-06. */
+/** After this many hints the tutor shows the correct form and asks the learner to repeat it. */
 export const MAX_HINTS = 2;
 
 export interface TutorVerdict {
@@ -40,10 +40,10 @@ export function decide(pending: PendingCorrection | null, verdict: TutorVerdict)
     if (verdict.pendingResolved) {
       return { kind: "reply", message: verdict.reply, nextPending: null, selfCorrected: true };
     }
-    if (pending.hintsGiven < MAX_HINTS && verdict.nextHint) {
+    if (pending.hintsGiven < MAX_HINTS) {
       return {
         kind: "hint",
-        message: verdict.nextHint,
+        message: safeHint(verdict.nextHint, pending),
         nextPending: { ...pending, hintsGiven: pending.hintsGiven + 1 },
         selfCorrected: false,
       };
@@ -60,7 +60,7 @@ export function decide(pending: PendingCorrection | null, verdict: TutorVerdict)
   if (serious) {
     return {
       kind: "hint",
-      message: serious.hint,
+      message: safeHint(serious.hint, serious),
       nextPending: {
         original: serious.original,
         correction: serious.correction,
@@ -77,4 +77,17 @@ export function decide(pending: PendingCorrection | null, verdict: TutorVerdict)
 
 export function isSerious(issue: Issue): boolean {
   return issue.severity === "serious" || issue.matchesKnownMistake;
+}
+
+/**
+ * A hint must push the learner to fix the sentence alone, so it never carries the corrected sentence.
+ * When the tutor gives no usable hint, fall back to a generic clue that names the kind of mistake.
+ */
+export function safeHint(hint: string | null | undefined, target: { correction: string; category: string }): string {
+  const text = hint?.trim() ?? "";
+  const leaksAnswer = text.toLowerCase().includes(target.correction.trim().toLowerCase());
+  if (!text || leaksAnswer) {
+    return `Almost. Check the ${target.category} in that sentence and try again.`;
+  }
+  return text;
 }
