@@ -113,9 +113,28 @@ describe("DrizzleMistakeRepository", () => {
     await mistakes.record(goed, { sessionId: s1.id, severity: "serious" });
     await mistakes.record(goed, { sessionId: s2.id, severity: "serious" });
 
-    await mistakes.markSelfCorrected(s2.id, "I goed");
+    await mistakes.markSelfCorrected(s2.id, { language: "en", original: "I goed" });
 
     expect((await mistakes.forSession(s1.id))[0].selfCorrected).toBe(false);
     expect((await mistakes.forSession(s2.id))[0].selfCorrected).toBe(true);
+  });
+
+  it("marks only the latest occurrence in the session as self-corrected", async () => {
+    const s = await sessions.create({ language: "en", mode: "daily" });
+    await mistakes.record(goed, { sessionId: s.id, severity: "minor" });
+    await mistakes.record(goed, { sessionId: s.id, severity: "serious" });
+
+    await mistakes.markSelfCorrected(s.id, { language: "en", original: "I goed" });
+
+    expect((await mistakes.forSession(s.id)).map((m) => m.selfCorrected)).toEqual([false, true]);
+  });
+
+  it("does not mark the same text in another language", async () => {
+    const s = await sessions.create({ language: "en", mode: "daily" });
+    await mistakes.record({ ...goed, language: "es" }, { sessionId: s.id, severity: "serious" });
+
+    await mistakes.markSelfCorrected(s.id, { language: "en", original: "I goed" });
+
+    expect((await mistakes.forSession(s.id))[0].selfCorrected).toBe(false);
   });
 });

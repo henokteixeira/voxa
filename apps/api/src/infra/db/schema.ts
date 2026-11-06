@@ -36,6 +36,7 @@ export const mistakeOccurrences = pgTable("mistake_occurrences", {
   id: uuid("id").primaryKey().defaultRandom(),
   mistakeId: uuid("mistake_id").notNull().references(() => mistakes.id, { onDelete: "cascade" }),
   sessionId: uuid("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
+  language: varchar("language", { length: 16 }).notNull(),
   severity: varchar("severity", { length: 16 }).notNull(), // serious | minor
   selfCorrected: boolean("self_corrected").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

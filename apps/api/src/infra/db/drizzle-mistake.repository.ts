@@ -25,20 +25,27 @@ export class DrizzleMistakeRepository implements MistakeRepository {
             .returning()
         : await tx.insert(mistakes).values(m).returning();
 
-      await tx.insert(mistakeOccurrences).values({ mistakeId: saved.id, ...occurrence });
+      await tx.insert(mistakeOccurrences).values({ mistakeId: saved.id, language: m.language, ...occurrence });
       return saved;
     });
   }
 
-  async markSelfCorrected(sessionId: string, original: string): Promise<void> {
-    const ids = this.db
-      .select({ id: mistakes.id })
-      .from(mistakes)
-      .where(eq(mistakes.original, original));
-    await this.db
-      .update(mistakeOccurrences)
-      .set({ selfCorrected: true })
-      .where(and(eq(mistakeOccurrences.sessionId, sessionId), sql`${mistakeOccurrences.mistakeId} in ${ids}`));
+  async markSelfCorrected(sessionId: string, mistake: { language: string; original: string }): Promise<void> {
+    const [latest] = await this.db
+      .select({ id: mistakeOccurrences.id })
+      .from(mistakeOccurrences)
+      .innerJoin(mistakes, eq(mistakeOccurrences.mistakeId, mistakes.id))
+      .where(
+        and(
+          eq(mistakeOccurrences.sessionId, sessionId),
+          eq(mistakes.language, mistake.language),
+          eq(mistakes.original, mistake.original),
+        ),
+      )
+      .orderBy(desc(mistakeOccurrences.createdAt), desc(mistakeOccurrences.id))
+      .limit(1);
+    if (!latest) return;
+    await this.db.update(mistakeOccurrences).set({ selfCorrected: true }).where(eq(mistakeOccurrences.id, latest.id));
   }
 
   mostFrequent(language: string, limit: number): Promise<Mistake[]> {

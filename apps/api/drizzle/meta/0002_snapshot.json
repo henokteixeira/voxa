@@ -1,6 +1,6 @@
 {
-  "id": "cfcd7dc1-4eb3-4e7d-8a5d-6fb8751c0fe3",
-  "prevId": "bc2b0af5-3020-495c-91d5-14bfce6a325e",
+  "id": "7ac26c4b-13a5-4586-adca-e2aaa8df1d18",
+  "prevId": "72d2f564-fc32-40e4-8ca6-13b2c7feb10d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -24,6 +24,12 @@
         "session_id": {
           "name": "session_id",
           "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "language": {
+          "name": "language",
+          "type": "varchar(16)",
           "primaryKey": false,
           "notNull": true
         },

@@ -1,5 +1,5 @@
 {
-  "id": "bc2b0af5-3020-495c-91d5-14bfce6a325e",
+  "id": "72d2f564-fc32-40e4-8ca6-13b2c7feb10d",
   "prevId": "30c245af-ff32-4812-ad80-8df3dea53c1e",
   "version": "7",
   "dialect": "postgresql",
@@ -24,6 +24,12 @@
         "session_id": {
           "name": "session_id",
           "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "language": {
+          "name": "language",
+          "type": "varchar(16)",
           "primaryKey": false,
           "notNull": true
         },

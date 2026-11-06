@@ -64,8 +64,9 @@ class FakeMistakes implements MistakeRepository {
     this.events.push({ sessionId: o.sessionId, original: m.original, severity: o.severity, selfCorrected: false });
     return saved;
   }
-  async markSelfCorrected(sessionId: string, original: string) {
-    for (const e of this.events) if (e.sessionId === sessionId && e.original === original) e.selfCorrected = true;
+  async markSelfCorrected(sessionId: string, mistake: { language: string; original: string }) {
+    const latest = this.events.findLast((e) => e.sessionId === sessionId && e.original === mistake.original);
+    if (latest) latest.selfCorrected = true;
   }
   async mostFrequent(language: string, limit: number) {
     return this.bank
@@ -214,6 +215,35 @@ describe("ConversationService.respond", () => {
 
     expect(result).toEqual({ kind: "hint", message: "Think of 'go, ___, gone'.", selfCorrected: false });
     expect(mistakes.events).toHaveLength(1);
+  });
+
+  it("treats a retry with different case or end punctuation as the same pending mistake", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(
+      verdict({ issues: [goed] }),
+      verdict({ issues: [{ ...goed, original: "I Goed to the meeting.", correction: "I went to the meeting." }] }),
+    );
+    await service.respond(session.id, "I goed to the meeting");
+
+    await service.respond(session.id, "I Goed to the meeting.");
+
+    expect(mistakes.events).toHaveLength(1);
+  });
+
+  it("records a known mistake as serious even when a correction is already pending", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(
+      verdict({ issues: [goed] }),
+      verdict({ issues: [goed, { ...article, matchesKnownMistake: true }] }),
+    );
+    await service.respond(session.id, "I goed to the meeting");
+
+    await service.respond(session.id, "I goed to the meeting and I opened PR");
+
+    expect(mistakes.events.map((e) => [e.original, e.severity])).toEqual([
+      [goed.original, "serious"],
+      [article.original, "serious"],
+    ]);
   });
 
   it("shows the correct form after two hints and asks the learner to repeat it", async () => {

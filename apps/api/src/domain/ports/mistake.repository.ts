@@ -31,7 +31,8 @@ export interface SessionMistake {
 /** Bank of mistakes and expressions. The concrete implementation lives in infra/. */
 export interface MistakeRepository {
   record(mistake: NewMistake, occurrence: { sessionId: string; severity: Severity }): Promise<Mistake>;
-  markSelfCorrected(sessionId: string, original: string): Promise<void>;
+  /** Marks the session's latest occurrence of this mistake as fixed by the learner. */
+  markSelfCorrected(sessionId: string, mistake: { language: string; original: string }): Promise<void>;
   mostFrequent(language: string, limit: number): Promise<Mistake[]>;
   forSession(sessionId: string): Promise<SessionMistake[]>;
 }

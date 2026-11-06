@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { decide, type TurnKind } from "../domain/conversation/correction-policy.js";
+import { decide, isSerious, type TurnKind } from "../domain/conversation/correction-policy.js";
 import type { Mode } from "../domain/conversation/mode.js";
 import type { Session } from "../domain/conversation/types.js";
 import { LEARNER_CONTEXT_PORT, type LearnerContextPort } from "../domain/ports/learner-context.port.js";
@@ -9,6 +9,12 @@ import { TUTOR_PORT, type TutorPort } from "../domain/ports/tutor.port.js";
 
 /** How many of the learner's most frequent mistakes the tutor watches for. */
 export const KNOWN_MISTAKES_LIMIT = 20;
+
+/** Speech-to-text output varies in case and end punctuation; ignore both when matching. */
+function sameText(a: string, b: string): boolean {
+  const normalize = (s: string) => s.trim().toLowerCase().replace(/[.,!?;:]+$/, "");
+  return normalize(a) === normalize(b);
+}
 
 export class SessionNotFoundError extends Error {}
 export class SessionEndedError extends Error {}
@@ -62,16 +68,18 @@ export class ConversationService {
     const decision = decide(session.pending, verdict);
 
     // Every mistake goes to the bank, except a retry of the one already pending.
+    const pending = session.pending;
     for (const issue of verdict.issues) {
-      if (session.pending && issue.correction === session.pending.correction) continue;
-      const startsCorrection = !session.pending && decision.nextPending?.original === issue.original;
+      if (pending && (sameText(issue.correction, pending.correction) || sameText(issue.original, pending.original))) {
+        continue;
+      }
       await this.mistakes.record(
         { language: session.language, original: issue.original, correction: issue.correction, category: issue.category },
-        { sessionId, severity: startsCorrection ? "serious" : issue.severity },
+        { sessionId, severity: isSerious(issue) ? "serious" : "minor" },
       );
     }
-    if (decision.selfCorrected && session.pending) {
-      await this.mistakes.markSelfCorrected(sessionId, session.pending.original);
+    if (decision.selfCorrected && pending) {
+      await this.mistakes.markSelfCorrected(sessionId, { language: session.language, original: pending.original });
     }
 
     await this.sessions.appendTurn(sessionId, { role: "user", content: utterance });
