@@ -3,7 +3,7 @@ import type { PendingCorrection } from "../../domain/conversation/types.js";
 import type { Database } from "./db.module.js";
 import { DrizzleMistakeRepository } from "./drizzle-mistake.repository.js";
 import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
-import { mistakeOccurrences } from "./schema.js";
+import { mistakeOccurrences, turns } from "./schema.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
@@ -46,6 +46,16 @@ describe("DrizzleSessionRepository", () => {
       { role: "user", content: "Hello" },
       { role: "assistant", content: "How was your week?" },
     ]);
+  });
+
+  it("keeps insertion order when turns share a timestamp", async () => {
+    const { id } = await sessions.create({ language: "en", mode: "daily" });
+    const at = new Date("2026-11-06T12:00:00Z");
+    const contents = Array.from({ length: 12 }, (_, i) => `turn ${i}`);
+    for (const content of contents) {
+      await db.insert(turns).values({ sessionId: id, role: "user", content, createdAt: at });
+    }
+    expect((await sessions.history(id)).map((t) => t.content)).toEqual(contents);
   });
 
   it("stores and clears the pending correction", async () => {

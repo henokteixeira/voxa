@@ -46,7 +46,7 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
           eq(mistakes.original, mistake.original),
         ),
       )
-      .orderBy(desc(mistakeOccurrences.createdAt), desc(mistakeOccurrences.id))
+      .orderBy(desc(mistakeOccurrences.seq))
       .limit(1);
     if (!latest) return;
     await this.db.update(mistakeOccurrences).set({ selfCorrected: true }).where(eq(mistakeOccurrences.id, latest.id));
@@ -75,7 +75,7 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
       .from(mistakeOccurrences)
       .innerJoin(mistakes, eq(mistakeOccurrences.mistakeId, mistakes.id))
       .where(and(eq(mistakeOccurrences.sessionId, sessionId), isNull(mistakes.dismissedAt)))
-      .orderBy(asc(mistakeOccurrences.createdAt), asc(mistakeOccurrences.id));
+      .orderBy(asc(mistakeOccurrences.seq));
     return rows.map((r) => ({ ...r, severity: r.severity === "serious" ? "serious" : "minor" }));
   }
 
@@ -96,7 +96,7 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
           rows.map((r) => r.id),
         ),
       )
-      .orderBy(desc(mistakeOccurrences.createdAt), desc(mistakeOccurrences.id));
+      .orderBy(desc(mistakeOccurrences.seq));
     const fixed = new Map<string, boolean[]>();
     for (const o of occurrences) fixed.set(o.mistakeId, [...(fixed.get(o.mistakeId) ?? []), o.selfCorrected]);
 
