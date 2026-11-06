@@ -23,6 +23,27 @@
   --color-sage-strong: #7fbfa6;
   --color-sage-ink: #2f6e57;
 
+  /* shadcn/ui semantic names, mapped to Voxa tokens so generated components match. */
+  --color-background: #f6f1ea;
+  --color-foreground: #2e2520;
+  --color-card: #fffcf8;
+  --color-card-foreground: #2e2520;
+  --color-popover: #fffcf8;
+  --color-popover-foreground: #2e2520;
+  --color-primary: #2e2520;
+  --color-primary-foreground: #fffcf8;
+  --color-secondary: #efe7dc;
+  --color-secondary-foreground: #2e2520;
+  --color-muted: #efe7dc;
+  --color-muted-foreground: #6e625a;
+  --color-accent: #efe7dc;
+  --color-accent-foreground: #2e2520;
+  --color-destructive: #a3461f;
+  --color-border: #e9dfd3;
+  --color-input: #e9dfd3;
+  --color-ring: #2d5f8f;
+  --radius: 22px;
+
   --font-serif: Fraunces, Georgia, serif;
   --font-sans: Manrope, system-ui, sans-serif;
 

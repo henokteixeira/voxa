@@ -34,6 +34,18 @@ export default defineConfig({
       workbox: {
         // Never serve API answers from the cache: sessions need the live server.
         navigateFallbackDenylist: [/^\/api\//],
+        // Keep the fonts for offline use.
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "google-fonts",
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
     }),
   ],
