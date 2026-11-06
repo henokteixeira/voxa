@@ -19,6 +19,8 @@ export interface TutorRequest extends TutorContext {
   history: ChatTurn[];
   pending: PendingCorrection | null;
   knownMistakes: KnownMistake[];
+  /** Words the learner once said in their first language: `original` as said, `correction` in the target language. */
+  knownNewWords: KnownMistake[];
   utterance: string;
 }
 

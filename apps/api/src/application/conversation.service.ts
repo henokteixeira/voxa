@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { decide, isSerious, type TurnKind } from "../domain/conversation/correction-policy.js";
 import { type FluencySignals, fluencySignals, type SessionTiming } from "../domain/conversation/fluency.js";
 import type { Mode } from "../domain/conversation/mode.js";
-import type { Session } from "../domain/conversation/types.js";
+import { NEW_WORD_CATEGORY, type Session } from "../domain/conversation/types.js";
 import { LEARNER_CONTEXT_PORT, type LearnerContextPort } from "../domain/ports/learner-context.port.js";
 import { MISTAKE_REPOSITORY, type MistakeRepository, type SessionMistake } from "../domain/ports/mistake.repository.js";
 import {
@@ -22,6 +22,14 @@ function sameText(a: string, b: string): boolean {
   return normalize(a) === normalize(b);
 }
 
+/** On-screen help must not give away the correction the learner is working on. */
+function safeSupport(support: string | null, correction: string | undefined): string | null {
+  const text = support?.trim() ?? "";
+  if (!text) return null;
+  if (correction && text.toLowerCase().includes(correction.trim().toLowerCase())) return null;
+  return text;
+}
+
 export class SessionNotFoundError extends Error {}
 export class SessionEndedError extends Error {}
 
@@ -29,6 +37,8 @@ export interface TurnResult {
   kind: TurnKind;
   message: string;
   selfCorrected: boolean;
+  /** Written help in the learner's first language, shown on screen only. */
+  support: string | null;
 }
 
 export interface SessionSummary {
@@ -60,17 +70,22 @@ export class ConversationService {
     const session = await this.openSession(sessionId);
     const [history, known, learnerContext] = await Promise.all([
       this.sessions.history(sessionId),
-      this.mistakes.mostFrequent(session.language, KNOWN_MISTAKES_LIMIT),
+      // Twice the limit, so new words don't push real mistakes out of the list.
+      this.mistakes.mostFrequent(session.language, KNOWN_MISTAKES_LIMIT * 2),
       this.learnerContext.load(),
     ]);
 
+    const toKnown = ({ original, correction, category }: (typeof known)[number]) => ({ original, correction, category });
+    const knownMistakes = known.filter((m) => m.category !== NEW_WORD_CATEGORY).slice(0, KNOWN_MISTAKES_LIMIT);
+    const knownNewWords = known.filter((m) => m.category === NEW_WORD_CATEGORY).slice(0, KNOWN_MISTAKES_LIMIT);
     const verdict = await this.tutor.evaluate({
       mode: session.mode,
       language: session.language,
       learnerContext,
       history,
       pending: session.pending,
-      knownMistakes: known.map(({ original, correction, category }) => ({ original, correction, category })),
+      knownMistakes: knownMistakes.map(toKnown),
+      knownNewWords: knownNewWords.map(toKnown),
       utterance,
     });
     const decision = decide(session.pending, verdict);
@@ -92,6 +107,16 @@ export class ConversationService {
       if (!mistake || (pending && sameText(mistake.original, pending.original))) continue;
       await this.mistakes.recordCorrectUse(sessionId, { language: session.language, original: mistake.original });
     }
+    // A new word is never a mistake: skip one the tutor also listed as an issue, the pending one, or a repeat.
+    const taken = [...verdict.issues.map((i) => i.original), ...(pending ? [pending.original] : [])];
+    for (const word of verdict.newWords) {
+      if (taken.some((t) => sameText(t, word.said))) continue;
+      taken.push(word.said);
+      await this.mistakes.record(
+        { language: session.language, original: word.said, correction: word.words, category: NEW_WORD_CATEGORY },
+        { sessionId, severity: "minor" },
+      );
+    }
     if (decision.selfCorrected && pending) {
       await this.mistakes.markSelfCorrected(sessionId, { language: session.language, original: pending.original });
     }
@@ -100,7 +125,12 @@ export class ConversationService {
     await this.sessions.appendTurn(sessionId, { role: "assistant", content: decision.message });
     await this.sessions.setPending(sessionId, decision.nextPending);
 
-    return { kind: decision.kind, message: decision.message, selfCorrected: decision.selfCorrected };
+    return {
+      kind: decision.kind,
+      message: decision.message,
+      selfCorrected: decision.selfCorrected,
+      support: safeSupport(verdict.support, decision.nextPending?.correction),
+    };
   }
 
   /** Ends the session (once: ending it again keeps the first timing) and returns its summary. */
@@ -119,7 +149,8 @@ export class ConversationService {
       mistakes,
       selfCorrections: mistakes.filter((m) => m.selfCorrected).length,
       signals: fluencySignals({
-        mistakes,
+        // New words are not mistakes.
+        mistakes: mistakes.filter((m) => m.category !== NEW_WORD_CATEGORY),
         learnerUtterances: history.filter((t) => t.role === "user").map((t) => t.content),
         timing: outcome?.timing ?? null,
       }),

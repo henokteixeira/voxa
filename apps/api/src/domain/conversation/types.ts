@@ -7,6 +7,15 @@ export interface ChatTurn {
 
 export type Severity = "serious" | "minor";
 
+/** Bank category for words the learner said in their first language: a word to learn, not a mistake. */
+export const NEW_WORD_CATEGORY = "new_word";
+
+/** Words the learner said in their first language, and how to say them in the language being learned. */
+export interface NewWord {
+  said: string;
+  words: string;
+}
+
 /** A mistake the tutor found in the learner's last utterance. */
 export interface Issue {
   original: string;
