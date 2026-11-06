@@ -12,10 +12,13 @@ export const ANTHROPIC_CLIENT = Symbol("ANTHROPIC_CLIENT");
 /** The subset of the SDK the adapter uses, so tests can pass a fake. */
 export type AnthropicMessages = Pick<Anthropic["messages"], "create" | "parse">;
 
+/** A live conversation can't wait the SDK's default 10 minutes: fail fast and show an error state. */
+const TUTOR_TIMEOUT_MS = 30_000;
+
 /** Reads ANTHROPIC_API_KEY from the environment. */
 export const anthropicClientProvider = {
   provide: ANTHROPIC_CLIENT,
-  useFactory: (): AnthropicMessages => new Anthropic().messages,
+  useFactory: (): AnthropicMessages => new Anthropic({ timeout: TUTOR_TIMEOUT_MS, maxRetries: 1 }).messages,
 };
 
 const VerdictSchema = z.object({

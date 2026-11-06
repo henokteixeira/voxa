@@ -6,7 +6,7 @@ import { SessionEndedError, SessionNotFoundError } from "../application/conversa
 import { VoiceConversationService, type VoiceTurnEvents } from "../application/voice-conversation.service.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import { VoiceRequestError, VoiceUnavailableError } from "../domain/ports/voice.port.js";
-import { VoiceSocketServer } from "./voice-socket.server.js";
+import { SESSION_IN_USE_CLOSE_CODE, VoiceSocketServer } from "./voice-socket.server.js";
 
 const id = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
 const tutor = { kind: "reply", message: "Nice. What's next?", selfCorrected: false };
@@ -14,10 +14,18 @@ const voice = { turn: vi.fn(), speakLast: vi.fn() };
 let app: INestApplication;
 let url: string;
 
+/** A minimal WAV: RIFF/WAVE header plus a few samples. */
+function wav(tag = "audio") {
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0, "ascii");
+  header.write("WAVE", 8, "ascii");
+  return Buffer.concat([header, Buffer.from(tag)]);
+}
+
 type Frame = { json: Record<string, unknown> } | { binary: Buffer };
 
 /** Opens a socket and collects frames until a "done" (or error) message arrives. */
-async function connect(path = `/sessions/${id}/voice`) {
+async function connect(path = `/api/sessions/${id}/voice`) {
   const ws = new WebSocket(`${url}${path}`);
   await new Promise<void>((resolve, reject) => {
     ws.once("open", () => resolve());
@@ -44,6 +52,7 @@ beforeEach(async () => {
     providers: [VoiceSocketServer, { provide: VoiceConversationService, useValue: voice }],
   }).compile();
   app = mod.createNestApplication();
+  app.setGlobalPrefix("api");
   await app.listen(0);
   url = (await app.getUrl()).replace("http", "ws").replace("[::1]", "localhost");
 });
@@ -58,14 +67,10 @@ describe("voice socket", () => {
     });
     const { ws, until } = await connect();
 
-    ws.send(Buffer.from("audio-bytes"));
+    ws.send(wav());
     const frames = await until("done");
 
-    expect(voice.turn).toHaveBeenCalledWith(
-      id,
-      { audio: Buffer.from("audio-bytes"), mimeType: "audio/wav" },
-      expect.anything(),
-    );
+    expect(voice.turn).toHaveBeenCalledWith(id, { audio: wav(), mimeType: "audio/wav" }, expect.anything());
     expect(frames).toEqual([
       { json: { type: "transcript", text: "I finished it." } },
       { json: { type: "tutor", ...tutor } },
@@ -110,7 +115,7 @@ describe("voice socket", () => {
     voice.turn.mockRejectedValue(error);
     const { ws, until } = await connect();
 
-    ws.send(Buffer.from("audio"));
+    ws.send(wav());
     const frames = await until("done");
 
     expect(frames).toEqual([
@@ -137,19 +142,60 @@ describe("voice socket", () => {
     voice.turn.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
     const { ws, until } = await connect();
 
-    ws.send(Buffer.from("first"));
-    ws.send(Buffer.from("second"));
+    ws.send(wav("first"));
+    ws.send(wav("second"));
     const busy = await until("error");
     expect(busy).toEqual([{ json: { type: "error", code: "busy", message: expect.any(String) } }]);
 
     finish(null);
-    await until("done");
+    // "busy" is out of band: only the first request gets a "done".
+    expect(await until("done")).toEqual([{ json: { type: "done" } }]);
     expect(voice.turn).toHaveBeenCalledTimes(1);
     ws.close();
   });
 
+  it("rejects audio that is not WAV without calling speech-to-text", async () => {
+    const { ws, until } = await connect();
+    ws.send(Buffer.from("not a wav file at all, just some bytes that are long enough"));
+    const frames = await until("done");
+    expect(frames[0]).toEqual({ json: { type: "error", code: "bad_audio", message: expect.any(String) } });
+    expect(voice.turn).not.toHaveBeenCalled();
+    ws.close();
+  });
+
+  it("closes the socket on a frame over the limit and keeps serving others", async () => {
+    const { ws } = await connect();
+    const closed = new Promise<number>((resolve) => ws.once("close", resolve));
+    ws.send(Buffer.alloc(11 * 1024 * 1024));
+    expect(await closed).toBe(1009);
+
+    voice.speakLast.mockResolvedValue(null);
+    const next = await connect();
+    next.ws.send(JSON.stringify({ type: "speak" }));
+    expect(await next.until("done")).toEqual([{ json: { type: "done" } }]);
+    next.ws.close();
+  });
+
+  it("allows one live socket per session", async () => {
+    const first = await connect();
+    const second = await connect();
+    const code = await new Promise<number>((resolve) => second.ws.once("close", resolve));
+    expect(code).toBe(SESSION_IN_USE_CLOSE_CODE);
+
+    const firstClosed = new Promise((resolve) => first.ws.once("close", resolve));
+    first.ws.close();
+    await firstClosed;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const third = await connect();
+    voice.speakLast.mockResolvedValue(null);
+    third.ws.send(JSON.stringify({ type: "speak" }));
+    expect(await third.until("done")).toEqual([{ json: { type: "done" } }]);
+    third.ws.close();
+  });
+
   it("refuses other paths and bad session ids", async () => {
-    await expect(connect("/sessions/not-a-uuid/voice")).rejects.toThrow();
-    await expect(connect("/elsewhere")).rejects.toThrow();
+    await expect(connect("/api/sessions/not-a-uuid/voice")).rejects.toThrow();
+    await expect(connect(`/sessions/${id}/voice`)).rejects.toThrow();
+    await expect(connect(`/other/api/sessions/${id}/voice`)).rejects.toThrow();
   });
 });

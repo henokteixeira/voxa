@@ -12,12 +12,13 @@ const stt = { transcribe: vi.fn() };
 const tts = { synthesize: vi.fn() };
 const sessions = { get: vi.fn(), history: vi.fn() };
 const conversation = { respond: vi.fn() };
-const events = { transcript: vi.fn(), tutor: vi.fn() };
+const events = { transcript: vi.fn(), tutor: vi.fn(), cancelled: vi.fn() };
 let service: VoiceConversationService;
 
 beforeEach(() => {
   vi.resetAllMocks();
   sessions.get.mockResolvedValue(session);
+  events.cancelled.mockReturnValue(false);
   stt.transcribe.mockResolvedValue({ text: " Yesterday I finish it. ", language: "en-US" });
   conversation.respond.mockResolvedValue(reply);
   tts.synthesize.mockResolvedValue(Buffer.from("wav"));
@@ -70,6 +71,19 @@ describe("turn", () => {
     expect(stt.transcribe).not.toHaveBeenCalled();
   });
 
+  it("does not synthesize speech after the learner left", async () => {
+    events.cancelled.mockReturnValueOnce(false).mockReturnValue(true);
+    await expect(service.turn(id, { text: "hi" }, events)).resolves.toBeNull();
+    expect(events.tutor).toHaveBeenCalledWith(reply);
+    expect(tts.synthesize).not.toHaveBeenCalled();
+  });
+
+  it("does not ask the tutor after the learner left", async () => {
+    events.cancelled.mockReturnValue(true);
+    await expect(service.turn(id, { text: "hi" }, events)).resolves.toBeNull();
+    expect(conversation.respond).not.toHaveBeenCalled();
+  });
+
   it("has already sent the tutor's text when the voice fails", async () => {
     tts.synthesize.mockRejectedValue(new VoiceUnavailableError("down"));
 
@@ -99,8 +113,10 @@ describe("speakLast", () => {
     expect(tts.synthesize).not.toHaveBeenCalled();
   });
 
-  it("fails for an unknown session", async () => {
+  it("fails for an unknown or ended session", async () => {
     sessions.get.mockResolvedValue(null);
     await expect(service.speakLast(id)).rejects.toBeInstanceOf(SessionNotFoundError);
+    sessions.get.mockResolvedValue({ ...session, endedAt: new Date() });
+    await expect(service.speakLast(id)).rejects.toBeInstanceOf(SessionEndedError);
   });
 });

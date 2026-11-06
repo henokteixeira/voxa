@@ -11,6 +11,8 @@ export type VoiceInput = { audio: Buffer; mimeType: string } | { text: string };
 export interface VoiceTurnEvents {
   transcript(text: string): void;
   tutor(result: TurnResult): void;
+  /** True once the learner has left; the service then skips work nobody will hear. */
+  cancelled(): boolean;
 }
 
 /** The voice loop: speech-to-text → tutor → text-to-speech, on top of the text conversation. */
@@ -35,15 +37,18 @@ export class VoiceConversationService {
     const text = said.trim();
     if (!text) return null;
     events.transcript(text);
+    if (events.cancelled()) return null;
 
     const result = await this.conversation.respond(sessionId, text);
     events.tutor(result);
+    if (events.cancelled()) return null;
     return this.tts.synthesize(result.message, session.language);
   }
 
   /** Speaks the tutor's last line again (the session's opening line, or "repeat the last question"). */
   async speakLast(sessionId: string): Promise<Buffer | null> {
     const session = await this.session(sessionId);
+    if (session.endedAt) throw new SessionEndedError(sessionId);
     const history = await this.sessions.history(sessionId);
     const last = history.findLast((turn) => turn.role === "assistant");
     return last ? this.tts.synthesize(last.content, session.language) : null;

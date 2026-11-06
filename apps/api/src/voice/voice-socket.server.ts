@@ -10,13 +10,18 @@ import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import { VoiceRequestError, VoiceUnavailableError } from "../domain/ports/voice.port.js";
 
 /**
- * Live voice session over a WebSocket at /api/sessions/:id/voice.
+ * Live voice session over a WebSocket at /api/sessions/:id/voice. One socket per session.
  *
- * Client → server: a binary frame is one finished turn of speech (WAV); a text frame is JSON,
- * `{type:"text", text}` (a typed turn) or `{type:"speak"}` (say the tutor's last line again).
- * Server → client, per request: `{type:"transcript"}`, `{type:"tutor"}`, the speech as a binary WAV
- * frame, then `{type:"done"}`. Failures send `{type:"error", code, message}` before "done".
- * One request at a time: a second one while busy gets a "busy" error and is dropped.
+ * Client → server: a binary frame is one finished turn of speech (WAV, at most 10 MB); a text frame
+ * is JSON, `{type:"text", text}` (a typed turn) or `{type:"speak"}` (say the tutor's last line again).
+ *
+ * Server → client, per request: `{type:"transcript", text}`, `{type:"tutor", kind, message, selfCorrected}`,
+ * the speech as a binary WAV frame, then `{type:"done"}`. A failure sends `{type:"error", code, message}`
+ * before "done". Any part may be missing (no speech heard → only "done").
+ *
+ * Out of band, never followed by "done": `{type:"error", code:"busy"}` answers a message sent while a
+ * request is running (the message is dropped). Close codes: 1009 frame too large, 4409 the session
+ * already has a live socket.
  */
 export type VoiceErrorCode =
   | "not_found"
@@ -28,8 +33,10 @@ export type VoiceErrorCode =
   | "busy"
   | "server";
 
-const PATH = /\/sessions\/([^/]+)\/voice$/;
-/** About 5 minutes of 16 kHz 16-bit mono speech. */
+export const SESSION_IN_USE_CLOSE_CODE = 4409;
+
+const PATH = /^\/api\/sessions\/([^/]+)\/voice$/;
+/** About 5 minutes of 16 kHz 16-bit mono speech (the web app sends 16 kHz). */
 const MAX_FRAME_BYTES = 10 * 1024 * 1024;
 
 const ClientMessage = z.discriminatedUnion("type", [
@@ -41,14 +48,15 @@ const ClientMessage = z.discriminatedUnion("type", [
 type Send = (message: Record<string, unknown> | Buffer) => void;
 
 class InvalidMessageError extends Error {}
+class NotWavError extends Error {}
 
 function codeFor(error: unknown): VoiceErrorCode {
   if (error instanceof InvalidMessageError) return "invalid";
+  if (error instanceof NotWavError || error instanceof VoiceRequestError) return "bad_audio";
   if (error instanceof SessionNotFoundError) return "not_found";
   if (error instanceof SessionEndedError) return "ended";
   if (error instanceof TutorUnavailableError) return "tutor_unavailable";
   if (error instanceof VoiceUnavailableError) return "voice_unavailable";
-  if (error instanceof VoiceRequestError) return "bad_audio";
   return "server";
 }
 
@@ -67,6 +75,8 @@ const MESSAGES: Record<VoiceErrorCode, string> = {
 export class VoiceSocketServer implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(VoiceSocketServer.name);
   private readonly wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME_BYTES });
+  /** Sessions with a live socket: two sockets on one session would interleave turns. */
+  private readonly live = new Set<string>();
   private server?: Server;
 
   constructor(
@@ -89,21 +99,42 @@ export class VoiceSocketServer implements OnApplicationBootstrap, OnApplicationS
     const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
     const sessionId = z.uuid().safeParse(PATH.exec(pathname)?.[1]);
     if (!sessionId.success) {
-      socket.end("HTTP/1.1 404 Not Found\r\n\r\n");
+      socket.write("HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+      socket.destroy();
       return;
     }
     this.wss.handleUpgrade(req, socket, head, (ws) => this.serve(ws, sessionId.data));
   };
 
   private serve(ws: WebSocket, sessionId: string) {
+    if (this.live.has(sessionId)) {
+      ws.on("error", () => {});
+      ws.close(SESSION_IN_USE_CLOSE_CODE, "This session is open somewhere else.");
+      return;
+    }
+    this.live.add(sessionId);
     let busy = false;
-    const send: Send = (message) => ws.send(Buffer.isBuffer(message) ? message : JSON.stringify(message));
+    let closed = false;
+    const send: Send = (message) => {
+      if (ws.readyState === ws.OPEN) ws.send(Buffer.isBuffer(message) ? message : JSON.stringify(message));
+    };
     const fail = (code: VoiceErrorCode) => send({ type: "error", code, message: MESSAGES[code] });
 
+    const leave = () => {
+      if (closed) return;
+      closed = true;
+      this.live.delete(sessionId);
+    };
+    // Oversized or malformed frames: ws closes the socket (1009/1002); without a listener Node would crash.
+    ws.on("error", (error) => {
+      this.logger.warn(`Voice socket error: ${error.message}`);
+      leave();
+    });
+    ws.on("close", leave);
     ws.on("message", (data: RawData, isBinary: boolean) => {
       if (busy) return fail("busy");
       busy = true;
-      void this.handle(sessionId, toBuffer(data), isBinary, send)
+      void this.handle(sessionId, toBuffer(data), isBinary, send, () => closed)
         .catch((error: unknown) => {
           const code = codeFor(error);
           if (code === "server") this.logger.error(error);
@@ -111,37 +142,33 @@ export class VoiceSocketServer implements OnApplicationBootstrap, OnApplicationS
         })
         .finally(() => {
           busy = false;
-          if (ws.readyState === ws.OPEN) send({ type: "done" });
+          send({ type: "done" });
         });
     });
   }
 
-  private async handle(
-    sessionId: string,
-    data: Buffer,
-    isBinary: boolean,
-    send: Send,
-  ) {
-    let speech: Buffer | null;
+  private async handle(sessionId: string, data: Buffer, isBinary: boolean, send: Send, cancelled: () => boolean) {
+    let input: VoiceInput | null;
     if (isBinary) {
-      speech = await this.turn(sessionId, { audio: data, mimeType: "audio/wav" }, send);
+      if (!isWav(data)) throw new NotWavError();
+      input = { audio: data, mimeType: "audio/wav" };
     } else {
       const message = parseMessage(data);
-      speech =
-        message.type === "speak"
-          ? await this.voice.speakLast(sessionId)
-          : await this.turn(sessionId, { text: message.text }, send);
+      input = message.type === "text" ? { text: message.text } : null;
     }
+    const speech = input
+      ? await this.voice.turn(sessionId, input, {
+          transcript: (text) => send({ type: "transcript", text }),
+          tutor: (result) => send({ ...result, type: "tutor" }),
+          cancelled,
+        })
+      : await this.voice.speakLast(sessionId);
     if (speech) send(speech);
   }
+}
 
-  private turn(sessionId: string, input: VoiceInput, send: Send) {
-    return this.voice.turn(sessionId, input, {
-      transcript: (text) => send({ type: "transcript", text }),
-      tutor: (result) => send({ type: "tutor", ...result }),
-    });
-  }
-
+function isWav(data: Buffer): boolean {
+  return data.length > 44 && data.toString("ascii", 0, 4) === "RIFF" && data.toString("ascii", 8, 12) === "WAVE";
 }
 
 function parseMessage(data: Buffer) {
