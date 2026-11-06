@@ -32,15 +32,15 @@ describe("app shell", () => {
   it("shows three tabs with Today active", async () => {
     renderApp("/", up());
     const nav = screen.getByRole("navigation", { name: "Main" });
-    expect(nav).toHaveTextContent("TodayMistakesProgress");
+    expect(nav).toHaveTextContent("TodayPracticeProgress");
     expect(screen.getByRole("link", { name: "Today" })).toHaveAttribute("aria-current", "page");
   });
 
   it("moves between tabs", async () => {
     renderApp("/", up());
-    await userEvent.click(screen.getByRole("link", { name: "Mistakes" }));
-    expect(screen.getByRole("heading", { name: "Mistakes" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Mistakes" })).toHaveAttribute("aria-current", "page");
+    await userEvent.click(screen.getByRole("link", { name: "Practice" }));
+    expect(screen.getByRole("heading", { name: "Practice" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Practice" })).toHaveAttribute("aria-current", "page");
   });
 
   it("opens a session full screen, without the tab bar, after the confidence check-in", async () => {
@@ -82,7 +82,7 @@ describe("Today", () => {
     renderApp("/", up(), { withLocale: true });
     expect(await screen.findByRole("link", { name: "Começar" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Aqui, errar faz parte" })).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "Principal" })).toHaveTextContent("HojeErrosProgresso");
+    expect(screen.getByRole("navigation", { name: "Principal" })).toHaveTextContent("HojePraticarProgresso");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^(Bom dia|Boa tarde|Boa noite)$/);
 
     await userEvent.click(screen.getByRole("button", { name: "English" }));

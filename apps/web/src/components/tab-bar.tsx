@@ -3,8 +3,8 @@ import { type Copy, useCopy } from "@/lib/i18n/locale";
 import { cn } from "@/lib/utils";
 
 const LABELS: Copy<{ nav: string; today: string; mistakes: string; progress: string }> = {
-  en: { nav: "Main", today: "Today", mistakes: "Mistakes", progress: "Progress" },
-  "pt-BR": { nav: "Principal", today: "Hoje", mistakes: "Erros", progress: "Progresso" },
+  en: { nav: "Main", today: "Today", mistakes: "Practice", progress: "Progress" },
+  "pt-BR": { nav: "Principal", today: "Hoje", mistakes: "Praticar", progress: "Progresso" },
 };
 
 /** The three destinations. The active segment is paper on sand-soft. */

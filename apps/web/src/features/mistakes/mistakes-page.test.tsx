@@ -68,7 +68,7 @@ describe("Mistakes", () => {
 
   it("speaks Portuguese, keeping the learner's sentences marked as English", async () => {
     renderPage({ listMistakes: vi.fn().mockResolvedValue(bank) }, { withLocale: true });
-    expect(await screen.findByRole("heading", { name: "Erros" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Praticar" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Abertos · 2" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Melhorando · 1" })).toBeInTheDocument();
     expect(screen.getAllByText("Gramática")).toHaveLength(2);
