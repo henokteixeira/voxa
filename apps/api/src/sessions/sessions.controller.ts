@@ -27,6 +27,14 @@ const StartBody = z.object({
     .default("en"),
 });
 const TurnBody = z.object({ text: z.string().trim().min(1).max(2000) });
+const Ms = z.number().int().min(0).max(24 * 60 * 60 * 1000);
+/** Timing the web app measured; missing when the session ends without it (e.g. the learner left). */
+const EndBody = z
+  .object({
+    timing: z.object({ learnerSpeechMs: Ms, tutorSpeechMs: Ms, pausesMs: z.array(Ms).max(5000) }).optional(),
+  })
+  .default({});
+const ConfidenceBody = z.object({ moment: z.enum(["before", "after"]), value: z.number().int().min(1).max(5) });
 const SessionId = z.uuid();
 
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
@@ -70,8 +78,17 @@ export class SessionsController {
 
   @Post(":id/end")
   @HttpCode(200)
-  async end(@Param("id") id: string) {
+  async end(@Param("id") id: string, @Body() body: unknown) {
     const sessionId = parse(SessionId, id);
-    return handle(() => this.conversation.end(sessionId));
+    const { timing } = parse(EndBody, body);
+    return handle(() => this.conversation.end(sessionId, timing ?? null));
+  }
+
+  @Post(":id/confidence")
+  @HttpCode(204)
+  async confidence(@Param("id") id: string, @Body() body: unknown) {
+    const sessionId = parse(SessionId, id);
+    const { moment, value } = parse(ConfidenceBody, body);
+    await handle(() => this.conversation.rateConfidence(sessionId, moment, value));
   }
 }
