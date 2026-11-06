@@ -263,6 +263,15 @@ describe("confidence check-in", () => {
     expect(api.rateConfidence).toHaveBeenCalledWith("s1", "before", 2);
   });
 
+  it("asks in Portuguese and says there is no wrong answer", async () => {
+    renderSession("/session/presentation/check-in", { withLocale: true });
+    expect(
+      screen.getByRole("heading", { name: "Quanta confiança você tem agora para uma apresentação de projeto?" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Não existe resposta errada/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pular" })).toBeInTheDocument();
+  });
+
   it("can be skipped", async () => {
     renderSession("/session/daily/check-in");
     await userEvent.click(screen.getByRole("button", { name: "Skip" }));
@@ -300,20 +309,21 @@ describe("session summary", () => {
     const items = screen.getAllByRole("listitem");
     expect(items.map((item) => item.querySelector("span")?.textContent)).toEqual([
       "Fixed after a hint",
-      "Needed the answer",
+      "Learned with help",
       "Small mistake",
     ]);
     expect(items[1]).toHaveTextContent("I'm waiting for the keys");
 
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByRole("heading", { name: "And now, how confident do you feel about a real daily?" })).toBeInTheDocument();
-    expect(screen.getByText("Outlined: what you said before the session (3).")).toBeInTheDocument();
+    expect(screen.getByText("The circled number is your answer from before (3).")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("radio", { name: "4" }));
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(api.rateConfidence).toHaveBeenCalledWith("s1", "after", 4);
     expect(screen.getByRole("heading", { name: "Session saved" })).toBeInTheDocument();
     expect(screen.getByText("3 mistakes saved to your mistake bank.")).toBeInTheDocument();
+    expect(screen.getByText("Every mistake today is something you'll say better next time.")).toBeInTheDocument();
   });
 
   it("goes straight to the check-out without mistakes, and the check-out can be skipped", async () => {
@@ -326,7 +336,8 @@ describe("session summary", () => {
     await userEvent.click(screen.getByRole("button", { name: "Skip" }));
 
     expect(api.rateConfidence).not.toHaveBeenCalled();
-    expect(screen.getByText("0 mistakes saved to your mistake bank.")).toBeInTheDocument();
+    expect(screen.getByText("Your session is saved.")).toBeInTheDocument();
+    expect(screen.queryByText(/Every mistake today/)).toBeNull();
   });
 
   it("shows only the saved step when the summary can't be loaded", async () => {
