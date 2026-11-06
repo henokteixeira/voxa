@@ -21,6 +21,31 @@ describe("buildSystemPrompt", () => {
   });
 });
 
+describe("buildSystemPrompt: a safe place to make mistakes", () => {
+  const prompt = buildSystemPrompt({ mode: "free_talk", language: "en", learnerContext: "" });
+
+  it("welcomes mistakes and never grades the learner", () => {
+    expect(prompt).toMatch(/Mistakes are welcome/);
+    expect(prompt).toMatch(/Never grade, score or judge the learner/);
+  });
+
+  it("accepts words in the learner's first language and helps connect them", () => {
+    expect(prompt).toMatch(/may say a word or a sentence in their first language/);
+    expect(prompt).toMatch(/This is not a mistake: do not list it in `issues`/);
+    expect(prompt).toMatch(/In `reply`, give the en words for it/);
+    expect(prompt).toMatch(/When you also give a `hint` or `nextHint`, start it with those words too/);
+  });
+
+  it("tells the tutor to admit what it does not know", () => {
+    expect(prompt).toMatch(/When you do not know something, say so plainly/);
+    expect(prompt).toMatch(/When you are not sure something is a mistake, leave it out of `issues`/);
+  });
+
+  it("keeps the correction checks strict", () => {
+    expect(prompt).toMatch(/Being kind does not change how you judge `severity` and `pendingResolved`/);
+  });
+});
+
 describe("buildTurnMessage", () => {
   it("lists known mistakes, the pending correction and the utterance", () => {
     const message = buildTurnMessage({

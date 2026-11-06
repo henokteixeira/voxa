@@ -50,7 +50,7 @@ export function decide(pending: PendingCorrection | null, verdict: TutorVerdict)
     }
     return {
       kind: "reveal",
-      message: `Here is one way to say it: "${pending.correction}". Now say it yourself.`,
+      message: `Here is one way to say it: "${pending.correction}". Try saying it yourself.`,
       nextPending: { ...pending, revealed: true },
       selfCorrected: false,
     };
@@ -87,7 +87,7 @@ export function safeHint(hint: string | null | undefined, target: { correction: 
   const text = hint?.trim() ?? "";
   const leaksAnswer = text.toLowerCase().includes(target.correction.trim().toLowerCase());
   if (!text || leaksAnswer) {
-    return `Almost. Check the ${target.category} in that sentence and try again.`;
+    return `Let's try that once more. Look at the ${target.category.replaceAll("_", " ")} in that sentence.`;
   }
   return text;
 }
