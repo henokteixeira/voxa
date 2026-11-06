@@ -105,6 +105,63 @@ describe("sessionReducer", () => {
     expect(sessionReducer(paused, { type: "resume" }).phase).toBe("listening");
   });
 
+  it("ignores a session that finishes starting after the learner ended it", () => {
+    const state = run({ type: "pause" }, { type: "ending" }, { type: "ended", mistakes: null }, started);
+    expect(state.phase).toBe("ended");
+    expect(run({ type: "pause" }).phase).toBe("starting");
+  });
+
+  it("treats busy as out of band: the running request carries on", () => {
+    const thinking = run(started, { type: "sent", request: "audio" });
+    expect(sessionReducer(thinking, { type: "failed", code: "busy" })).toBe(thinking);
+    const paused = sessionReducer(thinking, { type: "pause" });
+    expect(sessionReducer(paused, { type: "failed", code: "busy" }).phase).toBe("paused");
+  });
+
+  it("resumes into thinking while the request is still open, and listens once it is done", () => {
+    const paused = run(started, { type: "sent", request: "audio" }, { type: "pause" });
+    expect(sessionReducer(paused, { type: "resume" }).phase).toBe("thinking");
+    expect(run(started, { type: "sent", request: "audio" }, { type: "pause" }, { type: "done" }, { type: "resume" }).phase).toBe(
+      "listening",
+    );
+  });
+
+  it("does not start speaking while paused, and waits for done after playback", () => {
+    const paused = run(started, { type: "sent", request: "speak" }, { type: "pause" }, { type: "speech" });
+    expect(paused.phase).toBe("paused");
+    const early = run(started, { type: "sent", request: "speak" }, { type: "speech" }, { type: "playback_end" });
+    expect(early.phase).toBe("thinking");
+    expect(sessionReducer(early, { type: "done" }).phase).toBe("listening");
+  });
+
+  it("keeps typed text for a retry when the send failed at once", () => {
+    const state = run(started, { type: "done" }, { type: "sent", request: "text", text: "I fixed it" }, { type: "failed", code: "disconnected" });
+    expect(state.retry).toEqual({ kind: "text", text: "I fixed it" });
+  });
+
+  it("does not caption a retried typed turn twice", () => {
+    const state = run(
+      started,
+      { type: "sent", request: "audio" },
+      { type: "transcript", text: "I fixed it" },
+      { type: "failed", code: "tutor_unavailable" },
+      { type: "sent", request: "text", text: "I fixed it" },
+      { type: "transcript", text: "I fixed it" },
+    );
+    expect(state.captions.filter((c) => c.who === "you")).toHaveLength(1);
+  });
+
+  it("starts over cleanly after a start failure", () => {
+    const failed = run({ type: "failed", code: "mic_blocked" });
+    expect(sessionReducer(failed, { type: "restart" })).toEqual(run());
+  });
+
+  it("asks for a tap when audio is blocked, and clears it once speech plays", () => {
+    const blocked = run(started, { type: "audio_blocked" });
+    expect(blocked.audioBlocked).toBe(true);
+    expect(sessionReducer(sessionReducer(blocked, { type: "sent", request: "speak" }), { type: "speech" }).audioBlocked).toBe(false);
+  });
+
   it("ends with the number of saved mistakes", () => {
     expect(run(started, { type: "ending" }, { type: "ended", mistakes: 3 })).toMatchObject({ phase: "ended", mistakesSaved: 3 });
   });
