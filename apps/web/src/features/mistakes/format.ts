@@ -1,4 +1,4 @@
-import type { MistakeStatus } from "@/lib/api";
+import { type MistakeStatus, NEW_WORD_CATEGORY } from "@/lib/api";
 import type { Copy, Locale } from "@/lib/i18n/locale";
 
 /** Filter tabs name a group of mistakes. */
@@ -25,10 +25,18 @@ const CATEGORY_PT: Record<string, string> = {
   vocabulary: "Vocabulário",
   word_choice: "Escolha de palavra",
   pronunciation: "Pronúncia",
+  [NEW_WORD_CATEGORY]: "Palavra nova",
 };
 
 /** "grammar" → "Grammar" ("Gramática" in Portuguese). Unknown categories stay as the tutor named them. */
 export function categoryLabel(category: string, locale: Locale = "en"): string {
   if (locale === "pt-BR" && CATEGORY_PT[category]) return CATEGORY_PT[category];
   return category.charAt(0).toUpperCase() + category.slice(1).replaceAll("_", " ");
+}
+
+/** The learner's own words: struck through for a mistake; plain, in their first language, for a new word. */
+export function originalProps(category: string): { lang: string; className: string } {
+  return category === NEW_WORD_CATEGORY
+    ? { lang: "pt-BR", className: "text-[15px] text-taupe" }
+    : { lang: "en", className: "text-[15px] text-taupe line-through" };
 }

@@ -326,6 +326,24 @@ describe("session summary", () => {
     expect(screen.getByText("Every mistake today is something you'll say better next time.")).toBeInTheDocument();
   });
 
+  it("shows a word said in Portuguese as a new word, not as a mistake", async () => {
+    api.endSession.mockResolvedValue(
+      summaryWith([
+        mistake("minor", false, "on the next sprint", "in the next sprint"),
+        { ...mistake("minor", false, "prazo", "deadline"), category: "new_word" },
+      ]),
+    );
+    await startAndListen();
+    await endFromPause();
+    await userEvent.click(await screen.findByRole("button", { name: "See your mistakes" }));
+
+    expect(screen.getByText("1 mistake · 0 fixed by you · 1 new word")).toBeInTheDocument();
+    const items = screen.getAllByRole("listitem");
+    expect(items[1].querySelector("span")?.textContent).toBe("New word");
+    expect(screen.getByText("prazo")).not.toHaveClass("line-through");
+    expect(screen.getByText("deadline")).toHaveAttribute("lang", "en");
+  });
+
   it("goes straight to the check-out without mistakes, and the check-out can be skipped", async () => {
     await startAndListen();
     await endFromPause();
@@ -413,6 +431,21 @@ describe("fluency timing", () => {
 });
 
 describe("a safe place to speak", () => {
+  it("shows the tutor's help in the learner's language as text, without speaking it", async () => {
+    await startAndListen();
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("The prazo is Friday"));
+    act(() =>
+      socketHandlers.onTutor({
+        kind: "reply",
+        message: "In English we say deadline. When is it?",
+        selfCorrected: false,
+        support: "“Prazo” em inglês é “deadline”.",
+      }),
+    );
+    expect(screen.getByRole("note", { name: "Help" })).toHaveTextContent("“Prazo” em inglês é “deadline”.");
+  });
+
   it("reminds the learner that Portuguese is fine when they are stuck", async () => {
     await startAndListen();
     expect(screen.getByText("Just talk. Stuck on a word? Say it in Portuguese.")).toBeInTheDocument();

@@ -6,7 +6,7 @@ import type { Mode } from "@/lib/api";
 import { useCopy } from "@/lib/i18n/locale";
 import { isMode, useModeInfo } from "./modes";
 import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-copy";
-import { CaptionCard, HintCard, IconButton, PauseIcon, RevealCard, TranscriptIcon } from "./session-parts";
+import { CaptionCard, HintCard, IconButton, PauseIcon, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
 import { SummaryFlow } from "./session-summary";
 import type { FailureCode } from "./session-state";
 import { useVoiceSession } from "./use-voice-session";
@@ -132,6 +132,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
       <div inert={state.phase === "paused"} className="flex flex-col gap-3">
         <div aria-live="polite" className="flex flex-col gap-3">
           {bottom}
+          {state.support && state.phase !== "failed" && <SupportNote text={state.support} />}
         </div>
         {yourTurn &&
           (typing ? (

@@ -66,8 +66,8 @@ export function openVoiceSocket(
     }
     if (message.type === "transcript") handlers.onTranscript(message.text);
     else if (message.type === "tutor") {
-      const { kind, message: text, selfCorrected } = message;
-      handlers.onTutor({ kind, message: text, selfCorrected });
+      const { kind, message: text, selfCorrected, support } = message;
+      handlers.onTutor({ kind, message: text, selfCorrected, ...(support ? { support } : {}) });
     } else if (message.type === "error") handlers.onError(message.code, message.message);
     else if (message.type === "done") handlers.onDone();
   };

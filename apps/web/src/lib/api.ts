@@ -14,7 +14,12 @@ export interface TurnResult {
   kind: "reply" | "hint" | "reveal";
   message: string;
   selfCorrected: boolean;
+  /** Written help in the learner's first language, shown on screen and never spoken. */
+  support?: string | null;
 }
+
+/** The category the API gives a word the learner said in their first language. Not a mistake. */
+export const NEW_WORD_CATEGORY = "new_word";
 
 export interface SessionMistake {
   original: string;
