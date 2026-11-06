@@ -7,8 +7,7 @@ WORKDIR /app
 COPY requirements.txt ./
 # CPU-only PyTorch first: the default Linux wheel bundles CUDA (several GB).
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
-# av<14: newer PyAV breaks faster-whisper (unexpected "metadata_errors" argument).
-RUN pip install --no-cache-dir -r requirements.txt "av<14"
+RUN pip install --no-cache-dir -r requirements.txt
 # Kokoro's English phonemizer installs this spaCy model at runtime if missing; bake it in.
 RUN python -m spacy download en_core_web_sm
 COPY . .

@@ -14,6 +14,13 @@ import numpy as np
 KOKORO_LANG = {"en": "a", "en-US": "a", "en-GB": "b"}
 KOKORO_SAMPLE_RATE = 24000
 
+# Default Whisper prompt: mixing in Portuguese words keeps the ones a learner says when stuck
+# ("The prazo is Friday") instead of swapping them for English ("deadline"). Chosen with
+# eval/mixed_language.py on a real voice (medium: 9 of 10 kept, against 6 without it).
+# The words differ from the eval cases, so the eval stays fair.
+MIXED_PROMPT = "So, the planilha is ready and the diretoria wants to see it before the culto."
+DEFAULT_WHISPER_MODEL = "medium"
+
 
 class EngineError(Exception):
     """A model failed to load or to run."""
@@ -53,7 +60,7 @@ class WhisperStt:
 
     def __init__(self, model: str, initial_prompt: str | None = None):
         self.model_name = model
-        self.initial_prompt = initial_prompt or None
+        self.initial_prompt = (initial_prompt or "").strip() or None
         self._model = None
         self._lock = threading.Lock()
 

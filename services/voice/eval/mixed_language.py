@@ -9,22 +9,20 @@ Needs your own recordings (a synthetic voice can't mix languages like a learner 
     python -m eval.record --mixed
     python -m eval.mixed_language --models small medium --out eval/results/mixed.md
 
-Variants per model: `en` (what the service does today), `en+prompt` (forced English with a
-prompt that mixes in Portuguese words) and `auto` (language detection).
+Variants per model: `en` (forced English, no prompt), `en+prompt` (forced English with the
+mixed prompt the service uses by default) and `auto` (language detection).
 """
 
 import argparse
 from collections import Counter
 from pathlib import Path
 
-from engines import EngineError, InputError, WhisperStt
+from engines import MIXED_PROMPT, EngineError, InputError, WhisperStt
 from eval.cleanup_risk import RECORDINGS
 from eval.mixed_cases import MIXED_CASES
 from eval.scoring import MixedOutcome, score_mixed, summarize
 
 MIXED_RECORDINGS = RECORDINGS / "mixed"
-# Portuguese words that are not in the test cases, so the prompt does not give answers away.
-MIXED_PROMPT = "So, the planilha is ready and the diretoria wants to see it before the culto."
 VARIANTS = {"en": ("en", None), "en+prompt": ("en", MIXED_PROMPT), "auto": (None, None)}
 
 

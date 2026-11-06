@@ -9,7 +9,7 @@ pip install -r requirements.txt
 uvicorn main:app --port 8001
 ```
 
-Both models load at startup (the first run downloads them: Whisper `small` ~470 MB, Kokoro ~300 MB),
+Both models load at startup (the first run downloads them: Whisper `medium` ~1.5 GB, Kokoro ~300 MB),
 so the server answers only once they are ready. `VOICE_WARMUP=0` loads them lazily instead, but then
 the first request can exceed the API's timeout. Kokoro may also need `espeak-ng` installed on the system.
 
@@ -29,8 +29,8 @@ Read from the process environment (the root `.env` is not loaded here; export th
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `WHISPER_MODEL` | `small` | Whisper size (`base`, `small`, `medium`, ...) |
-| `WHISPER_INITIAL_PROMPT` | none | Prompt that biases the transcription style (see the clean-up test) |
+| `WHISPER_MODEL` | `medium` | Whisper size (`base`, `small`, `medium`, ...). `small` is faster but mishears more Portuguese words |
+| `WHISPER_INITIAL_PROMPT` | a sentence with Portuguese words | Prompt that biases the transcription style. The default keeps Portuguese words as said (see the Portuguese words test); set it empty for none |
 | `KOKORO_VOICE` | `af_heart` | Kokoro voice |
 | `VOICE_WARMUP` | `1` | `0` loads the models on first use instead of at startup |
 
@@ -54,8 +54,8 @@ python -m eval.mixed_language --models small medium --out eval/results/mixed.md
   (cleaner than a real voice, so your recordings are the real test). Compares each model with and
   without a "verbatim" prompt.
 - **Portuguese words:** checks whether Whisper keeps the Portuguese words a learner says when stuck
-  ("The prazo is Friday") or swaps them for English ("deadline"). Compares forced English (today),
-  forced English with a mixed prompt, and language detection. Needs your own recordings.
+  ("The prazo is Friday") or swaps them for English ("deadline"). Compares forced English, forced
+  English with the mixed prompt (the service default), and language detection. Needs your own recordings.
 - **Latency:** STT and TTS times (p50/p95) for a short, medium and long tutor line. Claude's time is
   not included, nor the browser's webm/opus encoding and the API hop; D4 measures the full loop.
 

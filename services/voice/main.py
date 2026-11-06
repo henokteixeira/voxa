@@ -10,7 +10,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from engines import KOKORO_LANG, EngineError, InputError, KokoroTts, SpeechToText, TextToSpeech, WhisperStt
+from engines import DEFAULT_WHISPER_MODEL, KOKORO_LANG, MIXED_PROMPT, EngineError, InputError, KokoroTts, SpeechToText, TextToSpeech, WhisperStt
 
 MAX_TTS_CHARS = 2000
 MAX_AUDIO_BYTES = 25 * 1024 * 1024
@@ -87,9 +87,14 @@ def create_app(stt: SpeechToText, tts: TextToSpeech, warmup: bool = False) -> Fa
     return app
 
 
+def whisper_from_env(env=os.environ) -> WhisperStt:
+    """Unset WHISPER_INITIAL_PROMPT uses the mixed prompt; an empty one means no prompt."""
+    return WhisperStt(env.get("WHISPER_MODEL") or DEFAULT_WHISPER_MODEL, env.get("WHISPER_INITIAL_PROMPT", MIXED_PROMPT))
+
+
 def _default_app() -> FastAPI:
     return create_app(
-        WhisperStt(os.getenv("WHISPER_MODEL", "small"), os.getenv("WHISPER_INITIAL_PROMPT")),
+        whisper_from_env(),
         KokoroTts(os.getenv("KOKORO_VOICE", "af_heart")),
         warmup=os.getenv("VOICE_WARMUP", "1") == "1",
     )
