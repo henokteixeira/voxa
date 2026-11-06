@@ -4,7 +4,7 @@ import type { Severity } from "../../domain/conversation/types.js";
 import type { BankEntry, DismissReason, MistakeBankRepository } from "../../domain/ports/mistake-bank.repository.js";
 import type { Mistake, MistakeRepository, NewMistake, SessionMistake } from "../../domain/ports/mistake.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
-import { mistakeOccurrences, mistakes } from "./schema.js";
+import { mistakeOccurrences, mistakes, sessions, turns } from "./schema.js";
 
 @Injectable()
 export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankRepository {
@@ -80,8 +80,21 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
   }
 
   async list(language: string): Promise<BankEntry[]> {
+    // Sessions in the same language, started after the session of the latest occurrence,
+    // in which the learner spoke at least once.
+    const sessionsSince = sql<number>`(
+      select count(*)::int from ${sessions} s
+      where s.language = "mistakes"."language"
+        and s.started_at > (
+          select s2.started_at from ${mistakeOccurrences} o
+          join ${sessions} s2 on s2.id = o.session_id
+          where o.mistake_id = "mistakes"."id"
+          order by o.seq desc limit 1
+        )
+        and exists (select 1 from ${turns} t where t.session_id = s.id and t.role = 'user')
+    )`;
     const rows = await this.db
-      .select()
+      .select({ mistake: mistakes, sessionsSince })
       .from(mistakes)
       .where(and(eq(mistakes.language, language), isNull(mistakes.dismissedAt)))
       .orderBy(desc(mistakes.lastSeenAt), desc(mistakes.id));
@@ -93,14 +106,18 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
       .where(
         inArray(
           mistakeOccurrences.mistakeId,
-          rows.map((r) => r.id),
+          rows.map((r) => r.mistake.id),
         ),
       )
       .orderBy(desc(mistakeOccurrences.seq));
     const fixed = new Map<string, boolean[]>();
     for (const o of occurrences) fixed.set(o.mistakeId, [...(fixed.get(o.mistakeId) ?? []), o.selfCorrected]);
 
-    return rows.map((r) => ({ ...toMistake(r), fixedByLearner: fixed.get(r.id) ?? [] }));
+    return rows.map((r) => ({
+      ...toMistake(r.mistake),
+      fixedByLearner: fixed.get(r.mistake.id) ?? [],
+      sessionsSince: Number(r.sessionsSince ?? 0),
+    }));
   }
 
   async dismiss(id: string, reason: DismissReason): Promise<boolean> {

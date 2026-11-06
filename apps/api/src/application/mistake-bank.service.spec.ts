@@ -3,7 +3,7 @@ import type { BankEntry, DismissReason, MistakeBankRepository } from "../domain/
 import { MistakeBankService, MistakeNotFoundError } from "./mistake-bank.service.js";
 
 const seen = new Date("2026-11-05T10:00:00Z");
-const entry = (id: string, fixedByLearner: boolean[]): BankEntry => ({
+const entry = (id: string, fixedByLearner: boolean[], sessionsSince = 0): BankEntry => ({
   id,
   language: "en",
   original: `said ${id}`,
@@ -12,6 +12,7 @@ const entry = (id: string, fixedByLearner: boolean[]): BankEntry => ({
   occurrences: fixedByLearner.length,
   lastSeenAt: seen,
   fixedByLearner,
+  sessionsSince,
 });
 
 class FakeBank implements MistakeBankRepository {
@@ -30,12 +31,13 @@ class FakeBank implements MistakeBankRepository {
 describe("MistakeBankService", () => {
   it("lists the bank with a status for each mistake, keeping the repository's order", async () => {
     const service = new MistakeBankService(
-      new FakeBank([entry("a", [false]), entry("b", [true, false]), entry("c", [true, true, true])]),
+      new FakeBank([entry("a", [false]), entry("b", [true, false]), entry("c", [true, true, true]), entry("d", [false], 5)]),
     );
     expect(await service.list("en")).toEqual([
       { id: "a", language: "en", original: "said a", correction: "right a", category: "grammar", occurrences: 1, lastSeenAt: seen, status: "open" },
       { id: "b", language: "en", original: "said b", correction: "right b", category: "grammar", occurrences: 2, lastSeenAt: seen, status: "improving" },
       { id: "c", language: "en", original: "said c", correction: "right c", category: "grammar", occurrences: 3, lastSeenAt: seen, status: "mastered" },
+      { id: "d", language: "en", original: "said d", correction: "right d", category: "grammar", occurrences: 1, lastSeenAt: seen, status: "mastered" },
     ]);
   });
 

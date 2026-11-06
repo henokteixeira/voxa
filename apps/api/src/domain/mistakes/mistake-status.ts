@@ -3,18 +3,26 @@ export type MistakeStatus = (typeof MISTAKE_STATUSES)[number];
 
 /** Occurrences in a row the learner must fix alone for a mistake to count as mastered. */
 export const MASTERED_STREAK = 3;
+/** Practice sessions in a row without the mistake for it to count as mastered. */
+export const MASTERED_SESSIONS_WITHOUT = 5;
+
+export interface MistakeHistory {
+  /** For each occurrence, newest first: whether the learner fixed it alone. */
+  fixedByLearner: readonly boolean[];
+  /** Practice sessions held, in the same language, after the latest occurrence. */
+  sessionsSince: number;
+}
 
 /**
- * PROVISIONAL RULE, pending confirmation by the user (PRD open question).
- * Kept in this one function so it is easy to replace.
+ * Status rule, confirmed by the user on 2026-11-06:
  *
- * - open: the learner did not fix the latest occurrence alone (or it has none);
+ * - mastered: the learner fixed the latest MASTERED_STREAK occurrences alone, in a row,
+ *   or the mistake has not come back in MASTERED_SESSIONS_WITHOUT sessions;
  * - improving: the learner fixed the latest occurrence alone;
- * - mastered: the learner fixed the latest MASTERED_STREAK occurrences alone, in a row.
- *
- * @param fixedByLearner for each occurrence, newest first, whether the learner fixed it alone.
+ * - open: otherwise.
  */
-export function mistakeStatus(fixedByLearner: readonly boolean[]): MistakeStatus {
+export function mistakeStatus({ fixedByLearner, sessionsSince }: MistakeHistory): MistakeStatus {
+  if (sessionsSince >= MASTERED_SESSIONS_WITHOUT) return "mastered";
   if (!fixedByLearner[0]) return "open";
   const streak = fixedByLearner.slice(0, MASTERED_STREAK);
   return streak.length === MASTERED_STREAK && streak.every(Boolean) ? "mastered" : "improving";

@@ -8,6 +8,8 @@ export type DismissReason = (typeof DISMISS_REASONS)[number];
 export interface BankEntry extends Mistake {
   /** For each occurrence, newest first: whether the learner fixed it alone. */
   fixedByLearner: boolean[];
+  /** Practice sessions (the learner spoke at least once) in the same language since the latest occurrence. */
+  sessionsSince: number;
 }
 
 /** Reading and curating the mistake bank. The concrete implementation lives in infra/. */
