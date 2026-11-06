@@ -18,6 +18,8 @@ const verdict = (over: Partial<TutorVerdict> = {}): TutorVerdict => ({
   pendingResolved: false,
   nextHint: null,
   correctUses: [],
+  newWords: [],
+  support: null,
   ...over,
 });
 

@@ -34,6 +34,13 @@ describe("buildSystemPrompt: a safe place to make mistakes", () => {
     expect(prompt).toMatch(/This is not a mistake: do not list it in `issues`/);
     expect(prompt).toMatch(/In `reply`, give the en words for it/);
     expect(prompt).toMatch(/When you also give a `hint` or `nextHint`, start it with those words too/);
+    expect(prompt).toMatch(/List each one in `newWords`/);
+  });
+
+  it("writes support in the learner's first language, for the screen only", () => {
+    const withFirst = buildSystemPrompt({ mode: "daily", language: "en", learnerContext: "" }, "pt-BR");
+    expect(withFirst).toContain("The learner's first language is pt-BR");
+    expect(withFirst).toMatch(/`support`: .*written in pt-BR.*shown on screen and never read aloud/s);
   });
 
   it("tells the tutor to admit what it does not know", () => {

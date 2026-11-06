@@ -36,6 +36,8 @@ const VerdictSchema = z.object({
   pendingResolved: z.boolean(),
   nextHint: z.string().nullable(),
   correctUses: z.array(z.string()),
+  newWords: z.array(z.object({ said: z.string(), words: z.string() })),
+  support: z.string().nullable(),
 });
 
 type Effort = "low" | "medium" | "high";
@@ -44,6 +46,8 @@ type Effort = "low" | "medium" | "high";
 export class AnthropicTutorAdapter implements TutorPort {
   private readonly model: string;
   private readonly effort: Effort;
+  /** BCP 47. The tutor writes on-screen support in it. */
+  private readonly firstLanguage: string;
 
   constructor(
     @Inject(ANTHROPIC_CLIENT) private readonly messages: AnthropicMessages,
@@ -53,6 +57,7 @@ export class AnthropicTutorAdapter implements TutorPort {
     const effort = config.get<string>("ANTHROPIC_EFFORT");
     // Low effort keeps spoken turns fast; raise it if the tutor misses mistakes.
     this.effort = effort === "medium" || effort === "high" ? effort : "low";
+    this.firstLanguage = config.get<string>("LEARNER_FIRST_LANGUAGE") || "pt-BR";
   }
 
   async open(context: TutorContext): Promise<string> {
@@ -97,7 +102,7 @@ export class AnthropicTutorAdapter implements TutorPort {
   }
 
   private system(context: TutorContext): Anthropic.TextBlockParam[] {
-    return [{ type: "text", text: buildSystemPrompt(context), cache_control: { type: "ephemeral" } }];
+    return [{ type: "text", text: buildSystemPrompt(context, this.firstLanguage), cache_control: { type: "ephemeral" } }];
   }
 
   private async call<T extends { stop_reason: Anthropic.StopReason | null }>(send: () => Promise<T>): Promise<T> {

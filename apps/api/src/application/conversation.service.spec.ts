@@ -7,6 +7,7 @@ import type { Mistake, MistakeRepository, NewMistake, SessionMistake } from "../
 import type { SessionTiming } from "../domain/conversation/fluency.js";
 import type { ConfidenceMoment, SessionRepository } from "../domain/ports/session.repository.js";
 import type { TutorContext, TutorPort, TutorRequest } from "../domain/ports/tutor.port.js";
+import { NEW_WORD_CATEGORY } from "../domain/conversation/types.js";
 import { ConversationService, SessionEndedError, SessionNotFoundError } from "./conversation.service.js";
 
 class FakeTutor implements TutorPort {
@@ -129,6 +130,8 @@ const verdict = (v: Partial<TutorVerdict>): TutorVerdict => ({
   pendingResolved: false,
   nextHint: null,
   correctUses: [],
+  newWords: [],
+  support: null,
   ...v,
 });
 
@@ -161,7 +164,7 @@ describe("ConversationService.respond", () => {
 
     const result = await service.respond(session.id, "I opened PR");
 
-    expect(result).toEqual({ kind: "reply", message: "Nice. What happened next?", selfCorrected: false });
+    expect(result).toEqual({ kind: "reply", message: "Nice. What happened next?", selfCorrected: false, support: null });
     expect(mistakes.events).toEqual([
       { sessionId: session.id, original: "I opened PR", severity: "minor", selfCorrected: false },
     ]);
@@ -213,7 +216,7 @@ describe("ConversationService.respond", () => {
 
     const result = await service.respond(session.id, "I went to the meeting");
 
-    expect(result).toEqual({ kind: "reply", message: "Nice. What happened next?", selfCorrected: true });
+    expect(result).toEqual({ kind: "reply", message: "Nice. What happened next?", selfCorrected: true, support: null });
     expect(mistakes.events[0].selfCorrected).toBe(true);
     expect((await sessions.get(session.id))?.pending).toBeNull();
   });
@@ -228,7 +231,7 @@ describe("ConversationService.respond", () => {
 
     const result = await service.respond(session.id, "I goed to the meeting");
 
-    expect(result).toEqual({ kind: "hint", message: "Think of 'go, ___, gone'.", selfCorrected: false });
+    expect(result).toEqual({ kind: "hint", message: "Think of 'go, ___, gone'.", selfCorrected: false, support: null });
     expect(mistakes.events).toHaveLength(1);
   });
 
@@ -298,6 +301,37 @@ describe("ConversationService.respond", () => {
     const { session } = await service.start("daily", "en");
     await service.end(session.id);
     await expect(service.respond(session.id, "hi")).rejects.toBeInstanceOf(SessionEndedError);
+  });
+});
+
+describe("ConversationService.respond: words in the learner's first language", () => {
+  const prazo = { said: "prazo", words: "deadline" };
+
+  it("saves them as new words, not as mistakes, and passes the written help along", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ newWords: [prazo], support: "“Prazo” em inglês é “deadline”." }));
+
+    const result = await service.respond(session.id, "The prazo is Friday");
+
+    expect(result).toEqual({
+      kind: "reply",
+      message: "Nice. What happened next?",
+      selfCorrected: false,
+      support: "“Prazo” em inglês é “deadline”.",
+    });
+    expect(mistakes.bank).toMatchObject([{ original: "prazo", correction: "deadline", category: NEW_WORD_CATEGORY }]);
+    expect(mistakes.events).toMatchObject([{ original: "prazo", severity: "minor" }]);
+  });
+
+  it("does not count new words as mistakes in the fluency signals", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ newWords: [prazo], issues: [article] }));
+    await service.respond(session.id, "I opened PR before the prazo"); // 6 words
+
+    const summary = await service.end(session.id);
+
+    expect(summary.mistakes.map((m) => m.category)).toEqual(["grammar", NEW_WORD_CATEGORY]);
+    expect(summary.signals.mistakesPer100Words).toBeCloseTo((1 / 6) * 100);
   });
 });
 

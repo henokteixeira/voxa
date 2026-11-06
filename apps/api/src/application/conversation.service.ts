@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { decide, isSerious, type TurnKind } from "../domain/conversation/correction-policy.js";
 import { type FluencySignals, fluencySignals, type SessionTiming } from "../domain/conversation/fluency.js";
 import type { Mode } from "../domain/conversation/mode.js";
-import type { Session } from "../domain/conversation/types.js";
+import { NEW_WORD_CATEGORY, type Session } from "../domain/conversation/types.js";
 import { LEARNER_CONTEXT_PORT, type LearnerContextPort } from "../domain/ports/learner-context.port.js";
 import { MISTAKE_REPOSITORY, type MistakeRepository, type SessionMistake } from "../domain/ports/mistake.repository.js";
 import {
@@ -29,6 +29,8 @@ export interface TurnResult {
   kind: TurnKind;
   message: string;
   selfCorrected: boolean;
+  /** Written help in the learner's first language, shown on screen only. */
+  support: string | null;
 }
 
 export interface SessionSummary {
@@ -92,6 +94,12 @@ export class ConversationService {
       if (!mistake || (pending && sameText(mistake.original, pending.original))) continue;
       await this.mistakes.recordCorrectUse(sessionId, { language: session.language, original: mistake.original });
     }
+    for (const word of verdict.newWords) {
+      await this.mistakes.record(
+        { language: session.language, original: word.said, correction: word.words, category: NEW_WORD_CATEGORY },
+        { sessionId, severity: "minor" },
+      );
+    }
     if (decision.selfCorrected && pending) {
       await this.mistakes.markSelfCorrected(sessionId, { language: session.language, original: pending.original });
     }
@@ -100,7 +108,12 @@ export class ConversationService {
     await this.sessions.appendTurn(sessionId, { role: "assistant", content: decision.message });
     await this.sessions.setPending(sessionId, decision.nextPending);
 
-    return { kind: decision.kind, message: decision.message, selfCorrected: decision.selfCorrected };
+    return {
+      kind: decision.kind,
+      message: decision.message,
+      selfCorrected: decision.selfCorrected,
+      support: verdict.support?.trim() || null,
+    };
   }
 
   /** Ends the session (once: ending it again keeps the first timing) and returns its summary. */
@@ -119,7 +132,8 @@ export class ConversationService {
       mistakes,
       selfCorrections: mistakes.filter((m) => m.selfCorrected).length,
       signals: fluencySignals({
-        mistakes,
+        // New words are not mistakes.
+        mistakes: mistakes.filter((m) => m.category !== NEW_WORD_CATEGORY),
         learnerUtterances: history.filter((t) => t.role === "user").map((t) => t.content),
         timing: outcome?.timing ?? null,
       }),

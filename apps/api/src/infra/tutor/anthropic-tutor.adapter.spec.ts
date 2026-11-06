@@ -12,7 +12,7 @@ function fakeMessages(response: object) {
   return { messages: { create, parse } as unknown as AnthropicMessages, create, parse };
 }
 
-const verdict = { reply: "Nice.", issues: [], pendingResolved: false, nextHint: null, correctUses: [] };
+const verdict = { reply: "Nice.", issues: [], pendingResolved: false, nextHint: null, correctUses: [], newWords: [], support: null };
 const request: TutorRequest = {
   mode: "daily",
   language: "en",
@@ -88,5 +88,13 @@ describe("AnthropicTutorAdapter.open when the context window is full", () => {
     });
     const adapter = new AnthropicTutorAdapter(messages, config());
     await expect(adapter.open(request)).rejects.toBeInstanceOf(TutorUnavailableError);
+  });
+
+  it("tells the tutor the learner's first language (pt-BR unless configured)", async () => {
+    const { messages, parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
+    await new AnthropicTutorAdapter(messages, config()).evaluate(request);
+    await new AnthropicTutorAdapter(messages, config({ LEARNER_FIRST_LANGUAGE: "es" })).evaluate(request);
+    expect(parse.mock.calls[0][0].system[0].text).toContain("The learner's first language is pt-BR");
+    expect(parse.mock.calls[1][0].system[0].text).toContain("The learner's first language is es");
   });
 });

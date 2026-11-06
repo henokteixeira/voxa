@@ -52,10 +52,10 @@ describe("POST /sessions", () => {
 
 describe("POST /sessions/:id/turns", () => {
   it("returns the tutor's turn", async () => {
-    service.respond.mockResolvedValue({ kind: "hint", message: "Check the verb.", selfCorrected: false });
+    service.respond.mockResolvedValue({ kind: "hint", message: "Check the verb.", selfCorrected: false, support: null });
     const res = await request(app.getHttpServer()).post(`/sessions/${id}/turns`).send({ text: " I goed " });
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ kind: "hint", message: "Check the verb.", selfCorrected: false });
+    expect(res.body).toEqual({ kind: "hint", message: "Check the verb.", selfCorrected: false, support: null });
     expect(service.respond).toHaveBeenCalledWith(id, "I goed");
   });
 

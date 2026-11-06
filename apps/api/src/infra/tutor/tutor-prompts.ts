@@ -19,7 +19,7 @@ export const SCENES: Record<Mode, string> = {
 };
 
 /** Stable per session, so it can be cached. */
-export function buildSystemPrompt({ mode, language, learnerContext }: TutorContext): string {
+export function buildSystemPrompt({ mode, language, learnerContext }: TutorContext, firstLanguage = "pt-BR"): string {
   return [
     `You are Voxa, a speaking tutor. The learner is practicing spoken ${language} (BCP 47 code) for work meetings.`,
     "Tone: a warm, patient senior colleague. Speak naturally, in short spoken sentences (one to three). " +
@@ -33,10 +33,15 @@ export function buildSystemPrompt({ mode, language, learnerContext }: TutorConte
         "This is not a mistake: do not list it in `issues`. " +
         `In \`reply\`, give the ${language} words for it in a short, natural way and invite the learner to use them, ` +
         "then go on with the scene. When you also give a `hint` or `nextHint`, start it with those words too, " +
-        "because only the hint is said on that turn.",
+        "because only the hint is said on that turn. List each one in `newWords`: `said` is the learner's words, " +
+        `copied exactly; \`words\` is how to say them in ${language}.`,
       "When you do not know something, say so plainly in `reply` instead of guessing: a fact about the learner's " +
         "work or a term from their field. When you are not sure something is a mistake, leave it out of `issues`.",
       "Being kind does not change how you judge `severity` and `pendingResolved`: decide them strictly.",
+      `The learner's first language is ${firstLanguage}. \`support\`: one short, warm line written in ${firstLanguage}, ` +
+        "shown on screen and never read aloud. Use it when the learner used their first language or seems stuck: " +
+        `connect their words to the ${language} ones, or explain the hint simply. Never include the corrected words ` +
+        "of a mistake. Otherwise null.",
     ].join("\n"),
     `## Scene\n${SCENES[mode]}`,
     learnerContext.trim()

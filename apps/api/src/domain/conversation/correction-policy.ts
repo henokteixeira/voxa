@@ -1,4 +1,4 @@
-import type { Issue, PendingCorrection } from "./types.js";
+import type { Issue, NewWord, PendingCorrection } from "./types.js";
 
 /** After this many hints the tutor shows the correct form and asks the learner to repeat it. */
 export const MAX_HINTS = 2;
@@ -14,6 +14,10 @@ export interface TutorVerdict {
   nextHint: string | null;
   /** Known mistakes (by their `original`) the learner said correctly in this utterance, without a hint. */
   correctUses: string[];
+  /** Words the learner said in their first language: saved to learn, never counted as mistakes. */
+  newWords: NewWord[];
+  /** A short line in the learner's first language, shown on screen only (never spoken), or null. */
+  support: string | null;
 }
 
 export type TurnKind = "reply" | "hint" | "reveal";
