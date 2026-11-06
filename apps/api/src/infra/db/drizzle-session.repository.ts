@@ -1,8 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { asc, eq } from "drizzle-orm";
+import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import { isMode } from "../../domain/conversation/mode.js";
 import type { ChatTurn, PendingCorrection, Session } from "../../domain/conversation/types.js";
-import type { SessionRepository } from "../../domain/ports/session.repository.js";
+import type { ConfidenceMoment, SessionOutcome, SessionRepository } from "../../domain/ports/session.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
 import { sessions, turns } from "./schema.js";
 
@@ -44,7 +45,21 @@ export class DrizzleSessionRepository implements SessionRepository {
     await this.db.update(sessions).set({ pending }).where(eq(sessions.id, sessionId));
   }
 
-  async end(sessionId: string): Promise<void> {
-    await this.db.update(sessions).set({ endedAt: new Date() }).where(eq(sessions.id, sessionId));
+  async end(sessionId: string, timing: SessionTiming | null): Promise<void> {
+    await this.db.update(sessions).set({ endedAt: new Date(), timing }).where(eq(sessions.id, sessionId));
+  }
+
+  async setConfidence(sessionId: string, moment: ConfidenceMoment, value: number): Promise<void> {
+    const column = moment === "before" ? { confidenceBefore: value } : { confidenceAfter: value };
+    await this.db.update(sessions).set(column).where(eq(sessions.id, sessionId));
+  }
+
+  async outcome(sessionId: string): Promise<SessionOutcome | null> {
+    const [row] = await this.db
+      .select({ timing: sessions.timing, before: sessions.confidenceBefore, after: sessions.confidenceAfter })
+      .from(sessions)
+      .where(eq(sessions.id, sessionId))
+      .limit(1);
+    return row ? { timing: row.timing ?? null, confidence: { before: row.before, after: row.after } } : null;
   }
 }

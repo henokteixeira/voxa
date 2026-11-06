@@ -4,7 +4,8 @@ import type { Mode } from "../domain/conversation/mode.js";
 import type { ChatTurn, Issue, PendingCorrection, Session, Severity } from "../domain/conversation/types.js";
 import type { LearnerContextPort } from "../domain/ports/learner-context.port.js";
 import type { Mistake, MistakeRepository, NewMistake, SessionMistake } from "../domain/ports/mistake.repository.js";
-import type { SessionRepository } from "../domain/ports/session.repository.js";
+import type { SessionTiming } from "../domain/conversation/fluency.js";
+import type { ConfidenceMoment, SessionRepository } from "../domain/ports/session.repository.js";
 import type { TutorContext, TutorPort, TutorRequest } from "../domain/ports/tutor.port.js";
 import { ConversationService, SessionEndedError, SessionNotFoundError } from "./conversation.service.js";
 
@@ -24,17 +25,19 @@ class FakeTutor implements TutorPort {
   }
 }
 
+type Row = Session & { turns: ChatTurn[]; timing: SessionTiming | null; before: number | null; after: number | null };
+
 class FakeSessions implements SessionRepository {
-  rows = new Map<string, Session & { turns: ChatTurn[] }>();
+  rows = new Map<string, Row>();
   async create(input: { language: string; mode: Mode }) {
     const id = `s${this.rows.size + 1}`;
-    this.rows.set(id, { id, ...input, pending: null, endedAt: null, turns: [] });
+    this.rows.set(id, { id, ...input, pending: null, endedAt: null, turns: [], timing: null, before: null, after: null });
     return { id, ...input, pending: null, endedAt: null };
   }
   async get(id: string) {
     const row = this.rows.get(id);
     if (!row) return null;
-    const { turns: _, ...session } = row;
+    const { turns: _t, timing: _ti, before: _b, after: _a, ...session } = row;
     return session;
   }
   async appendTurn(id: string, turn: ChatTurn) {
@@ -46,8 +49,15 @@ class FakeSessions implements SessionRepository {
   async setPending(id: string, pending: PendingCorrection | null) {
     this.rows.get(id)!.pending = pending;
   }
-  async end(id: string) {
-    this.rows.get(id)!.endedAt = new Date();
+  async end(id: string, timing: SessionTiming | null) {
+    Object.assign(this.rows.get(id)!, { endedAt: new Date(), timing });
+  }
+  async setConfidence(id: string, moment: ConfidenceMoment, value: number) {
+    this.rows.get(id)![moment] = value;
+  }
+  async outcome(id: string) {
+    const row = this.rows.get(id);
+    return row ? { timing: row.timing, confidence: { before: row.before, after: row.after } } : null;
   }
 }
 
@@ -304,13 +314,63 @@ describe("ConversationService.end", () => {
     ]);
   });
 
-  it("can be called twice", async () => {
+  it("computes the fluency signals from the turns, the mistakes and the timing", async () => {
     const { session } = await service.start("daily", "en");
-    await service.end(session.id);
-    await expect(service.end(session.id)).resolves.toMatchObject({ sessionId: session.id });
+    tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true, issues: [article] }));
+    await service.respond(session.id, "I goed to the meeting"); // 5 words
+    await service.respond(session.id, "I went to the meeting and I opened PR"); // 9 words
+
+    const timing = { learnerSpeechMs: 30_000, tutorSpeechMs: 20_000, pausesMs: [1000, 2000] };
+    const summary = await service.end(session.id, timing);
+
+    expect(summary.signals).toEqual({
+      selfCorrectionRate: 1,
+      mistakesPer100Words: (2 / 14) * 100,
+      averagePauseMs: 1500,
+      speakingShare: 0.6,
+    });
+  });
+
+  it("can be called twice, keeping the first timing", async () => {
+    const { session } = await service.start("daily", "en");
+    await service.end(session.id, { learnerSpeechMs: 1000, tutorSpeechMs: 1000, pausesMs: [] });
+    const again = await service.end(session.id, { learnerSpeechMs: 9000, tutorSpeechMs: 1000, pausesMs: [] });
+    expect(again).toMatchObject({ sessionId: session.id, signals: { speakingShare: 0.5 } });
+  });
+
+  it("has no timing signals when the app sent no timing", async () => {
+    const { session } = await service.start("daily", "en");
+    const summary = await service.end(session.id);
+    expect(summary.signals).toMatchObject({ averagePauseMs: null, speakingShare: null });
+  });
+
+  it("includes the confidence ratings", async () => {
+    const { session } = await service.start("daily", "en");
+    await service.rateConfidence(session.id, "before", 2);
+    const summary = await service.end(session.id);
+    expect(summary.confidence).toEqual({ before: 2, after: null });
   });
 
   it("rejects an unknown session", async () => {
     await expect(service.end("nope")).rejects.toBeInstanceOf(SessionNotFoundError);
+  });
+});
+
+describe("ConversationService.rateConfidence", () => {
+  it("stores before and after, even once the session has ended", async () => {
+    const { session } = await service.start("presentation", "en");
+    await service.rateConfidence(session.id, "before", 2);
+    await service.end(session.id);
+    await service.rateConfidence(session.id, "after", 4);
+    expect(await sessions.outcome(session.id)).toMatchObject({ confidence: { before: 2, after: 4 } });
+  });
+
+  it.each([0, 6, 2.5])("rejects %s", async (value) => {
+    const { session } = await service.start("daily", "en");
+    await expect(service.rateConfidence(session.id, "before", value)).rejects.toBeInstanceOf(RangeError);
+  });
+
+  it("rejects an unknown session", async () => {
+    await expect(service.rateConfidence("nope", "after", 3)).rejects.toBeInstanceOf(SessionNotFoundError);
   });
 });

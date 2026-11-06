@@ -75,8 +75,28 @@ describe("DrizzleSessionRepository", () => {
 
   it("marks a session as ended", async () => {
     const { id } = await sessions.create({ language: "en", mode: "review" });
-    await sessions.end(id);
+    await sessions.end(id, null);
     expect((await sessions.get(id))?.endedAt).toBeInstanceOf(Date);
+    expect(await sessions.outcome(id)).toEqual({ timing: null, confidence: { before: null, after: null } });
+  });
+
+  it("stores the timing of an ended session", async () => {
+    const { id } = await sessions.create({ language: "en", mode: "daily" });
+    const timing = { learnerSpeechMs: 61_000, tutorSpeechMs: 42_500, pausesMs: [1200, 800] };
+    await sessions.end(id, timing);
+    expect((await sessions.outcome(id))?.timing).toEqual(timing);
+  });
+
+  it("stores confidence before and after, the latest rating winning", async () => {
+    const { id } = await sessions.create({ language: "en", mode: "presentation" });
+    await sessions.setConfidence(id, "before", 2);
+    await sessions.setConfidence(id, "after", 3);
+    await sessions.setConfidence(id, "after", 4);
+    expect((await sessions.outcome(id))?.confidence).toEqual({ before: 2, after: 4 });
+  });
+
+  it("has no outcome for an unknown session", async () => {
+    expect(await sessions.outcome("6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b")).toBeNull();
   });
 });
 

@@ -1,4 +1,5 @@
-import { bigserial, boolean, integer, jsonb, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import { bigserial, boolean, integer, jsonb, pgTable, smallint, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import type { PendingCorrection } from "../../domain/conversation/types.js";
 
 // Every record carries its language (BCP 47 code, e.g. "en") to support other languages.
@@ -11,6 +12,11 @@ export const sessions = pgTable("sessions", {
   pending: jsonb("pending").$type<PendingCorrection>(),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   endedAt: timestamp("ended_at", { withTimezone: true }),
+  /** Speaking time and pauses measured by the web app; null when the session ended without them. */
+  timing: jsonb("timing").$type<SessionTiming>(),
+  /** How ready the learner felt for this meeting type (1–5), before and after the session. */
+  confidenceBefore: smallint("confidence_before"),
+  confidenceAfter: smallint("confidence_after"),
 });
 
 export const turns = pgTable("turns", {

@@ -1,10 +1,16 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { decide, isSerious, type TurnKind } from "../domain/conversation/correction-policy.js";
+import { type FluencySignals, fluencySignals, type SessionTiming } from "../domain/conversation/fluency.js";
 import type { Mode } from "../domain/conversation/mode.js";
 import type { Session } from "../domain/conversation/types.js";
 import { LEARNER_CONTEXT_PORT, type LearnerContextPort } from "../domain/ports/learner-context.port.js";
 import { MISTAKE_REPOSITORY, type MistakeRepository, type SessionMistake } from "../domain/ports/mistake.repository.js";
-import { SESSION_REPOSITORY, type SessionRepository } from "../domain/ports/session.repository.js";
+import {
+  type ConfidenceMoment,
+  SESSION_REPOSITORY,
+  type SessionOutcome,
+  type SessionRepository,
+} from "../domain/ports/session.repository.js";
 import { TUTOR_PORT, type TutorPort } from "../domain/ports/tutor.port.js";
 
 /** How many of the learner's most frequent mistakes the tutor watches for. */
@@ -30,6 +36,8 @@ export interface SessionSummary {
   mode: Mode;
   mistakes: SessionMistake[];
   selfCorrections: number;
+  signals: FluencySignals;
+  confidence: SessionOutcome["confidence"];
 }
 
 @Injectable()
@@ -89,17 +97,36 @@ export class ConversationService {
     return { kind: decision.kind, message: decision.message, selfCorrected: decision.selfCorrected };
   }
 
-  async end(sessionId: string): Promise<SessionSummary> {
+  /** Ends the session (once: ending it again keeps the first timing) and returns its summary. */
+  async end(sessionId: string, timing: SessionTiming | null = null): Promise<SessionSummary> {
     const session = await this.sessions.get(sessionId);
     if (!session) throw new SessionNotFoundError(sessionId);
-    if (!session.endedAt) await this.sessions.end(sessionId);
-    const mistakes = await this.mistakes.forSession(sessionId);
+    if (!session.endedAt) await this.sessions.end(sessionId, timing);
+    const [mistakes, history, outcome] = await Promise.all([
+      this.mistakes.forSession(sessionId),
+      this.sessions.history(sessionId),
+      this.sessions.outcome(sessionId),
+    ]);
     return {
       sessionId,
       mode: session.mode,
       mistakes,
       selfCorrections: mistakes.filter((m) => m.selfCorrected).length,
+      signals: fluencySignals({
+        mistakes,
+        learnerUtterances: history.filter((t) => t.role === "user").map((t) => t.content),
+        timing: outcome?.timing ?? null,
+      }),
+      confidence: outcome?.confidence ?? { before: null, after: null },
     };
+  }
+
+  /** How ready the learner feels for this meeting type, 1–5. Allowed after the end: "after" is asked then. */
+  async rateConfidence(sessionId: string, moment: ConfidenceMoment, value: number): Promise<void> {
+    if (!Number.isInteger(value) || value < 1 || value > 5) throw new RangeError("Confidence goes from 1 to 5.");
+    const session = await this.sessions.get(sessionId);
+    if (!session) throw new SessionNotFoundError(sessionId);
+    await this.sessions.setConfidence(sessionId, moment, value);
   }
 
   private async openSession(sessionId: string): Promise<Session> {

@@ -11,7 +11,7 @@ import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import { SessionsController } from "./sessions.controller.js";
 
 const id = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
-const service = { start: vi.fn(), respond: vi.fn(), end: vi.fn() };
+const service = { start: vi.fn(), respond: vi.fn(), end: vi.fn(), rateConfidence: vi.fn() };
 let app: INestApplication;
 
 beforeEach(async () => {
@@ -79,5 +79,51 @@ describe("POST /sessions/:id/end", () => {
     const res = await request(app.getHttpServer()).post(`/sessions/${id}/end`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual(summary);
+    expect(service.end).toHaveBeenCalledWith(id, null);
+  });
+
+  it("passes the timing the app measured", async () => {
+    service.end.mockResolvedValue({});
+    const timing = { learnerSpeechMs: 61_000, tutorSpeechMs: 40_200, pausesMs: [900, 1800] };
+    const res = await request(app.getHttpServer()).post(`/sessions/${id}/end`).send({ timing });
+    expect(res.status).toBe(200);
+    expect(service.end).toHaveBeenCalledWith(id, timing);
+  });
+
+  it.each([
+    { timing: { learnerSpeechMs: -1, tutorSpeechMs: 0, pausesMs: [] } },
+    { timing: { learnerSpeechMs: 1.5, tutorSpeechMs: 0, pausesMs: [] } },
+    { timing: { learnerSpeechMs: 0, tutorSpeechMs: 0, pausesMs: [-5] } },
+    { timing: { learnerSpeechMs: 0, tutorSpeechMs: 0 } },
+  ])("rejects bad timing %j", async (body) => {
+    const res = await request(app.getHttpServer()).post(`/sessions/${id}/end`).send(body);
+    expect(res.status).toBe(400);
+    expect(service.end).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /sessions/:id/confidence", () => {
+  it("stores a rating", async () => {
+    const res = await request(app.getHttpServer()).post(`/sessions/${id}/confidence`).send({ moment: "after", value: 4 });
+    expect(res.status).toBe(204);
+    expect(service.rateConfidence).toHaveBeenCalledWith(id, "after", 4);
+  });
+
+  it.each([
+    { moment: "after", value: 0 },
+    { moment: "after", value: 6 },
+    { moment: "after", value: 3.5 },
+    { moment: "during", value: 3 },
+    { value: 3 },
+  ])("rejects %j", async (body) => {
+    const res = await request(app.getHttpServer()).post(`/sessions/${id}/confidence`).send(body);
+    expect(res.status).toBe(400);
+    expect(service.rateConfidence).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 for an unknown session", async () => {
+    service.rateConfidence.mockRejectedValue(new SessionNotFoundError(id));
+    const res = await request(app.getHttpServer()).post(`/sessions/${id}/confidence`).send({ moment: "before", value: 2 });
+    expect(res.status).toBe(404);
   });
 });
