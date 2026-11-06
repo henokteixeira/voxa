@@ -11,3 +11,8 @@ __pycache__/
 *.pyc
 # Downloaded voice models
 services/voice/models/
+# Personal context for the tutor (see README)
+tutor-context.md
+# Voice evaluation: personal recordings and local results
+services/voice/eval/recordings/
+services/voice/eval/results/
