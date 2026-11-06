@@ -28,3 +28,22 @@ pnpm dev:web                  # http://localhost:5173
 ```
 
 Voice service: see `services/voice/README.md`.
+
+### Tutor context (optional, personal)
+
+The tutor makes scenes realistic with facts about you: your role, projects, meetings and the words you use.
+Write them in `tutor-context.md` at the repository root (plain Markdown, any structure). The file is
+gitignored; never commit it. Without it, the tutor asks about your work instead.
+
+### Try a session without voice
+
+```bash
+curl -s localhost:3000/api/sessions -H 'content-type: application/json' -d '{"mode":"daily"}'
+# → {"sessionId":"…","mode":"daily","language":"en","message":"…"}
+curl -s localhost:3000/api/sessions/<sessionId>/turns -H 'content-type: application/json' \
+  -d '{"text":"Yesterday I fix the upload bug."}'
+# → {"kind":"hint" | "reply" | "reveal","message":"…","selfCorrected":false}
+curl -s -X POST localhost:3000/api/sessions/<sessionId>/end
+```
+
+Modes: `presentation`, `free_talk`, `daily`, `review`.
