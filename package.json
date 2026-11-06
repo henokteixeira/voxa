@@ -1,0 +1,14 @@
+{
+  "name": "voxa",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @voxa/web dev",
+    "dev:api": "pnpm --filter @voxa/api dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "db:up": "docker compose up -d postgres",
+    "db:migrate": "pnpm --filter @voxa/api db:migrate"
+  }
+}
