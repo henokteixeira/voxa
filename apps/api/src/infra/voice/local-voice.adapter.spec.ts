@@ -24,7 +24,7 @@ describe("LocalVoiceAdapter.transcribe", () => {
     );
     const result = await new LocalVoiceAdapter(config()).transcribe(Buffer.from("abc"), "en-US");
 
-    expect(result).toEqual({ text: "I goes to work.", language: "en", audioMs: 1200, processingMs: 300 });
+    expect(result).toEqual({ text: "I goes to work.", language: "en-US", audioMs: 1200, processingMs: 300 });
     const [url, init] = fetch.mock.calls[0];
     expect(url).toBe("http://voice.test/stt");
     const form = init.body as FormData;
@@ -53,6 +53,13 @@ describe("LocalVoiceAdapter.transcribe", () => {
     mockFetch(async () => json({ detail: "Whisper failed" }, 503));
     await expect(new LocalVoiceAdapter(config()).transcribe(Buffer.from("a"), "en")).rejects.toThrow(
       /Whisper failed/,
+    );
+  });
+
+  it("throws VoiceUnavailableError on a 200 with a body that is not JSON", async () => {
+    mockFetch(async () => new Response("<html>proxy error</html>", { status: 200 }));
+    await expect(new LocalVoiceAdapter(config()).transcribe(Buffer.from("a"), "en")).rejects.toBeInstanceOf(
+      VoiceUnavailableError,
     );
   });
 

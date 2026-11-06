@@ -9,18 +9,19 @@ pip install -r requirements.txt
 uvicorn main:app --port 8001
 ```
 
-Models download on the first `/stt` and `/tts` calls (Whisper `small` ~470 MB; Kokoro ~300 MB),
-or at startup with `VOICE_WARMUP=1`. Kokoro may also need `espeak-ng` installed on the system.
+Both models load at startup (the first run downloads them: Whisper `small` ~470 MB, Kokoro ~300 MB),
+so the server answers only once they are ready. `VOICE_WARMUP=0` loads them lazily instead, but then
+the first request can exceed the API's timeout. Kokoro may also need `espeak-ng` installed on the system.
 
 ## Endpoints
 
 | Endpoint | Input | Output |
 | --- | --- | --- |
 | `GET /health` | | `{ "status": "ok" }` |
-| `POST /stt` | multipart: `audio` (file; extension tells the format), `language` (BCP 47, default `en`) | `{ text, language, audioMs, processingMs }` |
+| `POST /stt` | multipart: `audio` (file, up to 25 MB, any format ffmpeg reads), `language` (BCP 47, default `en`) | `{ text, language, audioMs, processingMs }` (`language` echoes the request) |
 | `POST /tts` | JSON: `{ text, language }` (`en`, `en-US`, `en-GB`; up to 2000 characters) | WAV audio, `X-Processing-Ms` header |
 
-Errors: `400` empty audio or text, `413` text too long, `422` unsupported language, `503` model failed.
+Errors: `400` empty audio or text, `413` audio or text too large, `422` undecodable audio or unsupported language, `503` model failed.
 
 ## Configuration
 
@@ -31,7 +32,7 @@ Read from the process environment (the root `.env` is not loaded here; export th
 | `WHISPER_MODEL` | `small` | Whisper size (`base`, `small`, `medium`, ...) |
 | `WHISPER_INITIAL_PROMPT` | none | Prompt that biases the transcription style (see the clean-up test) |
 | `KOKORO_VOICE` | `af_heart` | Kokoro voice |
-| `VOICE_WARMUP` | `0` | `1` loads both models at startup |
+| `VOICE_WARMUP` | `1` | `0` loads the models on first use instead of at startup |
 
 Whisper decodes literally on purpose (temperature 0, no conditioning on previous text): the tutor
 needs the learner's mistakes, not a cleaned-up sentence.
@@ -51,7 +52,7 @@ python -m eval.latency --runs 5 --out eval/results/latency.md
   (cleaner than a real voice, so your recordings are the real test). Compares each model with and
   without a "verbatim" prompt.
 - **Latency:** STT and TTS times (p50/p95) for a short, medium and long tutor line. Claude's time is
-  not included.
+  not included, nor the browser's webm/opus encoding and the API hop; D4 measures the full loop.
 
 Recordings and results stay out of git.
 

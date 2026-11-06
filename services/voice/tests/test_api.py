@@ -4,7 +4,7 @@ import numpy as np
 import soundfile as sf
 from fastapi.testclient import TestClient
 
-from engines import EngineError, SttResult
+from engines import EngineError, InputError, SttResult
 from main import create_app
 
 
@@ -15,8 +15,8 @@ class FakeStt:
         self.calls = []
         self.loaded = False
 
-    def transcribe(self, path, language):
-        self.calls.append((path, language))
+    def transcribe(self, audio, language):
+        self.calls.append((audio.read(), language))
         if self.error:
             raise self.error
         return self.result
@@ -73,22 +73,32 @@ def test_no_warmup_leaves_engines_lazy():
 # --- STT ---
 
 
-def test_stt_returns_text_language_and_timings():
-    res = post_audio(client())
+def test_stt_returns_text_requested_language_and_timings():
+    res = post_audio(client(), language="en-US")
     assert res.status_code == 200
     body = res.json()
     assert body["text"] == "I goes to work."
-    assert body["language"] == "en"
+    assert body["language"] == "en-US"
     assert body["audioMs"] == 1200
     assert isinstance(body["processingMs"], int)
 
 
-def test_stt_passes_base_language_to_engine_and_keeps_file_extension():
+def test_stt_passes_audio_and_lowercased_base_language_to_engine():
     stt = FakeStt()
-    post_audio(client(stt=stt), filename="turn.ogg", language="en-US")
-    path, language = stt.calls[0]
-    assert language == "en"
-    assert path.endswith(".ogg")
+    post_audio(client(stt=stt), data=b"abc", language="EN-us")
+    assert stt.calls == [(b"abc", "en")]
+
+
+def test_stt_rejects_too_large_audio(monkeypatch):
+    import main
+
+    monkeypatch.setattr(main, "MAX_AUDIO_BYTES", 3)
+    assert post_audio(client(), data=b"abcd").status_code == 413
+
+
+def test_stt_bad_audio_or_language_is_422():
+    res = post_audio(client(stt=FakeStt(error=InputError("cannot decode"))))
+    assert res.status_code == 422
 
 
 def test_stt_rejects_empty_audio():

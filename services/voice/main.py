@@ -2,7 +2,6 @@
 
 import io
 import os
-import tempfile
 import time
 from contextlib import asynccontextmanager
 
@@ -11,9 +10,10 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from engines import KOKORO_LANG, EngineError, KokoroTts, SpeechToText, TextToSpeech, WhisperStt
+from engines import KOKORO_LANG, EngineError, InputError, KokoroTts, SpeechToText, TextToSpeech, WhisperStt
 
 MAX_TTS_CHARS = 2000
+MAX_AUDIO_BYTES = 25 * 1024 * 1024
 
 
 class TtsRequest(BaseModel):
@@ -41,21 +41,23 @@ def create_app(stt: SpeechToText, tts: TextToSpeech, warmup: bool = False) -> Fa
 
     @app.post("/stt")
     def transcribe(audio: UploadFile = File(...), language: str = Form("en")):
-        data = audio.file.read()
+        data = audio.file.read(MAX_AUDIO_BYTES + 1)
         if not data:
             raise HTTPException(400, "Empty audio")
+        if len(data) > MAX_AUDIO_BYTES:
+            raise HTTPException(413, "Audio larger than 25 MB")
         start = time.perf_counter()
-        suffix = os.path.splitext(audio.filename or "")[1] or ".webm"
-        with tempfile.NamedTemporaryFile(suffix=suffix) as tmp:
-            tmp.write(data)
-            tmp.flush()
-            try:
-                result = stt.transcribe(tmp.name, language.split("-")[0])
-            except EngineError as e:
-                raise HTTPException(503, str(e)) from e
+        try:
+            # In memory, not a temp file: a still-open temp file cannot be reopened on Windows.
+            result = stt.transcribe(io.BytesIO(data), language.split("-")[0].lower())
+        except InputError as e:
+            raise HTTPException(422, str(e)) from e
+        except EngineError as e:
+            raise HTTPException(503, str(e)) from e
         return {
             "text": result.text,
-            "language": result.language,
+            # Echo the caller's BCP 47 tag (e.g. en-US): records must keep the region.
+            "language": language,
             "audioMs": result.audio_ms,
             "processingMs": _elapsed_ms(start),
         }
@@ -89,7 +91,7 @@ def _default_app() -> FastAPI:
     return create_app(
         WhisperStt(os.getenv("WHISPER_MODEL", "small"), os.getenv("WHISPER_INITIAL_PROMPT")),
         KokoroTts(os.getenv("KOKORO_VOICE", "af_heart")),
-        warmup=os.getenv("VOICE_WARMUP", "0") == "1",
+        warmup=os.getenv("VOICE_WARMUP", "1") == "1",
     )
 
 

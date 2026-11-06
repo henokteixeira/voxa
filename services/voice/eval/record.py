@@ -15,16 +15,17 @@ import soundfile as sf
 from eval.cases import CASES
 from eval.cleanup_risk import RECORDINGS
 
-RATE = 16000
 
 
-def record_until_enter():
+def record_until_enter() -> tuple[np.ndarray, int]:
     import sounddevice as sd
 
+    # The device's own rate: many microphones reject a fixed 16 kHz.
+    rate = int(sd.query_devices(kind="input")["default_samplerate"])
     chunks = []
-    with sd.InputStream(samplerate=RATE, channels=1, callback=lambda data, *_: chunks.append(data.copy())):
+    with sd.InputStream(samplerate=rate, channels=1, callback=lambda data, *_: chunks.append(data.copy())):
         input("  recording... press Enter to stop ")
-    return np.concatenate(chunks) if chunks else np.zeros((0, 1))
+    return (np.concatenate(chunks) if chunks else np.zeros((0, 1))), rate
 
 
 def main() -> None:
@@ -38,8 +39,13 @@ def main() -> None:
         if path.exists() and not args.redo:
             continue
         print(f'\n[{i}/{len(CASES)}] Say: "{case.text}"')
-        input("  press Enter to start ")
-        sf.write(path, record_until_enter(), RATE)
+        while True:
+            input("  press Enter to start ")
+            samples, rate = record_until_enter()
+            if len(samples) >= rate // 2:
+                break
+            print("  too short (under half a second), try again")
+        sf.write(path, samples, rate)
         print(f"  saved {path.name}")
 
 

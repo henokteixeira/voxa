@@ -16,9 +16,9 @@ from pathlib import Path
 
 import soundfile as sf
 
-from engines import KokoroTts, WhisperStt
+from engines import EngineError, InputError, KokoroTts, WhisperStt
 from eval.cases import CASES
-from eval.scoring import Outcome, score, summarize
+from eval.scoring import score, summarize
 
 RECORDINGS = Path(__file__).parent / "recordings"
 # A disfluent, ungrammatical prompt nudges Whisper towards a verbatim style (to be measured).
@@ -45,15 +45,22 @@ def main() -> None:
     args = parser.parse_args()
 
     tts = KokoroTts(args.voice)
-    variants = {f"{m}/{p}": WhisperStt(m, prompt) for m in args.models for p, prompt in PROMPTS.items()}
+    models = {m: WhisperStt(m) for m in args.models}  # one model per size, shared by prompts
+    variants = {f"{m}/{p}": (models[m], prompt) for m in args.models for p, prompt in PROMPTS.items()}
     rows, outcomes = [], {name: [] for name in variants}
 
     with tempfile.TemporaryDirectory() as tmp:
         for case in CASES:
             clip, source = clip_for(case, tts, Path(tmp))
             cells = []
-            for name, stt in variants.items():
-                text = stt.transcribe(str(clip), "en").text
+            for name, (stt, prompt) in variants.items():
+                try:
+                    with open(clip, "rb") as audio:
+                        text = stt.transcribe(audio, "en", initial_prompt=prompt).text
+                except (EngineError, InputError) as e:
+                    print(f"[{name}] {case.id}: error | {e}")
+                    cells.append(f"error: {e}")
+                    continue
                 outcome = score(case, text)
                 outcomes[name].append(outcome)
                 cells.append(f"{outcome.value}: {text}")

@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from engines import EngineError, WhisperStt
+from engines import EngineError, InputError, WhisperStt
 
 
 class FakeWhisperModel:
@@ -10,7 +10,7 @@ class FakeWhisperModel:
         self.kwargs = None
         self.error = error
 
-    def transcribe(self, path, **kwargs):
+    def transcribe(self, audio, **kwargs):
         if self.error:
             raise self.error
         self.kwargs = kwargs
@@ -20,7 +20,7 @@ class FakeWhisperModel:
 
 def stt_with(model, prompt=None):
     stt = WhisperStt("small", prompt)
-    stt.__dict__["model"] = model  # skip the real (lazy) model load
+    stt._model = model  # skip the real (lazy) model load
     return stt
 
 
@@ -49,3 +49,14 @@ def test_whisper_uses_configured_initial_prompt():
 def test_whisper_runtime_failure_becomes_engine_error():
     with pytest.raises(EngineError):
         stt_with(FakeWhisperModel(error=RuntimeError("boom"))).transcribe("a.wav", "en")
+
+
+def test_whisper_prompt_can_be_overridden_per_call():
+    model = FakeWhisperModel()
+    stt_with(model, "configured").transcribe("a.wav", "en", initial_prompt=None)
+    assert model.kwargs["initial_prompt"] is None
+
+
+def test_whisper_unknown_language_becomes_input_error():
+    with pytest.raises(InputError):
+        stt_with(FakeWhisperModel(error=ValueError("'xx' is not a valid language code"))).transcribe("a.wav", "xx")
