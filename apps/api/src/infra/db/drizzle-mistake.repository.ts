@@ -1,10 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Severity } from "../../domain/conversation/types.js";
 import type { BankEntry, DismissReason, MistakeBankRepository } from "../../domain/ports/mistake-bank.repository.js";
 import type { Mistake, MistakeRepository, NewMistake, SessionMistake } from "../../domain/ports/mistake.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
-import { mistakeOccurrences, mistakes } from "./schema.js";
+import { mistakeCorrectUses, mistakeOccurrences, mistakes } from "./schema.js";
 
 @Injectable()
 export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankRepository {
@@ -30,7 +30,33 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
         : await tx.insert(mistakes).values(m).returning();
 
       await tx.insert(mistakeOccurrences).values({ mistakeId: saved.id, language: m.language, ...occurrence });
+      // Making it again sends it back to Open.
+      await tx.delete(mistakeCorrectUses).where(eq(mistakeCorrectUses.mistakeId, saved.id));
       return toMistake(saved);
+    });
+  }
+
+  async recordCorrectUse(sessionId: string, mistake: { language: string; original: string }): Promise<void> {
+    await this.db.transaction(async (tx) => {
+    const [found] = await tx
+      .select({ id: mistakes.id })
+      .from(mistakes)
+      .where(
+        and(eq(mistakes.language, mistake.language), eq(mistakes.original, mistake.original), isNull(mistakes.dismissedAt)),
+      )
+      .limit(1);
+    if (!found) return;
+    // Only a session after the mistake counts.
+    const [madeHere] = await tx
+      .select({ id: mistakeOccurrences.id })
+      .from(mistakeOccurrences)
+      .where(and(eq(mistakeOccurrences.mistakeId, found.id), eq(mistakeOccurrences.sessionId, sessionId)))
+      .limit(1);
+    if (madeHere) return;
+    await tx
+      .insert(mistakeCorrectUses)
+      .values({ mistakeId: found.id, sessionId, language: mistake.language })
+      .onConflictDoNothing();
     });
   }
 
@@ -87,20 +113,19 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
       .orderBy(desc(mistakes.lastSeenAt), desc(mistakes.id));
     if (rows.length === 0) return [];
 
-    const occurrences = await this.db
-      .select({ mistakeId: mistakeOccurrences.mistakeId, selfCorrected: mistakeOccurrences.selfCorrected })
-      .from(mistakeOccurrences)
+    const uses = await this.db
+      .select({ mistakeId: mistakeCorrectUses.mistakeId, sessions: count() })
+      .from(mistakeCorrectUses)
       .where(
         inArray(
-          mistakeOccurrences.mistakeId,
+          mistakeCorrectUses.mistakeId,
           rows.map((r) => r.id),
         ),
       )
-      .orderBy(desc(mistakeOccurrences.seq));
-    const fixed = new Map<string, boolean[]>();
-    for (const o of occurrences) fixed.set(o.mistakeId, [...(fixed.get(o.mistakeId) ?? []), o.selfCorrected]);
+      .groupBy(mistakeCorrectUses.mistakeId);
+    const correct = new Map(uses.map((u) => [u.mistakeId, Number(u.sessions)]));
 
-    return rows.map((r) => ({ ...toMistake(r), fixedByLearner: fixed.get(r.id) ?? [] }));
+    return rows.map((r) => ({ ...toMistake(r), sessionsCorrect: correct.get(r.id) ?? 0 }));
   }
 
   async dismiss(id: string, reason: DismissReason): Promise<boolean> {

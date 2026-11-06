@@ -86,6 +86,12 @@ export class ConversationService {
         { sessionId, severity: isSerious(issue) ? "serious" : "minor" },
       );
     }
+    // Correct uses of known mistakes, except the retry of the pending one (that came after a hint).
+    for (const used of verdict.correctUses) {
+      const mistake = known.find((m) => sameText(m.original, used));
+      if (!mistake || (pending && sameText(mistake.original, pending.original))) continue;
+      await this.mistakes.recordCorrectUse(sessionId, { language: session.language, original: mistake.original });
+    }
     if (decision.selfCorrected && pending) {
       await this.mistakes.markSelfCorrected(sessionId, { language: session.language, original: pending.original });
     }

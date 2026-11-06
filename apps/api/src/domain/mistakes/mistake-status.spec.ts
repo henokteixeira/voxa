@@ -1,24 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { MASTERED_STREAK, mistakeStatus } from "./mistake-status.js";
+import { MASTERED_SESSIONS, mistakeStatus } from "./mistake-status.js";
 
-// Each list holds whether the learner fixed the mistake alone, newest occurrence first.
-describe("mistakeStatus (provisional rule, pending confirmation)", () => {
-  it("is open when the learner did not fix the latest occurrence", () => {
-    expect(mistakeStatus([false])).toBe("open");
-    expect(mistakeStatus([false, true, true, true])).toBe("open");
+// The argument is how many sessions, after the latest time the mistake was made,
+// the learner used the correct form in.
+describe("mistakeStatus (rule confirmed by the user on 2026-11-06)", () => {
+  it("is open when the mistake is new or was made again", () => {
+    expect(mistakeStatus(0)).toBe("open");
   });
 
-  it("is open when there is no occurrence", () => {
-    expect(mistakeStatus([])).toBe("open");
+  it("is improving once the learner used the correct form in a later session", () => {
+    expect(mistakeStatus(1)).toBe("improving");
+    expect(mistakeStatus(MASTERED_SESSIONS - 1)).toBe("improving");
   });
 
-  it("is improving when the learner fixed the latest occurrence", () => {
-    expect(mistakeStatus([true])).toBe("improving");
-    expect(mistakeStatus([true, false, true])).toBe("improving");
-  });
-
-  it(`is mastered when the learner fixed the latest ${MASTERED_STREAK} occurrences in a row`, () => {
-    expect(mistakeStatus(Array(MASTERED_STREAK).fill(true))).toBe("mastered");
-    expect(mistakeStatus([...Array(MASTERED_STREAK).fill(true), false])).toBe("mastered");
+  it(`is mastered after the correct form in ${MASTERED_SESSIONS} sessions without the mistake`, () => {
+    expect(mistakeStatus(MASTERED_SESSIONS)).toBe("mastered");
+    expect(mistakeStatus(MASTERED_SESSIONS + 4)).toBe("mastered");
   });
 });

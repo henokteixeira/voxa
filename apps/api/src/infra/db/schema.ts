@@ -1,4 +1,4 @@
-import { bigserial, boolean, integer, jsonb, pgTable, smallint, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import { bigserial, boolean, integer, jsonb, pgTable, primaryKey, smallint, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import type { PendingCorrection } from "../../domain/conversation/types.js";
 
@@ -54,3 +54,18 @@ export const mistakeOccurrences = pgTable("mistake_occurrences", {
   selfCorrected: boolean("self_corrected").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Sessions in which the learner used the correct form of a mistake, after the latest time they made it.
+ * Making the mistake again deletes its rows, so the status goes back to Open.
+ */
+export const mistakeCorrectUses = pgTable(
+  "mistake_correct_uses",
+  {
+    mistakeId: uuid("mistake_id").notNull().references(() => mistakes.id, { onDelete: "cascade" }),
+    sessionId: uuid("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
+    language: varchar("language", { length: 16 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.mistakeId, t.sessionId] })],
+);

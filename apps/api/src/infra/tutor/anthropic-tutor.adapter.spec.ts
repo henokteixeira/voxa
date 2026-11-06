@@ -12,7 +12,7 @@ function fakeMessages(response: object) {
   return { messages: { create, parse } as unknown as AnthropicMessages, create, parse };
 }
 
-const verdict = { reply: "Nice.", issues: [], pendingResolved: false, nextHint: null };
+const verdict = { reply: "Nice.", issues: [], pendingResolved: false, nextHint: null, correctUses: [] };
 const request: TutorRequest = {
   mode: "daily",
   language: "en",

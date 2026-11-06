@@ -54,6 +54,8 @@ export function buildSystemPrompt({ mode, language, learnerContext }: TutorConte
       "- `hint`: a short, friendly clue that helps the learner find the fix alone. Name the problem area or ask a " +
         "guiding question, without judging. Never include the corrected words.",
       "Do not report style preferences or correct language that a fluent speaker would accept.",
+      "List in `correctUses` each known mistake the learner avoided: the utterance says the same thing correctly. " +
+        "Copy its `original` text from the known mistakes list exactly. Leave the list empty when none applies.",
     ].join("\n"),
     [
       "## Pending correction",
