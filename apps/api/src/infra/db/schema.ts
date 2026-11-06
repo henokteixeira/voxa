@@ -29,6 +29,9 @@ export const mistakes = pgTable("mistakes", {
   category: varchar("category", { length: 32 }).notNull(), // grammar | vocabulary | pronunciation | ...
   occurrences: integer("occurrences").notNull().default(1),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Set when the learner says "This isn't a mistake": the record then leaves the bank for good. */
+  dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
+  dismissReason: varchar("dismiss_reason", { length: 32 }), // transcript_error | both_correct | not_needed
 });
 
 /** Each time a mistake shows up in a session. */

@@ -1,12 +1,13 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Severity } from "../../domain/conversation/types.js";
+import type { BankEntry, DismissReason, MistakeBankRepository } from "../../domain/ports/mistake-bank.repository.js";
 import type { Mistake, MistakeRepository, NewMistake, SessionMistake } from "../../domain/ports/mistake.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
 import { mistakeOccurrences, mistakes } from "./schema.js";
 
 @Injectable()
-export class DrizzleMistakeRepository implements MistakeRepository {
+export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankRepository {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
   async record(m: NewMistake, occurrence: { sessionId: string; severity: Severity }): Promise<Mistake> {
@@ -17,6 +18,9 @@ export class DrizzleMistakeRepository implements MistakeRepository {
         .where(and(eq(mistakes.language, m.language), eq(mistakes.original, m.original)))
         .limit(1);
 
+      // A dismissed mistake left the bank for good: it does not count again.
+      if (existing?.dismissedAt) return toMistake(existing);
+
       const [saved] = existing
         ? await tx
             .update(mistakes)
@@ -26,7 +30,7 @@ export class DrizzleMistakeRepository implements MistakeRepository {
         : await tx.insert(mistakes).values(m).returning();
 
       await tx.insert(mistakeOccurrences).values({ mistakeId: saved.id, language: m.language, ...occurrence });
-      return saved;
+      return toMistake(saved);
     });
   }
 
@@ -48,13 +52,14 @@ export class DrizzleMistakeRepository implements MistakeRepository {
     await this.db.update(mistakeOccurrences).set({ selfCorrected: true }).where(eq(mistakeOccurrences.id, latest.id));
   }
 
-  mostFrequent(language: string, limit: number): Promise<Mistake[]> {
-    return this.db
+  async mostFrequent(language: string, limit: number): Promise<Mistake[]> {
+    const rows = await this.db
       .select()
       .from(mistakes)
-      .where(eq(mistakes.language, language))
+      .where(and(eq(mistakes.language, language), isNull(mistakes.dismissedAt)))
       .orderBy(desc(mistakes.occurrences), desc(mistakes.lastSeenAt))
       .limit(limit);
+    return rows.map(toMistake);
   }
 
   async forSession(sessionId: string): Promise<SessionMistake[]> {
@@ -69,8 +74,46 @@ export class DrizzleMistakeRepository implements MistakeRepository {
       })
       .from(mistakeOccurrences)
       .innerJoin(mistakes, eq(mistakeOccurrences.mistakeId, mistakes.id))
-      .where(eq(mistakeOccurrences.sessionId, sessionId))
+      .where(and(eq(mistakeOccurrences.sessionId, sessionId), isNull(mistakes.dismissedAt)))
       .orderBy(asc(mistakeOccurrences.createdAt), asc(mistakeOccurrences.id));
     return rows.map((r) => ({ ...r, severity: r.severity === "serious" ? "serious" : "minor" }));
   }
+
+  async list(language: string): Promise<BankEntry[]> {
+    const rows = await this.db
+      .select()
+      .from(mistakes)
+      .where(and(eq(mistakes.language, language), isNull(mistakes.dismissedAt)))
+      .orderBy(desc(mistakes.lastSeenAt), desc(mistakes.id));
+    if (rows.length === 0) return [];
+
+    const occurrences = await this.db
+      .select({ mistakeId: mistakeOccurrences.mistakeId, selfCorrected: mistakeOccurrences.selfCorrected })
+      .from(mistakeOccurrences)
+      .where(
+        inArray(
+          mistakeOccurrences.mistakeId,
+          rows.map((r) => r.id),
+        ),
+      )
+      .orderBy(desc(mistakeOccurrences.createdAt), desc(mistakeOccurrences.id));
+    const fixed = new Map<string, boolean[]>();
+    for (const o of occurrences) fixed.set(o.mistakeId, [...(fixed.get(o.mistakeId) ?? []), o.selfCorrected]);
+
+    return rows.map((r) => ({ ...toMistake(r), fixedByLearner: fixed.get(r.id) ?? [] }));
+  }
+
+  async dismiss(id: string, reason: DismissReason): Promise<boolean> {
+    const updated = await this.db
+      .update(mistakes)
+      .set({ dismissedAt: new Date(), dismissReason: reason })
+      .where(eq(mistakes.id, id))
+      .returning({ id: mistakes.id });
+    return updated.length > 0;
+  }
+}
+
+function toMistake(row: typeof mistakes.$inferSelect): Mistake {
+  const { id, language, original, correction, category, occurrences, lastSeenAt } = row;
+  return { id, language, original, correction, category, occurrences, lastSeenAt };
 }
