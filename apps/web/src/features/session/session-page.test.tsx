@@ -7,6 +7,7 @@ import { routes } from "@/app/router";
 import type { ApiClient } from "@/lib/api";
 import { type MicrophoneHandlers, MicrophoneUnavailableError } from "@/lib/voice/microphone";
 import type { VoiceSocketHandlers } from "@/lib/voice/voice-socket";
+import { LocaleProvider } from "@/lib/i18n/locale-provider";
 import { type VoiceDeps, VoiceDepsContext } from "./voice-deps";
 
 let micHandlers: MicrophoneHandlers;
@@ -60,27 +61,28 @@ const mistake = (severity: "serious" | "minor", selfCorrected: boolean, original
   occurrences: 1,
 });
 
-function renderSession(path = "/session/daily") {
+function renderSession(path = "/session/daily", { withLocale = false } = {}) {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
-  cleanupApp = render(
+  const app = (
     <ApiProvider value={api}>
       <VoiceDepsContext.Provider value={deps}>
         <RouterProvider router={router} />
       </VoiceDepsContext.Provider>
-    </ApiProvider>,
-  ).unmount;
+    </ApiProvider>
+  );
+  cleanupApp = render(withLocale ? <LocaleProvider>{app}</LocaleProvider> : app).unmount;
   return router;
 }
 
 /** Starts a session and plays the opening line through to the learner's turn. */
-async function startAndListen() {
-  renderSession();
+async function startAndListen(options: { withLocale?: boolean } = {}) {
+  renderSession("/session/daily", options);
   await screen.findByText("Morning! What did you work on yesterday?");
   act(() => socketHandlers.onOpen());
   act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
   act(() => socketHandlers.onDone());
   await act(async () => finishPlayback());
-  expect(await screen.findByText("Your turn")).toBeInTheDocument();
+  if (!options.withLocale) expect(await screen.findByText("Your turn")).toBeInTheDocument();
 }
 
 beforeEach(() => {
@@ -396,5 +398,29 @@ describe("fluency timing", () => {
     ).unmount;
     await screen.findByText("Morning! What did you work on yesterday?");
     expect(api.rateConfidence).toHaveBeenCalledWith("s1", "before", 2);
+  });
+});
+
+describe("a safe place to speak", () => {
+  it("reminds the learner that Portuguese is fine when they are stuck", async () => {
+    await startAndListen();
+    expect(screen.getByText("Just talk. Stuck on a word? Say it in Portuguese.")).toBeInTheDocument();
+  });
+
+  it("speaks to the learner in Portuguese when the interface is in Portuguese", async () => {
+    await startAndListen({ withLocale: true });
+    expect(await screen.findByText("Sua vez")).toBeInTheDocument();
+    expect(screen.getByText("É só falar. Travou numa palavra? Diga em português.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Digitar em vez de falar" })).toBeInTheDocument();
+    expect(screen.getByText("Daily stand-up")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Pausar" }));
+    expect(screen.getByRole("dialog", { name: "Sessão pausada" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continuar" })).toBeInTheDocument();
+  });
+
+  it("marks the conversation text as English for screen readers", async () => {
+    await startAndListen({ withLocale: true });
+    expect(screen.getByText("Morning! What did you work on yesterday?")).toHaveAttribute("lang", "en");
   });
 });
