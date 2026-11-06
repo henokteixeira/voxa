@@ -14,9 +14,32 @@ spaced repetition and progress tracking.
 The API depends only on interfaces (`apps/api/src/domain/ports`). Concrete implementations
 (Claude, local voice, Postgres) live in `apps/api/src/infra` and are wired in `app.module.ts`.
 
-## Running locally
+## Running with Docker (recommended)
 
-Requirements: Node 22+, pnpm 10+, Python 3.11+, Docker (for Postgres).
+Requirements: Docker only.
+
+```bash
+cp .env.example .env          # fill in ANTHROPIC_API_KEY
+docker compose up --build     # http://localhost:5173 (API: http://localhost:3000/api/health)
+```
+
+This starts Postgres, applies the migrations, and runs the API, the web app and the voice service.
+The first start downloads the voice models (~800 MB, kept in a Docker volume), so live voice works only
+once `docker compose ps` shows `voice` as healthy. The microphone stays in your browser; the containers
+only receive the audio the web app sends. Inside Docker the API reaches Postgres and the voice service by
+service name, so `DATABASE_URL` and `VOICE_SERVICE_URL` in `.env` are ignored there.
+
+Voice evaluation (reads `services/voice/eval/recordings`, writes `services/voice/eval/results`):
+
+```bash
+docker compose run --rm voice python -m eval.mixed_language --models small medium --out eval/results/mixed.md
+```
+
+Recording yourself (`eval.record`) needs the microphone, which Docker on macOS cannot reach.
+
+## Running without Docker
+
+Requirements: Node 22+, pnpm 10+, Python 3.10–3.12 (Kokoro does not support 3.13 yet), Docker (for Postgres).
 
 ```bash
 cp .env.example .env          # fill in ANTHROPIC_API_KEY
