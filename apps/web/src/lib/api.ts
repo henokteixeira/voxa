@@ -103,6 +103,9 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
       request<TurnResult>(`/sessions/${encodeURIComponent(sessionId)}/turns`, { method: "POST", body: { text } }),
     endSession: (sessionId: string) =>
       request<SessionSummary>(`/sessions/${encodeURIComponent(sessionId)}/end`, { method: "POST" }),
+    /** WebSocket address of the live voice session (see lib/voice/voice-socket.ts). */
+    voiceUrl: (sessionId: string) =>
+      `${baseUrl.replace(/^http/, "ws")}/api/sessions/${encodeURIComponent(sessionId)}/voice`,
     listMistakes: async (language = "en") =>
       (await request<{ mistakes: BankMistake[] }>(`/mistakes?language=${encodeURIComponent(language)}`)).mistakes,
     dismissMistake: (id: string, reason: DismissReason) =>

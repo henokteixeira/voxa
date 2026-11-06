@@ -28,6 +28,11 @@ describe("createApiClient", () => {
     expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({ text: "I goed" });
   });
 
+  it("builds the voice socket address from the API address", () => {
+    expect(createApiClient("http://localhost:3000").voiceUrl("s1")).toBe("ws://localhost:3000/api/sessions/s1/voice");
+    expect(createApiClient("https://voxa.local").voiceUrl("s 1")).toBe("wss://voxa.local/api/sessions/s%201/voice");
+  });
+
   it("lists the mistake bank in a language", async () => {
     const mistake = { id: "m1", language: "en", original: "I goed", correction: "I went", category: "grammar", occurrences: 2, lastSeenAt: "2026-11-05T10:00:00.000Z", status: "open" };
     const fetchImpl = respond(200, { mistakes: [mistake] });
