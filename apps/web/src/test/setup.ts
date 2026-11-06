@@ -5,4 +5,5 @@ import { afterEach } from "vitest";
 afterEach(() => {
   cleanup();
   document.documentElement.lang = "en";
+  localStorage.clear();
 });

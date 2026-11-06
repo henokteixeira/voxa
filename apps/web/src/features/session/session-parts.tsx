@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { useCopy } from "@/lib/i18n/locale";
+import { SESSION_COPY } from "./session-copy";
 import type { Caption } from "./session-state";
 
 export function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
@@ -33,15 +35,17 @@ export const TranscriptIcon = () => (
 );
 
 export function CaptionCard({ caption }: { caption: Caption }) {
+  const { parts } = useCopy(SESSION_COPY);
   return (
     <div className="flex flex-col gap-1 rounded-md bg-paper px-[18px] py-4 shadow-card">
-      <span className="text-label text-taupe">{caption.who === "tutor" ? "Tutor" : "You"}</span>
+      <span className="text-label text-taupe">{caption.who === "tutor" ? parts.tutor : parts.you}</span>
       <p className="m-0 text-body">{caption.text}</p>
     </div>
   );
 }
 
 export function HintCard({ step, said, tip }: { step: number; said: string | null; tip: string }) {
+  const { parts } = useCopy(SESSION_COPY);
   return (
     <>
       <div className="flex items-center justify-between">
@@ -50,10 +54,10 @@ export function HintCard({ step, said, tip }: { step: number; said: string | nul
             <i key={n} className={`h-1.5 w-7 rounded-[3px] ${n <= step ? "bg-honey" : "bg-sand"}`} />
           ))}
         </span>
-        <span className="text-caption text-taupe">Hint {step} of 2</span>
+        <span className="text-caption text-taupe">{parts.hintOf(step)}</span>
       </div>
-      <section aria-label={`Hint ${step} of 2`} className="flex flex-col gap-2 rounded-md bg-honey-soft p-4">
-        <span className="text-label text-honey-ink">Hint</span>
+      <section aria-label={parts.hintOf(step)} className="flex flex-col gap-2 rounded-md bg-honey-soft p-4">
+        <span className="text-label text-honey-ink">{parts.hint}</span>
         {said && <span className="text-phrase">“{said}”</span>}
         <p className="m-0 text-body">{tip}</p>
       </section>
@@ -62,13 +66,14 @@ export function HintCard({ step, said, tip }: { step: number; said: string | nul
 }
 
 export function RevealCard({ message }: { message: string }) {
+  const { parts } = useCopy(SESSION_COPY);
   return (
     <>
-      <section aria-label="The correct form" className="flex flex-col gap-2 rounded-md bg-sage-soft p-4">
-        <span className="text-label text-sage-ink">The correct form</span>
+      <section aria-label={parts.correctForm} className="flex flex-col gap-2 rounded-md bg-sage-soft p-4">
+        <span className="text-label text-sage-ink">{parts.correctForm}</span>
         <p className="m-0 text-phrase">{message}</p>
       </section>
-      <span className="text-center text-caption text-taupe">Saved to your mistake bank</span>
+      <span className="text-center text-caption text-taupe">{parts.savedToBank}</span>
     </>
   );
 }

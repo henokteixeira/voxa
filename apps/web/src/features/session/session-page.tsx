@@ -3,8 +3,9 @@ import { Link, Navigate, useLocation, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { VoiceBall } from "@/components/voice-ball";
 import type { Mode } from "@/lib/api";
+import { useCopy } from "@/lib/i18n/locale";
 import { isMode, useModeInfo } from "./modes";
-import { FAILURE_COPY, FINAL_FAILURES, labelClass, stageFor } from "./session-copy";
+import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-copy";
 import { CaptionCard, HintCard, IconButton, PauseIcon, RevealCard, TranscriptIcon } from "./session-parts";
 import { SummaryFlow } from "./session-summary";
 import type { FailureCode } from "./session-state";
@@ -36,16 +37,17 @@ function useElapsed(running: boolean): string {
 function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?: number }) {
   const session = useVoiceSession(mode, confidenceBefore);
   const modes = useModeInfo();
+  const { stage: stageCopy, page } = useCopy(SESSION_COPY);
   const { state } = session;
   const [showTranscript, setShowTranscript] = useState(false);
   const elapsed = useElapsed(state.sessionId !== null && state.phase !== "paused" && state.phase !== "ended");
-  const stage = stageFor(state);
+  const stage = stageFor(state, stageCopy);
   const lastCaption = state.captions.at(-1);
   const lastTutor = state.captions.findLast((c) => c.who === "tutor");
   const { typing, setTyping } = session;
   const yourTurn = state.phase === "listening" || state.phase === "hearing";
   const ballAction =
-    state.phase === "hearing" ? "Send now" : state.phase === "speaking" ? "Stop the tutor" : undefined;
+    state.phase === "hearing" ? page.sendNow : state.phase === "speaking" ? page.stopTutor : undefined;
 
   if (state.phase === "ended") {
     return (
@@ -59,7 +61,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
       <Screen>
         <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
           <VoiceBall state="thinking" size={160} />
-          <h1 className="m-0 text-title">Saving your session</h1>
+          <h1 className="m-0 text-title">{page.saving}</h1>
         </div>
       </Screen>
     );
@@ -87,7 +89,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
   return (
     <Screen onPointerDown={session.unlock}>
       <header inert={state.phase === "paused"} className="flex min-h-11 items-center justify-between gap-3">
-        <IconButton label="Pause" onClick={session.pause}>
+        <IconButton label={page.pause} onClick={session.pause}>
           <PauseIcon />
         </IconButton>
         <span className="flex flex-col items-center">
@@ -95,7 +97,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
           <span className="text-caption text-taupe tabular-nums">{elapsed}</span>
         </span>
         <IconButton
-          label={showTranscript ? "Hide transcript" : "Show transcript"}
+          label={showTranscript ? page.hideTranscript : page.showTranscript}
           onClick={() => setShowTranscript((v) => !v)}
         >
           <TranscriptIcon />
@@ -103,7 +105,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
       </header>
 
       {showTranscript ? (
-        <ol aria-label="Transcript" inert={state.phase === "paused"} className="m-0 flex flex-1 list-none flex-col gap-3 overflow-y-auto p-0">
+        <ol aria-label={page.transcript} inert={state.phase === "paused"} className="m-0 flex flex-1 list-none flex-col gap-3 overflow-y-auto p-0">
           {state.captions.map((caption, i) => (
             <li key={i}>
               <CaptionCard caption={caption} />
@@ -121,7 +123,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
             {stage.label}
           </span>
           {stage.hint && <span className="text-caption text-taupe">{stage.hint}</span>}
-          {state.audioBlocked && <span className="text-caption text-taupe">Tap anywhere to hear Voxa.</span>}
+          {state.audioBlocked && <span className="text-caption text-taupe">{page.tapToHear}</span>}
         </div>
       )}
 
@@ -133,7 +135,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
           (typing ? (
             <form onSubmit={submit} className="flex gap-2">
               <label htmlFor="typed-turn" className="sr-only">
-                Your answer
+                {page.yourAnswer}
               </label>
               <input
                 id="typed-turn"
@@ -143,11 +145,11 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
                 maxLength={2000}
                 className="min-h-[52px] min-w-0 flex-1 rounded-md border-none bg-paper px-4 text-body shadow-[inset_0_0_0_1.5px_var(--color-sand)]"
               />
-              <Button type="submit">Send</Button>
+              <Button type="submit">{page.send}</Button>
             </form>
           ) : (
             <Button variant="ghost" block onClick={() => setTyping(true)}>
-              Type instead
+              {page.typeInstead}
             </Button>
           ))}
       </div>
@@ -171,7 +173,8 @@ function Screen({ children, onPointerDown }: { children: ReactNode; onPointerDow
 }
 
 function FailureCard({ code, onRetry, onEnd }: { code: FailureCode; onRetry: () => void; onEnd?: () => void }) {
-  const copy = FAILURE_COPY[code];
+  const { failure, page } = useCopy(SESSION_COPY);
+  const copy = failure[code];
   const final = FINAL_FAILURES.includes(code);
   return (
     <section role="alert" aria-label={copy.title} className="flex flex-col gap-3 rounded-lg bg-paper p-5 shadow-card">
@@ -194,11 +197,11 @@ function FailureCard({ code, onRetry, onEnd }: { code: FailureCode; onRetry: () 
       )}
       {onEnd ? (
         <Button variant={final ? "primary" : "ghost"} block onClick={onEnd}>
-          End session
+          {page.endSession}
         </Button>
       ) : (
         <Button variant="ghost" block asChild>
-          <Link to="/">Back to Today</Link>
+          <Link to="/">{page.backToToday}</Link>
         </Button>
       )}
     </section>
@@ -207,6 +210,7 @@ function FailureCard({ code, onRetry, onEnd }: { code: FailureCode; onRetry: () 
 
 function PausedSheet(props: { elapsed: string; onResume: () => void; onRepeat: () => void; onEnd: () => void }) {
   const { onResume } = props;
+  const { page } = useCopy(SESSION_COPY);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onResume();
@@ -219,16 +223,16 @@ function PausedSheet(props: { elapsed: string; onResume: () => void; onRepeat: (
       <section
         role="dialog"
         aria-modal="true"
-        aria-label="Paused"
+        aria-label={page.paused}
         className="mx-auto flex w-full max-w-[480px] flex-col gap-3 rounded-t-[28px] bg-linen px-5 pt-3 pb-8"
       >
         <span className="h-[5px] w-10 self-center rounded-[3px] bg-sand" aria-hidden="true" />
         <div className="flex items-baseline justify-between">
-          <h2 className="m-0 text-heading">Paused</h2>
+          <h2 className="m-0 text-heading">{page.paused}</h2>
           <span className="text-caption text-taupe tabular-nums">{props.elapsed}</span>
         </div>
         <Button block onClick={props.onResume} autoFocus>
-          Resume
+          {page.resume}
         </Button>
         <Button
           variant="secondary"
@@ -238,10 +242,10 @@ function PausedSheet(props: { elapsed: string; onResume: () => void; onRepeat: (
             props.onRepeat();
           }}
         >
-          Repeat the last question
+          {page.repeatLast}
         </Button>
         <Button variant="ghost" block onClick={props.onEnd}>
-          End session
+          {page.endSession}
         </Button>
       </section>
     </div>
