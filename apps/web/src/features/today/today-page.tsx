@@ -21,14 +21,16 @@ function LanguageSwitch({ label }: { label: string }) {
           key={l}
           type="button"
           aria-pressed={l === locale}
-          aria-label={LANGUAGE_NAMES[l]}
           onClick={() => setLocale(l)}
           className={cn(
-            "min-h-9 min-w-11 cursor-pointer rounded-pill border-none bg-transparent px-3 text-sm font-bold text-taupe",
+            "min-h-11 min-w-11 cursor-pointer rounded-pill border-none bg-transparent px-3 text-sm font-bold text-taupe",
             l === locale && "bg-paper text-ink shadow-tab",
           )}
         >
-          {l === "en" ? "EN" : "PT"}
+          <span aria-hidden="true">{l === "en" ? "EN" : "PT"}</span>
+          <span lang={l} className="sr-only">
+            {LANGUAGE_NAMES[l]}
+          </span>
         </button>
       ))}
     </div>

@@ -3,7 +3,7 @@ import { Link, Navigate, useLocation, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { VoiceBall } from "@/components/voice-ball";
 import type { Mode } from "@/lib/api";
-import { isMode, MODE_INFO } from "./modes";
+import { isMode, useModeInfo } from "./modes";
 import { FAILURE_COPY, FINAL_FAILURES, labelClass, stageFor } from "./session-copy";
 import { CaptionCard, HintCard, IconButton, PauseIcon, RevealCard, TranscriptIcon } from "./session-parts";
 import { SummaryFlow } from "./session-summary";
@@ -35,6 +35,7 @@ function useElapsed(running: boolean): string {
 
 function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?: number }) {
   const session = useVoiceSession(mode, confidenceBefore);
+  const modes = useModeInfo();
   const { state } = session;
   const [showTranscript, setShowTranscript] = useState(false);
   const elapsed = useElapsed(state.sessionId !== null && state.phase !== "paused" && state.phase !== "ended");
@@ -90,7 +91,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
           <PauseIcon />
         </IconButton>
         <span className="flex flex-col items-center">
-          <b className="text-sm">{MODE_INFO[mode].title}</b>
+          <b className="text-sm">{modes[mode].title}</b>
           <span className="text-caption text-taupe tabular-nums">{elapsed}</span>
         </span>
         <IconButton

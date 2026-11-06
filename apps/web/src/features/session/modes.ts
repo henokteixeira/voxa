@@ -19,19 +19,14 @@ export const MODE_INFO: Record<Mode, ModeInfo> = {
 
 type ModeText = Omit<ModeInfo, "color">;
 
-const MODE_COLOR: Record<Mode, string> = {
-  presentation: "var(--color-apricot)",
-  free_talk: "var(--color-lilac)",
-  daily: "var(--color-mist)",
-  review: "var(--color-sage)",
-};
+const MODE_COLOR = (mode: Mode) => MODE_INFO[mode].color;
 
 const MODE_TEXT: Copy<Record<Mode, ModeText>> = {
   en: MODE_INFO,
   "pt-BR": {
     presentation: { title: "Apresentar seu projeto", meta: "Patrocinador · cerca de 8 min", meeting: "apresentação de projeto" },
     free_talk: { title: "Conversar com um colega", meta: "Colega · cerca de 5 min", meeting: "conversa com um colega" },
-    daily: { title: "Daily", meta: "Tech lead · cerca de 6 min", meeting: "daily" },
+    daily: { title: "Daily stand-up", meta: "Tech lead · cerca de 6 min", meeting: "daily" },
     review: { title: "Sprint review", meta: "Product owner · cerca de 10 min", meeting: "sprint review" },
   },
 };
@@ -39,7 +34,7 @@ const MODE_TEXT: Copy<Record<Mode, ModeText>> = {
 /** Each mode's title and details in the interface language. */
 export function useModeInfo(): Record<Mode, ModeInfo> {
   const text = useCopy(MODE_TEXT);
-  return Object.fromEntries(MODES.map((m) => [m, { ...text[m], color: MODE_COLOR[m] }])) as Record<Mode, ModeInfo>;
+  return Object.fromEntries(MODES.map((m) => [m, { ...text[m], color: MODE_COLOR(m) }])) as Record<Mode, ModeInfo>;
 }
 
 export function isMode(value: string | undefined): value is Mode {

@@ -27,7 +27,7 @@ export const TODAY_COPY: Copy<TodayCopy> = {
     welcomeTitle: "Mistakes are welcome here",
     welcomeBody:
       "This is a safe place to practice. Stuck on a word? Say it in Portuguese, and Voxa helps you say it in English. " +
-      "Voxa makes mistakes too, and tells you when it isn't sure.",
+      "Voxa's AI makes mistakes too, and tells you when it doesn't know something.",
     offlineTitle: "Sessions need a connection",
     offlineBody: "Connect to the internet and Voxa checks again on its own.",
     problem: {
@@ -55,10 +55,10 @@ export const TODAY_COPY: Copy<TodayCopy> = {
     greeting: (h) => (h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"),
     welcomeTitle: "Aqui, errar faz parte",
     welcomeBody:
-      "Este é um lugar seguro para praticar. Travou numa palavra? Diga em português, e o Voxa ajuda você a dizer em inglês. " +
-      "O Voxa também erra, e avisa quando não tem certeza.",
+      "Este é um lugar seguro para praticar. Travou numa palavra? Diga em português e o Voxa ajuda você a dizer em inglês. " +
+      "A IA do Voxa também erra e avisa quando não sabe algo.",
     offlineTitle: "As sessões precisam de internet",
-    offlineBody: "Conecte-se, e o Voxa verifica de novo sozinho.",
+    offlineBody: "Conecte-se à internet e o Voxa verifica de novo sozinho.",
     problem: {
       unreachable: {
         title: "O servidor do Voxa não está rodando",
@@ -75,9 +75,9 @@ export const TODAY_COPY: Copy<TodayCopy> = {
     },
     checkAgain: "Verificar de novo",
     readyTitle: "Sua primeira sessão está pronta",
-    readyBody: (mode) => `${mode} · cerca de 6 min. Seu banco de erros e seu progresso começam a ser preenchidos daqui.`,
+    readyBody: (mode) => `${mode} · cerca de 6 min. Seu banco de erros e seu progresso começam a ser preenchidos a partir daqui.`,
     start: "Começar",
-    otherPractice: "Outras práticas",
+    otherPractice: "Outros treinos",
     language: "Idioma",
   },
 };
