@@ -48,10 +48,10 @@ services:
   voice:
     build: services/voice
     environment:
-      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_MODEL: ${WHISPER_MODEL:-medium}
       KOKORO_VOICE: ${KOKORO_VOICE:-af_heart}
     volumes:
-      # Downloaded models survive rebuilds (the first start downloads ~800 MB).
+      # Downloaded models survive rebuilds (the first start downloads over 1 GB).
       - voxa-models:/root/.cache/huggingface
       # Voice evaluation input and output stay on the host (both gitignored).
       - ./services/voice/eval/recordings:/app/eval/recordings

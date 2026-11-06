@@ -29,8 +29,8 @@ Read from the process environment (the root `.env` is not loaded here; export th
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `WHISPER_MODEL` | `small` | Whisper size (`base`, `small`, `medium`, ...) |
-| `WHISPER_INITIAL_PROMPT` | none | Prompt that biases the transcription style (see the clean-up test) |
+| `WHISPER_MODEL` | `medium` | Whisper size (`base`, `small`, `medium`, ...). `small` is faster but mishears more Portuguese words |
+| `WHISPER_INITIAL_PROMPT` | a sentence with Portuguese words | Prompt that biases the transcription style. The default keeps Portuguese words as said (see the Portuguese words test); set it empty for none |
 | `KOKORO_VOICE` | `af_heart` | Kokoro voice |
 | `VOICE_WARMUP` | `1` | `0` loads the models on first use instead of at startup |
 
