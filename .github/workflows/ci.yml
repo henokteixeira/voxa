@@ -31,5 +31,5 @@ jobs:
         with:
           python-version: "3.12"
       # Only the web layer is installed here; the speech models are too heavy for CI.
-      - run: pip install fastapi python-multipart httpx pytest
+      - run: pip install fastapi python-multipart httpx pytest numpy soundfile
       - run: pytest -q

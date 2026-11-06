@@ -53,6 +53,25 @@ export interface SessionSummary {
   confidence: { before: number | null; after: number | null };
 }
 
+export type MistakeStatus = "open" | "improving" | "mastered";
+
+/** A mistake in the bank, as the Mistakes screen shows it. */
+export interface BankMistake {
+  id: string;
+  /** BCP 47 tag, e.g. "en". */
+  language: string;
+  original: string;
+  correction: string;
+  category: string;
+  occurrences: number;
+  /** ISO 8601 date-time. */
+  lastSeenAt: string;
+  status: MistakeStatus;
+}
+
+/** Why the learner says a record is not a mistake. */
+export type DismissReason = "transcript_error" | "both_correct" | "not_needed";
+
 /** What went wrong, in terms the screens can act on. */
 export type ApiErrorKind = "offline" | "not_found" | "ended" | "tutor_unavailable" | "invalid" | "server";
 
@@ -117,6 +136,10 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     /** WebSocket address of the live voice session (see lib/voice/voice-socket.ts). */
     voiceUrl: (sessionId: string) =>
       `${baseUrl.replace(/^http/, "ws")}/api/sessions/${encodeURIComponent(sessionId)}/voice`,
+    listMistakes: async (language = "en") =>
+      (await request<{ mistakes: BankMistake[] }>(`/mistakes?language=${encodeURIComponent(language)}`)).mistakes,
+    dismissMistake: (id: string, reason: DismissReason) =>
+      request<void>(`/mistakes/${encodeURIComponent(id)}/dismiss`, { method: "POST", body: { reason } }),
   };
 }
 
