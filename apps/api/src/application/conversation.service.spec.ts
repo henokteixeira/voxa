@@ -74,6 +74,10 @@ class FakeMistakes implements MistakeRepository {
     this.events.push({ sessionId: o.sessionId, original: m.original, severity: o.severity, selfCorrected: false });
     return saved;
   }
+  correctUses: { sessionId: string; language: string; original: string }[] = [];
+  async recordCorrectUse(sessionId: string, mistake: { language: string; original: string }) {
+    this.correctUses.push({ sessionId, ...mistake });
+  }
   async markSelfCorrected(sessionId: string, mistake: { language: string; original: string }) {
     const latest = this.events.findLast((e) => e.sessionId === sessionId && e.original === mistake.original);
     if (latest) latest.selfCorrected = true;
@@ -124,6 +128,7 @@ const verdict = (v: Partial<TutorVerdict>): TutorVerdict => ({
   issues: [],
   pendingResolved: false,
   nextHint: null,
+  correctUses: [],
   ...v,
 });
 
@@ -372,5 +377,28 @@ describe("ConversationService.rateConfidence", () => {
 
   it("rejects an unknown session", async () => {
     await expect(service.rateConfidence("nope", "after", 3)).rejects.toBeInstanceOf(SessionNotFoundError);
+  });
+});
+
+describe("correct uses of known mistakes", () => {
+  it("records each known mistake the learner got right, by its bank text", async () => {
+    const { session: old } = await service.start("daily", "en");
+    await mistakes.record({ language: "en", original: goed.original, correction: goed.correction, category: "grammar" }, { sessionId: old.id, severity: "serious" });
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ correctUses: ["i goed to the meeting.", "something never in the bank"] }));
+
+    await service.respond(session.id, "I went to the meeting");
+
+    expect(mistakes.correctUses).toEqual([{ sessionId: session.id, language: "en", original: goed.original }]);
+  });
+
+  it("does not count a retry of a pending correction as a correct use", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true, correctUses: [goed.original] }));
+
+    await service.respond(session.id, "I goed to the meeting");
+    await service.respond(session.id, "I went to the meeting");
+
+    expect(mistakes.correctUses).toEqual([]);
   });
 });

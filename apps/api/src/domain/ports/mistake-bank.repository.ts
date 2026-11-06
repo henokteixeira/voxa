@@ -6,8 +6,8 @@ export type DismissReason = (typeof DISMISS_REASONS)[number];
 
 /** A mistake in the bank, with what happened each time it showed up. */
 export interface BankEntry extends Mistake {
-  /** For each occurrence, newest first: whether the learner fixed it alone. */
-  fixedByLearner: boolean[];
+  /** Sessions, after the latest time the mistake was made, in which the learner used the correct form. */
+  sessionsCorrect: number;
 }
 
 /** Reading and curating the mistake bank. The concrete implementation lives in infra/. */

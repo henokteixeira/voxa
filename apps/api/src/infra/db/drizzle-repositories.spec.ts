@@ -184,12 +184,38 @@ describe("DrizzleMistakeRepository as the mistake bank", () => {
     await mistakes.record(goed, { sessionId: s2.id, severity: "serious" });
 
     const list = await mistakes.list("en");
-    expect(list.map((m) => [m.original, m.occurrences, m.fixedByLearner])).toEqual([
-      ["I goed", 2, [false, true]],
-      ["more better", 1, [false]],
+    expect(list.map((m) => [m.original, m.occurrences])).toEqual([
+      ["I goed", 2],
+      ["more better", 1],
     ]);
     expect(list[0]).toMatchObject({ language: "en", correction: "I went", category: "grammar" });
     expect(list[0].lastSeenAt).toBeInstanceOf(Date);
+  });
+
+  it("counts the later sessions where the learner got a mistake right, once per session", async () => {
+    const s1 = await sessions.create({ language: "en", mode: "daily" });
+    await mistakes.record(goed, { sessionId: s1.id, severity: "serious" });
+    const s2 = await sessions.create({ language: "en", mode: "daily" });
+    const s3 = await sessions.create({ language: "en", mode: "daily" });
+
+    await mistakes.recordCorrectUse(s1.id, goed); // same session as the mistake: not counted
+    await mistakes.recordCorrectUse(s2.id, goed);
+    await mistakes.recordCorrectUse(s2.id, goed);
+    await mistakes.recordCorrectUse(s3.id, goed);
+    await mistakes.recordCorrectUse(s3.id, { ...goed, original: "not in the bank" });
+
+    expect((await mistakes.list("en"))[0].sessionsCorrect).toBe(2);
+  });
+
+  it("starts the count again when the mistake comes back", async () => {
+    const s1 = await sessions.create({ language: "en", mode: "daily" });
+    await mistakes.record(goed, { sessionId: s1.id, severity: "serious" });
+    const s2 = await sessions.create({ language: "en", mode: "daily" });
+    await mistakes.recordCorrectUse(s2.id, goed);
+    const s3 = await sessions.create({ language: "en", mode: "daily" });
+    await mistakes.record(goed, { sessionId: s3.id, severity: "minor" });
+
+    expect((await mistakes.list("en"))[0].sessionsCorrect).toBe(0);
   });
 
   it("takes a dismissed mistake out of the bank for good", async () => {

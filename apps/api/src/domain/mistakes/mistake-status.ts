@@ -1,21 +1,19 @@
 export const MISTAKE_STATUSES = ["open", "improving", "mastered"] as const;
 export type MistakeStatus = (typeof MISTAKE_STATUSES)[number];
 
-/** Occurrences in a row the learner must fix alone for a mistake to count as mastered. */
-export const MASTERED_STREAK = 3;
+/** Sessions with the correct form, without the mistake, for a mistake to count as mastered. */
+export const MASTERED_SESSIONS = 3;
 
 /**
- * PROVISIONAL RULE, pending confirmation by the user (PRD open question).
- * Kept in this one function so it is easy to replace.
+ * Status rule, confirmed by the user on 2026-11-06:
+ * - open: the mistake is new, or the learner made it again;
+ * - improving: the learner used the correct form in a session after the mistake;
+ * - mastered: the learner used the correct form in MASTERED_SESSIONS sessions without making it again.
  *
- * - open: the learner did not fix the latest occurrence alone (or it has none);
- * - improving: the learner fixed the latest occurrence alone;
- * - mastered: the learner fixed the latest MASTERED_STREAK occurrences alone, in a row.
- *
- * @param fixedByLearner for each occurrence, newest first, whether the learner fixed it alone.
+ * @param sessionsCorrect sessions, after the latest time the mistake was made, in which the learner
+ *   used the correct form. Making the mistake again sets it back to 0.
  */
-export function mistakeStatus(fixedByLearner: readonly boolean[]): MistakeStatus {
-  if (!fixedByLearner[0]) return "open";
-  const streak = fixedByLearner.slice(0, MASTERED_STREAK);
-  return streak.length === MASTERED_STREAK && streak.every(Boolean) ? "mastered" : "improving";
+export function mistakeStatus(sessionsCorrect: number): MistakeStatus {
+  if (sessionsCorrect >= MASTERED_SESSIONS) return "mastered";
+  return sessionsCorrect > 0 ? "improving" : "open";
 }

@@ -17,6 +17,7 @@ const verdict = (over: Partial<TutorVerdict> = {}): TutorVerdict => ({
   issues: [],
   pendingResolved: false,
   nextHint: null,
+  correctUses: [],
   ...over,
 });
 

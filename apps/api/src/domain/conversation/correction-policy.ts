@@ -12,6 +12,8 @@ export interface TutorVerdict {
   pendingResolved: boolean;
   /** When a correction is pending and not fixed: a new, more specific clue. */
   nextHint: string | null;
+  /** Known mistakes (by their `original`) the learner said correctly in this utterance, without a hint. */
+  correctUses: string[];
 }
 
 export type TurnKind = "reply" | "hint" | "reveal";

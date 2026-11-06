@@ -35,6 +35,7 @@ const VerdictSchema = z.object({
   ),
   pendingResolved: z.boolean(),
   nextHint: z.string().nullable(),
+  correctUses: z.array(z.string()),
 });
 
 type Effort = "low" | "medium" | "high";

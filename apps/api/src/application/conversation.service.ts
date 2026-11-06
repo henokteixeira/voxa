@@ -86,6 +86,13 @@ export class ConversationService {
         { sessionId, severity: isSerious(issue) ? "serious" : "minor" },
       );
     }
+    // A retry after a hint is not a spontaneous correct use.
+    if (!pending) {
+      for (const used of verdict.correctUses) {
+        const mistake = known.find((m) => sameText(m.original, used));
+        if (mistake) await this.mistakes.recordCorrectUse(sessionId, { language: session.language, original: mistake.original });
+      }
+    }
     if (decision.selfCorrected && pending) {
       await this.mistakes.markSelfCorrected(sessionId, { language: session.language, original: pending.original });
     }
