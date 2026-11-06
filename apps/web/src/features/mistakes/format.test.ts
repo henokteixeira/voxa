@@ -14,6 +14,7 @@ describe("seenAgo", () => {
 
   it("speaks Portuguese", () => {
     expect(seenAgo("2026-11-03T12:00:00", now, "pt-BR")).toBe("há 3 dias");
+    expect(seenAgo("2026-11-04T12:00:00", now, "pt-BR")).toBe("anteontem");
     expect(seenAgo("2026-11-05T23:50:00", now, "pt-BR")).toBe("ontem");
     expect(seenAgo("2026-11-06T00:10:00", now, "pt-BR")).toBe("hoje");
   });

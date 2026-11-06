@@ -55,6 +55,11 @@ describe("Mistakes", () => {
     expect(screen.getByText("Nothing here yet.")).toBeInTheDocument();
   });
 
+  it("celebrates when nothing is left open", async () => {
+    renderPage({ listMistakes: vi.fn().mockResolvedValue([bank[2]]) });
+    expect(await screen.findByText("All caught up. Nice work.")).toBeInTheDocument();
+  });
+
   it("says when the bank is empty", async () => {
     renderPage({ listMistakes: vi.fn().mockResolvedValue([]) });
     expect(await screen.findByText("No mistakes yet")).toBeInTheDocument();
@@ -71,7 +76,9 @@ describe("Mistakes", () => {
     expect(screen.getByText("Yesterday I finished the screen")).toHaveAttribute("lang", "en");
 
     await userEvent.click(screen.getByRole("button", { name: /I'm waiting the keys/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Isto não é um erro" }));
+    expect(within(screen.getByRole("dialog")).getByText("Aberto")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("I'm waiting for the keys")).toHaveAttribute("lang", "en");
+    await userEvent.click(screen.getByRole("button", { name: "Isso não é um erro" }));
     expect(screen.getByRole("heading", { name: "Por que não é um erro?" })).toBeInTheDocument();
   });
 

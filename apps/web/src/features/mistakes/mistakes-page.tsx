@@ -85,7 +85,9 @@ export function MistakesPage(props: { now?: Date }) {
         ))}
       </div>
 
-      {shown.length === 0 && <p className="m-0 text-caption text-taupe">{copy.nothingHere}</p>}
+      {shown.length === 0 && (
+        <p className="m-0 text-caption text-taupe">{status === "open" ? copy.allCaughtUp : copy.nothingHere}</p>
+      )}
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
         {shown.map((m) => (
           <li key={m.id}>

@@ -4,7 +4,7 @@ import { useApi } from "@/hooks/use-api";
 import type { BankMistake, DismissReason } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCopy, useLocale } from "@/lib/i18n/locale";
-import { categoryLabel, STATUS_LABEL } from "./format";
+import { categoryLabel, STATUS_CHIP_LABEL } from "./format";
 import { MISTAKES_COPY } from "./mistakes-copy";
 
 const REASONS: DismissReason[] = ["transcript_error", "both_correct", "not_needed"];
@@ -31,7 +31,7 @@ export function MistakeSheet({
   const [state, setState] = useState<"idle" | "saving" | "failed">("idle");
   const dialog = useRef<HTMLDivElement>(null);
   const copy = useCopy(MISTAKES_COPY);
-  const statusLabel = useCopy(STATUS_LABEL);
+  const statusLabel = useCopy(STATUS_CHIP_LABEL);
   const { locale } = useLocale();
 
   useEffect(() => {

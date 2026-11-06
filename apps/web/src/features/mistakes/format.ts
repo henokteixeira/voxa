@@ -1,9 +1,16 @@
 import type { MistakeStatus } from "@/lib/api";
 import type { Copy, Locale } from "@/lib/i18n/locale";
 
+/** Filter tabs name a group of mistakes. */
 export const STATUS_LABEL: Copy<Record<MistakeStatus, string>> = {
   en: { open: "Open", improving: "Improving", mastered: "Mastered" },
   "pt-BR": { open: "Abertos", improving: "Melhorando", mastered: "Dominados" },
+};
+
+/** The chip on one mistake. */
+export const STATUS_CHIP_LABEL: Copy<Record<MistakeStatus, string>> = {
+  en: STATUS_LABEL.en,
+  "pt-BR": { open: "Aberto", improving: "Melhorando", mastered: "Dominado" },
 };
 
 /** "today", "yesterday" or "3 days ago", by calendar day. */

@@ -10,6 +10,7 @@ export interface MistakesCopy {
   emptyBody: string;
   statusGroup: string;
   nothingHere: string;
+  allCaughtUp: string;
   close: string;
   mistake: string;
   whyNot: string;
@@ -31,6 +32,7 @@ export const MISTAKES_COPY: Copy<MistakesCopy> = {
     emptyBody: "Mistakes are how you learn. After your first session, the ones worth practicing show up here.",
     statusGroup: "Status",
     nothingHere: "Nothing here yet.",
+    allCaughtUp: "All caught up. Nice work.",
     close: "Close",
     mistake: "Mistake",
     whyNot: "Why isn't it a mistake?",
@@ -51,21 +53,22 @@ export const MISTAKES_COPY: Copy<MistakesCopy> = {
     loadFailedBody: "Veja se o servidor do Voxa está rodando no seu PC.",
     tryAgain: "Tentar de novo",
     emptyTitle: "Nenhum erro ainda",
-    emptyBody: "É errando que se aprende. Depois da sua primeira sessão, os erros que valem praticar aparecem aqui.",
+    emptyBody: "É errando que se aprende. Depois da sua primeira sessão, os erros que vale a pena praticar aparecem aqui.",
     statusGroup: "Situação",
     nothingHere: "Nada aqui ainda.",
+    allCaughtUp: "Tudo em dia. Bom trabalho.",
     close: "Fechar",
     mistake: "Erro",
     whyNot: "Por que não é um erro?",
     reasons: {
       transcript_error: "Eu falei certo; a transcrição está errada",
       both_correct: "Os dois jeitos estão certos",
-      not_needed: "Não preciso deste",
+      not_needed: "Não preciso praticar este",
     },
     leavesBank: "Ele sai do banco e não conta mais.",
     removeFailed: "Não deu para remover. Tente de novo.",
     remove: "Remover do banco",
     timesSoFar: (n) => (n === 1 ? "Uma vez até agora" : `${n} vezes até agora`),
-    notAMistake: "Isto não é um erro",
+    notAMistake: "Isso não é um erro",
   },
 };
