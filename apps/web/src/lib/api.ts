@@ -25,11 +25,32 @@ export interface SessionMistake {
   occurrences: number;
 }
 
+/** Timing measured during a live session (see features/session/fluency-clock.ts). */
+export interface SessionTiming {
+  learnerSpeechMs: number;
+  tutorSpeechMs: number;
+  pausesMs: number[];
+}
+
+/** The 4 fluency signals. Null when the session gave nothing to measure. */
+export interface FluencySignals {
+  /** 0–1: of the mistakes that got a hint, the share the learner fixed alone. */
+  selfCorrectionRate: number | null;
+  mistakesPer100Words: number | null;
+  averagePauseMs: number | null;
+  /** 0–1: the learner's share of the speaking time. */
+  speakingShare: number | null;
+}
+
+export type ConfidenceMoment = "before" | "after";
+
 export interface SessionSummary {
   sessionId: string;
   mode: Mode;
   mistakes: SessionMistake[];
   selfCorrections: number;
+  signals: FluencySignals;
+  confidence: { before: number | null; after: number | null };
 }
 
 /** What went wrong, in terms the screens can act on. */
@@ -72,6 +93,7 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
       const message = typeof body?.message === "string" ? body.message : `Request failed (${response.status}).`;
       throw new ApiError(kindFor(response.status), message, response.status);
     }
+    if (response.status === 204) return undefined as T;
     return (await response.json()) as T;
   }
 
@@ -81,8 +103,17 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
       request<StartedSession>("/sessions", { method: "POST", body: { mode, language } }),
     sendTurn: (sessionId: string, text: string) =>
       request<TurnResult>(`/sessions/${encodeURIComponent(sessionId)}/turns`, { method: "POST", body: { text } }),
-    endSession: (sessionId: string) =>
-      request<SessionSummary>(`/sessions/${encodeURIComponent(sessionId)}/end`, { method: "POST" }),
+    endSession: (sessionId: string, timing?: SessionTiming) =>
+      request<SessionSummary>(`/sessions/${encodeURIComponent(sessionId)}/end`, {
+        method: "POST",
+        body: timing ? { timing } : undefined,
+      }),
+    /** How ready the learner feels for this meeting type, 1 to 5. */
+    rateConfidence: (sessionId: string, moment: ConfidenceMoment, value: number) =>
+      request<void>(`/sessions/${encodeURIComponent(sessionId)}/confidence`, {
+        method: "POST",
+        body: { moment, value },
+      }),
     /** WebSocket address of the live voice session (see lib/voice/voice-socket.ts). */
     voiceUrl: (sessionId: string) =>
       `${baseUrl.replace(/^http/, "ws")}/api/sessions/${encodeURIComponent(sessionId)}/voice`,

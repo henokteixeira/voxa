@@ -1,3 +1,4 @@
+import type { SessionSummary } from "@/lib/api";
 import { describe, expect, it } from "vitest";
 import { initialSessionState, type SessionAction, type SessionState, sessionReducer } from "./session-state";
 
@@ -106,7 +107,7 @@ describe("sessionReducer", () => {
   });
 
   it("ignores a session that finishes starting after the learner ended it", () => {
-    const state = run({ type: "pause" }, { type: "ending" }, { type: "ended", mistakes: null }, started);
+    const state = run({ type: "pause" }, { type: "ending" }, { type: "ended", summary: null }, started);
     expect(state.phase).toBe("ended");
     expect(run({ type: "pause" }).phase).toBe("starting");
   });
@@ -163,6 +164,7 @@ describe("sessionReducer", () => {
   });
 
   it("ends with the number of saved mistakes", () => {
-    expect(run(started, { type: "ending" }, { type: "ended", mistakes: 3 })).toMatchObject({ phase: "ended", mistakesSaved: 3 });
+    const summary = { sessionId: "s1", mode: "daily", mistakes: [], selfCorrections: 0 } as unknown as SessionSummary;
+    expect(run(started, { type: "ending" }, { type: "ended", summary })).toMatchObject({ phase: "ended", summary });
   });
 });

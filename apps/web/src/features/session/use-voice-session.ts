@@ -2,8 +2,10 @@ import { useCallback, useContext, useEffect, useReducer, useRef, useState } from
 import { useApi } from "@/hooks/use-api";
 import type { Mode } from "@/lib/api";
 import { type Microphone, MicrophoneUnavailableError } from "@/lib/voice/microphone";
+import { DEFAULT_TURN_OPTIONS } from "@/lib/voice/turn-detector";
 import { AudioBlockedError, type Speaker } from "@/lib/voice/speaker";
 import type { VoiceSocket } from "@/lib/voice/voice-socket";
+import { FluencyClock } from "./fluency-clock";
 import { type FailureCode, initialSessionState, type Retry, sessionReducer } from "./session-state";
 import { VoiceDepsContext } from "./voice-deps";
 
@@ -16,7 +18,7 @@ const SOCKET_FAILURES: FailureCode[] = ["disconnected", "in_use"];
 type OnOpen = Retry | { kind: "nothing" };
 
 /** Runs a live voice session: microphone → socket → tutor's voice, driven by sessionReducer. */
-export function useVoiceSession(mode: Mode) {
+export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
   const api = useApi();
   const deps = useContext(VoiceDepsContext);
   const [state, dispatch] = useReducer(sessionReducer, initialSessionState);
@@ -27,6 +29,9 @@ export function useVoiceSession(mode: Mode) {
   const speaker = useRef<Speaker | null>(null);
   const sessionId = useRef<string | null>(null);
   const ended = useRef(false);
+  const clock = useRef(new FluencyClock());
+  /** The learner tapped the ball to send: the turn ends without the detector's silence. */
+  const sentEarly = useRef(false);
   const paused = useRef(false);
   /** The tutor spoke while the pause sheet was open; say it again on resume. */
   const missedSpeech = useRef(false);
@@ -58,12 +63,16 @@ export function useVoiceSession(mode: Mode) {
             return;
           }
           // Captions already show the line; if the browser blocks audio, ask for a tap.
+          clock.current.tutorStarted(performance.now());
           void speaker.current
             ?.play(wav)
             .catch((error: unknown) => {
               if (error instanceof AudioBlockedError) dispatch({ type: "audio_blocked" });
             })
-            .finally(() => dispatch({ type: "playback_end" }));
+            .finally(() => {
+              clock.current.tutorStopped(performance.now());
+              dispatch({ type: "playback_end" });
+            });
         },
         onError: (code) => {
           dispatch({ type: "failed", code });
@@ -81,11 +90,19 @@ export function useVoiceSession(mode: Mode) {
   useEffect(() => {
     let cancelled = false;
     ended.current = false;
+    clock.current = new FluencyClock();
     void (async () => {
       try {
         const opened = await deps.openMicrophone({
-          onSpeechStart: () => dispatch({ type: "speech_start" }),
+          onSpeechStart: () => {
+            clock.current.learnerStarted(performance.now());
+            dispatch({ type: "speech_start" });
+          },
           onTurn: (wav) => {
+            clock.current.learnerEnded(performance.now(), {
+              silenceMs: sentEarly.current ? 0 : DEFAULT_TURN_OPTIONS.endSilenceMs,
+            });
+            sentEarly.current = false;
             mic.current?.pause();
             dispatch({ type: "sent", request: "audio" });
             socket.current?.sendTurn(wav);
@@ -106,6 +123,7 @@ export function useVoiceSession(mode: Mode) {
         if (cancelled || ended.current) return void api.endSession(started.sessionId).catch(() => {});
         speaker.current = deps.createSpeaker();
         dispatch({ type: "started", sessionId: started.sessionId, message: started.message });
+        if (confidenceBefore) void api.rateConfidence(started.sessionId, "before", confidenceBefore).catch(() => {});
         connect(started.sessionId, { kind: "speak" });
       } catch {
         if (!cancelled) dispatch({ type: "failed", code: "start_failed" });
@@ -118,17 +136,21 @@ export function useVoiceSession(mode: Mode) {
       speaker.current?.close();
       mic.current = socket.current = speaker.current = null;
       // Leaving mid-session (back button): close it on the server, best effort.
-      if (sessionId.current && !ended.current) void api.endSession(sessionId.current).catch(() => {});
+      if (sessionId.current && !ended.current) {
+        void api.endSession(sessionId.current, clock.current.timing()).catch(() => {});
+      }
       sessionId.current = null;
     };
-  }, [api, deps, mode, connect, attempt]);
+  }, [api, deps, mode, connect, attempt, confidenceBefore]);
 
   // The microphone listens only on the learner's turn (and not while typing), so it never hears the tutor.
   const listening = (state.phase === "listening" || state.phase === "hearing") && !typing;
   useEffect(() => {
     if (listening) mic.current?.resume();
     else mic.current?.pause();
-  }, [listening]);
+    // Typing or pausing: the wait that follows is not a pause before speaking.
+    if (typing || state.phase === "paused") clock.current.interrupt();
+  }, [listening, typing, state.phase]);
 
   const sendText = useCallback((text: string) => {
     setTyping(false);
@@ -144,7 +166,10 @@ export function useVoiceSession(mode: Mode) {
 
   /** Tap the ball: send early while talking, interrupt the tutor while it speaks. */
   const tapBall = useCallback(() => {
-    if (state.phase === "hearing") mic.current?.sendNow();
+    if (state.phase === "hearing") {
+      sentEarly.current = true;
+      if (!mic.current?.sendNow()) sentEarly.current = false;
+    }
     else if (state.phase === "speaking") speaker.current?.stop();
   }, [state.phase]);
 
@@ -190,14 +215,21 @@ export function useVoiceSession(mode: Mode) {
     socket.current?.close();
     speaker.current?.stop();
     mic.current = socket.current = null;
-    if (!id) return dispatch({ type: "ended", mistakes: null });
+    if (!id) return dispatch({ type: "ended", summary: null });
     try {
-      const summary = await api.endSession(id);
-      dispatch({ type: "ended", mistakes: summary.mistakes.length });
+      dispatch({ type: "ended", summary: await api.endSession(id, clock.current.timing()) });
     } catch {
-      dispatch({ type: "ended", mistakes: null });
+      dispatch({ type: "ended", summary: null });
     }
   }, [api, state.sessionId]);
 
-  return { state, typing, setTyping, tapBall, unlock, pause, resume, repeatLast, sendText, retry, end };
+  /** The confidence check-out on the summary. Best effort: the summary does not wait for it. */
+  const rateAfter = useCallback(
+    (value: number) => {
+      if (state.sessionId) void api.rateConfidence(state.sessionId, "after", value).catch(() => {});
+    },
+    [api, state.sessionId],
+  );
+
+  return { state, typing, setTyping, tapBall, unlock, pause, resume, repeatLast, sendText, retry, end, rateAfter };
 }

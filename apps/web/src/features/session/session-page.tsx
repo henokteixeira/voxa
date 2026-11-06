@@ -1,5 +1,5 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
-import { Link, Navigate, useParams } from "react-router";
+import { Link, Navigate, useLocation, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { VoiceBall } from "@/components/voice-ball";
 import type { Mode } from "@/lib/api";
@@ -9,11 +9,17 @@ import { CaptionCard, HintCard, IconButton, PauseIcon, RevealCard, TranscriptIco
 import type { FailureCode } from "./session-state";
 import { useVoiceSession } from "./use-voice-session";
 
+/** What the confidence check-in hands to the live session (router state). */
+export interface CheckInState {
+  confidenceBefore?: number;
+}
+
 /** The live voice session: talk, get hints, see captions. Takes the whole screen. */
 export function SessionPage() {
   const { mode } = useParams();
+  const checkIn = useLocation().state as CheckInState | null;
   if (!isMode(mode)) return <Navigate to="/" replace />;
-  return <LiveSession mode={mode} />;
+  return <LiveSession mode={mode} confidenceBefore={checkIn?.confidenceBefore} />;
 }
 
 function useElapsed(running: boolean): string {
@@ -26,8 +32,8 @@ function useElapsed(running: boolean): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function LiveSession({ mode }: { mode: Mode }) {
-  const session = useVoiceSession(mode);
+function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?: number }) {
+  const session = useVoiceSession(mode, confidenceBefore);
   const { state } = session;
   const [showTranscript, setShowTranscript] = useState(false);
   const elapsed = useElapsed(state.sessionId !== null && state.phase !== "paused" && state.phase !== "ended");
@@ -48,9 +54,9 @@ function LiveSession({ mode }: { mode: Mode }) {
           <h1 className="m-0 text-title">{ended ? "Session saved" : "Saving your session"}</h1>
           {ended && (
             <p className="m-0 text-caption text-taupe">
-              {state.mistakesSaved === null
+              {state.summary === null
                 ? "Your session is saved."
-                : `${state.mistakesSaved} ${state.mistakesSaved === 1 ? "mistake" : "mistakes"} saved to your mistake bank.`}
+                : `${state.summary.mistakes.length} ${state.summary.mistakes.length === 1 ? "mistake" : "mistakes"} saved to your mistake bank.`}
             </p>
           )}
         </div>

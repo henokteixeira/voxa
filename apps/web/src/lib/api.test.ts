@@ -28,6 +28,27 @@ describe("createApiClient", () => {
     expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({ text: "I goed" });
   });
 
+  it("ends a session with the measured timing", async () => {
+    const fetchImpl = respond(200, { sessionId: "s1" });
+    const api = createApiClient("http://api", fetchImpl);
+    const timing = { learnerSpeechMs: 1000, tutorSpeechMs: 2000, pausesMs: [500] };
+
+    await api.endSession("s1", timing);
+
+    expect(fetchImpl.mock.calls[0][0]).toBe("http://api/api/sessions/s1/end");
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({ timing });
+  });
+
+  it("stores a confidence rating and accepts an empty answer", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const api = createApiClient("http://api", fetchImpl);
+
+    await expect(api.rateConfidence("s1", "after", 4)).resolves.toBeUndefined();
+
+    expect(fetchImpl.mock.calls[0][0]).toBe("http://api/api/sessions/s1/confidence");
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({ moment: "after", value: 4 });
+  });
+
   it("builds the voice socket address from the API address", () => {
     expect(createApiClient("http://localhost:3000").voiceUrl("s1")).toBe("ws://localhost:3000/api/sessions/s1/voice");
     expect(createApiClient("https://voxa.local").voiceUrl("s 1")).toBe("wss://voxa.local/api/sessions/s%201/voice");
