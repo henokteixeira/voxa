@@ -3,6 +3,7 @@ import { useApi } from "@/hooks/use-api";
 import type { ApiClient, ConfidenceMoment, Mode } from "@/lib/api";
 import { type Microphone, MicrophoneUnavailableError } from "@/lib/voice/microphone";
 import { DEFAULT_TURN_OPTIONS } from "@/lib/voice/turn-detector";
+import { createFillerPlayer } from "@/lib/voice/filler-player";
 import { AudioBlockedError, type Speaker } from "@/lib/voice/speaker";
 import type { VoiceSocket } from "@/lib/voice/voice-socket";
 import { FluencyClock } from "./fluency-clock";
@@ -43,6 +44,10 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
   const paused = useRef(false);
   /** The tutor spoke while the pause sheet was open; say it again on resume. */
   const missedSpeech = useRef(false);
+  /** Says a short line in the wait after a spoken turn; its lines load once the session starts. */
+  const filler = useRef(createFillerPlayer());
+  /** Set when the session starts; the lines load after the opening line, so they never delay it. */
+  const fillerLanguage = useRef<string | null>(null);
   useEffect(() => {
     paused.current = state.phase === "paused";
   }, [state.phase]);
@@ -62,9 +67,13 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
             dispatch({ type: "recover" });
           }
         },
-        onTranscript: (text) => dispatch({ type: "transcript", text }),
+        onTranscript: (text) => {
+          filler.current.heard();
+          dispatch({ type: "transcript", text });
+        },
         onTutor: (result) => dispatch({ type: "tutor", result }),
         onSpeech: (wav) => {
+          filler.current.cancel();
           dispatch({ type: "speech" });
           if (paused.current) {
             missedSpeech.current = true;
@@ -85,11 +94,26 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
             });
         },
         onError: (code) => {
+          // "busy" answers a message sent mid-request; that request, and its wait, go on.
+          if (code !== "busy") filler.current.cancel();
           dispatch({ type: "failed", code });
           // The server closed the socket for a frame that was too big: reconnect quietly.
           if (code === "too_long") connectSocket(id, { kind: "nothing" });
         },
-        onDone: () => dispatch({ type: "done" }),
+        onDone: () => {
+          filler.current.cancel();
+          const language = fillerLanguage.current;
+          if (language) {
+            fillerLanguage.current = null;
+            const player = filler.current;
+            // Best effort: without the lines the wait is just quiet.
+            void api
+              .fillerSpeech(language)
+              .then((clips) => player.setClips(clips))
+              .catch(() => {});
+          }
+          dispatch({ type: "done" });
+        },
       });
       socket.current = ws;
     },
@@ -101,6 +125,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
     let cancelled = false;
     ended.current = false;
     clock.current = new FluencyClock();
+    const player = filler.current;
     void (async () => {
       try {
         const opened = await deps.openMicrophone({
@@ -116,6 +141,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
             mic.current?.pause();
             dispatch({ type: "sent", request: "audio" });
             socket.current?.sendTurn(wav);
+            player.arm(speaker.current);
           },
         });
         if (cancelled) return opened.stop();
@@ -132,6 +158,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
         // The learner left or ended before the session existed: close it on the server too.
         if (cancelled || ended.current) return void api.endSession(started.sessionId).catch(() => {});
         speaker.current = deps.createSpeaker();
+        fillerLanguage.current = started.language;
         dispatch({ type: "started", sessionId: started.sessionId, message: started.message, goals: started.goals });
         if (confidenceBefore) void rateConfidence(api, started.sessionId, "before", confidenceBefore);
         connect(started.sessionId, { kind: "speak" });
@@ -141,6 +168,9 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
     })();
     return () => {
       cancelled = true;
+      player.cancel();
+      player.setClips([]);
+      fillerLanguage.current = null;
       mic.current?.stop();
       socket.current?.close();
       speaker.current?.close();
@@ -191,6 +221,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
   }, [state.audioBlocked, state.turn.done, state.phase, repeatLast]);
 
   const pause = useCallback(() => {
+    filler.current.cancel();
     speaker.current?.stop();
     dispatch({ type: "pause" });
   }, []);
@@ -221,6 +252,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
     ended.current = true;
     const id = state.sessionId;
     dispatch({ type: "ending" });
+    filler.current.cancel();
     mic.current?.stop();
     socket.current?.close();
     speaker.current?.stop();

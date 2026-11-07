@@ -130,6 +130,18 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     return (await response.json()) as T;
   }
 
+  /** A GET that answers audio. */
+  async function audio(path: string): Promise<ArrayBuffer> {
+    let response: Response;
+    try {
+      response = await fetchImpl(`${baseUrl}/api${path}`);
+    } catch {
+      throw new ApiError("offline", "Can't reach the Voxa API.");
+    }
+    if (!response.ok) throw new ApiError(kindFor(response.status), `Request failed (${response.status}).`, response.status);
+    return response.arrayBuffer();
+  }
+
   return {
     health: () => request<{ status: string }>("/health"),
     startSession: (mode: Mode, language = "en") =>
@@ -150,6 +162,15 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     /** WebSocket address of the live voice session (see lib/voice/voice-socket.ts). */
     voiceUrl: (sessionId: string) =>
       `${baseUrl.replace(/^http/, "ws")}/api/sessions/${encodeURIComponent(sessionId)}/voice`,
+    /** The short lines played while the tutor prepares an answer, as WAV; empty when the language has none. */
+    fillerSpeech: async (language = "en") => {
+      const query = `language=${encodeURIComponent(language)}`;
+      const { count } = await request<{ count: number }>(`/voice/fillers?${query}`);
+      // One at a time: the voice server is also speaking the tutor's opening line.
+      const clips: ArrayBuffer[] = [];
+      for (let index = 0; index < count; index++) clips.push(await audio(`/voice/fillers/${index}?${query}`));
+      return clips;
+    },
     listMistakes: async (language = "en") =>
       (await request<{ mistakes: BankMistake[] }>(`/mistakes?language=${encodeURIComponent(language)}`)).mistakes,
     dismissMistake: (id: string, reason: DismissReason) =>

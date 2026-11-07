@@ -23,8 +23,9 @@ const api = {
   sendTurn: vi.fn(),
   endSession: vi.fn(),
   rateConfidence: vi.fn(),
+  fillerSpeech: vi.fn(),
   voiceUrl: (id: string) => `ws://api/api/sessions/${id}/voice`,
-} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "rateConfidence"]: ReturnType<typeof vi.fn> };
+} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "rateConfidence" | "fillerSpeech"]: ReturnType<typeof vi.fn> };
 
 const deps: VoiceDeps = {
   openMicrophone: vi.fn(async (handlers: MicrophoneHandlers) => {
@@ -90,6 +91,7 @@ beforeEach(() => {
   api.health.mockResolvedValue({ status: "ok" });
   api.endSession.mockResolvedValue(summaryWith([]));
   api.rateConfidence.mockResolvedValue(undefined);
+  api.fillerSpeech.mockResolvedValue([]);
   api.startSession.mockResolvedValue({
     sessionId: "s1",
     mode: "daily",
@@ -140,6 +142,44 @@ describe("live session", () => {
     expect(card).toHaveTextContent("“Yesterday I finish the upload screen”");
     expect(card).toHaveTextContent("When did this happen?");
     expect(screen.getByText("Hint · say it again")).toBeInTheDocument();
+  });
+
+  it("says a filler line while a slow answer comes, and cuts it for the answer", async () => {
+    const fillerClip = new ArrayBuffer(4);
+    api.fillerSpeech.mockResolvedValue([fillerClip]);
+    await startAndListen();
+    expect(api.fillerSpeech).toHaveBeenCalledWith("en");
+    vi.useFakeTimers();
+    try {
+      act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+      act(() => socketHandlers.onTranscript("I finished it"));
+      act(() => vi.advanceTimersByTime(1000));
+      expect(speaker.play).toHaveBeenLastCalledWith(fillerClip);
+      expect(screen.getByText("Thinking")).toBeInTheDocument();
+
+      const answer = new ArrayBuffer(8);
+      act(() => socketHandlers.onSpeech(answer));
+      expect(speaker.stop).toHaveBeenCalled();
+      expect(speaker.play).toHaveBeenLastCalledWith(answer);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("says nothing extra when the answer is quick", async () => {
+    api.fillerSpeech.mockResolvedValue([new ArrayBuffer(4)]);
+    await startAndListen();
+    vi.useFakeTimers();
+    try {
+      act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+      act(() => socketHandlers.onTranscript("I finished it"));
+      act(() => vi.advanceTimersByTime(500));
+      act(() => socketHandlers.onDone());
+      act(() => vi.advanceTimersByTime(1000));
+      expect(speaker.play).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("says it didn't catch a turn with no speech", async () => {
