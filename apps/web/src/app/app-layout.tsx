@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import { Outlet, useLocation } from "react-router";
 import { TabBar } from "@/components/tab-bar";
 import { useMediaQuery, WIDE } from "@/hooks/use-media-query";
@@ -18,9 +19,14 @@ export function AppLayout() {
   const offline = useCopy(OFFLINE);
   const wide = useMediaQuery(WIDE);
   const { pathname } = useLocation();
+  const scroller = useRef<HTMLElement>(null);
+  // A new tab starts at its top, not where the last one was scrolled to.
+  useLayoutEffect(() => {
+    if (scroller.current) scroller.current.scrollTop = 0;
+  }, [pathname]);
 
   const content = (
-    <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+    <main ref={scroller} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
       {/* Keyed by path so each tab fades in when you switch to it. */}
       <div
         key={pathname}
@@ -39,10 +45,10 @@ export function AppLayout() {
   if (wide) {
     return (
       <div className="flex h-dvh w-full">
-        <aside className="flex w-[240px] shrink-0 flex-col gap-6 border-r border-sand px-4 py-7">
+        <header className="flex w-[240px] shrink-0 flex-col gap-6 border-r border-sand px-4 py-7">
           <span className="pl-2 font-serif text-2xl [font-variation-settings:'SOFT'_60]">Voxa</span>
           <TabBar vertical />
-        </aside>
+        </header>
         {content}
       </div>
     );

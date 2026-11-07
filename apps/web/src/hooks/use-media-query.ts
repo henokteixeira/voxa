@@ -13,5 +13,5 @@ export function useMediaQuery(query: string): boolean {
   );
 }
 
-/** Wide screens (laptop and up) get a side column instead of the bottom tab bar. */
-export const WIDE = "(min-width: 1024px)";
+/** Wide screens (laptop and up) get a side column instead of the bottom tab bar. Same breakpoint as Tailwind's `lg:`. */
+export const WIDE = "(min-width: 64rem)";

@@ -51,6 +51,11 @@ describe("app shell", () => {
     expect(indicator.style.transform).toBe("translateX(200%)");
   });
 
+  it("keeps the indicator on a path with a trailing slash", async () => {
+    renderApp("/progress/", up());
+    expect(screen.getByTestId("tab-indicator").style.transform).toBe("translateX(200%)");
+  });
+
   it("uses a side column instead of the bottom tab bar on wide screens", async () => {
     vi.stubGlobal(
       "matchMedia",
@@ -58,7 +63,8 @@ describe("app shell", () => {
     );
     try {
       renderApp("/mistakes", up());
-      expect(screen.getByRole("complementary")).toHaveTextContent("Voxa");
+      expect(screen.getByRole("banner")).toHaveTextContent("Voxa");
+      expect(screen.getAllByRole("navigation")).toHaveLength(1);
       expect(screen.getByTestId("tab-indicator").style.transform).toBe("translateY(100%)");
     } finally {
       vi.unstubAllGlobals();

@@ -17,7 +17,8 @@ export function TabBar({ vertical = false }: { vertical?: boolean }) {
   const label = useCopy(LABELS);
   const { pathname } = useLocation();
   const labels = [label.today, label.mistakes, label.progress];
-  const active = PATHS.findIndex((path) => path === pathname);
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const active = PATHS.findIndex((p) => p === path);
 
   return (
     <nav
@@ -31,10 +32,10 @@ export function TabBar({ vertical = false }: { vertical?: boolean }) {
         <span
           aria-hidden="true"
           data-testid="tab-indicator"
-          className="vx-spring absolute rounded-pill bg-paper shadow-tab transition-transform duration-300"
+          className="vx-spring absolute rounded-pill bg-paper shadow-tab transition-transform duration-[280ms]"
           style={
             vertical
-              ? { top: 5, left: 5, right: 5, height: 48, transform: `translateY(${active * 100}%)` }
+              ? { top: 5, left: 5, right: 5, height: "3rem", transform: `translateY(${active * 100}%)` }
               : {
                   top: 5,
                   bottom: 5,
@@ -52,7 +53,7 @@ export function TabBar({ vertical = false }: { vertical?: boolean }) {
           end
           className={({ isActive }) =>
             cn(
-              "relative flex min-h-12 items-center rounded-pill text-sm font-bold text-taupe no-underline transition-colors duration-200 hover:text-ink",
+              "relative flex h-12 items-center whitespace-nowrap rounded-pill text-sm font-bold text-taupe no-underline transition-colors duration-200 hover:text-ink",
               vertical ? "justify-start px-4" : "justify-center",
               isActive && "text-ink",
             )
