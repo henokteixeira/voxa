@@ -33,6 +33,7 @@ describe("DrizzleSessionRepository", () => {
       coveredGoals: [],
       lastCheckInAt: null,
       targets: [],
+      metTargets: [],
     });
   });
 
@@ -41,8 +42,9 @@ describe("DrizzleSessionRepository", () => {
     const targets = [{ original: "I goed", correction: "I went", category: "grammar" }];
     const { id } = await sessions.create({ language: "en", mode: "daily", startedAt, targets });
     const askedAt = new Date("2026-11-07T10:09:00Z");
-    await sessions.setProgress(id, { coveredGoals: ["yesterday", "today"], lastCheckInAt: askedAt });
+    await sessions.setProgress(id, { coveredGoals: ["yesterday", "today"], lastCheckInAt: askedAt, metTargets: ["I goed"] });
     expect(await sessions.get(id)).toMatchObject({
+      metTargets: ["I goed"],
       startedAt,
       targets,
       coveredGoals: ["yesterday", "today"],
@@ -223,8 +225,6 @@ describe("DrizzleMistakeRepository as the mistake bank", () => {
     await mistakes.recordCorrectUse(s3.id, { ...goed, original: "not in the bank" });
 
     expect((await mistakes.list("en"))[0].sessionsCorrect).toBe(2);
-    expect(await mistakes.correctUsesInSession(s2.id)).toEqual(["I goed"]);
-    expect(await mistakes.correctUsesInSession(s1.id)).toEqual([]);
   });
 
   it("gives no correct use to a dismissed mistake", async () => {

@@ -3,7 +3,7 @@ import { asc, eq } from "drizzle-orm";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import { isMode } from "../../domain/conversation/mode.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget, Session } from "../../domain/conversation/types.js";
-import type { ConfidenceMoment, SessionOutcome, SessionRepository } from "../../domain/ports/session.repository.js";
+import type { ConfidenceMoment, SessionOutcome, SessionProgress, SessionRepository } from "../../domain/ports/session.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
 import { sessions, turns } from "./schema.js";
 
@@ -21,6 +21,7 @@ function toSession(row: SessionRow): Session {
     coveredGoals: row.coveredGoals,
     lastCheckInAt: row.lastCheckInAt,
     targets: row.targets,
+    metTargets: row.metTargets,
   };
 }
 
@@ -55,7 +56,7 @@ export class DrizzleSessionRepository implements SessionRepository {
     await this.db.update(sessions).set({ pending }).where(eq(sessions.id, sessionId));
   }
 
-  async setProgress(sessionId: string, progress: { coveredGoals: string[]; lastCheckInAt: Date | null }): Promise<void> {
+  async setProgress(sessionId: string, progress: SessionProgress): Promise<void> {
     await this.db.update(sessions).set(progress).where(eq(sessions.id, sessionId));
   }
 

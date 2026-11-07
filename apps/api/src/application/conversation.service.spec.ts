@@ -51,11 +51,12 @@ class FakeSessions implements SessionRepository {
       coveredGoals: [],
       lastCheckInAt: null,
       targets: input.targets ?? [],
+      metTargets: [],
     };
     this.rows.set(id, { ...session, turns: [], timing: null, before: null, after: null });
     return session;
   }
-  async setProgress(id: string, progress: { coveredGoals: string[]; lastCheckInAt: Date | null }) {
+  async setProgress(id: string, progress: { coveredGoals: string[]; lastCheckInAt: Date | null; metTargets: string[] }) {
     Object.assign(this.rows.get(id)!, progress);
   }
   async get(id: string) {
@@ -111,9 +112,6 @@ class FakeMistakes implements MistakeRepository {
       .filter((m) => m.language === language)
       .sort((a, b) => b.occurrences - a.occurrences)
       .slice(0, limit);
-  }
-  async correctUsesInSession(sessionId: string) {
-    return this.correctUses.filter((u) => u.sessionId === sessionId).map((u) => u.original);
   }
   async forSession(sessionId: string): Promise<SessionMistake[]> {
     return this.events
@@ -279,6 +277,36 @@ describe("Session goals", () => {
 
     expect((await service.respond(session.id, "I goed to the meeting")).checkIn).toBe(false);
     expect((await service.respond(session.id, "I went to the meeting")).checkIn).toBe(true);
+  });
+
+  it("counts a target met when said right without a hint, even after making the mistake this session", async () => {
+    bankEntries = [entry({ original: "I goed", occurrences: 3 }), entry({ original: "more better", correction: "better" })];
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(
+      verdict({ issues: [{ ...goed, original: "I goed", correction: "I went" }] }),
+      verdict({ pendingResolved: true, correctUses: ["I goed"] }),
+      verdict({ correctUses: ["I goed", "more better", "not a target"] }),
+      verdict({ issues: [{ ...article, original: "more better", correction: "better" }] }),
+    );
+    await service.respond(session.id, "I goed there");
+    await service.respond(session.id, "I went there");
+    expect((await sessions.get(session.id))?.metTargets).toEqual([]); // the retry after a hint does not count
+    await service.respond(session.id, "Then I went home, it was better");
+    await service.respond(session.id, "more better");
+
+    expect((await service.end(session.id)).targets.map((t) => [t.original, t.met])).toEqual([
+      ["I goed", true],
+      ["more better", true],
+    ]);
+  });
+
+  it("watches a target outside the known mistakes list once, by its exact text", async () => {
+    bankEntries = [entry({ original: "I goed", occurrences: 3 })];
+    mistakes.bank.push({ id: "m1", language: "en", original: "I goed", correction: "I went", category: "grammar", occurrences: 3, lastSeenAt: new Date() });
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({}));
+    await service.respond(session.id, "Hi");
+    expect(tutor.requests[0].knownMistakes.filter((m) => m.original === "I goed")).toHaveLength(1);
   });
 
   it("shows covered goals and met targets in the summary", async () => {

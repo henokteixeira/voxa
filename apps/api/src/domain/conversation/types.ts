@@ -57,4 +57,6 @@ export interface Session {
   /** When the tutor last asked whether to stop or keep going, or null. */
   lastCheckInAt: Date | null;
   targets: PracticeTarget[];
+  /** The `original` of each target the learner said correctly in this session. */
+  metTargets: string[];
 }

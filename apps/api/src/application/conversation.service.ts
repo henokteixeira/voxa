@@ -3,8 +3,8 @@ import { decide, isSerious, type TurnKind } from "../domain/conversation/correct
 import { type FluencySignals, fluencySignals, type SessionTiming } from "../domain/conversation/fluency.js";
 import type { Mode } from "../domain/conversation/mode.js";
 import {
-  CHECK_IN_LINES,
   checkInDue,
+  checkInLine,
   GOAL_DESCRIPTIONS,
   goalsFor,
   mergeCovered,
@@ -155,22 +155,35 @@ export class ConversationService {
 
     // Goals and the stop-or-keep-going question, only on a turn where the conversation goes on.
     const coveredGoals = mergeCovered(session.mode, session.coveredGoals, verdict.coveredGoals);
+    // A target is met by the correct form said without a hint, even if the mistake also came up this session.
+    const metTargets = session.targets
+      .map((t) => t.original)
+      .filter(
+        (original) =>
+          session.metTargets.includes(original) ||
+          (verdict.correctUses.some((u) => sameText(u, original)) && !(pending && sameText(pending.original, original))),
+      );
     const now = this.clock.now();
     const checkIn =
       decision.kind === "reply"
         ? checkInDue({
             mode: session.mode,
+            coveredBefore: session.coveredGoals,
             covered: coveredGoals,
             elapsedMs: now.getTime() - session.startedAt.getTime(),
             lastCheckInMs: session.lastCheckInAt ? session.lastCheckInAt.getTime() - session.startedAt.getTime() : null,
           })
         : null;
-    const message = checkIn ? `${decision.message} ${CHECK_IN_LINES[checkIn]}` : decision.message;
+    const message = checkIn ? `${decision.message} ${checkInLine(checkIn, session.language)}` : decision.message;
 
     await this.sessions.appendTurn(sessionId, { role: "user", content: utterance });
     await this.sessions.appendTurn(sessionId, { role: "assistant", content: message });
     await this.sessions.setPending(sessionId, decision.nextPending);
-    await this.sessions.setProgress(sessionId, { coveredGoals, lastCheckInAt: checkIn ? now : session.lastCheckInAt });
+    await this.sessions.setProgress(sessionId, {
+      coveredGoals,
+      lastCheckInAt: checkIn ? now : session.lastCheckInAt,
+      metTargets,
+    });
 
     return {
       kind: decision.kind,
@@ -187,11 +200,10 @@ export class ConversationService {
     const session = await this.sessions.get(sessionId);
     if (!session) throw new SessionNotFoundError(sessionId);
     if (!session.endedAt) await this.sessions.end(sessionId, timing);
-    const [mistakes, history, outcome, usedRight] = await Promise.all([
+    const [mistakes, history, outcome] = await Promise.all([
       this.mistakes.forSession(sessionId),
       this.sessions.history(sessionId),
       this.sessions.outcome(sessionId),
-      this.mistakes.correctUsesInSession(sessionId),
     ]);
     return {
       sessionId,
@@ -206,7 +218,7 @@ export class ConversationService {
       }),
       confidence: outcome?.confidence ?? { before: null, after: null },
       goals: goalsFor(session.mode).map((id) => ({ id, covered: session.coveredGoals.includes(id) })),
-      targets: session.targets.map((t) => ({ ...t, met: usedRight.some((u) => sameText(u, t.original)) })),
+      targets: session.targets.map((t) => ({ ...t, met: session.metTargets.includes(t.original) })),
     };
   }
 

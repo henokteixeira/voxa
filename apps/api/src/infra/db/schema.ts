@@ -23,6 +23,8 @@ export const sessions = pgTable("sessions", {
   lastCheckInAt: timestamp("last_check_in_at", { withTimezone: true }),
   /** Mistakes from the bank the learner practices in this session. */
   targets: jsonb("targets").$type<PracticeTarget[]>().notNull().default([]),
+  /** The `original` of each target the learner said correctly in this session. */
+  metTargets: jsonb("met_targets").$type<string[]>().notNull().default([]),
 });
 
 export const turns = pgTable("turns", {

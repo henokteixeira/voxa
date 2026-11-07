@@ -25,7 +25,7 @@ export const GOAL_DESCRIPTIONS: Record<SessionGoal, string> = {
   who_it_serves: "explained who the project serves",
   key_decisions: "explained at least one key decision and why it was made",
   status: "gave the project's current status",
-  sponsor_questions: "answered two of your follow-up questions",
+  sponsor_questions: "answered at least two of your follow-up questions (count the answers in the conversation)",
   problem: "explained the problem the work solves",
   change: "explained the change they made",
   testing: "explained how it was tested",
@@ -38,11 +38,21 @@ export const CHECK_IN_EVERY_MIN = 5;
 
 export type CheckInReason = "goals_met" | "time";
 
-/** The question the tutor adds to its reply. Spoken, so it is in the language being practiced. */
-export const CHECK_IN_LINES: Record<CheckInReason, string> = {
-  goals_met: "We've covered everything for this meeting. Do you want to stop here or keep going?",
-  time: "We've been talking for a while. Do you want to stop here or keep going?",
+/**
+ * The question the tutor adds to its reply, by the primary subtag of the language being practiced (it is
+ * spoken in that language). A new language adds its lines here; until then it falls back to English.
+ */
+const CHECK_IN_LINES: Record<string, Record<CheckInReason, string>> = {
+  en: {
+    goals_met: "We've covered everything for this meeting. Do you want to stop here or keep going?",
+    time: "We've been talking for a while. Do you want to stop here or keep going?",
+  },
 };
+
+export function checkInLine(reason: CheckInReason, language: string): string {
+  const lines = CHECK_IN_LINES[language.split("-")[0].toLowerCase()] ?? CHECK_IN_LINES.en;
+  return lines[reason];
+}
 
 export function goalsFor(mode: Mode): readonly SessionGoal[] {
   return SESSION_GOALS[mode];
@@ -58,20 +68,24 @@ const MINUTE = 60_000;
 
 /**
  * Whether the tutor should ask now if the learner wants to stop or keep going.
+ * @param coveredBefore goals covered before this turn; `covered` includes this turn's
  * @param elapsedMs time since the session started
  * @param lastCheckInMs time since the session started when the tutor last asked, or null
  */
 export function checkInDue(input: {
   mode: Mode;
+  coveredBefore: readonly string[];
   covered: readonly string[];
   elapsedMs: number;
   lastCheckInMs: number | null;
 }): CheckInReason | null {
-  const { mode, covered, elapsedMs, lastCheckInMs } = input;
-  if (lastCheckInMs !== null) return elapsedMs - lastCheckInMs >= CHECK_IN_EVERY_MIN * MINUTE ? "time" : null;
-
+  const { mode, coveredBefore, covered, elapsedMs, lastCheckInMs } = input;
   const goals = goalsFor(mode);
-  if (goals.length === 0) return elapsedMs >= FREE_TALK_CHECK_IN_MIN * MINUTE ? "time" : null;
-  if (goals.every((goal) => covered.includes(goal))) return "goals_met";
-  return elapsedMs >= GOAL_TIME_LIMIT_MIN * MINUTE ? "time" : null;
+  const all = (list: readonly string[]) => goals.length > 0 && goals.every((goal) => list.includes(goal));
+  // Asks once the goals are all covered: on the turn that covers the last one (even after an earlier
+  // question about time), or on the next turn that can ask when that one could not (it gave a hint).
+  if (all(covered) && (!all(coveredBefore) || lastCheckInMs === null)) return "goals_met";
+  if (lastCheckInMs !== null) return elapsedMs - lastCheckInMs >= CHECK_IN_EVERY_MIN * MINUTE ? "time" : null;
+  const limit = goals.length === 0 ? FREE_TALK_CHECK_IN_MIN : GOAL_TIME_LIMIT_MIN;
+  return elapsedMs >= limit * MINUTE ? "time" : null;
 }

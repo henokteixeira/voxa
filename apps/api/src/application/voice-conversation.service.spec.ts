@@ -15,6 +15,7 @@ const session: Session = {
   coveredGoals: [],
   lastCheckInAt: null,
   targets: [],
+  metTargets: [],
 };
 const reply = { kind: "hint" as const, message: "When did it happen?", selfCorrected: false };
 

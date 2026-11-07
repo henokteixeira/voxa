@@ -1,5 +1,5 @@
 {
-  "id": "8ffc85ba-f27d-4902-bfb7-4be16169cab1",
+  "id": "ac09c186-54dc-44bf-b2b8-1515f07674c7",
   "prevId": "ca338864-34e7-4f45-a022-bcc8b747a48a",
   "version": "7",
   "dialect": "postgresql",
@@ -313,6 +313,13 @@
         },
         "targets": {
           "name": "targets",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "met_targets": {
+          "name": "met_targets",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
