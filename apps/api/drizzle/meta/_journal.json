@@ -92,6 +92,13 @@
       "when": 1794028406469,
       "tag": "0012_guided_track",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794028932283,
+      "tag": "0013_session_signals",
+      "breakpoints": true
     }
   ]
 }

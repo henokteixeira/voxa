@@ -12,7 +12,7 @@ import {
   turnPlan,
   usesTrack,
 } from "../domain/conversation/guided-track.js";
-import { type FluencySignals, fluencySignals, type SessionTiming } from "../domain/conversation/fluency.js";
+import { fluencySignals, type SessionTiming } from "../domain/conversation/fluency.js";
 import { correctsMistakes, type Mode } from "../domain/conversation/mode.js";
 import {
   checkInDue,
@@ -27,6 +27,7 @@ import { type ChatTurn, NEW_WORD_CATEGORY, type PracticeTarget, type Session } f
 import { DomainError } from "../domain/errors.js";
 import { mistakeStatus } from "../domain/mistakes/mistake-status.js";
 import type { SpeakingLevel } from "../domain/level/speaking-level.js";
+import { type SessionSignals, unaidedShare } from "../domain/progress/signal-trend.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { MISTAKE_BANK_REPOSITORY, type MistakeBankRepository } from "../domain/ports/mistake-bank.repository.js";
 import { LEARNER_CONTEXT_PORT, type LearnerContextPort } from "../domain/ports/learner-context.port.js";
@@ -113,9 +114,10 @@ export interface SessionResume {
 export interface SessionSummary {
   sessionId: string;
   mode: Mode;
+  language: string;
   mistakes: SessionMistake[];
   selfCorrections: number;
-  signals: FluencySignals;
+  signals: SessionSignals;
   confidence: SessionOutcome["confidence"];
   goals: { id: string; covered: boolean }[];
   /** The mistakes practiced in this session; `met` when the learner said the correct form. */
@@ -357,14 +359,18 @@ export class ConversationService {
     return {
       sessionId,
       mode: session.mode,
+      language: session.language,
       mistakes,
       selfCorrections: mistakes.filter((m) => m.selfCorrected).length,
-      signals: fluencySignals({
-        // New words are not mistakes.
-        mistakes: mistakes.filter((m) => m.category !== NEW_WORD_CATEGORY),
-        learnerUtterances: history.filter((t) => t.role === "user").map((t) => t.content),
-        timing: outcome?.timing ?? null,
-      }),
+      signals: {
+        ...fluencySignals({
+          // New words are not mistakes.
+          mistakes: mistakes.filter((m) => m.category !== NEW_WORD_CATEGORY),
+          learnerUtterances: history.filter((t) => t.role === "user").map((t) => t.content),
+          timing: outcome?.timing ?? null,
+        }),
+        unaidedShare: unaidedShare(outcome?.learnerTurns ?? { total: 0, assisted: 0 }),
+      },
       confidence: outcome?.confidence ?? { before: null, after: null },
       goals: goalsFor(session.mode).map((id) => ({ id, covered: session.coveredGoals.includes(id) })),
       targets: session.targets.map((t) => ({ ...t, met: session.metTargets.includes(t.original) })),

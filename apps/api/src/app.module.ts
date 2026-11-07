@@ -5,6 +5,7 @@ import { FillerSpeechService } from "./application/filler-speech.service.js";
 import { LevelService } from "./application/level.service.js";
 import { MistakeBankService } from "./application/mistake-bank.service.js";
 import { ProgressService } from "./application/progress.service.js";
+import { SignalsService } from "./application/signals.service.js";
 import { VoiceConversationService } from "./application/voice-conversation.service.js";
 import { CLOCK, systemClock } from "./domain/ports/clock.port.js";
 import { LEARNER_CONTEXT_PORT } from "./domain/ports/learner-context.port.js";
@@ -14,6 +15,7 @@ import { MISTAKE_BANK_REPOSITORY } from "./domain/ports/mistake-bank.repository.
 import { MISTAKE_REPOSITORY } from "./domain/ports/mistake.repository.js";
 import { PROGRESS_REPOSITORY } from "./domain/ports/progress.repository.js";
 import { SESSION_REPOSITORY } from "./domain/ports/session.repository.js";
+import { SIGNALS_REPOSITORY } from "./domain/ports/signals.repository.js";
 import { TUTOR_PORT } from "./domain/ports/tutor.port.js";
 import { STT_PORT, TTS_PORT } from "./domain/ports/voice.port.js";
 import { HealthController } from "./health/health.controller.js";
@@ -22,6 +24,7 @@ import { DrizzleLevelRepository } from "./infra/db/drizzle-level.repository.js";
 import { DrizzleMistakeRepository } from "./infra/db/drizzle-mistake.repository.js";
 import { DrizzleProgressRepository } from "./infra/db/drizzle-progress.repository.js";
 import { DrizzleSessionRepository } from "./infra/db/drizzle-session.repository.js";
+import { DrizzleSignalsRepository } from "./infra/db/drizzle-signals.repository.js";
 import { AnthropicLevelAssessor } from "./infra/tutor/anthropic-level-assessor.js";
 import { AnthropicTutorAdapter, anthropicClientProvider } from "./infra/tutor/anthropic-tutor.adapter.js";
 import { FileLearnerContext } from "./infra/tutor/file-learner-context.js";
@@ -45,6 +48,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
     FillerSpeechService,
     LevelService,
     ProgressService,
+    SignalsService,
     VoiceSocketServer,
     anthropicClientProvider,
     { provide: CLOCK, useValue: systemClock },
@@ -54,6 +58,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
     { provide: SESSION_REPOSITORY, useClass: DrizzleSessionRepository },
     { provide: LEVEL_REPOSITORY, useClass: DrizzleLevelRepository },
     { provide: PROGRESS_REPOSITORY, useClass: DrizzleProgressRepository },
+    { provide: SIGNALS_REPOSITORY, useClass: DrizzleSignalsRepository },
     DrizzleMistakeRepository,
     { provide: MISTAKE_REPOSITORY, useExisting: DrizzleMistakeRepository },
     { provide: MISTAKE_BANK_REPOSITORY, useExisting: DrizzleMistakeRepository },

@@ -99,7 +99,13 @@ class FakeSessions implements SessionRepository {
   }
   async outcome(id: string) {
     const row = this.rows.get(id);
-    return row ? { timing: row.timing, confidence: { before: row.before, after: row.after } } : null;
+    if (!row) return null;
+    const helped = this.assisted.get(id) ?? [];
+    return {
+      timing: row.timing,
+      confidence: { before: row.before, after: row.after },
+      learnerTurns: { total: helped.length, assisted: helped.filter(Boolean).length },
+    };
   }
 }
 
@@ -727,6 +733,7 @@ describe("ConversationService: help by the learner's level", () => {
     expect(tutor.requests[1].scaffold).toBe("Yesterday I...");
     expect((await sessions.get(session.id))?.scaffold).toBeNull();
     expect(sessions.assisted.get(session.id)).toEqual([false, true]);
+    expect((await service.end(session.id)).signals.unaidedShare).toBe(0.5);
   });
 
   it("gives no words to say from B2 up, even if the tutor writes some", async () => {
@@ -893,6 +900,7 @@ describe("ConversationService.end", () => {
       averagePauseMs: 1500,
       wordsPerMinute: 28,
       longPausesPerMinute: 2,
+      unaidedShare: 1,
     });
   });
 

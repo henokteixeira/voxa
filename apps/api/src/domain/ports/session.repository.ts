@@ -10,6 +10,8 @@ export type ConfidenceMoment = "before" | "after";
 export interface SessionOutcome {
   timing: SessionTiming | null;
   confidence: { before: number | null; after: number | null };
+  /** The learner's turns, and how many of them had help (words given by the tutor, or the first language). */
+  learnerTurns: { total: number; assisted: number };
 }
 
 export interface SessionProgress {

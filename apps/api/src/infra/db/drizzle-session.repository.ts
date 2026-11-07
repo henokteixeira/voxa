@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, count, eq, sql } from "drizzle-orm";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import { isTrackStage, type TrackState } from "../../domain/conversation/guided-track.js";
 import { isMode } from "../../domain/conversation/mode.js";
@@ -131,6 +131,15 @@ export class DrizzleSessionRepository implements SessionRepository {
       .from(sessions)
       .where(eq(sessions.id, sessionId))
       .limit(1);
-    return row ? { timing: row.timing ?? null, confidence: { before: row.before, after: row.after } } : null;
+    if (!row) return null;
+    const [learnerTurns] = await this.db
+      .select({ total: count(), assisted: count(sql`case when ${turns.assisted} then 1 end`) })
+      .from(turns)
+      .where(and(eq(turns.sessionId, sessionId), eq(turns.role, "user")));
+    return {
+      timing: row.timing ?? null,
+      confidence: { before: row.before, after: row.after },
+      learnerTurns: learnerTurns ?? { total: 0, assisted: 0 },
+    };
   }
 }
