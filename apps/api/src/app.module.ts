@@ -3,6 +3,8 @@ import { ConfigModule } from "@nestjs/config";
 import { validateEnv } from "./config/env.js";
 import { ConversationService } from "./application/conversation.service.js";
 import { FillerSpeechService } from "./application/filler-speech.service.js";
+import { PracticeService } from "./application/practice.service.js";
+import { PracticeController } from "./practice/practice.controller.js";
 import { TranscriptionService } from "./application/transcription.service.js";
 import { LevelService } from "./application/level.service.js";
 import { MistakeBankService } from "./application/mistake-bank.service.js";
@@ -50,7 +52,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
 // Swapping the database, AI or voice provider = changing useClass/useExisting below.
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ["../../.env"], validate: validateEnv }), DbModule],
-  controllers: [HealthController, SessionsController, MistakesController, FillersController, LevelsController, ProgressController, ReviewsController, TranscriptionsController],
+  controllers: [HealthController, SessionsController, MistakesController, FillersController, LevelsController, ProgressController, ReviewsController, TranscriptionsController, PracticeController],
   providers: [
     ConversationService,
     MistakeBankService,
@@ -58,6 +60,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
     ReviewService,
     VoiceConversationService,
     FillerSpeechService,
+    PracticeService,
     TranscriptionService,
     LevelService,
     ProgressService,

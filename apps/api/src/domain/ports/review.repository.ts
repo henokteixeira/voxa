@@ -19,6 +19,13 @@ export interface ReviewItem {
   dueAt: Date;
 }
 
+/** Where one item is in its review schedule. */
+export interface ReviewSchedule {
+  subject: ReviewSubject;
+  step: number;
+  dueAt: Date;
+}
+
 /** A cue a review gave, and how it was answered. */
 export interface StoredReviewCard {
   id: string;
@@ -43,6 +50,8 @@ export interface ReviewRepository {
   card(id: string): Promise<StoredReviewCard | null>;
   /** Records the answer once: false when the card was already answered (e.g. a retried request). */
   answerCard(id: string, recalled: boolean, at: Date): Promise<boolean>;
+  /** Every schedule in this language, due or not (dismissed or not). */
+  schedules(language: string): Promise<ReviewSchedule[]>;
   /** When the next item not yet due comes back, or null when there is none. */
   nextDueAt(language: string, now: Date): Promise<Date | null>;
 }
