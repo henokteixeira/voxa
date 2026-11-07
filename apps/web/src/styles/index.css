@@ -194,6 +194,10 @@
 @keyframes vx-pulse { 50% { opacity: 0.55; } }
 .vx-skeleton { background: var(--color-sand-soft); animation: vx-pulse 1.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .vx-page-in, .vx-fade, .vx-sheet, .vx-skeleton { animation: none !important; }
+  .vx-page-in, .vx-fade, .vx-sheet, .vx-skeleton, .vx-toast { animation: none !important; }
   .vx-spring { transition: none; }
 }
+
+/* XP toast: rises a little, stays, then fades (1.5 s in all). Reduced motion: it only appears and goes (rule above). */
+@keyframes vx-toast { 0% { opacity: 0; transform: translateY(8px); } 12%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-6px); } }
+.vx-toast { animation: vx-toast 1.5s cubic-bezier(0.32, 0.72, 0, 1) both; }
