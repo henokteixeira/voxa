@@ -100,6 +100,17 @@ describe("createApiClient", () => {
     ]);
   });
 
+  it("sends a recording to be transcribed", async () => {
+    const fetchImpl = respond(200, { text: "I finished it" });
+    const api = createApiClient("http://api", fetchImpl);
+    const wav = new ArrayBuffer(8);
+
+    await expect(api.transcribe(wav)).resolves.toBe("I finished it");
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("http://api/api/voice/transcriptions?language=en");
+    expect(init).toMatchObject({ method: "POST", headers: { "content-type": "audio/wav" }, body: wav });
+  });
+
   it("dismisses a mistake with a reason and accepts an empty answer", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     const api = createApiClient("http://api", fetchImpl);

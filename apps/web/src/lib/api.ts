@@ -359,6 +359,22 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     return (await response.json()) as T;
   }
 
+  /** A POST whose body is a recording (16 kHz WAV), answering JSON. */
+  async function postAudio<T>(path: string, wav: ArrayBuffer): Promise<T> {
+    let response: Response;
+    try {
+      response = await fetchImpl(`${baseUrl}/api${path}`, {
+        method: "POST",
+        headers: { "content-type": "audio/wav" },
+        body: wav,
+      });
+    } catch {
+      throw new ApiError("offline", "Can't reach the Voxa API.");
+    }
+    if (!response.ok) throw await errorFrom(response, `api POST ${path}`);
+    return (await response.json()) as T;
+  }
+
   /** A GET that answers audio. */
   async function audio(path: string): Promise<ArrayBuffer> {
     let response: Response;
@@ -415,6 +431,9 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     /** What the learner said to a card; null when they chose "I don't know". */
     answerReview: (cardId: string, utterance: string | null) =>
       request<ReviewAnswer>("/reviews/answers", { method: "POST", body: { cardId, utterance } }),
+    /** The words in a short recording, e.g. a spoken review answer; empty when nothing was heard. */
+    transcribe: async (wav: ArrayBuffer, language = "en") =>
+      (await postAudio<{ text: string }>(`/voice/transcriptions?language=${encodeURIComponent(language)}`, wav)).text,
     todayProgress: (language = "en", timeZone = deviceTimeZone()) =>
       request<TodayProgress>(
         `/progress/today?language=${encodeURIComponent(language)}&timeZone=${encodeURIComponent(timeZone)}`,

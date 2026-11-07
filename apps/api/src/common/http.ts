@@ -13,3 +13,19 @@ export function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   if (!result.success) throw new InvalidInputError(z.prettifyError(result.error));
   return result.data;
 }
+
+/**
+ * Reads a request's raw body (for audio, which no body parser handles). Bodies over `maxBytes` are refused
+ * as soon as they pass the limit, without reading the rest.
+ */
+export async function readRawBody(stream: AsyncIterable<Buffer | string>, maxBytes: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of stream) {
+    const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+    size += buffer.length;
+    if (size > maxBytes) throw new InvalidInputError(`The body is over ${maxBytes} bytes.`);
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks);
+}
