@@ -12,6 +12,12 @@ export const DEFAULT_DAILY_MINUTES: DailyMinutes = 30;
 /** About 1 XP a minute of conversation, plus about 30% from bonuses, so the goal closes near the chosen time. */
 const GOAL_XP: Record<DailyMinutes, number> = { 15: 20, 30: 40, 45: 60, 60: 80 };
 
+/** Reads a stored value back, failing loudly on data the domain does not know. */
+export function parseDailyMinutes(value: number): DailyMinutes {
+  if (!(DAILY_MINUTES as readonly number[]).includes(value)) throw new Error(`Unknown daily practice time: ${value}.`);
+  return value as DailyMinutes;
+}
+
 export function dailyGoalXp(minutes: DailyMinutes): number {
   return GOAL_XP[minutes];
 }
@@ -19,6 +25,11 @@ export function dailyGoalXp(minutes: DailyMinutes): number {
 /** What earns XP. */
 export const XP_REASONS = ["practice_minute", "goal_covered", "self_corrected", "personal_record"] as const;
 export type XpReason = (typeof XP_REASONS)[number];
+
+export function parseXpReason(value: string): XpReason {
+  if (!(XP_REASONS as readonly string[]).includes(value)) throw new Error(`Unknown XP reason: ${value}.`);
+  return value as XpReason;
+}
 
 /** XP for each time a reason happens. The web app reads this table from the API to show XP as it happens. */
 export const XP_POINTS: Record<XpReason, number> = {
@@ -44,6 +55,16 @@ export interface SessionAchievements {
   selfCorrections: number;
   /** The session beat the learner's best words a minute. */
   personalRecord: boolean;
+}
+
+/** Conversation time can't be longer than the session itself (the timing comes from the app). */
+export function conversationMs(
+  timing: { learnerSpeechMs: number; tutorSpeechMs: number; pausesMs: number[] } | null,
+  sessionMs: number,
+): number {
+  if (!timing) return 0;
+  const measured = timing.learnerSpeechMs + timing.tutorSpeechMs + timing.pausesMs.reduce((sum, ms) => sum + ms, 0);
+  return Math.max(0, Math.min(measured, sessionMs));
 }
 
 export function xpForSession(session: SessionAchievements): XpAward[] {
@@ -83,6 +104,22 @@ export function isTimeZone(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * The goal a day is judged by: the newest setting made by the end of that day, or the default.
+ * The same rule for today and for past days, so a day never changes after the fact.
+ */
+export function minutesForDay(
+  history: readonly { minutesPerDay: DailyMinutes; setAt: Date }[],
+  day: LocalDay,
+  timeZone: string,
+): DailyMinutes {
+  let minutes = DEFAULT_DAILY_MINUTES;
+  for (const setting of history) {
+    if (localDay(setting.setAt, timeZone) <= day) minutes = setting.minutesPerDay;
+  }
+  return minutes;
 }
 
 function previousDay(day: LocalDay): LocalDay {

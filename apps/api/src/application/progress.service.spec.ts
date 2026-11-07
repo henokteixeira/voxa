@@ -29,8 +29,9 @@ function timing(minutes: number, wpm = 60): SessionTiming {
   return { learnerSpeechMs, tutorSpeechMs: learnerSpeechMs, pausesMs: [], longPausesMs: [], spokenWords: (wpm * learnerSpeechMs) / 60_000 };
 }
 
-async function endedSession(t: SessionTiming | null, language = "en") {
-  const session = await sessions.create({ language, mode: "daily" });
+/** Sessions end at the real time: start them long enough before so their timing fits. */
+async function endedSession(t: SessionTiming | null, language = "en", startedAt = new Date(Date.now() - 2 * 3_600_000)) {
+  const session = await sessions.create({ language, mode: "daily", startedAt });
   await sessions.end(session.id, t);
   return session.id;
 }
@@ -53,10 +54,30 @@ describe("ProgressService.awardSession", () => {
   });
 
   it("gives a record bonus for the fastest pace after 3 measured sessions", async () => {
-    for (const wpm of [50, 55, 60]) await endedSession(timing(4, wpm));
+    for (const wpm of [50, 55, 60]) {
+      const id = await endedSession(timing(4, wpm));
+      await service.awardSession({ sessionId: id, goalsCovered: 0, selfCorrections: 0, wordsPerMinute: wpm });
+    }
     const sessionId = await endedSession(timing(4, 70));
     const xp = await service.awardSession({ sessionId, goalsCovered: 0, selfCorrections: 0, wordsPerMinute: 70 });
     expect(xp.awards.map((a) => a.reason)).toEqual(["practice_minute", "personal_record"]);
+  });
+
+  it("never counts more minutes than the session lasted", async () => {
+    const sessionId = await endedSession(timing(600), "en", new Date(Date.now() - 5 * 60_000));
+    const xp = await service.awardSession({ sessionId, goalsCovered: 0, selfCorrections: 0, wordsPerMinute: null });
+    expect(xp.awards).toEqual([{ reason: "practice_minute", count: 5, points: 5 }]);
+  });
+
+  it("keeps a session that earned nothing at nothing when it ends again", async () => {
+    for (const wpm of [50, 55, 60]) {
+      const id = await endedSession(timing(1, wpm));
+      await service.awardSession({ sessionId: id, goalsCovered: 0, selfCorrections: 0, wordsPerMinute: wpm });
+    }
+    const sessionId = await endedSession(timing(0.5));
+    const input = { sessionId, goalsCovered: 0, selfCorrections: 0, wordsPerMinute: 20 };
+    expect(await service.awardSession(input)).toEqual({ awards: [], total: 0 });
+    expect(await service.awardSession({ ...input, wordsPerMinute: 90 })).toEqual({ awards: [], total: 0 });
   });
 
   it("refuses a session that has not ended", async () => {
@@ -92,6 +113,14 @@ describe("ProgressService.today", () => {
     expect(today).toMatchObject({ day: "2026-11-07", goalXp: 20, earnedXp: 21, goalMet: true, streakDays: 3 });
     // Other languages keep their own XP.
     expect((await service.today("es", tz)).earnedXp).toBe(0);
+  });
+
+  it("judges today by the goal set today, even after the XP was earned", async () => {
+    now = new Date("2026-11-07T13:00:00Z");
+    await service.awardSession({ sessionId: await endedSession(timing(25)), goalsCovered: 0, selfCorrections: 0, wordsPerMinute: null });
+    now = new Date("2026-11-07T14:00:00Z");
+    expect(await service.setDailyMinutes("en", 15, tz)).toMatchObject({ goalXp: 20, earnedXp: 25, goalMet: true, streakDays: 1 });
+    expect(await service.setDailyMinutes("en", 60, tz)).toMatchObject({ goalXp: 80, goalMet: false, streakDays: 0 });
   });
 
   it("judges each past day by the goal set at the time", async () => {
