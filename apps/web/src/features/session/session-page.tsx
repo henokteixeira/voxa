@@ -102,10 +102,10 @@ function LiveSession({ mode }: { mode: Mode }) {
   } else if (state.checkIn && yourTurn) {
     bottom = <CheckInCard onStop={session.end} onKeepGoing={session.keepGoing} />;
   } else if (state.revealed && lastTutor) {
-    bottom = <RevealCard message={lastTutor.text} help={state.support} />;
+    bottom = <RevealCard message={lastTutor.text} help={state.support} rule={state.rule} />;
     helpInCard = true;
   } else if (state.hintStep > 0 && lastTutor) {
-    bottom = <HintCard step={state.hintStep} said={state.hintFor} tip={lastTutor.text} help={state.support} />;
+    bottom = <HintCard step={state.hintStep} said={state.hintFor} tip={lastTutor.text} help={state.support} type={state.mistakeType} />;
     helpInCard = true;
   } else if (state.scaffold && !showTranscript) {
     // Words to say: one card with them replaces the tutor's line, which is in the transcript.

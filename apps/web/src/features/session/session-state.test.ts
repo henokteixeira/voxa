@@ -120,6 +120,22 @@ describe("sessionReducer", () => {
     expect(state.revealed).toBe(true);
   });
 
+  it("keeps the mistake's type through the hints, adds its rule with the correct form, and clears both after", () => {
+    const typed = (kind: "hint" | "reveal", extra = {}): SessionAction => ({
+      type: "tutor",
+      result: { kind, message: "…", selfCorrected: false, mistake: "I finish it", ...extra },
+    });
+    const rule = { name: "Past for finished actions", rule: "Ação terminada: passado." };
+    let state = run(started, typed("hint", { mistakeType: "verb_tense" }), typed("hint"));
+    expect(state).toMatchObject({ mistakeType: "verb_tense", rule: null });
+
+    state = sessionReducer(state, typed("reveal", { mistakeType: "verb_tense", rule }));
+    expect(state).toMatchObject({ mistakeType: "verb_tense", rule });
+
+    state = sessionReducer(state, { type: "tutor", result: { kind: "reply", message: "Great.", selfCorrected: false } });
+    expect(state).toMatchObject({ mistakeType: null, rule: null });
+  });
+
   it("keeps the tutor's written support for the current turn only", () => {
     const withSupport: SessionAction = {
       type: "tutor",
@@ -291,6 +307,19 @@ describe("sessionReducer", () => {
     expect(state.captions).toHaveLength(3);
     // Resuming waits for the tutor to say its last line again, so the microphone stays off.
     expect(sessionReducer(state, { type: "resume" }).phase).toBe("thinking");
+  });
+
+  it("comes back on the correct form with the mistake's type and rule", () => {
+    const rule = { name: "Past for finished actions", rule: "Passado." };
+    const state = run({
+      type: "resumed",
+      sessionId: "s1",
+      captions: [],
+      goals: [],
+      coveredGoals: [],
+      hint: { hintsGiven: 2, revealed: true, mistake: "I goed", mistakeType: "verb_tense", rule },
+    });
+    expect(state).toMatchObject({ revealed: true, mistakeType: "verb_tense", rule });
   });
 
   it("only resumes a session that is still starting", () => {

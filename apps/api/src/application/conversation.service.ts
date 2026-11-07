@@ -76,6 +76,10 @@ export interface TurnResult {
   support: string | null;
   /** On a hint: the learner's words that hold the mistake, so the screen can point at them. Never the correction. */
   mistake: string | null;
+  /** On a hint or the correct form: the mistake's type (e.g. verb_tense), named on the card. */
+  mistakeType: string | null;
+  /** With the correct form only (it may hold it): the rule the mistake breaks, in one line. */
+  rule: { name: string; rule: string } | null;
   /** True when the tutor asked whether to stop or keep going. */
   checkIn: boolean;
   /** Goals of the mode the learner has covered so far. */
@@ -103,7 +107,14 @@ export interface SessionResume {
   goals: readonly string[];
   coveredGoals: string[];
   /** The serious mistake the conversation is paused on, without its correction (the hints must not give it away). */
-  hint: { hintsGiven: number; revealed: boolean; mistake: string } | null;
+  hint: {
+    hintsGiven: number;
+    revealed: boolean;
+    mistake: string;
+    mistakeType: string;
+    /** Only once the correct form was given: the rule it breaks. */
+    rule: { name: string; rule: string } | null;
+  } | null;
   track: TrackView | null;
   scaffold: string | null;
 }
@@ -182,7 +193,15 @@ export class ConversationService {
       turns,
       goals: goalsFor(session.mode),
       coveredGoals: session.coveredGoals,
-      hint: pending ? { hintsGiven: pending.hintsGiven, revealed: pending.revealed, mistake: pending.original } : null,
+      hint: pending
+        ? {
+            hintsGiven: pending.hintsGiven,
+            revealed: pending.revealed,
+            mistake: pending.original,
+            mistakeType: pending.category,
+            rule: pending.revealed ? (pending.pattern ?? null) : null,
+          }
+        : null,
       track: trackView(session.track),
       scaffold: session.scaffold,
     };
@@ -228,6 +247,8 @@ export class ConversationService {
               selfCorrected: false,
               support: null,
               mistake: null,
+              mistakeType: null,
+              rule: null,
               checkIn: false,
               coveredGoals: session.coveredGoals,
               // The track moves once the turn is analysed; the follow-up carries where it went.
@@ -330,6 +351,8 @@ export class ConversationService {
       selfCorrected: decision.selfCorrected,
       support: safeSupport(verdict.support, decision.nextPending?.correction),
       mistake: decision.kind === "hint" ? (decision.nextPending?.original ?? null) : null,
+      mistakeType: decision.kind === "reply" ? null : (decision.nextPending?.category ?? null),
+      rule: decision.kind === "reveal" ? (decision.nextPending?.pattern ?? null) : null,
       checkIn: checkIn !== null,
       coveredGoals,
       track: trackView(move?.track ?? session.track),

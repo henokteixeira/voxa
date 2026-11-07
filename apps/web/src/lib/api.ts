@@ -84,7 +84,7 @@ export interface ResumedSession extends Guidance {
   goals: string[];
   coveredGoals: string[];
   /** The pending correction's hint step, without the correction. */
-  hint: { hintsGiven: number; revealed: boolean; mistake?: string } | null;
+  hint: { hintsGiven: number; revealed: boolean; mistake?: string; mistakeType?: string; rule?: { name: string; rule: string } | null } | null;
 }
 
 export interface TurnResult extends Guidance {
@@ -95,6 +95,10 @@ export interface TurnResult extends Guidance {
   support?: string | null;
   /** On a hint: the learner's words that hold the mistake (never the correction). */
   mistake?: string | null;
+  /** On a hint or the correct form: the mistake's type (e.g. verb_tense). Missing from older servers. */
+  mistakeType?: string | null;
+  /** With the correct form only: the rule the mistake breaks, in one line. */
+  rule?: { name: string; rule: string } | null;
   /** The tutor asked whether to stop or keep going. */
   checkIn?: boolean;
   /** Goals of the meeting covered so far. */
