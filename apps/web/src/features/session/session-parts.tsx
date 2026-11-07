@@ -57,28 +57,37 @@ export function LatestCaption({ caption, shown, onShow }: { caption: Caption; sh
     if (tapped && shown) text.current?.focus();
   }, [tapped, shown]);
   if (caption.who !== "tutor") return <CaptionCard caption={caption} />;
-  return (
-    <div className="flex flex-col gap-1 rounded-md bg-paper px-[18px] py-4 shadow-card">
-      <span className="text-label text-taupe">{parts.tutor}</span>
-      {shown ? (
+  if (shown) {
+    return (
+      <div className="flex flex-col gap-1 rounded-md bg-paper px-[18px] py-4 shadow-card">
+        <span className="text-label text-taupe">{parts.tutor}</span>
         <p ref={text} tabIndex={-1} lang="en" className="m-0 text-body outline-none">
           {caption.text}
         </p>
-      ) : (
-        <button
-          type="button"
-          onClick={() => {
-            setTapped(true);
-            onShow();
-          }}
-          className="-mx-2 min-h-11 cursor-pointer self-start rounded-md border-none bg-transparent px-2 text-left text-body text-ink-soft underline decoration-sand underline-offset-4 hover:text-ink"
-        >
-          {parts.showTutorLine}
-        </button>
-      )}
-    </div>
+      </div>
+    );
+  }
+  // Hidden: a quiet link, not a card, so listening stays the focus.
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setTapped(true);
+        onShow();
+      }}
+      className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 self-center rounded-full border-none bg-transparent px-3 text-caption text-taupe transition-colors duration-150 hover:bg-sand-soft hover:text-ink"
+    >
+      <TextIcon />
+      {parts.showTutorLine}
+    </button>
   );
 }
+
+const TextIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <path d="M5 8h14M5 12h14M5 16h9" />
+  </svg>
+);
 
 export function HintCard({ step, said, tip }: { step: number; said: string | null; tip: string }) {
   const { parts } = useCopy(SESSION_COPY);
