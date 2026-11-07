@@ -33,6 +33,20 @@ class FakeTutor implements TutorPort {
     if (!next) throw new Error("No verdict queued");
     return next;
   }
+  /** The two halves read the same queued verdict: reply peeks at it, analyze takes it. */
+  async reply(request: TutorRequest) {
+    this.requests.push(request);
+    const next = this.verdicts[0];
+    if (!next) throw new Error("No verdict queued");
+    return next.reply;
+  }
+  async analyze(request: TutorRequest) {
+    this.requests.push(request);
+    const next = this.verdicts.shift();
+    if (!next) throw new Error("No verdict queued");
+    const { reply: _reply, ...analysis } = next;
+    return analysis;
+  }
 }
 
 type Row = Session & { turns: ChatTurn[]; timing: SessionTiming | null; before: number | null; after: number | null };

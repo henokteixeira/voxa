@@ -121,6 +121,8 @@ describe("runScenario", () => {
         requests.push(request);
         return answers[requests.length - 1];
       },
+      reply: () => Promise.reject(new Error("not used")),
+      analyze: () => Promise.reject(new Error("not used")),
     };
     const scenario: Scenario = {
       name: "test",

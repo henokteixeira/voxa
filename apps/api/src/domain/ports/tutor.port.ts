@@ -1,4 +1,4 @@
-import type { TutorVerdict } from "../conversation/correction-policy.js";
+import type { TutorAnalysis, TutorVerdict } from "../conversation/correction-policy.js";
 import type { Mode } from "../conversation/mode.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget } from "../conversation/types.js";
 
@@ -36,6 +36,10 @@ export interface TutorPort {
   open(context: TutorContext): Promise<string>;
   /** Reads the learner's utterance: mistakes, whether a pending one is fixed, and the next line. */
   evaluate(request: TutorRequest): Promise<TutorVerdict>;
+  /** Only the tutor's next line in the scene, so it can be spoken before the analysis is done. */
+  reply(request: TutorRequest): Promise<string>;
+  /** Only the reading of the utterance (mistakes, new words, help, goals), without the next line. */
+  analyze(request: TutorRequest): Promise<TutorAnalysis>;
 }
 
 /** The tutor could not answer (provider down, refusal, cut-off or invalid output). */

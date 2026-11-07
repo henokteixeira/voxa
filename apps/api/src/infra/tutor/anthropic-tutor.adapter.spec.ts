@@ -110,6 +110,56 @@ describe("AnthropicTutorAdapter.evaluate", () => {
   });
 });
 
+describe("AnthropicTutorAdapter.reply and analyze (the two halves of evaluate)", () => {
+  const analysis = { issues: [], pendingResolved: false, nextHint: null, correctUses: [], newWords: [], support: null, coveredGoals: [] };
+
+  it("reply asks only for the spoken line, with the same system prompt, history and turn as evaluate", async () => {
+    const { messages, parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: { reply: " Nice. What's next? " } });
+    const adapter = new AnthropicTutorAdapter(messages, config());
+
+    await expect(adapter.reply(request)).resolves.toBe("Nice. What's next?");
+    await adapter.evaluate(request).catch(() => {});
+
+    const [replyParams, evaluateParams] = parse.mock.calls.map((c) => c[0]);
+    // Same prefix as the other calls, so they share the prompt cache.
+    expect(replyParams.system).toEqual(evaluateParams.system);
+    expect(replyParams.messages).toEqual(evaluateParams.messages);
+    expect(replyParams.output_config.format).not.toEqual(evaluateParams.output_config.format);
+  });
+
+  it("reply fails on an empty line", async () => {
+    const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: { reply: " " } });
+    await expect(new AnthropicTutorAdapter(messages, config()).reply(request)).rejects.toBeInstanceOf(TutorUnavailableError);
+  });
+
+  it("analyze returns the mistakes, new words, help and goals, without a spoken line", async () => {
+    const { messages, parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: analysis });
+    const adapter = new AnthropicTutorAdapter(messages, config());
+
+    await expect(adapter.analyze(request)).resolves.toEqual(analysis);
+    expect(parse.mock.calls[0][0].output_config.format).toBeDefined();
+  });
+
+  it("analyze fails when the answer does not match the schema", async () => {
+    const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: null });
+    await expect(new AnthropicTutorAdapter(messages, config()).analyze(request)).rejects.toBeInstanceOf(TutorUnavailableError);
+  });
+
+  it("logs each half under its own name", async () => {
+    const log = vi.spyOn(Logger.prototype, "log").mockImplementation(() => {});
+    const usage = { input_tokens: 1, cache_read_input_tokens: 2, cache_creation_input_tokens: 3, output_tokens: 4 };
+    const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: { reply: "Hi", ...analysis }, usage });
+    const adapter = new AnthropicTutorAdapter(messages, config());
+
+    await adapter.reply(request);
+    await adapter.analyze(request);
+
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("call=reply"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("call=analyze"));
+    log.mockRestore();
+  });
+});
+
 describe("AnthropicTutorAdapter.open when the context window is full", () => {
   it("fails instead of returning a partial line", async () => {
     const { messages } = fakeMessages({

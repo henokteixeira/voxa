@@ -3,7 +3,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { z } from "zod";
-import type { TutorVerdict } from "../../domain/conversation/correction-policy.js";
+import type { TutorAnalysis, TutorVerdict } from "../../domain/conversation/correction-policy.js";
 import { type TutorContext, type TutorPort, type TutorRequest, TutorUnavailableError } from "../../domain/ports/tutor.port.js";
 import { buildSystemPrompt, buildTurnMessage, OPENING_REQUEST } from "./tutor-prompts.js";
 
@@ -42,6 +42,9 @@ const VerdictSchema = z.object({
   support: z.string().nullable(),
   coveredGoals: z.array(z.string()),
 });
+
+const ReplySchema = z.object({ reply: z.string() });
+const AnalysisSchema = VerdictSchema.omit({ reply: true });
 
 type Effort = "low" | "medium" | "high";
 
@@ -95,11 +98,30 @@ export class AnthropicTutorAdapter implements TutorPort {
   }
 
   async evaluate(request: TutorRequest): Promise<TutorVerdict> {
-    const response = await this.call("evaluate", () =>
+    return this.turn("evaluate", request, VerdictSchema);
+  }
+
+  async reply(request: TutorRequest): Promise<string> {
+    const { reply } = await this.turn("reply", request, ReplySchema);
+    const text = reply.trim();
+    if (!text) throw new TutorUnavailableError("The tutor returned an empty line.");
+    return text;
+  }
+
+  async analyze(request: TutorRequest): Promise<TutorAnalysis> {
+    return this.turn("analyze", request, AnalysisSchema);
+  }
+
+  /**
+   * One read of the learner's turn. Every kind sends the same system prompt, history and turn message, so they
+   * share the prompt cache; only the output schema says which fields to fill.
+   */
+  private async turn<S extends z.ZodType>(name: string, request: TutorRequest, schema: S): Promise<z.infer<S>> {
+    const response = await this.call(name, () =>
       this.messages.parse({
         model: this.model,
         max_tokens: 8000,
-        output_config: { effort: this.effort, format: zodOutputFormat(VerdictSchema) },
+        output_config: { effort: this.effort, format: zodOutputFormat(schema) },
         system: this.system(request),
         messages: [
           { role: "user", content: OPENING_REQUEST },
@@ -109,7 +131,7 @@ export class AnthropicTutorAdapter implements TutorPort {
       }),
     );
     if (!response.parsed_output) throw new TutorUnavailableError("The tutor's answer did not match the schema.");
-    return response.parsed_output;
+    return response.parsed_output as z.infer<S>;
   }
 
   private system(context: TutorContext): Anthropic.TextBlockParam[] {

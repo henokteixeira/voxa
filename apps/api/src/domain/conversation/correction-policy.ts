@@ -22,6 +22,9 @@ export interface TutorVerdict {
   coveredGoals: string[];
 }
 
+/** The tutor's reading of an utterance, without the spoken line: it can run while the line is spoken. */
+export type TutorAnalysis = Omit<TutorVerdict, "reply">;
+
 export type TurnKind = "reply" | "hint" | "reveal";
 
 export interface PolicyDecision {
