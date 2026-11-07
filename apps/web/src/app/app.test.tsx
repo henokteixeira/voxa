@@ -43,6 +43,28 @@ describe("app shell", () => {
     expect(screen.getByRole("link", { name: "Practice" })).toHaveAttribute("aria-current", "page");
   });
 
+  it("slides the active-tab indicator to the tab you pick", async () => {
+    renderApp("/", up());
+    const indicator = screen.getByTestId("tab-indicator");
+    expect(indicator.style.transform).toBe("translateX(0%)");
+    await userEvent.click(screen.getByRole("link", { name: "Progress" }));
+    expect(indicator.style.transform).toBe("translateX(200%)");
+  });
+
+  it("uses a side column instead of the bottom tab bar on wide screens", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({ matches: true, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    );
+    try {
+      renderApp("/mistakes", up());
+      expect(screen.getByRole("complementary")).toHaveTextContent("Voxa");
+      expect(screen.getByTestId("tab-indicator").style.transform).toBe("translateY(100%)");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("opens a session full screen, without the tab bar, after the confidence check-in", async () => {
     const router = renderApp("/", up());
     await userEvent.click(await screen.findByRole("link", { name: "Start" }));
