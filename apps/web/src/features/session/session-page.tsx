@@ -12,7 +12,7 @@ import { isMode, useModeInfo } from "./modes";
 import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-copy";
 import { CaptionCard, FadingCaption, HintCard, IconButton, PauseIcon, QuietLink, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
 import { SummaryFlow } from "./session-summary";
-import { TurnTimer } from "./turn-timer";
+import { TurnRing } from "./turn-ring";
 import type { FailureCode } from "./session-state";
 import { useTodayProgress } from "@/features/xp/use-today-progress";
 import { XP_COPY } from "@/features/xp/xp-copy";
@@ -51,6 +51,7 @@ function LiveSession({ mode }: { mode: Mode }) {
   const yourTurn = state.phase === "listening" || state.phase === "hearing";
   const ballAction =
     state.phase === "hearing" ? page.sendNow : state.phase === "speaking" ? page.stopTutor : undefined;
+  const ballSize = !ballAction && state.hintStep > 0 ? 180 : 200;
 
   if (state.phase === "ended") {
     return (
@@ -185,18 +186,20 @@ function LiveSession({ mode }: { mode: Mode }) {
         </ol>
       ) : (
         <div inert={state.phase === "paused"} className="relative flex flex-1 flex-col items-center justify-center gap-4 text-center">
-          {ballAction ? (
-            <VoiceBall state={stage.ball} size={200} label={ballAction} onPress={session.tapBall} />
-          ) : (
-            <VoiceBall state={stage.ball} size={state.hintStep > 0 ? 180 : 200} dimmed={state.phase === "failed"} label="Voxa" />
-          )}
+          <div className="relative inline-flex">
+            {ballAction ? (
+              <VoiceBall state={stage.ball} size={ballSize} label={ballAction} onPress={session.tapBall} />
+            ) : (
+              <VoiceBall state={stage.ball} size={ballSize} dimmed={state.phase === "failed"} label="Voxa" />
+            )}
+            {state.phase === "hearing" && !typing && <TurnRing ballSize={ballSize} />}
+          </div>
           <span aria-live="polite" className={`text-label ${labelClass(stage.ball)}`}>
             {stage.label}
           </span>
           <span aria-live="polite" className="text-caption text-taupe">
             {stage.hint}
           </span>
-          {state.phase === "hearing" && !typing && <TurnTimer />}
           {state.audioBlocked && <span className="text-caption text-taupe">{page.tapToHear}</span>}
         </div>
       )}

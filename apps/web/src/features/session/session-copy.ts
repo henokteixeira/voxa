@@ -50,9 +50,7 @@ export interface SessionCopy {
     /** On the failure card when the learner's answer is kept for the retry. */
     keptAnswer: string;
     retrying: (attempt: number, of: number) => string;
-    /** While the learner talks: the time so far, out of the longest turn. */
-    turnTime: (elapsed: string, max: string) => string;
-    /** Near the longest turn: what happens there, without pressure. */
+    /** Near the longest turn, for screen readers: what happens there, without pressure. */
     turnLimit: (max: string) => string;
   };
   parts: {
@@ -216,7 +214,6 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       repeatLast: "Repeat the last question",
       keptAnswer: "Your answer is kept: no need to say it again.",
       retrying: (attempt, of) => `Trying again by itself (${attempt} of ${of})…`,
-      turnTime: (elapsed, max) => `${elapsed} of ${max}`,
       turnLimit: (max) => `At ${max} Voxa sends what you said so far. Then you can go on.`,
     },
     parts: {
@@ -268,7 +265,6 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       repeatLast: "Repetir a última pergunta",
       keptAnswer: "Sua resposta está guardada: não precisa falar de novo.",
       retrying: (attempt, of) => `Tentando de novo sozinho (${attempt} de ${of})…`,
-      turnTime: (elapsed, max) => `${elapsed} de ${max}`,
       turnLimit: (max) => `Em ${max} o Voxa envia o que você disse até aqui. Depois você continua.`,
     },
     parts: {
