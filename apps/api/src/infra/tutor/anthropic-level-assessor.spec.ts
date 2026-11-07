@@ -1,12 +1,12 @@
 import { Logger } from "@nestjs/common";
-import type { ConfigService } from "@nestjs/config";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { testConfig } from "../../config/testing.js";
 import { TutorUnavailableError } from "../../domain/ports/tutor.port.js";
 import { AnthropicLevelAssessor } from "./anthropic-level-assessor.js";
 import type { AnthropicMessages } from "./anthropic-tutor.adapter.js";
 import { buildAssessmentPrompt, buildTranscript } from "./level-prompts.js";
 
-const config = { get: () => undefined } as unknown as ConfigService;
+const config = testConfig();
 const turns = [
   { role: "assistant" as const, content: "What do you do?" },
   { role: "user" as const, content: "I am developer, I work in app for translate bible." },

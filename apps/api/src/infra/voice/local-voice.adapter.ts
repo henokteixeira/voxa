@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import type { Env } from "../../config/env.js";
 import {
   type SpeechToTextPort,
   type TextToSpeechPort,
@@ -9,7 +10,6 @@ import {
   VoiceUnavailableError,
 } from "../../domain/ports/voice.port.js";
 
-const DEFAULT_TIMEOUT_MS = 30_000;
 const EXTENSIONS: Record<string, string> = {
   "audio/webm": "webm",
   "audio/ogg": "ogg",
@@ -25,9 +25,9 @@ export class LocalVoiceAdapter implements SpeechToTextPort, TextToSpeechPort {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
 
-  constructor(config: ConfigService) {
-    this.baseUrl = config.get<string>("VOICE_SERVICE_URL") ?? "http://localhost:8001";
-    this.timeoutMs = Number(config.get<string>("VOICE_TIMEOUT_MS")) || DEFAULT_TIMEOUT_MS;
+  constructor(config: ConfigService<Env, true>) {
+    this.baseUrl = config.get("VOICE_SERVICE_URL", { infer: true });
+    this.timeoutMs = config.get("VOICE_TIMEOUT_MS", { infer: true });
   }
 
   async transcribe(audio: Buffer, language: string, options: TranscribeOptions = {}): Promise<Transcription> {

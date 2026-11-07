@@ -1,11 +1,11 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ConfigService } from "@nestjs/config";
 import { describe, expect, it } from "vitest";
+import { testConfig } from "../../config/testing.js";
 import { FileLearnerContext } from "./file-learner-context.js";
 
-const config = (path: string) => ({ get: () => path }) as unknown as ConfigService;
+const config = (path: string) => testConfig({ TUTOR_CONTEXT_FILE: path });
 
 describe("FileLearnerContext", () => {
   it("reads the context file", async () => {
