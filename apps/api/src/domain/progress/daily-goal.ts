@@ -9,8 +9,11 @@ export const DAILY_MINUTES = [15, 30, 45, 60] as const;
 export type DailyMinutes = (typeof DAILY_MINUTES)[number];
 export const DEFAULT_DAILY_MINUTES: DailyMinutes = 30;
 
-/** About 1 XP a minute of conversation, plus about 30% from bonuses, so the goal closes near the chosen time. */
-const GOAL_XP: Record<DailyMinutes, number> = { 15: 20, 30: 40, 45: 60, 60: 80 };
+/**
+ * 1 XP a minute of conversation, so the goal is the chosen time. Bonuses stay small (about 10–20% of a session),
+ * so they make the goal close a little early, never after a third of the time (changed on 2026-11-07 after real use).
+ */
+const GOAL_XP: Record<DailyMinutes, number> = { 15: 15, 30: 30, 45: 45, 60: 60 };
 
 /** Reads a stored value back, failing loudly on data the domain does not know. */
 export function parseDailyMinutes(value: number): DailyMinutes {
@@ -34,9 +37,10 @@ export function parseXpReason(value: string): XpReason {
 /** XP for each time a reason happens. The web app reads this table from the API to show XP as it happens. */
 export const XP_POINTS: Record<XpReason, number> = {
   practice_minute: 1,
-  goal_covered: 5,
-  self_corrected: 5,
-  personal_record: 5,
+  goal_covered: 1,
+  // Fixing a mistake alone after a hint is worth more than any other moment.
+  self_corrected: 2,
+  personal_record: 3,
 };
 
 /** XP earned in one session, by reason. */

@@ -45,10 +45,10 @@ describe("ProgressService.awardSession", () => {
     expect(first).toEqual({
       awards: [
         { reason: "practice_minute", count: 10, points: 10 },
-        { reason: "goal_covered", count: 2, points: 10 },
-        { reason: "self_corrected", count: 1, points: 5 },
+        { reason: "goal_covered", count: 2, points: 2 },
+        { reason: "self_corrected", count: 1, points: 2 },
       ],
-      total: 25,
+      total: 14,
     });
     expect(await service.awardSession({ ...input, goalsCovered: 3 })).toEqual(first);
   });
@@ -80,6 +80,13 @@ describe("ProgressService.awardSession", () => {
     expect(await service.awardSession({ ...input, wordsPerMinute: 90 })).toEqual({ awards: [], total: 0 });
   });
 
+  it("gives no goal XP for the placement interview's tasks", async () => {
+    const session = await sessions.create({ language: "en", mode: "placement", startedAt: new Date(Date.now() - 3_600_000) });
+    await sessions.end(session.id, timing(8));
+    const xp = await service.awardSession({ sessionId: session.id, goalsCovered: 5, selfCorrections: 0, wordsPerMinute: null });
+    expect(xp).toEqual({ awards: [{ reason: "practice_minute", count: 8, points: 8 }], total: 8 });
+  });
+
   it("refuses a session that has not ended", async () => {
     const session = await sessions.create({ language: "en", mode: "daily" });
     await expect(service.awardSession({ sessionId: session.id, goalsCovered: 0, selfCorrections: 0, wordsPerMinute: null })).rejects.toThrow(/not ended/);
@@ -91,17 +98,17 @@ describe("ProgressService.today", () => {
     expect(await service.today("en", tz)).toEqual({
       day: "2026-11-07",
       minutesPerDay: 30,
-      goalXp: 40,
+      goalXp: 30,
       earnedXp: 0,
       goalMet: false,
       streakDays: 0,
-      points: { practice_minute: 1, goal_covered: 5, self_corrected: 5, personal_record: 5 },
+      points: { practice_minute: 1, goal_covered: 1, self_corrected: 2, personal_record: 3 },
     });
   });
 
   it("adds up today's XP in the learner's day and counts the streak", async () => {
     now = new Date("2026-11-01T12:00:00Z");
-    await service.setDailyMinutes("en", 15, tz); // 20 XP a day
+    await service.setDailyMinutes("en", 15, tz); // 15 XP a day
     for (const at of ["2026-11-05T15:00:00Z", "2026-11-06T15:00:00Z", "2026-11-07T15:00:00Z"]) {
       now = new Date(at);
       const sessionId = await endedSession(timing(21));
@@ -110,7 +117,7 @@ describe("ProgressService.today", () => {
     // 01:00 UTC on Nov 8 is still Nov 7 in São Paulo.
     now = new Date("2026-11-08T01:00:00Z");
     const today = await service.today("en", tz);
-    expect(today).toMatchObject({ day: "2026-11-07", goalXp: 20, earnedXp: 21, goalMet: true, streakDays: 3 });
+    expect(today).toMatchObject({ day: "2026-11-07", goalXp: 15, earnedXp: 21, goalMet: true, streakDays: 3 });
     // Other languages keep their own XP.
     expect((await service.today("es", tz)).earnedXp).toBe(0);
   });
@@ -119,8 +126,8 @@ describe("ProgressService.today", () => {
     now = new Date("2026-11-07T13:00:00Z");
     await service.awardSession({ sessionId: await endedSession(timing(25)), goalsCovered: 0, selfCorrections: 0, wordsPerMinute: null });
     now = new Date("2026-11-07T14:00:00Z");
-    expect(await service.setDailyMinutes("en", 15, tz)).toMatchObject({ goalXp: 20, earnedXp: 25, goalMet: true, streakDays: 1 });
-    expect(await service.setDailyMinutes("en", 60, tz)).toMatchObject({ goalXp: 80, goalMet: false, streakDays: 0 });
+    expect(await service.setDailyMinutes("en", 15, tz)).toMatchObject({ goalXp: 15, earnedXp: 25, goalMet: true, streakDays: 1 });
+    expect(await service.setDailyMinutes("en", 60, tz)).toMatchObject({ goalXp: 60, goalMet: false, streakDays: 0 });
   });
 
   it("judges each past day by the goal set at the time", async () => {
@@ -130,6 +137,6 @@ describe("ProgressService.today", () => {
     await service.awardSession({ sessionId: await endedSession(timing(21)), goalsCovered: 0, selfCorrections: 0, wordsPerMinute: null });
     now = new Date("2026-11-07T15:00:00Z");
     const raised = await service.setDailyMinutes("en", 60, tz);
-    expect(raised).toMatchObject({ minutesPerDay: 60, goalXp: 80, streakDays: 1 });
+    expect(raised).toMatchObject({ minutesPerDay: 60, goalXp: 60, streakDays: 1 });
   });
 });

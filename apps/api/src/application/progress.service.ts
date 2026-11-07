@@ -13,6 +13,7 @@ import {
   type XpReason,
   xpForSession,
 } from "../domain/progress/daily-goal.js";
+import { rewardsGoals } from "../domain/conversation/mode.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { PROGRESS_REPOSITORY, type ProgressRepository } from "../domain/ports/progress.repository.js";
 import { SESSION_REPOSITORY, type SessionRepository } from "../domain/ports/session.repository.js";
@@ -112,7 +113,7 @@ export class ProgressService {
     const awardedAt = this.clock.now();
     const awards = xpForSession({
       conversationMs: conversationMs(outcome?.timing ?? null, session.endedAt.getTime() - session.startedAt.getTime()),
-      goalsCovered: ended.goalsCovered,
+      goalsCovered: rewardsGoals(session.mode) ? ended.goalsCovered : 0,
       selfCorrections: ended.selfCorrections,
       personalRecord: isPersonalRecord(
         ended.wordsPerMinute,
