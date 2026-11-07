@@ -21,6 +21,8 @@ export const anthropicClientProvider = {
   useFactory: (): AnthropicMessages => new Anthropic({ timeout: TUTOR_TIMEOUT_MS, maxRetries: 1 }).messages,
 };
 
+const OpeningSchema = z.object({ reply: z.string() });
+
 const VerdictSchema = z.object({
   reply: z.string(),
   issues: z.array(
@@ -63,20 +65,18 @@ export class AnthropicTutorAdapter implements TutorPort {
   }
 
   async open(context: TutorContext): Promise<string> {
+    // Structured output: the system prompt describes the turn's JSON fields, and in plain text the model
+    // sometimes answered the opening with that JSON, which was then shown and spoken as is.
     const response = await this.call("open", () =>
-      this.messages.create({
+      this.messages.parse({
         model: this.model,
         max_tokens: 4000,
-        output_config: { effort: this.effort },
+        output_config: { effort: this.effort, format: zodOutputFormat(OpeningSchema) },
         system: this.system(context),
         messages: [{ role: "user", content: OPENING_REQUEST }],
       }),
     );
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("")
-      .trim();
+    const text = response.parsed_output?.reply.trim();
     if (!text) throw new TutorUnavailableError("The tutor returned an empty opening line.");
     return text;
   }
