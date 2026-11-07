@@ -26,7 +26,6 @@ const EndBody = z
       .optional(),
   })
   .default({});
-const ConfidenceBody = z.object({ moment: z.enum(["before", "after"]), value: z.number().int().min(1).max(5) });
 const SessionId = z.uuid();
 
 @Controller("sessions")
@@ -75,13 +74,5 @@ export class SessionsController {
       this.signals.recordSession(summary),
     ]);
     return { ...summary, xp, comparison };
-  }
-
-  @Post(":id/confidence")
-  @HttpCode(204)
-  async confidence(@Param("id") id: string, @Body() body: unknown) {
-    const sessionId = parse(SessionId, id);
-    const { moment, value } = parse(ConfidenceBody, body);
-    await this.conversation.rateConfidence(sessionId, moment, value);
   }
 }

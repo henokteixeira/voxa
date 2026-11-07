@@ -30,9 +30,6 @@ export const sessions = pgTable("sessions", {
   endedAt: timestamp("ended_at", { withTimezone: true }),
   /** Speaking time and pauses measured by the web app; null when the session ended without them. */
   timing: jsonb("timing").$type<SessionTiming>(),
-  /** How ready the learner felt for this meeting type (1–5), before and after the session. */
-  confidenceBefore: smallint("confidence_before"),
-  confidenceAfter: smallint("confidence_after"),
   /** Goals of the mode the learner has covered so far. */
   coveredGoals: jsonb("covered_goals").$type<string[]>().notNull().default([]),
   /** When the tutor last asked whether to stop or keep going. */

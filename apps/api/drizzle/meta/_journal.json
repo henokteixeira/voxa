@@ -99,6 +99,13 @@
       "when": 1794028932283,
       "tag": "0013_session_signals",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794029272950,
+      "tag": "0014_drop_confidence_ratings",
+      "breakpoints": true
     }
   ]
 }

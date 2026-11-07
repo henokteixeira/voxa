@@ -105,9 +105,18 @@ export interface FluencySignals {
   wordsPerMinute: number | null;
   /** Long silences inside his answers per minute of his own speech. */
   longPausesPerMinute: number | null;
+  /** 0–1: share of the learner's turns said without help. Missing from servers older than it. */
+  unaidedShare?: number | null;
 }
 
-export type ConfidenceMoment = "before" | "after";
+export type SignalName = keyof Required<FluencySignals>;
+export type Trend = "better" | "steady" | "worse";
+
+/** How the session compares with the learner's last sessions (up to 3), signal by signal. */
+export interface SignalComparison {
+  sessions: number;
+  signals: { name: SignalName; current: number; baseline: number; trend: Trend }[];
+}
 
 export interface SessionSummary {
   sessionId: string;
@@ -115,7 +124,8 @@ export interface SessionSummary {
   mistakes: SessionMistake[];
   selfCorrections: number;
   signals: FluencySignals;
-  confidence: { before: number | null; after: number | null };
+  /** Null when there is nothing to compare yet (or after a placement interview); missing from older servers. */
+  comparison?: SignalComparison | null;
   goals: { id: string; covered: boolean }[];
   /** Mistakes from the bank practiced in this session; `met` when the learner said the correct form. */
   targets: { original: string; correction: string; category: string; met: boolean }[];
@@ -248,12 +258,6 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
       request<SessionSummary>(`/sessions/${encodeURIComponent(sessionId)}/end`, {
         method: "POST",
         body: timing ? { timing } : undefined,
-      }),
-    /** How ready the learner feels for this meeting type, 1 to 5. */
-    rateConfidence: (sessionId: string, moment: ConfidenceMoment, value: number) =>
-      request<void>(`/sessions/${encodeURIComponent(sessionId)}/confidence`, {
-        method: "POST",
-        body: { moment, value },
       }),
     level: (language = "en") => request<LevelView>(`/level?language=${encodeURIComponent(language)}`),
     /** The learner corrects the estimated level by hand. */

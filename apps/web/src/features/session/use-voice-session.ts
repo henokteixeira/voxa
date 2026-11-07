@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useReducer, useRef, useState } from "react";
 import { useApi } from "@/hooks/use-api";
-import { ApiError, type ApiClient, type ConfidenceMoment, type Mode } from "@/lib/api";
+import { ApiError, type Mode } from "@/lib/api";
 import { type Microphone, MicrophoneUnavailableError } from "@/lib/voice/microphone";
 import { createFillerPlayer } from "@/lib/voice/filler-player";
 import { readPauseMs } from "@/lib/voice/pause-setting";
@@ -15,14 +15,6 @@ import { VoiceDepsContext } from "./voice-deps";
 const START_FAILURES: FailureCode[] = ["mic_blocked", "mic_missing", "mic_busy", "mic_unsupported", "start_failed"];
 /** Failures that need a new socket on the same session. */
 const SOCKET_FAILURES: FailureCode[] = ["disconnected", "in_use"];
-
-/** Stores a confidence rating without holding up the screen; one retry if the first try fails. */
-function rateConfidence(api: ApiClient, sessionId: string, moment: ConfidenceMoment, value: number) {
-  return api
-    .rateConfidence(sessionId, moment, value)
-    .catch(() => new Promise((resolve) => setTimeout(resolve, 2000)).then(() => api.rateConfidence(sessionId, moment, value)))
-    .catch(() => {});
-}
 
 /** Counts the seconds the session runs (not while paused); a resumed session starts from its saved count. */
 function useElapsedSeconds(running: boolean) {
@@ -39,7 +31,7 @@ function useElapsedSeconds(running: boolean) {
 type OnOpen = Retry | { kind: "nothing" };
 
 /** Runs a live voice session: microphone → socket → tutor's voice, driven by sessionReducer. */
-export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
+export function useVoiceSession(mode: Mode) {
   const api = useApi();
   const deps = useContext(VoiceDepsContext);
   const [state, dispatch] = useReducer(sessionReducer, initialSessionState);
@@ -246,7 +238,6 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
         fillerLanguage.current = started.language;
         saveSession({ sessionId: started.sessionId, mode, elapsedSeconds: 0, timing: clock.current.timing() });
         dispatch({ type: "started", sessionId: started.sessionId, message: started.message, goals: started.goals });
-        if (confidenceBefore) void rateConfidence(api, started.sessionId, "before", confidenceBefore);
         connect(started.sessionId, { kind: "speak" });
       } catch {
         if (!cancelled) dispatch({ type: "failed", code: "start_failed" });
@@ -269,7 +260,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
       sessionId.current = null;
       resumedPending.current = false;
     };
-  }, [api, deps, mode, connect, attempt, confidenceBefore, setSeconds]);
+  }, [api, deps, mode, connect, attempt, setSeconds]);
 
   // Keeps what the server does not, so a reload can pick the session up again.
   useEffect(() => {
@@ -378,18 +369,10 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
     }
   }, [api, state.sessionId, stopSpeech]);
 
-  /** The confidence check-out on the summary. Best effort: the summary does not wait for it. */
-  const rateAfter = useCallback(
-    (value: number) => {
-      if (state.sessionId) void rateConfidence(api, state.sessionId, "after", value);
-    },
-    [api, state.sessionId],
-  );
-
   /** "Keep going" on the tutor's stop-or-keep-going question: the conversation just goes on. */
   const keepGoing = useCallback(() => dispatch({ type: "keep_going" }), []);
 
   const elapsed = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
-  return { state, elapsed, typing, setTyping, tapBall, unlock, pause, resume, repeatLast, sendText, retry, end, rateAfter, keepGoing };
+  return { state, elapsed, typing, setTyping, tapBall, unlock, pause, resume, repeatLast, sendText, retry, end, keepGoing };
 }

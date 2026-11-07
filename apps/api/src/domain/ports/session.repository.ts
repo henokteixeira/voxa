@@ -4,12 +4,9 @@ import type { ChatTurn, PendingCorrection, PracticeTarget, Session } from "../co
 import type { TrackState } from "../conversation/guided-track.js";
 import type { SupportStep } from "../level/speaking-level.js";
 
-export type ConfidenceMoment = "before" | "after";
-
 /** What a session leaves for its summary besides mistakes and turns. */
 export interface SessionOutcome {
   timing: SessionTiming | null;
-  confidence: { before: number | null; after: number | null };
   /** The learner's turns, and how many of them had help (words given by the tutor, or the first language). */
   learnerTurns: { total: number; assisted: number };
 }
@@ -45,8 +42,6 @@ export interface SessionRepository {
   /** Stores the goals covered so far, when the tutor last asked whether to stop, the targets met and the help given. */
   setProgress(sessionId: string, progress: SessionProgress): Promise<void>;
   end(sessionId: string, timing: SessionTiming | null): Promise<void>;
-  /** Stores a 1–5 confidence rating; a new one replaces the old one for that moment. */
-  setConfidence(sessionId: string, moment: ConfidenceMoment, value: number): Promise<void>;
   outcome(sessionId: string): Promise<SessionOutcome | null>;
 }
 

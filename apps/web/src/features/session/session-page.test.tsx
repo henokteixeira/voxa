@@ -24,12 +24,11 @@ const api = {
   sendTurn: vi.fn(),
   endSession: vi.fn(),
   resumeSession: vi.fn(),
-  rateConfidence: vi.fn(),
   fillerSpeech: vi.fn(),
   level: () => Promise.resolve({ current: null, placementDue: false }),
   todayProgress: vi.fn(),
   voiceUrl: (id: string) => `ws://api/api/sessions/${id}/voice`,
-} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "resumeSession" | "rateConfidence" | "fillerSpeech" | "todayProgress"]: ReturnType<typeof vi.fn> };
+} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "resumeSession" | "fillerSpeech" | "todayProgress"]: ReturnType<typeof vi.fn> };
 
 const deps: VoiceDeps = {
   openMicrophone: vi.fn(async (handlers: MicrophoneHandlers) => {
@@ -65,7 +64,6 @@ function summaryWith(mistakes: unknown[], extra: Record<string, unknown> = {}) {
     mistakes,
     selfCorrections: 0,
     signals: noSignals,
-    confidence: { before: null, after: null },
     ...extra,
   };
 }
@@ -110,7 +108,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   api.health.mockResolvedValue({ status: "ok" });
   api.endSession.mockResolvedValue(summaryWith([]));
-  api.rateConfidence.mockResolvedValue(undefined);
   api.fillerSpeech.mockResolvedValue([]);
   api.todayProgress.mockResolvedValue(todayWith(20));
   api.startSession.mockResolvedValue({
@@ -487,9 +484,7 @@ describe("live session", () => {
     expect(router.state.location.pathname).toBe("/");
     await userEvent.click(await screen.findByRole("button", { name: "Other practice" }));
     await userEvent.click(screen.getByRole("link", { name: /Sprint review/ }));
-    expect(router.state.location.pathname).toBe("/session/review/check-in");
-    await act(() => router.navigate("/session/karaoke/check-in"));
-    expect(router.state.location.pathname).toBe("/");
+    expect(router.state.location.pathname).toBe("/session/review");
   });
 });
 
@@ -530,41 +525,8 @@ describe("XP", () => {
   });
 });
 
-describe("confidence check-in", () => {
-  it("asks before the session and stores the answer once the session exists", async () => {
-    renderSession("/session/presentation/check-in");
-    expect(
-      screen.getByRole("heading", { name: "How confident do you feel about a real project presentation right now?" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
-
-    await userEvent.click(screen.getByRole("radio", { name: "2" }));
-    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-
-    await opened();
-    expect(api.startSession).toHaveBeenCalledWith("presentation");
-    expect(api.rateConfidence).toHaveBeenCalledWith("s1", "before", 2);
-  });
-
-  it("asks in Portuguese and says there is no wrong answer", async () => {
-    renderSession("/session/presentation/check-in", { withLocale: true });
-    expect(
-      screen.getByRole("heading", { name: "Quanta confiança você tem agora para uma apresentação de projeto?" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Não existe resposta errada/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Pular" })).toBeInTheDocument();
-  });
-
-  it("can be skipped", async () => {
-    renderSession("/session/daily/check-in");
-    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
-    await opened();
-    expect(api.rateConfidence).not.toHaveBeenCalled();
-  });
-});
-
 describe("session summary", () => {
-  it("shows the signals, the mistakes, the check-out, then saves", async () => {
+  it("shows the signals, the mistakes, then saves", async () => {
     api.endSession.mockResolvedValue(
       summaryWith(
         [
@@ -580,7 +542,6 @@ describe("session summary", () => {
             wordsPerMinute: 92,
             longPausesPerMinute: 1.25,
           },
-          confidence: { before: 3, after: null },
         },
       ),
     );
@@ -604,12 +565,6 @@ describe("session summary", () => {
     expect(items[1]).toHaveTextContent("I'm waiting for the keys");
 
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(screen.getByRole("heading", { name: "And now, how confident do you feel about a real daily?" })).toBeInTheDocument();
-    expect(screen.getByText("The circled number is your answer from before (3).")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("radio", { name: "4" }));
-    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-
-    expect(api.rateConfidence).toHaveBeenCalledWith("s1", "after", 4);
     expect(screen.getByRole("heading", { name: "Session saved" })).toBeInTheDocument();
     expect(screen.getByText("3 mistakes saved to your mistake bank.")).toBeInTheDocument();
     expect(screen.getByText("Every mistake today is something you'll say better next time.")).toBeInTheDocument();
@@ -633,18 +588,77 @@ describe("session summary", () => {
     expect(screen.getByText("deadline")).toHaveAttribute("lang", "en");
   });
 
-  it("goes straight to the check-out without mistakes, and the check-out can be skipped", async () => {
+  it("goes straight to saving without mistakes", async () => {
     await startAndListen();
     await endFromPause();
 
     expect(await screen.findByLabelText("Fluency signals")).toHaveTextContent("Fixed yourself–no hints needed");
     expect(screen.getByLabelText("Fluency signals")).toHaveTextContent("Pace–not measured");
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
-
-    expect(api.rateConfidence).not.toHaveBeenCalled();
     expect(screen.getByText("Your session is saved.")).toBeInTheDocument();
     expect(screen.queryByText(/Every mistake today/)).toBeNull();
+  });
+
+  it("says what went better than in the last sessions, and never lists what went worse", async () => {
+    api.endSession.mockResolvedValue(
+      summaryWith([], {
+        comparison: {
+          sessions: 3,
+          signals: [
+            { name: "unaidedShare", current: 0.8, baseline: 0.5, trend: "better" },
+            { name: "wordsPerMinute", current: 90, baseline: 70, trend: "better" },
+            { name: "averagePauseMs", current: 2500, baseline: 1500, trend: "worse" },
+          ],
+        },
+      }),
+    );
+    await startAndListen();
+    await endFromPause();
+    const line = await screen.findByRole("region", { name: "Compared with your last sessions" });
+    expect(line).toHaveTextContent("Compared with your last 3 sessions");
+    expect(line).toHaveTextContent("More answers without help and a faster pace.");
+    expect(line).not.toHaveTextContent(/pause/i);
+  });
+
+  it("calls a session with nothing better steady", async () => {
+    api.endSession.mockResolvedValue(
+      summaryWith([], {
+        comparison: { sessions: 1, signals: [{ name: "wordsPerMinute", current: 70, baseline: 72, trend: "steady" }] },
+      }),
+    );
+    await startAndListen();
+    await endFromPause();
+    expect(await screen.findByRole("region", { name: "Compared with your last sessions" })).toHaveTextContent(
+      "Compared with your last sessionMuch like your last session.",
+    );
+  });
+
+  it("says it in Portuguese too", async () => {
+    api.endSession.mockResolvedValue(
+      summaryWith([], {
+        comparison: {
+          sessions: 3,
+          signals: [
+            { name: "unaidedShare", current: 0.8, baseline: 0.5, trend: "better" },
+            { name: "wordsPerMinute", current: 90, baseline: 70, trend: "better" },
+          ],
+        },
+      }),
+    );
+    await startAndListen({ withLocale: true });
+    await userEvent.click(screen.getByRole("button", { name: "Pausar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Encerrar sessão" }));
+    const line = await screen.findByRole("region", { name: "Comparado com suas últimas sessões" });
+    expect(line).toHaveTextContent("Comparado com suas últimas 3 sessões");
+    expect(line).toHaveTextContent("Mais respostas sem ajuda e ritmo mais rápido.");
+  });
+
+  it("shows no comparison without earlier sessions", async () => {
+    api.endSession.mockResolvedValue(summaryWith([], { comparison: null }));
+    await startAndListen();
+    await endFromPause();
+    await screen.findByLabelText("Fluency signals");
+    expect(screen.queryByRole("region", { name: "Compared with your last sessions" })).toBeNull();
   });
 
   it("shows only the saved step when the summary can't be loaded", async () => {
@@ -757,21 +771,6 @@ describe("fluency timing", () => {
     await screen.findByRole("heading", { name: "Session done" });
     expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ pausesMs: [] }));
     now.mockRestore();
-  });
-
-  it("stores the confidence from the check-in once the session exists", async () => {
-    const router = createMemoryRouter(routes, {
-      initialEntries: [{ pathname: "/session/daily", state: { confidenceBefore: 2 } }],
-    });
-    cleanupApp = render(
-      <ApiProvider value={api}>
-        <VoiceDepsContext.Provider value={deps}>
-          <RouterProvider router={router} />
-        </VoiceDepsContext.Provider>
-      </ApiProvider>,
-    ).unmount;
-    await opened();
-    expect(api.rateConfidence).toHaveBeenCalledWith("s1", "before", 2);
   });
 });
 
@@ -933,7 +932,7 @@ describe("after a reload", () => {
 
 
 describe("placement interview", () => {
-  it("ends with the estimated level and the learner's lines, without the confidence question", async () => {
+  it("ends with the estimated level and the learner's lines", async () => {
     api.startSession.mockResolvedValue({ sessionId: "s1", mode: "placement", language: "en", message: "Hi! What do you do?", goals: ["warm_up"] });
     api.endSession.mockResolvedValue(
       summaryWith([mistake("minor", false, "I work in app for translate", "I work on a translation app")], {
@@ -958,6 +957,5 @@ describe("placement interview", () => {
     expect(await screen.findByRole("heading", { name: "Session saved" })).toBeInTheDocument();
     // Slips noted during the interview are not presented as mistakes.
     expect(screen.queryByText(/mistake bank/)).not.toBeInTheDocument();
-    expect(api.rateConfidence).not.toHaveBeenCalled();
   });
 });

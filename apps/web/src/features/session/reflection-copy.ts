@@ -1,17 +1,9 @@
+import type { SignalName } from "@/lib/api";
 import type { Copy } from "@/lib/i18n/locale";
 
-/** Copy for the screens around a session: the confidence check-in and the summary. */
+/** Copy for the session summary. */
 export interface ReflectionCopy {
-  back: string;
-  checkInQuestion: (meeting: string) => string;
-  checkInNote: string;
-  checkOutQuestion: (meeting: string) => string;
-  confidenceLabel: string;
-  notAtAll: string;
-  fully: string;
-  outlined: (before: number) => string;
   continue: string;
-  skip: string;
   sessionDone: string;
   placementDone: string;
   placementNoLevel: string;
@@ -21,6 +13,14 @@ export interface ReflectionCopy {
   whatToKeep: string;
   sessionMistakes: string;
   signalsLabel: string;
+  comparison: {
+    label: string;
+    comparedWith: (sessions: number) => string;
+    /** What went better, as the end of "Compared with your last sessions: …". */
+    better: Record<SignalName, string>;
+    list: (items: string[]) => string;
+    steady: (sessions: number) => string;
+  };
   signals: {
     pace: string;
     /** Under the words per minute; null when the long pauses were not measured. */
@@ -47,19 +47,11 @@ export interface ReflectionCopy {
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 export const REFLECTION_COPY: Copy<ReflectionCopy> = {
   en: {
-    back: "Back",
-    checkInQuestion: (meeting) => `How confident do you feel about a real ${meeting} right now?`,
-    checkInNote: "You'll answer again at the end, so you can see the difference. There's no wrong answer.",
-    checkOutQuestion: (meeting) => `And now, how confident do you feel about a real ${meeting}?`,
-    confidenceLabel: "Confidence from 1 to 5",
-    notAtAll: "Not at all",
-    fully: "Fully",
-    outlined: (before) => `The circled number is your answer from before (${before}).`,
     continue: "Continue",
-    skip: "Skip",
     sessionDone: "Session done",
     placementDone: "Thanks for the conversation",
     placementNoLevel: "There wasn't enough to estimate a level this time. You can try again from Progress.",
@@ -71,6 +63,20 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     whatToKeep: "What to keep",
     sessionMistakes: "Mistakes from this session",
     signalsLabel: "Fluency signals",
+    comparison: {
+      label: "Compared with your last sessions",
+      comparedWith: (n) => (n === 1 ? "Compared with your last session" : `Compared with your last ${n} sessions`),
+      better: {
+        unaidedShare: "more answers without help",
+        wordsPerMinute: "a faster pace",
+        longPausesPerMinute: "fewer long pauses",
+        averagePauseMs: "shorter pauses before answering",
+        mistakesPer100Words: "fewer mistakes",
+        selfCorrectionRate: "more mistakes fixed by you",
+      },
+      list: (items) => `${capitalize(new Intl.ListFormat("en", { type: "conjunction" }).format(items))}.`,
+      steady: (n) => `Much like your last ${n === 1 ? "session" : "sessions"}. Steady practice is what builds fluency.`,
+    },
     signals: {
       pace: "Pace",
       perMinute: (pauses) => (pauses === null ? "words a minute" : `words a minute · ${pauses} long pauses a minute`),
@@ -95,16 +101,7 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     backToToday: "Back to Today",
   },
   "pt-BR": {
-    back: "Voltar",
-    checkInQuestion: (meeting) => `Quanta confiança você tem agora para ${meeting}?`,
-    checkInNote: "Você responde de novo no fim, para ver a diferença. Não existe resposta errada.",
-    checkOutQuestion: (meeting) => `E agora, quanta confiança você tem para ${meeting}?`,
-    confidenceLabel: "Confiança de 1 a 5",
-    notAtAll: "Nada confiante",
-    fully: "Totalmente",
-    outlined: (before) => `O número com contorno é a sua resposta de antes (${before}).`,
     continue: "Continuar",
-    skip: "Pular",
     sessionDone: "Sessão concluída",
     placementDone: "Obrigado pela conversa",
     placementNoLevel: "Não deu para estimar um nível desta vez. Você pode tentar de novo pela aba Progresso.",
@@ -116,6 +113,20 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     whatToKeep: "Para guardar",
     sessionMistakes: "Erros desta sessão",
     signalsLabel: "Sinais de fluência",
+    comparison: {
+      label: "Comparado com suas últimas sessões",
+      comparedWith: (n) => (n === 1 ? "Comparado com sua última sessão" : `Comparado com suas últimas ${n} sessões`),
+      better: {
+        unaidedShare: "mais respostas sem ajuda",
+        wordsPerMinute: "ritmo mais rápido",
+        longPausesPerMinute: "menos pausas longas",
+        averagePauseMs: "pausas mais curtas antes de responder",
+        mistakesPer100Words: "menos erros",
+        selfCorrectionRate: "mais erros corrigidos por você",
+      },
+      list: (items) => `${capitalize(new Intl.ListFormat("pt-BR", { type: "conjunction" }).format(items))}.`,
+      steady: (n) => `Parecido com ${n === 1 ? "sua última sessão" : "suas últimas sessões"}. É a prática constante que constrói a fluência.`,
+    },
     signals: {
       pace: "Ritmo",
       perMinute: (pauses) =>
