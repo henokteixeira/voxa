@@ -2,6 +2,7 @@ import { type ReactNode, useState } from "react";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { VoiceBall } from "@/components/voice-ball";
+import { PLACEMENT_PATH } from "@/features/progress/level-card";
 import { SESSION_COPY } from "@/features/session/session-copy";
 import { BackIcon, IconButton } from "@/features/session/session-parts";
 import { useCopy } from "@/lib/i18n/locale";
@@ -9,8 +10,8 @@ import { cn } from "@/lib/utils";
 import { ONBOARDING_COPY } from "./onboarding-copy";
 import { type MicCheck, useMicCheck } from "./use-mic-check";
 
-/** Where the level chat lives: a live session in the placement mode. */
-export const PLACEMENT_PATH = "/session/placement";
+/** First run: the welcome and microphone check that lead to the level chat. */
+export const ONBOARDING_PATH = "/onboarding";
 
 /** Steps after the welcome screen, shown as dots. */
 const STEPS = 2;

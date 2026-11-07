@@ -101,11 +101,11 @@ describe("Today", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Good (morning|afternoon|evening)$/);
   });
 
-  it("suggests the placement interview first, before there is a level", async () => {
+  it("starts with the onboarding, which leads to the placement interview, before there is a level", async () => {
     const router = renderApp("/", up(), { level: vi.fn().mockResolvedValue({ current: null, placementDue: true }) });
     expect(await screen.findByRole("heading", { name: "Let's start by finding your level" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("link", { name: "Start" }));
-    expect(router.state.location.pathname).toBe("/session/placement");
+    expect(router.state.location.pathname).toBe("/onboarding");
   });
 
   it("waits for the level before offering a session", async () => {
