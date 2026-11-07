@@ -217,6 +217,18 @@ describe("live session", () => {
     expect(screen.queryByRole("button", { name: "Show what the tutor said" })).not.toBeInTheDocument();
   });
 
+  it("names the mistake's type on the hint, and shows its rule with the correct form", async () => {
+    await startAndListen();
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("Yesterday I finish it"));
+    act(() => socketHandlers.onTutor({ kind: "hint", message: "When did it happen?", selfCorrected: false, mistakeType: "verb_tense" }));
+    expect(screen.getByRole("region", { name: "Hint 1 of 2" })).toHaveTextContent("Hint · Verb tense");
+
+    const rule = { name: "Past for finished actions", rule: "Ação que já terminou: verbo no passado." };
+    act(() => socketHandlers.onTutor({ kind: "reveal", message: "I finished it yesterday.", selfCorrected: false, mistakeType: "verb_tense", rule }));
+    expect(screen.getByRole("region", { name: "The correct form" })).toHaveTextContent(`${rule.name}. ${rule.rule}`);
+  });
+
   it("keeps the whole conversation readable from the transcript button", async () => {
     await startAndListen();
     await userEvent.click(screen.getByRole("button", { name: "Show transcript" }));

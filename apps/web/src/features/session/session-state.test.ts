@@ -120,6 +120,22 @@ describe("sessionReducer", () => {
     expect(state.revealed).toBe(true);
   });
 
+  it("keeps the mistake's type through the hints, adds its rule with the correct form, and clears both after", () => {
+    const typed = (kind: "hint" | "reveal", extra = {}): SessionAction => ({
+      type: "tutor",
+      result: { kind, message: "…", selfCorrected: false, mistake: "I finish it", ...extra },
+    });
+    const rule = { name: "Past for finished actions", rule: "Ação terminada: passado." };
+    let state = run(started, typed("hint", { mistakeType: "verb_tense" }), typed("hint"));
+    expect(state).toMatchObject({ mistakeType: "verb_tense", rule: null });
+
+    state = sessionReducer(state, typed("reveal", { mistakeType: "verb_tense", rule }));
+    expect(state).toMatchObject({ mistakeType: "verb_tense", rule });
+
+    state = sessionReducer(state, { type: "tutor", result: { kind: "reply", message: "Great.", selfCorrected: false } });
+    expect(state).toMatchObject({ mistakeType: null, rule: null });
+  });
+
   it("keeps the tutor's written support for the current turn only", () => {
     const withSupport: SessionAction = {
       type: "tutor",

@@ -41,6 +41,8 @@ export interface PendingCorrection {
   hintsGiven: number;
   /** True once the tutor has shown the correct form and asked the learner to repeat it. */
   revealed: boolean;
+  /** The rule it breaks, shown with the correct form; missing from corrections saved before patterns. */
+  pattern?: { name: string; rule: string } | null;
 }
 
 /** A mistake from the bank the learner practices in this session: the tutor gives chances to say it right. */

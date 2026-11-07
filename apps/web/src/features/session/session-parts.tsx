@@ -1,5 +1,6 @@
 import { type ReactNode, type Ref, useEffect, useEffectEvent, useState } from "react";
-import { useCopy } from "@/lib/i18n/locale";
+import { useCopy, useLocale } from "@/lib/i18n/locale";
+import { categoryLabel } from "@/features/mistakes/format";
 import { captionHoldMs } from "./caption-hold";
 import { SESSION_COPY } from "./session-copy";
 import type { Caption } from "./session-state";
@@ -86,8 +87,10 @@ export function QuietLink({ onClick, children }: { onClick: () => void; children
   );
 }
 
-export function HintCard({ step, said, tip, help }: { step: number; said: string | null; tip: string; help?: string | null }) {
+export function HintCard(props: { step: number; said: string | null; tip: string; help?: string | null; type?: string | null }) {
+  const { step, said, tip, help, type } = props;
   const { parts } = useCopy(SESSION_COPY);
+  const { locale } = useLocale();
   return (
     <>
       <div className="flex items-center justify-between">
@@ -99,7 +102,9 @@ export function HintCard({ step, said, tip, help }: { step: number; said: string
         <span className="text-caption text-taupe">{parts.hintOf(step)}</span>
       </div>
       <section aria-label={parts.hintOf(step)} className="flex flex-col gap-2 rounded-md bg-honey-soft p-4">
-        <span className="text-label text-honey-ink">{parts.hint}</span>
+        <span className="text-label text-honey-ink">
+          {type ? `${parts.hint} · ${categoryLabel(type, locale)}` : parts.hint}
+        </span>
         <p lang="en" className="m-0 text-phrase">{tip}</p>
         {said && (
           <span className="flex flex-col gap-0.5">
@@ -115,12 +120,18 @@ export function HintCard({ step, said, tip, help }: { step: number; said: string
   );
 }
 
-export function RevealCard({ message, help }: { message: string; help?: string | null }) {
+export function RevealCard(props: { message: string; help?: string | null; rule?: { name: string; rule: string } | null }) {
+  const { message, help, rule } = props;
   const { parts } = useCopy(SESSION_COPY);
   return (
     <section aria-label={parts.correctForm} className="flex flex-col gap-2 rounded-md bg-sage-soft p-4">
       <span className="text-label text-sage-ink">{parts.correctForm}</span>
       <p lang="en" className="m-0 text-phrase">{message}</p>
+      {rule && (
+        <p className="m-0 text-small text-ink-soft">
+          <b>{rule.name}.</b> {rule.rule}
+        </p>
+      )}
       {help && <HelpLine text={help} divider="border-sage/40" />}
       <span className="text-caption text-taupe">{parts.savedToBank}</span>
     </section>

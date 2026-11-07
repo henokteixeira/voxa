@@ -80,6 +80,7 @@ export function decide(pending: PendingCorrection | null, verdict: TutorVerdict)
         category: serious.category,
         hintsGiven: 1,
         revealed: false,
+        pattern: serious.pattern ? { name: serious.pattern.name, rule: serious.pattern.rule } : null,
       },
       selfCorrected: false,
     };

@@ -76,6 +76,10 @@ export interface TurnResult {
   support: string | null;
   /** On a hint: the learner's words that hold the mistake, so the screen can point at them. Never the correction. */
   mistake: string | null;
+  /** On a hint or the correct form: the mistake's type (e.g. verb_tense), named on the card. */
+  mistakeType: string | null;
+  /** With the correct form only (it may hold it): the rule the mistake breaks, in one line. */
+  rule: { name: string; rule: string } | null;
   /** True when the tutor asked whether to stop or keep going. */
   checkIn: boolean;
   /** Goals of the mode the learner has covered so far. */
@@ -228,6 +232,8 @@ export class ConversationService {
               selfCorrected: false,
               support: null,
               mistake: null,
+              mistakeType: null,
+              rule: null,
               checkIn: false,
               coveredGoals: session.coveredGoals,
               // The track moves once the turn is analysed; the follow-up carries where it went.
@@ -330,6 +336,8 @@ export class ConversationService {
       selfCorrected: decision.selfCorrected,
       support: safeSupport(verdict.support, decision.nextPending?.correction),
       mistake: decision.kind === "hint" ? (decision.nextPending?.original ?? null) : null,
+      mistakeType: decision.kind === "reply" ? null : (decision.nextPending?.category ?? null),
+      rule: decision.kind === "reveal" ? (decision.nextPending?.pattern ?? null) : null,
       checkIn: checkIn !== null,
       coveredGoals,
       track: trackView(move?.track ?? session.track),

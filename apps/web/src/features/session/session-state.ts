@@ -52,6 +52,10 @@ export interface SessionState {
   hintFor: string | null;
   /** The tutor gave the correct form and asked for a repeat. */
   revealed: boolean;
+  /** The current mistake's type (e.g. verb_tense), named on the hint card; null when unknown. */
+  mistakeType: string | null;
+  /** With the correct form: the rule the mistake breaks. */
+  rule: { name: string; rule: string } | null;
   /** The learner just fixed a mistake alone. */
   fixed: boolean;
   /** The tutor's written help in the learner's first language, for this turn only. Never spoken. */
@@ -129,6 +133,8 @@ export const initialSessionState: SessionState = {
   captions: [],
   hintStep: 0,
   hintFor: null,
+  mistakeType: null,
+  rule: null,
   revealed: false,
   fixed: false,
   support: null,
@@ -298,12 +304,17 @@ function withTutor(state: SessionState, result: TurnResult): SessionState {
       captions,
       hintStep: first ? 1 : Math.min(2, state.hintStep + 1),
       hintFor: first ? said : (state.hintFor ?? said),
+      mistakeType: result.mistakeType ?? (first ? null : state.mistakeType),
+      rule: null,
       revealed: false,
       fixed: false,
     };
   }
-  if (result.kind === "reveal") return { ...state, captions, revealed: true, fixed: false };
-  return { ...state, captions, hintStep: 0, hintFor: null, revealed: false, fixed: result.selfCorrected };
+  if (result.kind === "reveal") {
+    const mistakeType = result.mistakeType ?? state.mistakeType;
+    return { ...state, captions, mistakeType, rule: result.rule ?? null, revealed: true, fixed: false };
+  }
+  return { ...state, captions, hintStep: 0, hintFor: null, mistakeType: null, rule: null, revealed: false, fixed: result.selfCorrected };
 }
 
 /** After a failure, what "Try again" should do so the learner does not repeat themselves for nothing. */

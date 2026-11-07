@@ -599,6 +599,22 @@ describe("ConversationService.respond", () => {
     expect((await sessions.get(session.id))?.pending).toMatchObject({ revealed: true });
   });
 
+  it("names the mistake's type on every hint, and gives its rule only with the correct form", async () => {
+    const pattern = { key: "past_simple", name: "Past for finished actions", rule: "Ação terminada: passado (go → went)." };
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [{ ...goed, pattern }] }), verdict({ issues: [goed] }), verdict({ issues: [goed] }));
+
+    const first = await service.respond(session.id, "I goed to the meeting");
+    const second = await service.respond(session.id, "I goed to the meeting");
+    const reveal = await service.respond(session.id, "I goed to the meeting");
+
+    expect([first, second].map((r) => [r.kind, r.mistakeType, r.rule])).toEqual([
+      ["hint", goed.category, null],
+      ["hint", goed.category, null],
+    ]);
+    expect(reveal).toMatchObject({ kind: "reveal", mistakeType: goed.category, rule: { name: pattern.name, rule: pattern.rule } });
+  });
+
   it("saves the learner's line and the tutor's answer", async () => {
     const { session } = await service.start("free_talk", "en");
     tutor.verdicts.push(verdict({}));
@@ -642,6 +658,8 @@ describe("ConversationService.respond: the reply first, the analysis after", () 
         selfCorrected: false,
         support: null,
         mistake: null,
+        mistakeType: null,
+        rule: null,
         checkIn: false,
         coveredGoals: [],
         track: null,
@@ -654,6 +672,8 @@ describe("ConversationService.respond: the reply first, the analysis after", () 
       selfCorrected: false,
       support: "PR = pull request.",
       mistake: null,
+      mistakeType: null,
+      rule: null,
       checkIn: false,
       coveredGoals: ["yesterday"],
       track: null,
