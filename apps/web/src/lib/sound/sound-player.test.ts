@@ -50,6 +50,16 @@ describe("createSoundPlayer", () => {
     expect(started).not.toHaveBeenCalled();
   });
 
+  it("drops the waiting cues on clear", () => {
+    const { context, started } = fakeContext();
+    const player = createSoundPlayer({ createContext: () => context });
+    player.setVoiceActive(true);
+    player.play("hint");
+    player.clear();
+    player.setVoiceActive(false);
+    expect(started).not.toHaveBeenCalled();
+  });
+
   it("does nothing where Web Audio is missing", () => {
     expect(() => createSoundPlayer({ createContext: () => null }).play("xp")).not.toThrow();
   });

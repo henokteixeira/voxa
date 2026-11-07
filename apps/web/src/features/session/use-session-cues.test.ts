@@ -21,6 +21,15 @@ describe("cuesFor", () => {
     expect(cuesFor(live({ hintStep: 1 }), live({ hintStep: 0, fixed: true }))).toEqual(["selfCorrected"]);
   });
 
+  it("marks a hint that follows the correct form", () => {
+    expect(cuesFor(live({ hintStep: 2, revealed: true }), live({ hintStep: 1, revealed: false }))).toEqual(["hint"]);
+  });
+
+  it("marks a typed turn as sent", () => {
+    const typed = live({ turn: { ...initialSessionState.turn, request: "text", text: "Hi" } });
+    expect(cuesFor(live({ phase: "listening" }), typed)).toEqual(["turnSent"]);
+  });
+
   it("marks a newly covered goal", () => {
     expect(cuesFor(live({ coveredGoals: ["a"] }), live({ coveredGoals: ["a", "b"] }))).toEqual(["goalCovered"]);
   });

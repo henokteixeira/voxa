@@ -7,36 +7,37 @@ import { useSounds } from "@/lib/sound/sounds";
 import { SETTINGS_COPY } from "./settings-copy";
 
 /** How long the learner wants to practice a day. Stored on the server: the daily XP goal follows from it. */
-export function DailyGoalSetting({ onChange }: { onChange?: (minutes: DailyMinutes) => void }) {
+export function DailyGoalSetting() {
   const api = useApi();
   const copy = useCopy(SETTINGS_COPY);
   const [minutes, setMinutes] = useState<DailyMinutes | null>(null);
   const [saving, setSaving] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [problem, setProblem] = useState<"load" | "save" | null>(null);
 
   useEffect(() => {
     let active = true;
     api
       .todayProgress()
       .then((today) => active && setMinutes(today.minutesPerDay))
-      .catch(() => active && setFailed(true));
+      .catch(() => active && setProblem("load"));
     return () => {
       active = false;
     };
   }, [api]);
 
   const choose = async (next: DailyMinutes) => {
+    // One save at a time. The buttons stay enabled, so focus stays where the learner is.
+    if (saving) return;
     const before = minutes;
     setMinutes(next);
     setSaving(true);
-    setFailed(false);
+    setProblem(null);
     try {
       const today = await api.setDailyMinutes(next);
       setMinutes(today.minutesPerDay);
-      onChange?.(today.minutesPerDay);
     } catch {
       setMinutes(before);
-      setFailed(true);
+      setProblem("save");
     } finally {
       setSaving(false);
     }
@@ -49,12 +50,11 @@ export function DailyGoalSetting({ onChange }: { onChange?: (minutes: DailyMinut
         hint={copy.dailyHint}
         options={DAILY_MINUTES.map((m) => ({ value: m, label: copy.minutes(m) }))}
         value={minutes}
-        disabled={saving}
         onChange={(m) => void choose(m)}
       />
-      {failed && (
+      {problem && (
         <p role="alert" className="m-0 text-caption text-honey-ink">
-          {copy.dailyFailed}
+          {problem === "load" ? copy.dailyLoadFailed : copy.dailyFailed}
         </p>
       )}
     </div>

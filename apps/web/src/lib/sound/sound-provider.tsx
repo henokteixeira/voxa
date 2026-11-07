@@ -5,7 +5,11 @@ import { SoundContext, type Sounds } from "./sounds";
 
 export function SoundProvider({ children, player: given }: { children: ReactNode; player?: SoundPlayer }) {
   const [enabled, setEnabledState] = useState(readSoundsEnabled);
-  const [player] = useState(() => given ?? createSoundPlayer({ enabled }));
+  const [player] = useState(() => {
+    const chosen = given ?? createSoundPlayer({ enabled });
+    chosen.setEnabled(enabled);
+    return chosen;
+  });
   // Browsers keep audio suspended until the page gets a tap: any tap anywhere unlocks it.
   useEffect(() => {
     const unlock = () => player.unlock();

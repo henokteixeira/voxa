@@ -8,7 +8,6 @@ export function SegmentedSetting<T extends string | number | boolean>(props: {
   options: readonly { value: T; label: string }[];
   value: T | null;
   onChange: (value: T) => void;
-  disabled?: boolean;
 }) {
   const titleId = useId();
   const hintId = useId();
@@ -26,10 +25,9 @@ export function SegmentedSetting<T extends string | number | boolean>(props: {
             key={String(value)}
             type="button"
             aria-pressed={value === props.value}
-            disabled={props.disabled}
             onClick={() => props.onChange(value)}
             className={cn(
-              "min-h-11 flex-1 cursor-pointer rounded-pill border-none bg-transparent px-3 text-sm font-bold text-taupe disabled:cursor-not-allowed disabled:opacity-60",
+              "min-h-11 flex-1 cursor-pointer rounded-pill border-none bg-transparent px-3 text-sm font-bold text-taupe",
               value === props.value && "bg-paper text-ink shadow-tab",
             )}
           >

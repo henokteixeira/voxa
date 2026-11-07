@@ -6,6 +6,8 @@ export interface SoundPlayer {
   /** While the tutor speaks, cues wait and play right after (only the latest few). */
   setVoiceActive(active: boolean): void;
   setEnabled(enabled: boolean): void;
+  /** Drops the cues waiting for the tutor's voice to end. */
+  clear(): void;
   /** Call from a tap: browsers keep audio suspended until the page has had one. */
   unlock(): void;
 }
@@ -78,7 +80,11 @@ export function createSoundPlayer(options: {
       enabled = value;
       if (!value) waiting = [];
     },
+    clear() {
+      waiting = [];
+    },
     unlock() {
+      if (!enabled) return;
       const ctx = audio();
       if (ctx?.state === "suspended") void ctx.resume().catch(() => undefined);
     },
