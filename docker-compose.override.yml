@@ -16,6 +16,8 @@ services:
     volumes:
       - ./apps/api/src:/repo/apps/api/src
       - ./apps/api/drizzle:/repo/apps/api/drizzle
+      # Model eval reports stay on the host (gitignored).
+      - ./apps/api/eval-results:/repo/apps/api/eval-results
 
   web:
     image: voxa-web-dev

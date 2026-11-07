@@ -41,7 +41,8 @@ export const GOLDEN_LEARNER_CONTEXT =
 
 const AGE: KnownMistake = { original: "I have 32 years", correction: "I am 32 years old", category: "grammar" };
 
-export const SCENARIOS: Scenario[] = [
+/** Every scripted conversation. The model eval runs them all; the golden sessions run a few. */
+export const ALL_SCENARIOS: Scenario[] = [
   {
     name: "serious mistake: hint, then the learner fixes it",
     rule: "A mistake that changes the meaning pauses the talk with a hint; fixing it alone counts as a self-correction.",
@@ -130,4 +131,60 @@ export const SCENARIOS: Scenario[] = [
       },
     ],
   },
+  {
+    name: "false friend: hint for a word that changes the meaning",
+    rule: "A word that says something else (\"pretend\" for \"intend\") confuses the listener, so it gets a hint.",
+    mode: "daily",
+    turns: [{ utterance: "Today I pretend to finish the export feature.", expect: { kind: "hint", issues: "serious" } }],
+  },
+  {
+    name: "false friend: hint, then the learner fixes it with other words",
+    rule: "A fix in the learner's own words also resolves the pending correction.",
+    mode: "presentation",
+    turns: [
+      { utterance: "Last week I assisted the meeting with the client.", expect: { kind: "hint", issues: "serious" } },
+      { utterance: "Last week I went to the meeting with the client.", expect: { kind: "reply", selfCorrected: true } },
+    ],
+  },
+  {
+    name: "small grammar slip: noted, the talk goes on",
+    rule: "A slip that does not hide the meaning is only saved for the summary.",
+    mode: "review",
+    turns: [{ utterance: "The client don't want more changes in this sprint.", expect: { kind: "reply", issues: "minor-only" } }],
+  },
+  {
+    name: "missing subject: noted, the talk goes on",
+    rule: "\"Is a big project\" (no \"it\") is a common, small mistake: noted, not paused.",
+    mode: "presentation",
+    turns: [{ utterance: "Is a big project, with people from five countries.", expect: { kind: "reply", issues: "minor-only" } }],
+  },
+  {
+    name: "fluent technical talk: nothing to correct",
+    rule: "Work jargon and informal speech a fluent colleague would use are not mistakes.",
+    mode: "review",
+    turns: [
+      {
+        utterance: "Honestly, it was a rough week. We rolled back the deploy because the p95 latency spiked, but it's fixed now.",
+        expect: { kind: "reply", issues: "none" },
+      },
+    ],
+  },
+  {
+    name: "no fix after a hint: a second, more specific hint",
+    rule: "When the retry is still wrong, the next hint is more specific and still never gives the answer.",
+    mode: "daily",
+    turns: [
+      { utterance: "Today I pretend to finish the export feature.", expect: { kind: "hint", issues: "serious" } },
+      { utterance: "Yes, I pretend to finish it today.", expect: { kind: "hint", selfCorrected: false } },
+    ],
+  },
 ];
+
+/** The golden sessions: a quick check that the tutor works (hint and self-correction, new word, no false alarm). */
+export const SCENARIOS: Scenario[] = ALL_SCENARIOS.filter((s) =>
+  [
+    "serious mistake: hint, then the learner fixes it",
+    "first-language word: a new word, not a mistake",
+    "fluent utterance: nothing to correct",
+  ].includes(s.name),
+);

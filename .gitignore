@@ -16,3 +16,5 @@ tutor-context.md
 # Voice evaluation: personal recordings and local results
 services/voice/eval/recordings/
 services/voice/eval/results/
+# Tutor model eval reports
+apps/api/eval-results/
