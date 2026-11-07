@@ -191,13 +191,16 @@ export class ApiError extends Error {
   readonly status?: number;
   /** The server's id for the failed request: its log line carries the same id. */
   readonly requestId?: string;
+  /** The server's error code (e.g. "tutor_unavailable"), for logs and bug reports. */
+  readonly code?: string;
 
-  constructor(kind: ApiErrorKind, message: string, status?: number, requestId?: string) {
+  constructor(kind: ApiErrorKind, message: string, status?: number, requestId?: string, code?: string) {
     super(message);
     this.name = "ApiError";
     this.kind = kind;
     this.status = status;
     this.requestId = requestId;
+    this.code = code;
   }
 }
 
@@ -208,17 +211,7 @@ interface ErrorBody {
   requestId?: unknown;
 }
 
-const KIND_BY_CODE: Record<string, ApiErrorKind> = {
-  invalid: "invalid",
-  bad_audio: "invalid",
-  not_found: "not_found",
-  ended: "ended",
-  tutor_unavailable: "tutor_unavailable",
-  voice_unavailable: "tutor_unavailable",
-};
-
-function kindFor(status: number, code: unknown): ApiErrorKind {
-  if (typeof code === "string" && code in KIND_BY_CODE) return KIND_BY_CODE[code];
+function kindFor(status: number): ApiErrorKind {
   if (status === 400) return "invalid";
   if (status === 404) return "not_found";
   if (status === 409) return "ended";
@@ -232,7 +225,8 @@ async function errorFrom(response: Response, where: string): Promise<ApiError> {
   const message = typeof body?.message === "string" ? body.message : `Request failed (${response.status}).`;
   const requestId =
     typeof body?.requestId === "string" ? body.requestId : (response.headers.get("x-request-id") ?? undefined);
-  const error = new ApiError(kindFor(response.status, body?.code), message, response.status, requestId);
+  const code = typeof body?.code === "string" ? body.code : undefined;
+  const error = new ApiError(kindFor(response.status), message, response.status, requestId, code);
   if (error.kind === "server") reportError(error, { where, status: response.status, requestId });
   return error;
 }

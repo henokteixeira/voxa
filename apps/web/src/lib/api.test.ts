@@ -136,9 +136,9 @@ describe("createApiClient", () => {
     expect(JSON.parse(init.body)).toEqual({ language: "en", timeZone: "UTC", minutesPerDay: 45 });
   });
 
-  it("uses the server's error code and request id over the status", async () => {
-    const api = createApiClient("http://api", respond(422, { code: "bad_audio", message: "Nope.", requestId: "r1" }));
-    await expect(api.endSession("s1")).rejects.toMatchObject({ kind: "invalid", status: 422, requestId: "r1" });
+  it("keeps the server's error code and request id", async () => {
+    const api = createApiClient("http://api", respond(404, { code: "not_found", message: "Nope.", requestId: "r1" }));
+    await expect(api.endSession("s1")).rejects.toMatchObject({ kind: "not_found", code: "not_found", requestId: "r1" });
   });
 
   it("reports an unexpected server failure with its request id", async () => {
