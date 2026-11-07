@@ -4,11 +4,11 @@ import { DEFAULT_TURN_OPTIONS } from "@/lib/voice/turn-detector";
 import { SESSION_COPY } from "./session-copy";
 
 /** The longest turn: the microphone sends what it heard so far when it is reached. */
-export const MAX_TURN_MS = DEFAULT_TURN_OPTIONS.maxTurnMs;
+const MAX_TURN_MS = DEFAULT_TURN_OPTIONS.maxTurnMs;
 /** From here a calm note says what happens at the limit; before it, only the time shows. */
-export const TURN_NOTE_AT_MS = MAX_TURN_MS - 15_000;
+const TURN_NOTE_AT_MS = MAX_TURN_MS - 15_000;
 
-export const clockText = (ms: number) => {
+const clockText = (ms: number) => {
   const seconds = Math.floor(ms / 1000);
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 };
