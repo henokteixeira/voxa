@@ -30,7 +30,12 @@ export function validateEnv(raw: Record<string, unknown>): Env {
   return result.data;
 }
 
-/** A typed ConfigService over validated settings, for scripts that run outside the Nest app (golden, eval). */
+/** A typed ConfigService over validated settings, for code that runs outside the Nest app (tests, scripts). */
 export function configFrom(raw: Record<string, unknown>): ConfigService<Env, true> {
   return new ConfigService<Env, true>(validateEnv(raw));
+}
+
+/** For the golden and eval scripts: they call Claude but never the database. */
+export function scriptConfig(raw: Record<string, unknown>): ConfigService<Env, true> {
+  return configFrom({ DATABASE_URL: "unused://scripts-do-not-use-the-database", ...raw });
 }
