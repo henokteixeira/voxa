@@ -235,7 +235,8 @@ describe("live session", () => {
   it("sends Today's mode picker to the right session and rejects unknown modes", async () => {
     const router = renderSession("/session/karaoke");
     expect(router.state.location.pathname).toBe("/");
-    await userEvent.click(await screen.findByRole("link", { name: /Sprint review/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Other practice" }));
+    await userEvent.click(screen.getByRole("link", { name: /Sprint review/ }));
     expect(router.state.location.pathname).toBe("/session/review/check-in");
     await act(() => router.navigate("/session/karaoke/check-in"));
     expect(router.state.location.pathname).toBe("/");

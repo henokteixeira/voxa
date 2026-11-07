@@ -177,7 +177,21 @@
 .vx-spring { transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1); }
 @keyframes vx-page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .vx-page-in { animation: vx-page-in 220ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+@keyframes vx-fade-in { from { opacity: 0; } }
+@keyframes vx-fade-out { to { opacity: 0; } }
+@keyframes vx-sheet-in { from { transform: translateY(100%); } }
+@keyframes vx-sheet-out { to { transform: translateY(100%); } }
+@keyframes vx-pop-in { from { opacity: 0; transform: scale(0.96); } }
+@keyframes vx-pop-out { to { opacity: 0; transform: scale(0.96); } }
+.vx-fade { animation: vx-fade-in 240ms ease-out both; }
+.vx-sheet { animation: vx-sheet-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+[data-state="closed"] .vx-fade { animation: vx-fade-out 200ms ease-in both; }
+[data-state="closed"] .vx-sheet { animation: vx-sheet-out 200ms ease-in both; }
+@media (min-width: 64rem) {
+  .vx-sheet { animation-name: vx-pop-in; animation-duration: 220ms; }
+  [data-state="closed"] .vx-sheet { animation-name: vx-pop-out; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .vx-page-in { animation: none; }
+  .vx-page-in, .vx-fade, .vx-sheet { animation: none !important; }
   .vx-spring { transition: none; }
 }

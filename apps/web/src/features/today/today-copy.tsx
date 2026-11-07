@@ -16,6 +16,7 @@ export interface TodayCopy {
   readyBody: (mode: string) => string;
   start: string;
   otherPractice: string;
+  close: string;
   language: string;
 }
 
@@ -49,6 +50,7 @@ export const TODAY_COPY: Copy<TodayCopy> = {
     readyBody: (mode) => `${mode} · about 6 min. Your mistake bank and progress start filling from here.`,
     start: "Start",
     otherPractice: "Other practice",
+    close: "Close",
     language: "Language",
   },
   "pt-BR": {
@@ -78,6 +80,7 @@ export const TODAY_COPY: Copy<TodayCopy> = {
     readyBody: (mode) => `${mode} · cerca de 6 min. Seu banco de erros e seu progresso começam a ser preenchidos a partir daqui.`,
     start: "Começar",
     otherPractice: "Outros treinos",
+    close: "Fechar",
     language: "Idioma",
   },
 };

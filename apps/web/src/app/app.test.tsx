@@ -89,6 +89,16 @@ describe("Today", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Good (morning|afternoon|evening)$/);
   });
 
+  it("keeps other practice in a sheet, not in a list under the fold", async () => {
+    const router = renderApp("/", up());
+    await userEvent.click(await screen.findByRole("button", { name: "Other practice" }));
+    const sheet = screen.getByRole("dialog", { name: "Other practice" });
+    expect(sheet).toHaveTextContent("Present your project");
+    expect(sheet).toHaveTextContent("Sprint review");
+    await userEvent.click(screen.getByRole("link", { name: /Sprint review/ }));
+    expect(router.state.location.pathname).toBe("/session/review/check-in");
+  });
+
   it("says mistakes are welcome, Portuguese is fine and Voxa can be wrong too", async () => {
     renderApp("/", up());
     const welcome = screen.getByRole("region", { name: "Mistakes are welcome here" });
