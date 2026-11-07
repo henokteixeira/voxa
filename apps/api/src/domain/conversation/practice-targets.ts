@@ -25,10 +25,8 @@ export function choosePracticeTargets(entries: readonly BankEntry[], duePatterns
   }
   for (const m of open) {
     if (chosen.length === PRACTICE_TARGETS) break;
-    if (!chosen.includes(m) && !(m.patternId && patterns.has(m.patternId))) {
-      chosen.push(m);
-      if (m.patternId) patterns.add(m.patternId);
-    }
+    // As before patterns were due: the most frequent, skipping only the due patterns already practiced.
+    if (!chosen.includes(m) && !(m.patternId && patterns.has(m.patternId))) chosen.push(m);
   }
   return chosen.map(({ original, correction, category }) => ({ original, correction, category }));
 }

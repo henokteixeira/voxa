@@ -1089,17 +1089,29 @@ describe("takeaways in the summary", () => {
 });
 
 describe("a pattern comes back in the session", () => {
-  it("asks the tutor to bring a pattern back 3 to 5 learner turns after it was broken", async () => {
+  it("asks the tutor to bring a pattern back once, 3 learner turns after it was broken", async () => {
     const pattern = { key: "articles", name: "A before a singular noun", rule: "Use a antes de substantivo singular." };
     const { session } = await service.start("free_talk", "en");
+    tutor.verdicts.push(verdict({ issues: [{ ...article, severity: "minor", pattern }] }));
+    await service.respond(session.id, "I opened PR");
+    for (const line of ["Then I tested it", "It went well", "We shipped it"]) {
+      tutor.verdicts.push(verdict({}));
+      await service.respond(session.id, line);
+    }
+
+    expect(tutor.requests.map((r) => r.bringBack)).toEqual([[], [], [{ key: "articles", name: pattern.name }], []]);
+  });
+
+  it("never brings a pattern back in the placement interview", async () => {
+    const pattern = { key: "articles", name: "A before a singular noun", rule: "Use a antes de substantivo singular." };
+    const { session } = await service.start("placement", "en");
     tutor.verdicts.push(verdict({ issues: [{ ...article, severity: "minor", pattern }] }));
     await service.respond(session.id, "I opened PR");
     for (const line of ["Then I tested it", "It went well"]) {
       tutor.verdicts.push(verdict({}));
       await service.respond(session.id, line);
     }
-
-    expect(tutor.requests.map((r) => r.bringBack)).toEqual([[], [], [{ key: "articles", name: pattern.name }]]);
+    expect(tutor.requests.every((r) => r.bringBack.length === 0)).toBe(true);
   });
 });
 

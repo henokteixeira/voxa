@@ -244,8 +244,9 @@ export class ConversationService {
         knownMistakes: watched,
         knownNewWords: knownNewWords.map(toKnown),
         knownPatterns,
-        // The reply asks for the learner's next turn.
-        bringBack: patternsToBringBack(sessionPatterns, learnerTurn + 1),
+        // The reply asks for the learner's next turn. Not while a hint is pending or the guided track gives the
+        // next line: the reply has another job then.
+        bringBack: session.pending || session.track ? [] : patternsToBringBack(sessionPatterns, learnerTurn + 1),
         utterance,
         coveredGoals: session.coveredGoals,
         scaffold: session.scaffold,

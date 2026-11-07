@@ -175,8 +175,8 @@ export function buildSystemPrompt(
       "Helping with words the learner said in their first language is not a correction.\n" +
       "When `bring_back` lists a rule the learner broke a few turns ago, make your reply's question one whose " +
       "natural answer needs that rule, in a new situation from the conversation (not the same sentence). Bring " +
-      "back at most one rule per reply, only if the conversation has not already done so since the mistake, " +
-      "and never say it is practice or a test.",
+      "back at most one rule per reply and never say it is practice or a test. Ignore `bring_back` when the " +
+      "utterance needs a hint.",
   ]
     .filter(Boolean)
     .join("\n\n");
