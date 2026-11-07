@@ -2,7 +2,8 @@ import { isSerious, type TutorVerdict } from "../domain/conversation/correction-
 import { sameText } from "../domain/conversation/text.js";
 import { NEW_WORD_CATEGORY, type PendingCorrection, type PracticeTarget } from "../domain/conversation/types.js";
 import { cleanPattern } from "../domain/mistakes/pattern.js";
-import type { MistakeRepository } from "../domain/ports/mistake.repository.js";
+import type { Mistake, MistakeRepository } from "../domain/ports/mistake.repository.js";
+import type { ReviewSubject } from "../domain/ports/review.repository.js";
 import { type ReviewScheduler, reviewSubject } from "./review-scheduler.js";
 
 export interface TurnLearning {
@@ -28,6 +29,12 @@ export async function recordTurnLearning(
 ): Promise<void> {
   const { sessionId, language, pending, verdict, now } = turn;
   const isPending = (text: string) => pending !== null && sameText(text, pending.original);
+  // Two mistakes of one pattern in a turn are one miss, so the schedule moves once per subject.
+  const made = new Map<string, ReviewSubject>();
+  const noteMade = (saved: Mistake | null) => {
+    const subject = saved && reviewSubject(saved);
+    if (subject) made.set(`${subject.kind}:${subject.id}`, subject);
+  };
 
   // Every mistake goes to the bank, except a retry of the one already pending.
   for (const issue of turn.issues) {
@@ -42,9 +49,7 @@ export async function recordTurnLearning(
       },
       { sessionId, severity: isSerious(issue) ? "serious" : "minor" },
     );
-    // Making it again brings its review closer.
-    const subject = reviewSubject(saved);
-    if (subject) await reviews.made(language, subject, now);
+    noteMade(saved);
   }
   // Correct uses of known mistakes, except the retry of the pending one (that came after a hint).
   for (const used of verdict.correctUses) {
@@ -63,9 +68,10 @@ export async function recordTurnLearning(
       { language, original: word.said, correction: word.words, category: NEW_WORD_CATEGORY, pattern: null },
       { sessionId, severity: "minor" },
     );
-    const subject = reviewSubject(saved);
-    if (subject) await reviews.made(language, subject, now);
+    noteMade(saved);
   }
+  // Making it again brings its review closer.
+  for (const subject of made.values()) await reviews.made(language, subject, now);
   if (turn.selfCorrected && pending) {
     await mistakes.markSelfCorrected(sessionId, { language, original: pending.original });
   }

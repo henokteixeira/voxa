@@ -1057,6 +1057,18 @@ describe("review schedule", () => {
 
     expect(reviews.items.get("pattern:p-articles")).toMatchObject({ step: 1 });
   });
+
+  it("moves a pattern back once when one turn breaks it twice", async () => {
+    const { session } = await service.start("daily", "en");
+    reviews.items.set("pattern:p-articles", { language: "en", step: 3, dueAt: tomorrow() });
+    tutor.verdicts.push(
+      verdict({ issues: [{ ...article, pattern }, { ...article, original: "I closed issue", correction: "I closed an issue", pattern }] }),
+    );
+
+    await service.respond(session.id, "I opened PR and I closed issue");
+
+    expect(reviews.items.get("pattern:p-articles")).toMatchObject({ step: 2 });
+  });
 });
 
 describe("correct uses of known mistakes", () => {

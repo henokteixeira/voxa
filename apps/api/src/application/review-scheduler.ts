@@ -27,10 +27,4 @@ export class ReviewScheduler {
     if (!state || !countsAsReview(state, now)) return;
     await this.reviews.save(language, subject, nextReview(state, "recalled", now), now);
   }
-
-  /** An answer in a review. */
-  async answered(language: string, subject: ReviewSubject, outcome: ReviewOutcome, now: Date): Promise<void> {
-    const state = (await this.reviews.state(subject)) ?? firstReview(now);
-    await this.reviews.save(language, subject, nextReview(state, outcome, now), now);
-  }
 }

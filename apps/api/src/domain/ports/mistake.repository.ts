@@ -36,7 +36,8 @@ export interface SessionMistake {
 
 /** Bank of mistakes and expressions. The concrete implementation lives in infra/. */
 export interface MistakeRepository {
-  record(mistake: NewMistake, occurrence: { sessionId: string; severity: Severity }): Promise<Mistake>;
+  /** Saves the mistake and this occurrence. Null when the learner dismissed it: it left the bank for good. */
+  record(mistake: NewMistake, occurrence: { sessionId: string; severity: Severity }): Promise<Mistake | null>;
   /**
    * Notes that the learner used the correct form of a mistake in this session. Ignored for a mistake
    * that is not in the bank or was made in this same session. Making the mistake again clears these.

@@ -138,7 +138,7 @@ describe("DrizzleMistakeRepository", () => {
     const s1 = await sessions.create({ language: "en", mode: "daily" });
     const s2 = await sessions.create({ language: "en", mode: "daily" });
     await mistakes.record(goed, { sessionId: s1.id, severity: "minor" });
-    const again = await mistakes.record(goed, { sessionId: s2.id, severity: "serious" });
+    const again = (await mistakes.record(goed, { sessionId: s2.id, severity: "serious" }))!;
 
     expect(again.occurrences).toBe(2);
     expect(await mistakes.forSession(s2.id)).toEqual([
@@ -171,7 +171,7 @@ describe("DrizzleMistakeRepository", () => {
 
   it("gives a pattern to a mistake saved without one, and lists only patterns still in the bank", async () => {
     const s = await sessions.create({ language: "en", mode: "daily" });
-    const saved = await mistakes.record(goed, { sessionId: s.id, severity: "minor" });
+    const saved = (await mistakes.record(goed, { sessionId: s.id, severity: "minor" }))!;
     const past = { key: "past_simple", name: "Past", rule: "Passado." };
     await mistakes.record({ ...goed, pattern: past }, { sessionId: s.id, severity: "minor" });
     expect((await mistakes.list("en"))[0].pattern).toEqual(past);
@@ -269,7 +269,7 @@ describe("DrizzleMistakeRepository as the mistake bank", () => {
 
   it("gives no correct use to a dismissed mistake", async () => {
     const s1 = await sessions.create({ language: "en", mode: "daily" });
-    const saved = await mistakes.record(goed, { sessionId: s1.id, severity: "serious" });
+    const saved = (await mistakes.record(goed, { sessionId: s1.id, severity: "serious" }))!;
     await mistakes.dismiss(saved.id, "both_correct");
     const s2 = await sessions.create({ language: "en", mode: "daily" });
 
@@ -291,13 +291,11 @@ describe("DrizzleMistakeRepository as the mistake bank", () => {
 
   it("takes a dismissed mistake out of the bank for good", async () => {
     const s = await sessions.create({ language: "en", mode: "daily" });
-    const saved = await mistakes.record(goed, { sessionId: s.id, severity: "serious" });
+    const saved = (await mistakes.record(goed, { sessionId: s.id, severity: "serious" }))!;
 
     expect(await mistakes.dismiss(saved.id, "transcript_error")).toBe(true);
-    const again = await mistakes.record(goed, { sessionId: s.id, severity: "serious" });
-
-    expect(again.occurrences).toBe(1);
-    expect(again.lastSeenAt).toEqual(saved.lastSeenAt);
+    expect(await mistakes.record(goed, { sessionId: s.id, severity: "serious" })).toBeNull();
+    expect((await mistakes.list("en")).length).toBe(0);
     expect(await db.select().from(mistakeOccurrences)).toHaveLength(1);
 
     expect(await mistakes.list("en")).toEqual([]);

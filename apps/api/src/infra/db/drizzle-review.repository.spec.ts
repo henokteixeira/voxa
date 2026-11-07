@@ -36,7 +36,7 @@ async function bank() {
     { language: "en", original: "prazo", correction: "deadline", category: "new_word", pattern: null },
     { sessionId: s.id, severity: "minor" },
   );
-  return { goed, fix, word };
+  return { goed: goed!, fix: fix!, word: word! };
 }
 
 describe("DrizzleReviewRepository", () => {

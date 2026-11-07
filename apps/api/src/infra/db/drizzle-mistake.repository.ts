@@ -13,7 +13,7 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankRepository {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
-  async record(m: NewMistake, occurrence: { sessionId: string; severity: Severity }): Promise<Mistake> {
+  async record(m: NewMistake, occurrence: { sessionId: string; severity: Severity }): Promise<Mistake | null> {
     return this.db.transaction(async (tx) => {
       const [existing] = await tx
         .select()
@@ -22,7 +22,7 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
         .limit(1);
 
       // A dismissed mistake left the bank for good: it does not count again.
-      if (existing?.dismissedAt) return toMistake(existing);
+      if (existing?.dismissedAt) return null;
 
       const { pattern, ...fields } = m;
       // A mistake keeps the first pattern it was given: later ones may word the same rule differently.

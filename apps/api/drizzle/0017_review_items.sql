@@ -17,3 +17,8 @@ CREATE INDEX "review_items_due" ON "review_items" USING btree ("language","due_a
 -- New words saved before reviews existed are due now.
 INSERT INTO "review_items" ("language", "new_word_id", "step", "due_at")
 SELECT "language", "id", 0, now() FROM "mistakes" WHERE "category" = 'new_word' AND "dismissed_at" IS NULL;
+--> statement-breakpoint
+-- Patterns saved before reviews existed (with a mistake still in the bank) are due now too.
+INSERT INTO "review_items" ("language", "pattern_id", "step", "due_at")
+SELECT p."language", p."id", 0, now() FROM "patterns" p
+WHERE EXISTS (SELECT 1 FROM "mistakes" m WHERE m."pattern_id" = p."id" AND m."dismissed_at" IS NULL);
