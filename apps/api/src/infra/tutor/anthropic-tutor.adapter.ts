@@ -38,6 +38,7 @@ const VerdictSchema = z.object({
   correctUses: z.array(z.string()),
   newWords: z.array(z.object({ said: z.string(), words: z.string() })),
   support: z.string().nullable(),
+  coveredGoals: z.array(z.string()),
 });
 
 type Effort = "low" | "medium" | "high";

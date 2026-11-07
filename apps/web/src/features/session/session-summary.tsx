@@ -5,6 +5,7 @@ import { VoiceBall } from "@/components/voice-ball";
 import { type FluencySignals, type Mode, NEW_WORD_CATEGORY, type SessionMistake, type SessionSummary } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { ConfidenceScale } from "./confidence-scale";
+import { GoalsSummary } from "./goals";
 import { useCopy, useLocale } from "@/lib/i18n/locale";
 import { useModeInfo } from "./modes";
 import { REFLECTION_COPY } from "./reflection-copy";
@@ -41,6 +42,7 @@ export function SummaryFlow(props: {
           <h1 className="m-0 text-title">{copy.sessionDone}</h1>
         </div>
         <Signals signals={summary.signals} mistakes={mistakes} />
+        <GoalsSummary summary={summary} />
         <div className="flex-1" />
         <Button block onClick={() => setStep(mistakes.length ? "mistakes" : "confidence")}>
           {mistakes.length ? copy.seeMistakes : copy.continue}

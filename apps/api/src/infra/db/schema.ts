@@ -1,6 +1,6 @@
 import { bigserial, boolean, integer, jsonb, pgTable, primaryKey, smallint, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
-import type { PendingCorrection } from "../../domain/conversation/types.js";
+import type { PendingCorrection, PracticeTarget } from "../../domain/conversation/types.js";
 
 // Every record carries its language (BCP 47 code, e.g. "en") to support other languages.
 
@@ -17,6 +17,14 @@ export const sessions = pgTable("sessions", {
   /** How ready the learner felt for this meeting type (1–5), before and after the session. */
   confidenceBefore: smallint("confidence_before"),
   confidenceAfter: smallint("confidence_after"),
+  /** Goals of the mode the learner has covered so far. */
+  coveredGoals: jsonb("covered_goals").$type<string[]>().notNull().default([]),
+  /** When the tutor last asked whether to stop or keep going. */
+  lastCheckInAt: timestamp("last_check_in_at", { withTimezone: true }),
+  /** Mistakes from the bank the learner practices in this session. */
+  targets: jsonb("targets").$type<PracticeTarget[]>().notNull().default([]),
+  /** The `original` of each target the learner said correctly in this session. */
+  metTargets: jsonb("met_targets").$type<string[]>().notNull().default([]),
 });
 
 export const turns = pgTable("turns", {

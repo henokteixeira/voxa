@@ -1,6 +1,6 @@
 import type { TutorVerdict } from "../conversation/correction-policy.js";
 import type { Mode } from "../conversation/mode.js";
-import type { ChatTurn, PendingCorrection } from "../conversation/types.js";
+import type { ChatTurn, PendingCorrection, PracticeTarget } from "../conversation/types.js";
 
 export interface KnownMistake {
   original: string;
@@ -13,6 +13,10 @@ export interface TutorContext {
   language: string;
   /** Free-text facts about the learner (role, projects, vocabulary). */
   learnerContext: string;
+  /** What the learner should cover in this meeting; empty in free talk. */
+  goals: { id: string; description: string }[];
+  /** Mistakes from the bank the tutor gives the learner chances to say correctly. */
+  targets: PracticeTarget[];
 }
 
 export interface TutorRequest extends TutorContext {
@@ -22,6 +26,8 @@ export interface TutorRequest extends TutorContext {
   /** Words the learner once said in their first language: `original` as said, `correction` in the target language. */
   knownNewWords: KnownMistake[];
   utterance: string;
+  /** Ids of the goals covered before this utterance. */
+  coveredGoals: string[];
 }
 
 /** The AI tutor. Implementations live in infra/. */

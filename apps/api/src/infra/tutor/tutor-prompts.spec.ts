@@ -8,21 +8,21 @@ describe("buildSystemPrompt", () => {
   });
 
   it("includes the mode's scene, the language and the learner context", () => {
-    const prompt = buildSystemPrompt({ mode: "daily", language: "en", learnerContext: "Works on Oral Collector." }, "pt-BR");
+    const prompt = buildSystemPrompt({ mode: "daily", language: "en", learnerContext: "Works on Oral Collector.", goals: [], targets: [] }, "pt-BR");
     expect(prompt).toContain(SCENES.daily);
     expect(prompt).toContain("spoken en");
     expect(prompt).toContain("Works on Oral Collector.");
   });
 
   it("asks for hints that never contain the corrected words", () => {
-    const prompt = buildSystemPrompt({ mode: "review", language: "en", learnerContext: "" }, "pt-BR");
+    const prompt = buildSystemPrompt({ mode: "review", language: "en", learnerContext: "", goals: [], targets: [] }, "pt-BR");
     expect(prompt).toMatch(/Never include the corrected words/);
     expect(prompt).toContain("No details were given");
   });
 });
 
 describe("buildSystemPrompt: a safe place to make mistakes", () => {
-  const prompt = buildSystemPrompt({ mode: "free_talk", language: "en", learnerContext: "" }, "pt-BR");
+  const prompt = buildSystemPrompt({ mode: "free_talk", language: "en", learnerContext: "", goals: [], targets: [] }, "pt-BR");
 
   it("welcomes mistakes and never grades the learner", () => {
     expect(prompt).toMatch(/Mistakes are welcome/);
@@ -40,7 +40,7 @@ describe("buildSystemPrompt: a safe place to make mistakes", () => {
   });
 
   it("writes support in the learner's first language, for the screen only", () => {
-    const withFirst = buildSystemPrompt({ mode: "daily", language: "en", learnerContext: "" }, "pt-BR");
+    const withFirst = buildSystemPrompt({ mode: "daily", language: "en", learnerContext: "", goals: [], targets: [] }, "pt-BR");
     expect(withFirst).toContain("The learner's first language is pt-BR");
     expect(withFirst).toMatch(/`support`: .*written in pt-BR.*shown on screen and never read aloud/s);
   });
@@ -60,6 +60,45 @@ describe("buildSystemPrompt: a safe place to make mistakes", () => {
   });
 });
 
+describe("buildSystemPrompt: goals and practice targets", () => {
+  it("lists the meeting's goals by id and asks which ones the utterance covers", () => {
+    const prompt = buildSystemPrompt(
+      {
+        mode: "daily",
+        language: "en",
+        learnerContext: "",
+        goals: [{ id: "blockers", description: "said whether anything blocks them" }],
+        targets: [],
+      },
+      "pt-BR",
+    );
+    expect(prompt).toContain("- `blockers`: the learner said whether anything blocks them.");
+    expect(prompt).toMatch(/List in `coveredGoals` the id of each goal this utterance covers/);
+    expect(prompt).toMatch(/Never end the meeting or ask whether to stop/);
+    expect(prompt).not.toContain("## Practice targets");
+  });
+
+  it("has no goals in free talk", () => {
+    const prompt = buildSystemPrompt({ mode: "free_talk", language: "en", learnerContext: "", goals: [], targets: [] }, "pt-BR");
+    expect(prompt).toContain("No fixed goals");
+  });
+
+  it("asks for chances to practice the targets, without giving the answer", () => {
+    const prompt = buildSystemPrompt(
+      {
+        mode: "daily",
+        language: "en",
+        learnerContext: "",
+        goals: [],
+        targets: [{ original: "I goed", correction: "I went", category: "grammar" }],
+      },
+      "pt-BR",
+    );
+    expect(prompt).toContain('- "I goed" → "I went" (grammar)');
+    expect(prompt).toMatch(/Never say the corrected words yourself and never mention that it is a target/);
+  });
+});
+
 describe("buildTurnMessage", () => {
   it("lists known mistakes, the pending correction and the utterance", () => {
     const message = buildTurnMessage({
@@ -67,7 +106,9 @@ describe("buildTurnMessage", () => {
       pending: { original: "I goed", correction: "I went", category: "grammar", hintsGiven: 1, revealed: false },
       knownMistakes: [{ original: "more better", correction: "better", category: "grammar" }],
       knownNewWords: [{ original: "prazo", correction: "deadline", category: "new_word" }],
+      coveredGoals: ["yesterday"],
     });
+    expect(message).toContain("<covered_goals>\nyesterday\n</covered_goals>");
     expect(message).toContain('<new_words>\n- "prazo" → "deadline"\n</new_words>');
     expect(message).toContain('"more better" → "better" (grammar)');
     expect(message).toContain('"I goed" should be "I went" (grammar). Hints already given: 1.');
@@ -75,7 +116,7 @@ describe("buildTurnMessage", () => {
   });
 
   it("says none when there is nothing to check against", () => {
-    const message = buildTurnMessage({ utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [] });
+    const message = buildTurnMessage({ utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], coveredGoals: [] });
     expect(message).toContain("<new_words>\nnone\n</new_words>");
     expect(message).toContain("<known_mistakes>\nnone\n</known_mistakes>");
     expect(message).toContain("<pending_correction>\nnone\n</pending_correction>");

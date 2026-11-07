@@ -2,8 +2,8 @@ import { Inject, Injectable } from "@nestjs/common";
 import { asc, eq } from "drizzle-orm";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import { isMode } from "../../domain/conversation/mode.js";
-import type { ChatTurn, PendingCorrection, Session } from "../../domain/conversation/types.js";
-import type { ConfidenceMoment, SessionOutcome, SessionRepository } from "../../domain/ports/session.repository.js";
+import type { ChatTurn, PendingCorrection, PracticeTarget, Session } from "../../domain/conversation/types.js";
+import type { ConfidenceMoment, SessionOutcome, SessionProgress, SessionRepository } from "../../domain/ports/session.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
 import { sessions, turns } from "./schema.js";
 
@@ -11,14 +11,25 @@ type SessionRow = typeof sessions.$inferSelect;
 
 function toSession(row: SessionRow): Session {
   if (!isMode(row.mode)) throw new Error(`Unknown mode in session ${row.id}: ${row.mode}`);
-  return { id: row.id, language: row.language, mode: row.mode, pending: row.pending ?? null, endedAt: row.endedAt };
+  return {
+    id: row.id,
+    language: row.language,
+    mode: row.mode,
+    pending: row.pending ?? null,
+    startedAt: row.startedAt,
+    endedAt: row.endedAt,
+    coveredGoals: row.coveredGoals,
+    lastCheckInAt: row.lastCheckInAt,
+    targets: row.targets,
+    metTargets: row.metTargets,
+  };
 }
 
 @Injectable()
 export class DrizzleSessionRepository implements SessionRepository {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
-  async create(input: Pick<Session, "language" | "mode">): Promise<Session> {
+  async create(input: Pick<Session, "language" | "mode"> & { startedAt?: Date; targets?: PracticeTarget[] }): Promise<Session> {
     const [row] = await this.db.insert(sessions).values(input).returning();
     return toSession(row);
   }
@@ -43,6 +54,10 @@ export class DrizzleSessionRepository implements SessionRepository {
 
   async setPending(sessionId: string, pending: PendingCorrection | null): Promise<void> {
     await this.db.update(sessions).set({ pending }).where(eq(sessions.id, sessionId));
+  }
+
+  async setProgress(sessionId: string, progress: SessionProgress): Promise<void> {
+    await this.db.update(sessions).set(progress).where(eq(sessions.id, sessionId));
   }
 
   async end(sessionId: string, timing: SessionTiming | null): Promise<void> {
