@@ -4,7 +4,8 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { ApiProvider } from "@/app/api-context";
 import { routes } from "@/app/router";
-import type { ApiClient, LearnerFact } from "@/lib/api";
+import { MemoryLink } from "./memory-link";
+import { ApiError, type ApiClient, type LearnerFact } from "@/lib/api";
 
 const job: LearnerFact = { id: "f1", topic: "work", statement: "Works at Joqum.", learnedAt: "2026-11-07T10:00:00Z", updatedAt: "2026-11-07T10:00:00Z" };
 const trip: LearnerFact = { id: "f2", topic: "life", statement: "Lives in Brazil.", learnedAt: "2026-11-07T10:00:00Z", updatedAt: "2026-11-07T10:00:00Z" };
@@ -76,5 +77,48 @@ describe("What Voxa knows about you", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load");
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByText("Works at Joqum.")).toBeInTheDocument();
+  });
+
+  it("moves the focus with the row: to Delete when asked to confirm, back to Edit after Keep or Cancel", async () => {
+    renderMemory({ learnerFacts: vi.fn().mockResolvedValue([job]) });
+    await userEvent.click(await screen.findByRole("button", { name: "Delete: Works at Joqum." }));
+    expect(screen.getByRole("button", { name: "Delete" })).toHaveFocus();
+    expect(screen.getByRole("group", { name: "Delete this? The tutor will forget it." })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Keep" }));
+    expect(screen.getByRole("button", { name: "Edit: Works at Joqum." })).toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: "Edit: Works at Joqum." }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: "Edit: Works at Joqum." })).toHaveFocus();
+  });
+
+  it("says when a fact could not be deleted, and keeps it", async () => {
+    renderMemory({ learnerFacts: vi.fn().mockResolvedValue([job]), deleteLearnerFact: vi.fn().mockRejectedValue(new Error("down")) });
+    await userEvent.click(await screen.findByRole("button", { name: "Delete: Works at Joqum." }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't delete");
+    expect(screen.getByText("Works at Joqum.")).toBeInTheDocument();
+  });
+
+  it("drops a fact that is already gone instead of offering to try again", async () => {
+    const gone = new ApiError("not_found", "This fact no longer exists.", 404);
+    renderMemory({ learnerFacts: vi.fn().mockResolvedValue([job, trip]), editLearnerFact: vi.fn().mockRejectedValue(gone) });
+    await userEvent.click(await screen.findByRole("button", { name: "Edit: Works at Joqum." }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("heading", { name: "What Voxa knows about you" })).toHaveFocus();
+    expect(screen.queryByText("Works at Joqum.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("opens from the Settings row", async () => {
+    const router = createMemoryRouter(
+      [
+        { path: "/", element: <MemoryLink /> },
+        { path: "/memory", element: <p>memory page</p> },
+      ],
+      { initialEntries: ["/"] },
+    );
+    render(<RouterProvider router={router} />);
+    await userEvent.click(screen.getByRole("link", { name: /What Voxa knows about you/ }));
+    expect(router.state.location.pathname).toBe("/memory");
   });
 });

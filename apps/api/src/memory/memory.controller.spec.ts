@@ -42,7 +42,7 @@ describe("/memory/facts", () => {
 
   it("rewrites a fact, trimmed", async () => {
     service.editFact.mockResolvedValue(fact);
-    const res = await request(app.getHttpServer()).patch(`/memory/facts/${id}`).send({ statement: "  Works at JOCUM. " });
+    const res = await request(app.getHttpServer()).patch(`/memory/facts/${id}`).send({ statement: "  Works at\n JOCUM. " });
     expect(res.status).toBe(200);
     expect(res.body).toEqual(shown);
     expect(service.editFact).toHaveBeenCalledWith(id, "Works at JOCUM.");
@@ -51,7 +51,13 @@ describe("/memory/facts", () => {
   it("refuses an empty statement or a bad id", async () => {
     expect((await request(app.getHttpServer()).patch(`/memory/facts/${id}`).send({ statement: " " })).status).toBe(400);
     expect((await request(app.getHttpServer()).delete("/memory/facts/not-an-id")).status).toBe(400);
+    expect((await request(app.getHttpServer()).patch(`/memory/facts/${id}`).send({ statement: "x".repeat(201) })).status).toBe(400);
     expect(service.editFact).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 when rewriting a fact that is gone", async () => {
+    service.editFact.mockRejectedValueOnce(new LearnerFactNotFoundError(id));
+    expect((await request(app.getHttpServer()).patch(`/memory/facts/${id}`).send({ statement: "New." })).status).toBe(404);
   });
 
   it("deletes a fact, and answers 404 for one that is gone", async () => {

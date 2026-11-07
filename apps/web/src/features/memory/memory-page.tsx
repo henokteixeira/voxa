@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BackIcon, IconButton } from "@/features/session/session-parts";
 import { useApi } from "@/hooks/use-api";
-import { FACT_TOPICS, type LearnerFact } from "@/lib/api";
+import { ApiError, FACT_TOPICS, type LearnerFact } from "@/lib/api";
 import { useCopy } from "@/lib/i18n/locale";
 import { MEMORY_COPY } from "./memory-copy";
 
@@ -44,7 +44,11 @@ export function MemoryPage() {
   }, [ready]);
 
   const replace = (fact: LearnerFact) => setFacts((all) => all?.map((f) => (f.id === fact.id ? fact : f)));
-  const drop = (id: string) => setFacts((all) => all?.filter((f) => f.id !== id));
+  const drop = (id: string) => {
+    setFacts((all) => all?.filter((f) => f.id !== id));
+    // The row and its focused button are gone: the title keeps the learner's place.
+    title.current?.focus();
+  };
 
   return (
     <div className="vx-page-in flex flex-col gap-5">
@@ -53,6 +57,11 @@ export function MemoryPage() {
           <BackIcon />
         </IconButton>
       </div>
+      {!ready && (
+        <p role="status" className="m-0 text-caption text-taupe">
+          {copy.loading}
+        </p>
+      )}
       {ready && (
         <>
           <h1 ref={title} tabIndex={-1} className="m-0 text-title outline-none">
@@ -114,6 +123,18 @@ function FactRow({
   const [draft, setDraft] = useState(fact.statement);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<"save" | "remove" | null>(null);
+  const editButton = useRef<HTMLButtonElement>(null);
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  // Switching mode unmounts the focused button: focus goes to the new one (not on the first render).
+  const switched = useRef(false);
+  useLayoutEffect(() => {
+    if (!switched.current) {
+      switched.current = true;
+      return;
+    }
+    if (mode === "view") editButton.current?.focus();
+    if (mode === "confirm") confirmButton.current?.focus();
+  }, [mode]);
 
   const save = async () => {
     const statement = draft.trim();
@@ -124,6 +145,8 @@ function FactRow({
       onSaved(await api.editLearnerFact(fact.id, statement));
       setMode("view");
     } catch (error) {
+      // Deleted elsewhere: trying again could never work.
+      if (error instanceof ApiError && error.kind === "not_found") return onDeleted(fact.id);
       console.warn("Could not save the learner fact.", error);
       setProblem("save");
     } finally {
@@ -139,6 +162,7 @@ function FactRow({
       await api.deleteLearnerFact(fact.id);
       onDeleted(fact.id);
     } catch (error) {
+      if (error instanceof ApiError && error.kind === "not_found") return onDeleted(fact.id);
       console.warn("Could not delete the learner fact.", error);
       setProblem("remove");
       setBusy(false);
@@ -186,9 +210,9 @@ function FactRow({
             {fact.statement}
           </p>
           {mode === "confirm" ? (
-            <div className="flex flex-wrap items-center gap-2">
+            <div role="group" aria-label={copy.confirmRemove} className="flex flex-wrap items-center gap-2">
               <span className="text-caption text-taupe">{copy.confirmRemove}</span>
-              <Button variant="secondary" className={small} disabled={busy} onClick={() => void remove()}>
+              <Button ref={confirmButton} variant="secondary" className={small} disabled={busy} onClick={() => void remove()}>
                 {copy.remove}
               </Button>
               <Button variant="ghost" className={small} onClick={() => setMode("view")}>
@@ -197,7 +221,7 @@ function FactRow({
             </div>
           ) : (
             <div className="-mx-3 -my-2 flex gap-1">
-              <Button variant="ghost" className={small} aria-label={`${copy.edit}: ${fact.statement}`} onClick={() => setMode("edit")}>
+              <Button ref={editButton} variant="ghost" className={small} aria-label={`${copy.edit}: ${fact.statement}`} onClick={() => setMode("edit")}>
                 {copy.edit}
               </Button>
               <Button variant="ghost" className={small} aria-label={`${copy.remove}: ${fact.statement}`} onClick={() => setMode("confirm")}>

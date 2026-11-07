@@ -5,6 +5,7 @@ export interface MemoryCopy {
   title: string;
   intro: string;
   back: string;
+  loading: string;
   empty: string;
   topics: Record<FactTopic, string>;
   edit: string;
@@ -28,6 +29,7 @@ export const MEMORY_COPY: Copy<MemoryCopy> = {
     title: "What Voxa knows about you",
     intro: "Things you told the tutor. It brings them up in later conversations. Change or delete anything.",
     back: "Back",
+    loading: "Loading…",
     empty: "Nothing yet. As you talk, the tutor remembers what you tell it about your life.",
     topics: { work: "Work", projects: "Projects", people: "People", interests: "Interests", life: "Life", goals: "Goals" },
     edit: "Edit",
@@ -48,6 +50,7 @@ export const MEMORY_COPY: Copy<MemoryCopy> = {
     title: "O que o Voxa sabe sobre você",
     intro: "Coisas que você contou ao tutor. Ele as retoma nas próximas conversas. Mude ou apague o que quiser.",
     back: "Voltar",
+    loading: "Carregando…",
     empty: "Nada ainda. Conforme você conversa, o tutor guarda o que você conta sobre a sua vida.",
     topics: { work: "Trabalho", projects: "Projetos", people: "Pessoas", interests: "Interesses", life: "Vida", goals: "Metas" },
     edit: "Editar",
