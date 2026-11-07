@@ -473,7 +473,8 @@ describe("fluency timing", () => {
 
     now.mockReturnValue(4500);
     act(() => micHandlers.onSpeechStart());
-    now.mockReturnValue(9700);
+    // 4 s of speech plus the end-of-turn silence (2.5 s), which is not speech.
+    now.mockReturnValue(11_000);
     act(() => micHandlers.onTurn(new ArrayBuffer(16)));
 
     await endFromPause();

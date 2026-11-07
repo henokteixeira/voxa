@@ -20,7 +20,7 @@ export interface TurnDetectorOptions {
 
 export const DEFAULT_TURN_OPTIONS: TurnDetectorOptions = {
   minSpeechMs: 250,
-  endSilenceMs: 1200,
+  endSilenceMs: 2500,
   maxTurnMs: 60_000,
   floorRatio: 3,
   minLevel: 0.015,
