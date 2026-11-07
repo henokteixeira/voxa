@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApi } from "@/hooks/use-api";
-import type { CefrLevel, LevelView } from "@/lib/api";
+import type { CefrLevel, LevelView, StepChangeProposal } from "@/lib/api";
+
+/** One step-change proposal: "Not yet" hides it, and after another session that still points the same way, it comes back. */
+export const proposalKey = (proposal: StepChangeProposal) => `${proposal.basedOn}:${proposal.direction}:${proposal.to}`;
 
 /**
  * The learner's speaking level. `view` is undefined while loading and null when it could not be read

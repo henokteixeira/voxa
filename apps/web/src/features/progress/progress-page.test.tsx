@@ -98,6 +98,14 @@ describe("Progress", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("keeps the step-change sheet open with the error when confirming fails", async () => {
+    renderProgress({ level: vi.fn().mockResolvedValue(goingUp), confirmStepChange: vi.fn().mockRejectedValue(new Error("down")) });
+    await userEvent.click(await screen.findByRole("button", { name: "Yes, try it" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save");
+    expect(screen.getByRole("dialog", { name: "Ready for a bit less help? (B1)" })).toBeInTheDocument();
+    expect(localStorage.getItem("voxa.stepChangeDismissed")).toBeNull();
+  });
+
   it("hides a proposal after Not yet, until the proposal changes", async () => {
     renderProgress({ level: vi.fn().mockResolvedValue(goingUp) });
     await userEvent.click(await screen.findByRole("button", { name: "Not yet" }));

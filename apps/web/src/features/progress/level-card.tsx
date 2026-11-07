@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { CEFR_LEVELS, type CefrLevel, type LevelView, type StepChangeProposal } 
 import { useCopy, useLocale } from "@/lib/i18n/locale";
 import { cn } from "@/lib/utils";
 import { LEVEL_COPY } from "./level-copy";
+import { proposalKey } from "./use-level";
 
 export const PLACEMENT_PATH = "/session/placement";
 /** What the tutor noticed: the evidence behind the level, and ways to change it. */
@@ -18,13 +19,27 @@ export function LevelCard({ view, onSet }: { view: LevelView; onSet: (level: Cef
   const copy = useCopy(LEVEL_COPY);
   const { locale } = useLocale();
   const titleId = useId();
+  const title = useRef<HTMLHeadingElement>(null);
   const [changing, setChanging] = useState(false);
   const { current, placementDue } = view;
+
+  // Outside the branches: saving a first level swaps the card, and the sheet must stay mounted to close.
+  const sheet = changing && (
+    <LevelSheet
+      current={current?.level ?? null}
+      onSet={onSet}
+      onClose={() => {
+        setChanging(false);
+        // The button that opened the sheet may be gone (the card changed): keep the focus on the card.
+        if (!document.activeElement || document.activeElement === document.body) title.current?.focus();
+      }}
+    />
+  );
 
   if (!current) {
     return (
       <Card role="region" aria-labelledby={titleId} className="gap-3">
-        <h2 id={titleId} className="m-0 text-body-strong">
+        <h2 ref={title} id={titleId} tabIndex={-1} className="m-0 text-body-strong outline-none">
           {copy.noLevelTitle}
         </h2>
         <p className="m-0 text-caption text-taupe">{copy.noLevelBody}</p>
@@ -34,7 +49,7 @@ export function LevelCard({ view, onSet }: { view: LevelView; onSet: (level: Cef
         <Button variant="ghost" block onClick={() => setChanging(true)}>
           {copy.setByHand}
         </Button>
-        {changing && <LevelSheet current={null} onSet={onSet} onClose={() => setChanging(false)} />}
+        {sheet}
       </Card>
     );
   }
@@ -43,7 +58,7 @@ export function LevelCard({ view, onSet }: { view: LevelView; onSet: (level: Cef
   return (
     <>
       <Card role="region" aria-labelledby={titleId} className="gap-3">
-        <h2 id={titleId} className="m-0 text-label text-taupe">
+        <h2 ref={title} id={titleId} tabIndex={-1} className="m-0 text-label text-taupe outline-none">
           {copy.estimateLabel}
         </h2>
         <span className="font-serif text-[40px] leading-none">{current.level}</span>
@@ -52,6 +67,7 @@ export function LevelCard({ view, onSet }: { view: LevelView; onSet: (level: Cef
           {copy.help[current.level]} · {copy.source(current.source, date)}
         </span>
         {placementDue && <p className="m-0 text-caption text-honey-ink">{copy.placementDue}</p>}
+        {sheet}
       </Card>
       <Link
         to={LEVEL_PATH}
@@ -153,8 +169,6 @@ export function LevelSheet({
 
 const DISMISSED_KEY = "voxa.stepChangeDismissed";
 
-/** "Not yet" hides one proposal: after another session that still points the same way, it comes back. */
-const proposalKey = (proposal: StepChangeProposal) => `${proposal.basedOn}:${proposal.direction}:${proposal.to}`;
 
 function wasDismissed(key: string): boolean {
   try {
@@ -172,8 +186,7 @@ export function StepChangeSheet({
   proposal: StepChangeProposal;
   onConfirm: (to: CefrLevel) => Promise<void>;
 }) {
-  const copy = useCopy(LEVEL_COPY).stepChange;
-  const { saveFailed } = useCopy(LEVEL_COPY);
+  const { stepChange: copy, saveFailed } = useCopy(LEVEL_COPY);
   const key = proposalKey(proposal);
   const [open, setOpen] = useState(() => !wasDismissed(key));
   const [saving, setSaving] = useState(false);
@@ -190,7 +203,8 @@ export function StepChangeSheet({
     setOpen(false);
   };
   return (
-    <Sheet label={title} onClose={dismiss}>
+    // While the change is saving, it can't be dismissed: a failure must stay visible.
+    <Sheet label={title} onClose={dismiss} dismissible={!saving}>
       {(close) => (
         <>
           <div className="self-center">
@@ -243,7 +257,7 @@ export function LevelUnavailable({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-export function ChevronIcon() {
+function ChevronIcon() {
   return (
     <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-taupe">
       <path d="M9 6l6 6-6 6" />

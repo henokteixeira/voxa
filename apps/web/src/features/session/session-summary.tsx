@@ -32,11 +32,11 @@ export function SummaryFlow(props: { mode: Mode; elapsed: string; summary: Sessi
 
   const { mistakes } = summary ?? { mistakes: [] };
   const realMistakes = mistakes.filter((m) => !isNewWord(m));
-  // The placement interview never talks about mistakes, not even on the last screen.
+  // The placement interview never talks about mistakes.
   const savedMistakes = summary && mode !== "placement" ? realMistakes.length : null;
   if (!summary || step === "saved") return <Saved mistakes={savedMistakes} />;
 
-  // The placement interview ends with the level, not with mistakes.
+  // The placement interview ends with thanks, not with a level or mistakes: the level lives in Progress.
   if (mode === "placement") return <PlacementResult summary={summary} />;
 
   if (step === "result") {
