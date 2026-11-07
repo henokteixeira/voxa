@@ -136,6 +136,19 @@ describe("createApiClient", () => {
     expect(JSON.parse(init.body)).toEqual({ language: "en", timeZone: "UTC", minutesPerDay: 45 });
   });
 
+  it("uses the server's error code and request id over the status", async () => {
+    const api = createApiClient("http://api", respond(422, { code: "bad_audio", message: "Nope.", requestId: "r1" }));
+    await expect(api.endSession("s1")).rejects.toMatchObject({ kind: "invalid", status: 422, requestId: "r1" });
+  });
+
+  it("reports an unexpected server failure with its request id", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const api = createApiClient("http://api", respond(500, { code: "internal", message: "Oops.", requestId: "r2" }));
+    await api.health().catch(() => {});
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining("api GET /health"), expect.objectContaining({ requestId: "r2" }));
+    spy.mockRestore();
+  });
+
   it("reports offline when the server can't be reached", async () => {
     const api = createApiClient("http://api", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
     await expect(api.health()).rejects.toMatchObject({ kind: "offline" });

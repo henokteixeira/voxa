@@ -1,3 +1,5 @@
+import { reportError } from "./report-error";
+
 /** Typed client for the Voxa API. Every call fails with ApiError, never a raw fetch error. */
 
 /** Every session mode: the four meetings, plus the placement interview that estimates the speaking level. */
@@ -187,21 +189,52 @@ export type ApiErrorKind = "offline" | "not_found" | "ended" | "tutor_unavailabl
 export class ApiError extends Error {
   readonly kind: ApiErrorKind;
   readonly status?: number;
+  /** The server's id for the failed request: its log line carries the same id. */
+  readonly requestId?: string;
 
-  constructor(kind: ApiErrorKind, message: string, status?: number) {
+  constructor(kind: ApiErrorKind, message: string, status?: number, requestId?: string) {
     super(message);
     this.name = "ApiError";
     this.kind = kind;
     this.status = status;
+    this.requestId = requestId;
   }
 }
 
-function kindFor(status: number): ApiErrorKind {
+/** The error body the API answers (see apps/api/src/common/api-exception.filter.ts). */
+interface ErrorBody {
+  code?: unknown;
+  message?: unknown;
+  requestId?: unknown;
+}
+
+const KIND_BY_CODE: Record<string, ApiErrorKind> = {
+  invalid: "invalid",
+  bad_audio: "invalid",
+  not_found: "not_found",
+  ended: "ended",
+  tutor_unavailable: "tutor_unavailable",
+  voice_unavailable: "tutor_unavailable",
+};
+
+function kindFor(status: number, code: unknown): ApiErrorKind {
+  if (typeof code === "string" && code in KIND_BY_CODE) return KIND_BY_CODE[code];
   if (status === 400) return "invalid";
   if (status === 404) return "not_found";
   if (status === 409) return "ended";
   if (status === 502 || status === 503) return "tutor_unavailable";
   return "server";
+}
+
+/** The ApiError for a failed response; unexpected server failures are reported. */
+async function errorFrom(response: Response, where: string): Promise<ApiError> {
+  const body = (await response.json().catch(() => null)) as ErrorBody | null;
+  const message = typeof body?.message === "string" ? body.message : `Request failed (${response.status}).`;
+  const requestId =
+    typeof body?.requestId === "string" ? body.requestId : (response.headers.get("x-request-id") ?? undefined);
+  const error = new ApiError(kindFor(response.status, body?.code), message, response.status, requestId);
+  if (error.kind === "server") reportError(error, { where, status: response.status, requestId });
+  return error;
 }
 
 export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...args) => fetch(...args)) {
@@ -216,11 +249,7 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     } catch {
       throw new ApiError("offline", "Can't reach the Voxa API.");
     }
-    if (!response.ok) {
-      const body = (await response.json().catch(() => null)) as { message?: unknown } | null;
-      const message = typeof body?.message === "string" ? body.message : `Request failed (${response.status}).`;
-      throw new ApiError(kindFor(response.status), message, response.status);
-    }
+    if (!response.ok) throw await errorFrom(response, `api ${init?.method ?? "GET"} ${path}`);
     if (response.status === 204) return undefined as T;
     return (await response.json()) as T;
   }
@@ -233,7 +262,7 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     } catch {
       throw new ApiError("offline", "Can't reach the Voxa API.");
     }
-    if (!response.ok) throw new ApiError(kindFor(response.status), `Request failed (${response.status}).`, response.status);
+    if (!response.ok) throw await errorFrom(response, `api GET ${path}`);
     return response.arrayBuffer();
   }
 
