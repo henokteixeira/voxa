@@ -185,6 +185,39 @@ export interface ReviewOverview {
   nextDueAt: string | null;
 }
 
+/** Where a pattern or new word is in its review schedule. */
+export type ReviewStatus = "new" | "improving" | "mastered";
+
+/** A pattern in the bank, as the Practice tab shows it. */
+export interface PracticePattern {
+  id: string;
+  category: string;
+  name: string;
+  rule: string;
+  status: ReviewStatus;
+  /** ISO 8601 date-time; null when it has no review yet. */
+  dueAt: string | null;
+  occurrences: number;
+  /** The learner's sentences that broke it, most recently seen first. */
+  sentences: { id: string; original: string; correction: string; occurrences: number; lastSeenAt: string }[];
+}
+
+export interface PracticeNewWord {
+  id: string;
+  word: string;
+  /** What the learner said in their first language. */
+  said: string;
+  status: ReviewStatus;
+  dueAt: string | null;
+}
+
+/** The Practice tab: patterns by type, new words, and mistakes saved before patterns. */
+export interface PracticeView {
+  patterns: PracticePattern[];
+  newWords: PracticeNewWord[];
+  earlier: { id: string; category: string; original: string; correction: string; occurrences: number }[];
+}
+
 /** Timing measured during a live session (see features/session/fluency-clock.ts). */
 export interface SessionTiming {
   learnerSpeechMs: number;
@@ -425,6 +458,7 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
       (await request<{ mistakes: BankMistake[] }>(`/mistakes?language=${encodeURIComponent(language)}`)).mistakes,
     dismissMistake: (id: string, reason: DismissReason) =>
       request<void>(`/mistakes/${encodeURIComponent(id)}/dismiss`, { method: "POST", body: { reason } }),
+    practice: (language = "en") => request<PracticeView>(`/practice?language=${encodeURIComponent(language)}`),
     reviewOverview: (language = "en") => request<ReviewOverview>(`/reviews?language=${encodeURIComponent(language)}`),
     /** A new cue for one pattern or new word. */
     reviewCard: (subject: ReviewSubject) => request<ReviewCard>("/reviews/cards", { method: "POST", body: { subject } }),

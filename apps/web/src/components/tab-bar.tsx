@@ -18,7 +18,8 @@ export function TabBar({ vertical = false }: { vertical?: boolean }) {
   const { pathname } = useLocation();
   const labels = [label.today, label.mistakes, label.progress];
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
-  const active = PATHS.findIndex((p) => p === path);
+  // A page inside a tab (e.g. a pattern in Practice) keeps the tab active.
+  const active = PATHS.findIndex((p) => p === path || (p !== "/" && path.startsWith(`${p}/`)));
 
   return (
     <nav

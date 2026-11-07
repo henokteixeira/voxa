@@ -17,9 +17,13 @@ const STATUS_CHIP = {
 } as const;
 
 /** One mistake, and the way to say it isn't one: its accessible name and its content. */
-function useMistakeDetail(mistake: BankMistake, onDismissed: (id: string) => void): { label: string; content: ReactNode } {
+function useMistakeDetail(
+  mistake: BankMistake,
+  onDismissed: (id: string) => void,
+  startAsking = false,
+): { label: string; content: ReactNode } {
   const api = useApi();
-  const [asking, setAsking] = useState(false);
+  const [asking, setAsking] = useState(startAsking);
   const [reason, setReason] = useState<DismissReason | null>(null);
   const [state, setState] = useState<"idle" | "saving" | "failed">("idle");
   const copy = useCopy(MISTAKES_COPY);
@@ -118,45 +122,19 @@ export function MistakeSheet({
   mistake,
   onClose,
   onDismissed,
+  askWhy = false,
 }: {
   mistake: BankMistake;
   onClose: () => void;
   onDismissed: (id: string) => void;
+  /** Open straight on "Why isn't it a mistake?". */
+  askWhy?: boolean;
 }) {
   const copy = useCopy(MISTAKES_COPY);
-  const { label, content } = useMistakeDetail(mistake, onDismissed);
+  const { label, content } = useMistakeDetail(mistake, onDismissed, askWhy);
   return (
     <Sheet label={label} closeLabel={copy.close} onClose={onClose}>
       {content}
     </Sheet>
-  );
-}
-
-/** Wide screens: the mistake beside the list (key it by id so each mistake starts fresh). */
-export function MistakePanel({
-  mistake,
-  onDismissed,
-  takeFocus = false,
-}: {
-  mistake: BankMistake;
-  onDismissed: (id: string) => void;
-  /** Focus the panel when it appears (after the previous mistake was removed). */
-  takeFocus?: boolean;
-}) {
-  const { label, content } = useMistakeDetail(mistake, onDismissed);
-  const panel = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (takeFocus) panel.current?.focus();
-  }, [takeFocus]);
-  return (
-    <section
-      ref={panel}
-      id="mistake-detail"
-      tabIndex={-1}
-      aria-label={label}
-      className="vx-page-in flex flex-col gap-3 rounded-lg bg-paper p-6 shadow-card outline-none"
-    >
-      {content}
-    </section>
   );
 }

@@ -1,6 +1,7 @@
 import type { RouteObject } from "react-router";
 import { OnboardingPage } from "@/features/onboarding/onboarding-page";
-import { MistakesPage } from "@/features/mistakes/mistakes-page";
+import { PracticePage } from "@/features/practice/practice-page";
+import { ReviewPage } from "@/features/practice/review-page";
 import { LevelPage } from "@/features/progress/level-page";
 import { ProgressPage } from "@/features/progress/progress-page";
 import { SessionPage } from "@/features/session/session-page";
@@ -12,14 +13,16 @@ export const routes: RouteObject[] = [
     element: <AppLayout />,
     children: [
       { index: true, element: <TodayPage /> },
-      // `wide`: on wide screens the page uses more room (list and detail side by side).
-      { path: "mistakes", element: <MistakesPage />, handle: { wide: true } },
+      { path: "mistakes", element: <PracticePage /> },
+      { path: "mistakes/patterns/:patternId", element: <PracticePage /> },
       { path: "progress", element: <ProgressPage /> },
       { path: "progress/level", element: <LevelPage /> },
     ],
   },
   // First run: welcome, microphone, then the level chat. Whole screen, no tab bar.
   { path: "onboarding", element: <OnboardingPage /> },
+  // The voice review takes the whole screen, like a session.
+  { path: "review", element: <ReviewPage /> },
   // A live session takes the whole screen: no tab bar.
   { path: "session/:mode", element: <SessionPage /> },
 ];

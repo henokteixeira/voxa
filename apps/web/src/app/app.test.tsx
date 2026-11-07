@@ -19,13 +19,18 @@ const placedB1 = {
 function renderApp(
   path: string,
   health: ApiClient["health"],
-  { withLocale = false, level = vi.fn().mockResolvedValue(placedB1) }: { withLocale?: boolean; level?: ReturnType<typeof vi.fn> } = {},
+  {
+    withLocale = false,
+    level = vi.fn().mockResolvedValue(placedB1),
+    reviewOverview = vi.fn().mockResolvedValue({ due: [], nextDueAt: null }),
+  }: { withLocale?: boolean; level?: ReturnType<typeof vi.fn>; reviewOverview?: ReturnType<typeof vi.fn> } = {},
 ) {
   const api = {
     health,
     endSession,
     level,
-    listMistakes: vi.fn().mockResolvedValue([]),
+    practice: vi.fn().mockResolvedValue({ patterns: [], newWords: [], earlier: [] }),
+    reviewOverview,
     todayProgress: vi.fn().mockResolvedValue(today(30)),
     signalsHistory: vi.fn().mockResolvedValue({ sessions: [] }),
     setDailyMinutes: vi.fn().mockImplementation(async (minutes: number) => today(minutes)),
@@ -132,6 +137,13 @@ describe("Today", () => {
   it("offers the daily when the level can't be read", async () => {
     renderApp("/", up(), { level: vi.fn().mockRejectedValue(new ApiError("server", "boom")) });
     expect(await screen.findByRole("heading", { name: "Your first session is ready" })).toBeInTheDocument();
+  });
+
+  it("shows the voice review on Today only when something is due", async () => {
+    const due = { due: [{ subject: { kind: "pattern", id: "p1" } }, { subject: { kind: "pattern", id: "p2" } }], nextDueAt: null };
+    const router = renderApp("/", up(), { reviewOverview: vi.fn().mockResolvedValue(due) });
+    await userEvent.click(await screen.findByRole("link", { name: /Review · 2 items/ }));
+    expect(router.state.location.pathname).toBe("/review");
   });
 
   it("keeps other practice in a sheet, not in a list under the fold", async () => {
