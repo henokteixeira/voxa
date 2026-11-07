@@ -185,6 +185,19 @@ describe("live session", () => {
     expect(screen.getByText("Daily stand-up")).toBeInTheDocument();
   });
 
+  it("keeps the turn the learner started: the microphone is not restarted when they start talking", async () => {
+    await startAndListen();
+    mic.resume.mockClear();
+    mic.pause.mockClear();
+
+    act(() => micHandlers.onSpeechStart());
+
+    expect(screen.getByText("Listening")).toBeInTheDocument();
+    // Restarting it would drop what was heard and stop the detector, so the turn could never end or be sent.
+    expect(mic.resume).not.toHaveBeenCalled();
+    expect(mic.pause).not.toHaveBeenCalled();
+  });
+
   it("keeps the microphone off while the tutor speaks", async () => {
     renderSession();
     await opened();
