@@ -12,7 +12,7 @@ import { useApi } from "@/hooks/use-api";
 import { useApiStatus } from "@/hooks/use-api-status";
 import { useOnline } from "@/hooks/use-online";
 import { MEETING_MODES } from "@/lib/api";
-import { PLACEMENT_PATH } from "@/features/progress/level-card";
+import { ONBOARDING_PATH } from "@/features/onboarding/onboarding-page";
 import { useLevel } from "@/features/progress/use-level";
 import { LOCALES, useCopy, useLocale } from "@/lib/i18n/locale";
 import { PAUSE_CHOICES_MS, readPauseMs, savePauseMs } from "@/lib/voice/pause-setting";
@@ -90,7 +90,7 @@ export function TodayPage() {
   const api = useApi();
   // A session left mid-way (closed tab): continue it, unless it is too old (then it is ended with its summary).
   const [paused] = useState(() => takeSavedSession(api));
-  // Before the first placement, the suggested session is the placement interview.
+  // Before the first placement, Start opens the onboarding, which ends in the placement interview.
   const level = useLevel();
   const needsPlacement = level.view?.current === null;
   const date = now.toLocaleDateString(locale, { weekday: "long", month: "short", day: "numeric" });
@@ -153,7 +153,7 @@ export function TodayPage() {
           <h2 className="m-0 text-heading">{copy.placementTitle}</h2>
           <p className="m-0 text-caption text-taupe">{copy.placementBody}</p>
           <Button block asChild>
-            <Link to={PLACEMENT_PATH}>{copy.start}</Link>
+            <Link to={ONBOARDING_PATH}>{copy.start}</Link>
           </Button>
         </Card>
       ) : (
