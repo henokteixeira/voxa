@@ -7,12 +7,23 @@ import { ConversationService, SessionEndedError, SessionNotFoundError, type Turn
 /** One learner turn: recorded speech, or typed text (for "Type instead" and retries). */
 export type VoiceInput = { audio: Buffer; mimeType: string } | { text: string };
 
+/** How long each stage of one turn took, from the end of the learner's speech to the tutor's voice. */
+export interface TurnTiming {
+  /** Null for a typed turn. */
+  sttMs: number | null;
+  tutorMs: number;
+  ttsMs: number;
+  totalMs: number;
+}
+
 /** Partial results, sent as soon as they exist so captions do not wait for the voice. */
 export interface VoiceTurnEvents {
   transcript(text: string): void;
   tutor(result: TurnResult): void;
   /** True once the learner has left; the service then skips work nobody will hear. */
   cancelled(): boolean;
+  /** Sent once the tutor's voice is ready, to measure the loop. */
+  timing?(timing: TurnTiming): void;
 }
 
 /** The voice loop: speech-to-text → tutor → text-to-speech, on top of the text conversation. */
@@ -30,19 +41,30 @@ export class VoiceConversationService {
     const session = await this.session(sessionId);
     if (session.endedAt) throw new SessionEndedError(sessionId);
 
+    const started = performance.now();
     const said =
       "text" in input
         ? input.text
         : (await this.stt.transcribe(input.audio, session.language, { mimeType: input.mimeType })).text;
+    const heard = performance.now();
     const text = said.trim();
     if (!text) return null;
     events.transcript(text);
     if (events.cancelled()) return null;
 
     const result = await this.conversation.respond(sessionId, text);
+    const answered = performance.now();
     events.tutor(result);
     if (events.cancelled()) return null;
-    return this.tts.synthesize(result.message, session.language);
+    const speech = await this.tts.synthesize(result.message, session.language);
+    const spoken = performance.now();
+    events.timing?.({
+      sttMs: "text" in input ? null : Math.round(heard - started),
+      tutorMs: Math.round(answered - heard),
+      ttsMs: Math.round(spoken - answered),
+      totalMs: Math.round(spoken - started),
+    });
+    return speech;
   }
 
   /** Speaks the tutor's last line again (the session's opening line, or "repeat the last question"). */
