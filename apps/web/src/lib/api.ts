@@ -120,6 +120,69 @@ export interface SessionMistake {
   severity: "serious" | "minor";
   selfCorrected: boolean;
   occurrences: number;
+  /** The pattern the mistake breaks; missing from older servers, null for new words and older mistakes. */
+  pattern?: MistakePattern | null;
+  patternId?: string | null;
+}
+
+/** A rule a mistake breaks: a short name and one line in the learner's first language. */
+export interface MistakePattern {
+  key: string;
+  name: string;
+  rule: string;
+}
+
+/** A pattern from the session for the learner to take away. */
+export interface Takeaway {
+  patternId: string;
+  category: string;
+  name: string;
+  rule: string;
+  /** The learner's words when they broke it. */
+  said: string;
+}
+
+/** What a review asks for: a pattern from the bank, or one new word. */
+export interface ReviewSubject {
+  kind: "pattern" | "new_word";
+  id: string;
+}
+
+/** A pattern or new word with its review schedule. */
+export interface ReviewItem {
+  subject: ReviewSubject;
+  language: string;
+  category: string;
+  /** The pattern's name, or the new word. */
+  name: string;
+  /** The pattern's rule, or what the learner said in their first language. */
+  rule: string;
+  examples: { original: string; correction: string }[];
+  step: number;
+  /** ISO 8601 date-time. */
+  dueAt: string;
+}
+
+/** One review question: a cue in the learner's first language. The answer stays on the server. */
+export interface ReviewCard {
+  cardId: string;
+  item: ReviewItem;
+  cue: string;
+}
+
+export interface ReviewAnswer {
+  recalled: boolean;
+  /** One way to say it. */
+  answer: string;
+  rule: string;
+  /** ISO 8601 date-time: when the item comes back. */
+  nextDueAt: string;
+}
+
+export interface ReviewOverview {
+  due: ReviewItem[];
+  /** When the next item not yet due comes back; null when there is none. */
+  nextDueAt: string | null;
 }
 
 /** Timing measured during a live session (see features/session/fluency-clock.ts). */
@@ -171,6 +234,8 @@ export interface SessionSummary {
   level?: SpeakingLevel | null;
   /** XP the session earned; missing from servers older than XP. */
   xp?: SessionXp;
+  /** Up to 3 patterns to take away; missing from older servers, empty after a placement interview. */
+  takeaways?: Takeaway[];
 }
 
 /** What earns XP. A mistake never takes XP away. */
@@ -344,6 +409,12 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
       (await request<{ mistakes: BankMistake[] }>(`/mistakes?language=${encodeURIComponent(language)}`)).mistakes,
     dismissMistake: (id: string, reason: DismissReason) =>
       request<void>(`/mistakes/${encodeURIComponent(id)}/dismiss`, { method: "POST", body: { reason } }),
+    reviewOverview: (language = "en") => request<ReviewOverview>(`/reviews?language=${encodeURIComponent(language)}`),
+    /** A new cue for one pattern or new word. */
+    reviewCard: (subject: ReviewSubject) => request<ReviewCard>("/reviews/cards", { method: "POST", body: { subject } }),
+    /** What the learner said to a card; null when they chose "I don't know". */
+    answerReview: (cardId: string, utterance: string | null) =>
+      request<ReviewAnswer>("/reviews/answers", { method: "POST", body: { cardId, utterance } }),
     todayProgress: (language = "en", timeZone = deviceTimeZone()) =>
       request<TodayProgress>(
         `/progress/today?language=${encodeURIComponent(language)}&timeZone=${encodeURIComponent(timeZone)}`,

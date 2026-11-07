@@ -88,6 +88,18 @@ describe("createApiClient", () => {
     expect(fetchImpl.mock.calls[0][0]).toBe("http://api/api/mistakes?language=en");
   });
 
+  it("asks for a review card and sends the answer, null for \"I don't know\"", async () => {
+    const fetchImpl = vi.fn().mockImplementation(async () => new Response("{}", { status: 200 }));
+    const api = createApiClient("http://api", fetchImpl);
+
+    await api.reviewCard({ kind: "pattern", id: "p1" });
+    await api.answerReview("c1", null);
+    expect(fetchImpl.mock.calls.map(([url, init]) => [url, init.method, JSON.parse(init.body)])).toEqual([
+      ["http://api/api/reviews/cards", "POST", { subject: { kind: "pattern", id: "p1" } }],
+      ["http://api/api/reviews/answers", "POST", { cardId: "c1", utterance: null }],
+    ]);
+  });
+
   it("dismisses a mistake with a reason and accepts an empty answer", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     const api = createApiClient("http://api", fetchImpl);

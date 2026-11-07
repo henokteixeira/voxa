@@ -32,8 +32,10 @@ const api = {
       placementDue: false,
     }),
   todayProgress: vi.fn(),
+  reviewCard: vi.fn(),
+  answerReview: vi.fn(),
   voiceUrl: (id: string) => `ws://api/api/sessions/${id}/voice`,
-} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "resumeSession" | "fillerSpeech" | "todayProgress"]: ReturnType<typeof vi.fn> };
+} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "resumeSession" | "fillerSpeech" | "todayProgress" | "reviewCard" | "answerReview"]: ReturnType<typeof vi.fn> };
 
 const deps: VoiceDeps = {
   openMicrophone: vi.fn(async (handlers: MicrophoneHandlers) => {
@@ -618,7 +620,7 @@ describe("XP", () => {
 });
 
 describe("session summary", () => {
-  it("shows the signals, the mistakes, then saves", async () => {
+  it("shows the signals, what to keep, then saves", async () => {
     api.endSession.mockResolvedValue(
       summaryWith(
         [
@@ -646,38 +648,113 @@ describe("session summary", () => {
     expect(signals).toHaveTextContent("Pause before answering1.8 saverage");
     expect(signals).toHaveTextContent("Mistakes4.3per 100 words");
 
-    await userEvent.click(screen.getByRole("button", { name: "See your mistakes" }));
-    expect(screen.getByText("3 mistakes · 1 fixed by you")).toBeInTheDocument();
-    const items = screen.getAllByRole("listitem");
-    expect(items.map((item) => item.querySelector("span")?.textContent)).toEqual([
-      "Fixed after a hint",
-      "Learned with help",
-      "Small mistake",
-    ]);
-    expect(items[1]).toHaveTextContent("I'm waiting for the keys");
-
+    // Mistakes from an older server have no pattern: nothing to try, they are all small details.
+    await userEvent.click(screen.getByRole("button", { name: "See what to keep" }));
+    expect(screen.getByRole("button", { name: "+ 3 small details, saved for later" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByRole("heading", { name: "Session saved" })).toBeInTheDocument();
     expect(screen.getByText("3 mistakes saved to your mistake bank.")).toBeInTheDocument();
     expect(screen.getByText("Every mistake today is something you'll say better next time.")).toBeInTheDocument();
   });
 
-  it("shows a word said in Portuguese as a new word, not as a mistake", async () => {
-    api.endSession.mockResolvedValue(
-      summaryWith([
-        mistake("minor", false, "on the next sprint", "in the next sprint"),
-        { ...mistake("minor", false, "prazo", "deadline"), category: "new_word" },
-      ]),
-    );
+  const past = { key: "past_simple", name: "Past for finished actions", rule: "Ação que já terminou: verbo no passado." };
+  const waitFor = { key: "wait_for", name: "“Wait for” something", rule: "Esperar algo: wait for." };
+  const patterned = [
+    { ...mistake("serious", true, "Yesterday I finish it", "Yesterday I finished it"), category: "verb_tense", pattern: past, patternId: "p1" },
+    { ...mistake("serious", false, "I'm waiting the keys", "I'm waiting for the keys"), category: "articles_prepositions", pattern: waitFor, patternId: "p2" },
+    { ...mistake("minor", false, "on the next sprint", "in the next sprint"), category: "articles_prepositions", patternId: "p3", pattern: { key: "in_sprint", name: "“In” a sprint", rule: "In + sprint." } },
+    { ...mistake("minor", false, "in the sprint review", "at the sprint review"), category: "articles_prepositions", patternId: "p3", pattern: { key: "in_sprint", name: "“In” a sprint", rule: "In + sprint." } },
+    { ...mistake("minor", false, "prazo", "deadline"), category: "new_word" },
+  ];
+  const takeaways = [
+    { patternId: "p1", category: "verb_tense", name: past.name, rule: past.rule, said: "Yesterday I finish it" },
+    { patternId: "p2", category: "articles_prepositions", name: waitFor.name, rule: waitFor.rule, said: "I'm waiting the keys" },
+  ];
+
+  it("asks to take at most three patterns, without the correct form, and keeps the rest one tap away", async () => {
+    api.endSession.mockResolvedValue(summaryWith(patterned, { takeaways }));
     await startAndListen();
     await endFromPause();
-    await userEvent.click(await screen.findByRole("button", { name: "See your mistakes" }));
+    await userEvent.click(await screen.findByRole("button", { name: "See what to keep" }));
 
-    expect(screen.getByText("1 mistake · 0 fixed by you · 1 new word")).toBeInTheDocument();
-    const items = screen.getAllByRole("listitem");
-    expect(items[1].querySelector("span")?.textContent).toBe("New word");
-    expect(screen.getByText("prazo")).not.toHaveClass("line-through");
-    expect(screen.getByText("deadline")).toHaveAttribute("lang", "en");
+    expect(screen.getByRole("heading", { name: "Take these with you" })).toBeInTheDocument();
+    const cards = within(screen.getByRole("list", { name: "Patterns to take with you" })).getAllByRole("listitem");
+    expect(cards.map((c) => c.textContent)).toEqual([
+      "Verb tensePast for finished actionsYou said: “Yesterday I finish it”",
+      "Articles and prepositions“Wait for” somethingYou said: “I'm waiting the keys”",
+    ]);
+    expect(screen.queryByText(/I'm waiting for the keys/)).toBeNull();
+    expect(screen.getByRole("region", { name: "New words" })).toHaveTextContent("prazo → deadline");
+
+    await userEvent.click(screen.getByRole("button", { name: "+ 2 small details, saved for later" }));
+    const sheet = screen.getByRole("dialog", { name: "Small details" });
+    expect(within(sheet).getByRole("listitem")).toHaveTextContent("Articles and prepositions · “In” a sprint2");
+  });
+
+  it("tries each pattern from memory, then says when each one comes back", async () => {
+    const now = new Date();
+    const inDays = (days: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 12).toISOString();
+    api.endSession.mockResolvedValue(summaryWith(patterned, { takeaways }));
+    api.reviewCard
+      .mockResolvedValueOnce({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, name: past.name }, cue: "Eu terminei ontem." })
+      .mockResolvedValueOnce({ cardId: "c2", item: { subject: { kind: "pattern", id: "p2" }, name: waitFor.name }, cue: "Estou esperando as chaves." });
+    api.answerReview
+      .mockResolvedValueOnce({ recalled: true, answer: "I finished it yesterday.", rule: past.rule, nextDueAt: inDays(3) })
+      .mockResolvedValueOnce({ recalled: false, answer: "I'm waiting for the keys.", rule: waitFor.rule, nextDueAt: inDays(1) });
+    await startAndListen();
+    await endFromPause();
+    await userEvent.click(await screen.findByRole("button", { name: "See what to keep" }));
+    await userEvent.click(screen.getByRole("button", { name: "Try them · 1 min" }));
+
+    expect(await screen.findByText("“Eu terminei ontem.”")).toBeInTheDocument();
+    expect(screen.getByText("1 of 2")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Your answer"), "Yesterday I finished it{Enter}");
+    expect(api.reviewCard).toHaveBeenCalledWith({ kind: "pattern", id: "p1" });
+    expect(api.answerReview).toHaveBeenCalledWith("c1", "Yesterday I finished it");
+    expect(await screen.findByRole("status")).toHaveTextContent("That's it");
+    expect(screen.getByRole("region", { name: "You said" })).toHaveTextContent(`Yesterday I finished it${past.name}. ${past.rule}`);
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    await userEvent.click(await screen.findByRole("button", { name: "I don't know, show me" }));
+    expect(api.answerReview).toHaveBeenLastCalledWith("c2", null);
+    expect(await screen.findByText("Almost")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "One way to say it" })).toHaveTextContent("I'm waiting for the keys.");
+    expect(screen.getByText("Say it once more · this one comes back tomorrow")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Finish" }));
+
+    expect(screen.getByRole("heading", { name: "Saved for your review" })).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      `${past.name}in 3 days`,
+      `${waitFor.name}tomorrow`,
+    ]);
+  });
+
+  it("says when an answer can't be checked, and keeps the question", async () => {
+    api.endSession.mockResolvedValue(summaryWith(patterned, { takeaways: takeaways.slice(0, 1) }));
+    api.reviewCard.mockResolvedValue({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, name: past.name }, cue: "Eu terminei ontem." });
+    api.answerReview.mockRejectedValueOnce(new Error("offline"));
+    await startAndListen();
+    await endFromPause();
+    await userEvent.click(await screen.findByRole("button", { name: "See what to keep" }));
+    await userEvent.click(screen.getByRole("button", { name: "Try them · 1 min" }));
+    await userEvent.click(await screen.findByRole("button", { name: "I don't know, show me" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't check that answer. Try again.");
+    expect(screen.getByText("“Eu terminei ontem.”")).toBeInTheDocument();
+  });
+
+  it("offers to try again when a cue can't be loaded", async () => {
+    api.endSession.mockResolvedValue(summaryWith(patterned, { takeaways: takeaways.slice(0, 1) }));
+    api.reviewCard
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, name: past.name }, cue: "Eu terminei ontem." });
+    await startAndListen();
+    await endFromPause();
+    await userEvent.click(await screen.findByRole("button", { name: "See what to keep" }));
+    await userEvent.click(screen.getByRole("button", { name: "Try them · 1 min" }));
+
+    await userEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("“Eu terminei ontem.”")).toBeInTheDocument();
   });
 
   it("goes straight to saving without mistakes", async () => {
