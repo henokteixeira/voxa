@@ -13,6 +13,35 @@ const hint = (message = "When did it happen?"): SessionAction => ({
 });
 
 describe("sessionReducer", () => {
+  it("adds a follow-up line after the reply: a hint about what the learner just said", () => {
+    const state = run(
+      started,
+      { type: "sent", request: "audio" },
+      { type: "transcript", text: "Yesterday I finish it" },
+      { type: "tutor", result: { kind: "reply", message: "Nice. What's next?", selfCorrected: false } },
+      { type: "followup", result: { kind: "hint", message: "When did it happen?", selfCorrected: false, support: "Pense no passado." } },
+    );
+    expect(state.captions.map((c) => c.text)).toEqual([
+      "Morning! What did you do yesterday?",
+      "Yesterday I finish it",
+      "Nice. What's next?",
+      "When did it happen?",
+    ]);
+    expect(state).toMatchObject({ hintStep: 1, hintFor: "Yesterday I finish it", support: "Pense no passado." });
+  });
+
+  it("takes help and goals from a follow-up without a spoken line", () => {
+    const state = run(
+      started,
+      { type: "sent", request: "audio" },
+      { type: "transcript", text: "Ontem eu fixed it" },
+      { type: "tutor", result: { kind: "reply", message: "Ontem is yesterday. Nice!", selfCorrected: false } },
+      { type: "followup", result: { kind: "reply", message: null, selfCorrected: false, support: "Ontem = yesterday.", coveredGoals: ["yesterday"] } },
+    );
+    expect(state.captions.at(-1)?.text).toBe("Ontem is yesterday. Nice!");
+    expect(state).toMatchObject({ support: "Ontem = yesterday.", coveredGoals: ["yesterday"], hintStep: 0 });
+  });
+
   it("opens with the tutor's first line, speaks it, then hands over", () => {
     let state = run(started, { type: "sent", request: "speak" });
     expect(state.phase).toBe("thinking");
