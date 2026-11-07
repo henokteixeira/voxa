@@ -25,6 +25,7 @@ export function LevelCard({ view, onSet }: { view: LevelView; onSet: (level: Cef
         <Button block asChild>
           <Link to={PLACEMENT_PATH}>{copy.startPlacement}</Link>
         </Button>
+        <AdjustLevel current={null} onSet={onSet} />
       </Card>
     );
   }
@@ -42,7 +43,7 @@ export function LevelCard({ view, onSet }: { view: LevelView; onSet: (level: Cef
           <h3 className="m-0 text-label text-taupe">{copy.evidenceLabel}</h3>
           <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
             {current.evidence.map((line) => (
-              <li key={line} lang="en" className="rounded-md bg-sand-soft px-3 py-2 text-small">
+              <li key={line} lang={current.language} className="rounded-md bg-sand-soft px-3 py-2 text-small">
                 “{line}”
               </li>
             ))}
@@ -59,27 +60,46 @@ export function LevelCard({ view, onSet }: { view: LevelView; onSet: (level: Cef
   );
 }
 
-function AdjustLevel({ current, onSet }: { current: CefrLevel; onSet: (level: CefrLevel) => Promise<void> }) {
+/** Hand correction. Without a level yet (e.g. a placement where little was said), it starts from the lowest level. */
+/** The level could not be read: say so, instead of looking like there is no level. */
+export function LevelUnavailable({ onRetry }: { onRetry: () => void }) {
+  const copy = useCopy(LEVEL_COPY);
+  return (
+    <Card role="region" aria-label={copy.levelTitle} className="gap-3">
+      <span className="text-body-strong">{copy.unavailableTitle}</span>
+      <span className="text-caption text-taupe">{copy.unavailableBody}</span>
+      <Button variant="ghost" block onClick={onRetry}>
+        {copy.tryAgain}
+      </Button>
+    </Card>
+  );
+}
+
+function AdjustLevel({ current, onSet }: { current: CefrLevel | null; onSet: (level: CefrLevel) => Promise<void> }) {
   const copy = useCopy(LEVEL_COPY);
   const [open, setOpen] = useState(false);
-  const [choice, setChoice] = useState<CefrLevel>(current);
+  const [choice, setChoice] = useState<CefrLevel>(current ?? CEFR_LEVELS[0]);
   const [failed, setFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
   const selectId = useId();
 
   if (!open) {
     return (
       <Button variant="ghost" block onClick={() => setOpen(true)}>
-        {copy.adjust}
+        {current ? copy.adjust : copy.setByHand}
       </Button>
     );
   }
   const save = async () => {
     setFailed(false);
+    setSaving(true);
     try {
       await onSet(choice);
       setOpen(false);
     } catch {
       setFailed(true);
+    } finally {
+      setSaving(false);
     }
   };
   return (
@@ -105,10 +125,10 @@ function AdjustLevel({ current, onSet }: { current: CefrLevel; onSet: (level: Ce
         </p>
       )}
       <div className="flex gap-2">
-        <Button variant="ghost" block onClick={() => setOpen(false)}>
+        <Button variant="ghost" block disabled={saving} onClick={() => setOpen(false)}>
           {copy.cancel}
         </Button>
-        <Button block onClick={save}>
+        <Button block disabled={saving} onClick={save}>
           {copy.save}
         </Button>
       </div>

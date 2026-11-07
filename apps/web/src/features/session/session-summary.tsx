@@ -31,7 +31,9 @@ export function SummaryFlow(props: {
 
   const { mistakes } = summary ?? { mistakes: [] };
   const realMistakes = mistakes.filter((m) => !isNewWord(m));
-  if (!summary || step === "saved") return <Saved mistakes={summary ? realMistakes.length : null} />;
+  // The placement interview never talks about mistakes, not even on the last screen.
+  const savedMistakes = summary && mode !== "placement" ? realMistakes.length : null;
+  if (!summary || step === "saved") return <Saved mistakes={savedMistakes} />;
 
   // The placement interview ends with the level, not with mistakes or a confidence question.
   if (mode === "placement") return <PlacementResult summary={summary} onDone={() => setStep("saved")} />;
@@ -221,7 +223,7 @@ function PlacementResult({ summary, onDone }: { summary: SessionSummary; onDone:
           {level.evidence.length > 0 && (
             <ul aria-label={levelCopy.evidenceLabel} className="m-0 flex list-none flex-col gap-1.5 p-0">
               {level.evidence.map((line) => (
-                <li key={line} lang="en" className="rounded-md bg-sand-soft px-3 py-2 text-small">
+                <li key={line} lang={level.language} className="rounded-md bg-sand-soft px-3 py-2 text-small">
                   “{line}”
                 </li>
               ))}

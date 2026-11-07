@@ -18,6 +18,10 @@ export interface LevelCopy {
   save: string;
   cancel: string;
   saveFailed: string;
+  setByHand: string;
+  unavailableTitle: string;
+  unavailableBody: string;
+  tryAgain: string;
 }
 
 export const LEVEL_COPY: Copy<LevelCopy> = {
@@ -39,6 +43,10 @@ export const LEVEL_COPY: Copy<LevelCopy> = {
     save: "Save",
     cancel: "Cancel",
     saveFailed: "Couldn't save. Try again.",
+    setByHand: "Or set it by hand",
+    unavailableTitle: "Couldn't load your level",
+    unavailableBody: "Voxa's server didn't answer. Your level is safe; try again in a moment.",
+    tryAgain: "Try again",
   },
   "pt-BR": {
     levelTitle: "Seu nível de fala",
@@ -58,5 +66,9 @@ export const LEVEL_COPY: Copy<LevelCopy> = {
     save: "Salvar",
     cancel: "Cancelar",
     saveFailed: "Não deu para salvar. Tente de novo.",
+    setByHand: "Ou escolha à mão",
+    unavailableTitle: "Não deu para carregar seu nível",
+    unavailableBody: "O servidor do Voxa não respondeu. Seu nível está guardado; tente de novo daqui a pouco.",
+    tryAgain: "Tentar de novo",
   },
 };

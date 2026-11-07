@@ -4,11 +4,13 @@ import type { CefrLevel, LevelView } from "@/lib/api";
 
 /**
  * The learner's speaking level. `view` is undefined while loading and null when it could not be read
- * (screens then go on as if there were no level). `set` corrects it by hand.
+ * (Today then goes on as if there were a level; Progress offers `reload`). `set` corrects it by hand.
  */
 export function useLevel() {
   const api = useApi();
   const [view, setView] = useState<LevelView | null | undefined>(undefined);
+
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -19,7 +21,12 @@ export function useLevel() {
     return () => {
       cancelled = true;
     };
-  }, [api]);
+  }, [api, attempt]);
+
+  const reload = useCallback(() => {
+    setView(undefined);
+    setAttempt((n) => n + 1);
+  }, []);
 
   const set = useCallback(
     async (level: CefrLevel) => {
@@ -28,5 +35,5 @@ export function useLevel() {
     [api],
   );
 
-  return { view, set };
+  return { view, set, reload };
 }

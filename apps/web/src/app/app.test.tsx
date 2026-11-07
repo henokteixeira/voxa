@@ -108,6 +108,12 @@ describe("Today", () => {
     expect(router.state.location.pathname).toBe("/session/placement");
   });
 
+  it("waits for the level before offering a session", async () => {
+    renderApp("/", up(), { level: vi.fn(() => new Promise(() => {})) });
+    await screen.findByRole("button", { name: "Other practice" });
+    expect(screen.queryByRole("link", { name: "Start" })).toBeNull();
+  });
+
   it("offers the daily when the level can't be read", async () => {
     renderApp("/", up(), { level: vi.fn().mockRejectedValue(new ApiError("server", "boom")) });
     expect(await screen.findByRole("heading", { name: "Your first session is ready" })).toBeInTheDocument();

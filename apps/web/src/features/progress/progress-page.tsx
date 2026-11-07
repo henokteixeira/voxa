@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { type Copy, useCopy } from "@/lib/i18n/locale";
-import { LevelCard } from "./level-card";
+import { LevelCard, LevelUnavailable } from "./level-card";
 import { useLevel } from "./use-level";
 
 const COPY: Copy<{ title: string; emptyTitle: string; emptyBody: string }> = {
@@ -23,7 +23,11 @@ export function ProgressPage() {
   return (
     <>
       <h1 className="m-0 text-title">{copy.title}</h1>
-      {level.view && <LevelCard view={level.view} onSet={level.set} />}
+      {level.view === null ? (
+        <LevelUnavailable onRetry={level.reload} />
+      ) : (
+        level.view && <LevelCard view={level.view} onSet={level.set} />
+      )}
       <Card>
         <span className="text-body-strong">{copy.emptyTitle}</span>
         <span className="text-caption text-taupe">{copy.emptyBody}</span>

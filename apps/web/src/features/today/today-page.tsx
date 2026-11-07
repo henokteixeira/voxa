@@ -160,6 +160,11 @@ export function TodayPage() {
             <Link to={`/session/${paused.mode}`}>{copy.continueSession}</Link>
           </Button>
         </Card>
+      ) : level.view === undefined ? (
+        // Wait for the level before offering a session, so Start never leads to the wrong one.
+        <Card aria-busy="true" className="items-center gap-3 px-5 py-6 text-center">
+          <VoiceBall state="idle" size={104} />
+        </Card>
       ) : needsPlacement ? (
         <Card className="items-center gap-3 px-5 py-6 text-center">
           <VoiceBall state="idle" size={104} />

@@ -62,6 +62,24 @@ describe("Progress", () => {
     expect(await screen.findByRole("link", { name: "Start the conversation" })).toHaveAttribute("href", "/session/placement");
   });
 
+  it("lets the learner set a level by hand when there is none", async () => {
+    const setLevel = vi.fn().mockResolvedValue({ ...placed, current: { ...placed.current!, source: "manual" } });
+    renderProgress({ level: vi.fn().mockResolvedValue({ current: null, placementDue: true }), setLevel });
+    await userEvent.click(await screen.findByRole("button", { name: "Or set it by hand" }));
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Level" }), "A2");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(setLevel).toHaveBeenCalledWith("A2");
+    expect(await screen.findByText("Level A2")).toBeInTheDocument();
+  });
+
+  it("says when the level can't be loaded and tries again", async () => {
+    const level = vi.fn().mockRejectedValueOnce(new Error("down")).mockResolvedValue(placed);
+    renderProgress({ level });
+    expect(await screen.findByText("Couldn't load your level")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Level A2")).toBeInTheDocument();
+  });
+
   it("says when a new placement is due", async () => {
     renderProgress({ level: vi.fn().mockResolvedValue({ ...placed, placementDue: true }) });
     expect(await screen.findByText(/It's been 4 weeks/)).toBeInTheDocument();

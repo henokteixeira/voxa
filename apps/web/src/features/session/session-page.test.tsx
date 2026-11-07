@@ -890,7 +890,7 @@ describe("placement interview", () => {
   it("ends with the estimated level and the learner's lines, without the confidence question", async () => {
     api.startSession.mockResolvedValue({ sessionId: "s1", mode: "placement", language: "en", message: "Hi! What do you do?", goals: ["warm_up"] });
     api.endSession.mockResolvedValue(
-      summaryWith([], {
+      summaryWith([mistake("minor", false, "I work in app for translate", "I work on a translation app")], {
         mode: "placement",
         level: { language: "en", level: "A2", source: "placement", evidence: ["I work in app for translate"], assessedAt: "2026-11-07T10:00:00Z" },
       }),
@@ -910,6 +910,8 @@ describe("placement interview", () => {
     expect(screen.getByText("“I work in app for translate”")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(await screen.findByRole("heading", { name: "Session saved" })).toBeInTheDocument();
+    // Slips noted during the interview are not presented as mistakes.
+    expect(screen.queryByText(/mistake bank/)).not.toBeInTheDocument();
     expect(api.rateConfidence).not.toHaveBeenCalled();
   });
 });
