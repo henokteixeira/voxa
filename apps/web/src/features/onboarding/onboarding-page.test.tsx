@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { VoiceDepsContext, type VoiceDeps } from "@/features/session/voice-deps";
 import { type MicrophoneHandlers, MicrophoneUnavailableError } from "@/lib/voice/microphone";
 import { NOT_HEARING_MS, OnboardingPage } from "./onboarding-page";
@@ -22,6 +22,8 @@ function renderOnboarding(openMicrophone: VoiceDeps["openMicrophone"]) {
   );
   return router;
 }
+
+afterEach(() => localStorage.clear());
 
 describe("OnboardingPage", () => {
   it("checks the microphone with one sentence, then leads to the level chat", async () => {
@@ -51,6 +53,30 @@ describe("OnboardingPage", () => {
     expect(screen.getByText("No hints and no corrections. The tutor only listens.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Start the chat" }));
     expect(router.state.location.pathname).toBe("/session/placement");
+    // Seen: coming back to Today without a level does not open the onboarding again.
+    expect(localStorage.getItem("voxa.onboardingSeen")).toBe("1");
+  });
+
+  it("remembers Do it later, so Today stops opening the onboarding on its own", async () => {
+    let handlers: MicrophoneHandlers | undefined;
+    const mic = { stop: vi.fn(), unlock: vi.fn(), pause: vi.fn(), resume: vi.fn(), sendNow: vi.fn() };
+    const router = renderOnboarding(
+      vi.fn(async (h: MicrophoneHandlers) => {
+        handlers = h;
+        return mic;
+      }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Get started" }));
+    await userEvent.click(screen.getByRole("button", { name: "Turn on the microphone" }));
+    await screen.findByText("Listening");
+    act(() => {
+      handlers?.onSpeechStart();
+      handlers?.onTurn(new ArrayBuffer(0));
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Do it later" }));
+    expect(router.state.location.pathname).toBe("/");
+    expect(localStorage.getItem("voxa.onboardingSeen")).toBe("1");
   });
 
   it("says why the microphone can't be used and lets the learner try again", async () => {

@@ -25,7 +25,12 @@ const api = {
   endSession: vi.fn(),
   resumeSession: vi.fn(),
   fillerSpeech: vi.fn(),
-  level: () => Promise.resolve({ current: null, placementDue: false }),
+  // A learner who already has a level: without one, Today opens the onboarding.
+  level: () =>
+    Promise.resolve({
+      current: { language: "en", level: "B1", source: "placement", evidence: [], assessedAt: "2026-11-07T10:00:00Z", step: "supported" },
+      placementDue: false,
+    }),
   todayProgress: vi.fn(),
   voiceUrl: (id: string) => `ws://api/api/sessions/${id}/voice`,
 } as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "resumeSession" | "fillerSpeech" | "todayProgress"]: ReturnType<typeof vi.fn> };

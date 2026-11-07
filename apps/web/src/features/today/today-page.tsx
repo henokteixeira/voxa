@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Link } from "react-router";
+import { Link, Navigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SegmentedSetting } from "@/components/ui/segmented";
@@ -14,6 +14,7 @@ import { useApi } from "@/hooks/use-api";
 import { useApiStatus } from "@/hooks/use-api-status";
 import { useOnline } from "@/hooks/use-online";
 import { MEETING_MODES } from "@/lib/api";
+import { onboardingSeen } from "@/features/onboarding/onboarding-seen";
 import { ONBOARDING_PATH } from "@/features/onboarding/onboarding-page";
 import { useLevel } from "@/features/progress/use-level";
 import { LOCALES, useCopy, useLocale } from "@/lib/i18n/locale";
@@ -103,6 +104,9 @@ export function TodayPage() {
   // Before the first placement, Start opens the onboarding, which ends in the placement interview.
   const level = useLevel();
   const needsPlacement = level.view?.current === null;
+  // First run: the onboarding opens on its own, once; not over a session left mid-way.
+  const [seen] = useState(onboardingSeen);
+  if (needsPlacement && !seen && !paused) return <Navigate to={ONBOARDING_PATH} replace />;
   const date = now.toLocaleDateString(locale, { weekday: "long", month: "short", day: "numeric" });
 
   return (
