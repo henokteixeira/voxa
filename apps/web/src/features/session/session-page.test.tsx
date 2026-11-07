@@ -773,8 +773,8 @@ describe("session summary", () => {
       .mockResolvedValueOnce({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, language: "en", name: past.name }, cue: "Eu terminei ontem." })
       .mockResolvedValueOnce({ cardId: "c2", item: { subject: { kind: "pattern", id: "p2" }, language: "en", name: waitFor.name }, cue: "Estou esperando as chaves." });
     api.answerReview
-      .mockResolvedValueOnce({ recalled: true, answer: "I finished it yesterday.", rule: past.rule, nextDueAt: inDays(3) })
-      .mockResolvedValueOnce({ recalled: false, answer: "I'm waiting for the keys.", rule: waitFor.rule, nextDueAt: inDays(1) });
+      .mockResolvedValueOnce({ recalled: true, answer: "I finished it yesterday.", rule: past.rule, nextDueAt: inDays(3), xp: 1 })
+      .mockResolvedValueOnce({ recalled: false, answer: "I'm waiting for the keys.", rule: waitFor.rule, nextDueAt: inDays(1), xp: 1 });
     await startAndListen();
     await endFromPause();
     await userEvent.click(await screen.findByRole("button", { name: "See what to keep" }));
@@ -802,6 +802,7 @@ describe("session summary", () => {
     await userEvent.click(screen.getByRole("button", { name: "Finish" }));
 
     expect(screen.getByRole("heading", { name: "Saved for your review" })).toBeInTheDocument();
+    expect(screen.getByText("+2 XP toward today's goal")).toBeInTheDocument();
     expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual([
       `${past.name}in 3 days`,
       `${waitFor.name}tomorrow`,
@@ -822,11 +823,22 @@ describe("session summary", () => {
     expect(screen.getByText("“Eu terminei ontem.”")).toBeInTheDocument();
   });
 
+  it("earns no review XP when the learner leaves the patterns for later", async () => {
+    api.endSession.mockResolvedValue(summaryWith(patterned, { takeaways }));
+    await startAndListen();
+    await endFromPause();
+    await userEvent.click(await screen.findByRole("button", { name: "See what to keep" }));
+    await userEvent.click(screen.getByRole("button", { name: "Later" }));
+
+    expect(screen.getByRole("heading", { name: "Session saved" })).toBeInTheDocument();
+    expect(screen.queryByText(/XP toward today's goal/)).not.toBeInTheDocument();
+  });
+
   it("asks again when nothing was heard, and lets the learner type instead", async () => {
     api.endSession.mockResolvedValue(summaryWith(patterned, { takeaways: takeaways.slice(0, 1) }));
     api.reviewCard.mockResolvedValue({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, language: "en", name: past.name }, cue: "Eu terminei ontem." });
     api.transcribe.mockResolvedValueOnce("");
-    api.answerReview.mockResolvedValue({ recalled: true, answer: "I finished it yesterday.", rule: past.rule, nextDueAt: new Date().toISOString() });
+    api.answerReview.mockResolvedValue({ recalled: true, answer: "I finished it yesterday.", rule: past.rule, nextDueAt: new Date().toISOString(), xp: 1 });
     await startAndListen();
     await endFromPause();
     await userEvent.click(await screen.findByRole("button", { name: "See what to keep" }));

@@ -36,6 +36,13 @@ export interface StoredReviewCard {
   recalled: boolean | null;
 }
 
+/** When a card was answered, and for which item. */
+export interface AnsweredCard {
+  cardId: string;
+  itemId: string;
+  answeredAt: Date;
+}
+
 /** The review schedule of each pattern and new word. The concrete implementation lives in infra/. */
 export interface ReviewRepository {
   state(subject: ReviewSubject): Promise<ReviewState | null>;
@@ -50,6 +57,8 @@ export interface ReviewRepository {
   card(id: string): Promise<StoredReviewCard | null>;
   /** Records the answer once: false when the card was already answered (e.g. a retried request). */
   answerCard(id: string, recalled: boolean, at: Date): Promise<boolean>;
+  /** The cards in this language answered since a moment: which item each was for and when, oldest first. */
+  answeredSince(language: string, since: Date): Promise<AnsweredCard[]>;
   /** Every schedule in this language, due or not (dismissed or not). */
   schedules(language: string): Promise<ReviewSchedule[]>;
   /** When the next item not yet due comes back, or null when there is none. */

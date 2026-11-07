@@ -33,6 +33,7 @@ export interface PracticeCopy {
   practiceThis: string;
   reviewDone: string;
   reviewDoneNote: string;
+  reviewXp: (xp: number) => string;
   done: string;
   reviewEmpty: string;
 }
@@ -71,6 +72,7 @@ export const PRACTICE_COPY: Copy<PracticeCopy> = {
     practiceThis: "Practice this · 1 min",
     reviewDone: "Review done",
     reviewDoneNote: "The longer the wait, the better you know it.",
+    reviewXp: (xp) => `+${xp} XP toward today's goal`,
     done: "Done",
     reviewEmpty: "Nothing to review right now.",
   },
@@ -105,6 +107,7 @@ export const PRACTICE_COPY: Copy<PracticeCopy> = {
     practiceThis: "Praticar este · 1 min",
     reviewDone: "Revisão concluída",
     reviewDoneNote: "Quanto maior a espera, melhor você já sabe.",
+    reviewXp: (xp) => `+${xp} XP para a meta de hoje`,
     done: "Concluir",
     reviewEmpty: "Nada para revisar agora.",
   },

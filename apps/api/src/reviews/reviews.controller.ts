@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Post, Query } from "@nestjs/common";
 import { z } from "zod";
 import { ReviewService } from "../application/review.service.js";
-import { Language, parse } from "../common/http.js";
+import { Language, parse, TimeZone } from "../common/http.js";
 
 const OverviewQuery = z.object({ language: Language });
 const Subject = z.object({ kind: z.enum(["pattern", "new_word"]), id: z.uuid() });
@@ -10,6 +10,8 @@ const AnswerBody = z.object({
   cardId: z.uuid(),
   /** What the learner said; null when they chose "I don't know". */
   utterance: z.string().max(2000).nullable(),
+  /** The learner's time zone: an item earns XP once per local day. */
+  timeZone: TimeZone,
 });
 
 @Controller("reviews")
@@ -35,7 +37,7 @@ export class ReviewsController {
   @Post("answers")
   @HttpCode(200)
   async answer(@Body() body: unknown) {
-    const { cardId, utterance } = parse(AnswerBody, body);
-    return this.reviews.answer(cardId, utterance);
+    const { cardId, utterance, timeZone } = parse(AnswerBody, body);
+    return this.reviews.answer(cardId, utterance, timeZone);
   }
 }

@@ -43,6 +43,24 @@ export const XP_POINTS: Record<XpReason, number> = {
   personal_record: 3,
 };
 
+/**
+ * XP for each answered review item, right or wrong (decided on 2026-11-07): about a minute of practice, like a minute
+ * of conversation, and a miss is worth the same so the review never feels like a test.
+ * An item earns it once a day: practicing it again is welcome, but does not move the goal again.
+ */
+export const XP_PER_REVIEW = 1;
+
+/** The answered review cards that earn XP: each item's first answer of a local day. Expects them oldest first. */
+export function cardsEarningXp<T extends { itemId: string; answeredAt: Date }>(answered: readonly T[], timeZone: string): T[] {
+  const seen = new Set<string>();
+  return answered.filter(({ itemId, answeredAt }) => {
+    const key = `${itemId}:${localDay(answeredAt, timeZone)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 /** XP earned in one session, by reason. */
 export interface XpAward {
   reason: XpReason;

@@ -2,11 +2,8 @@ import { Body, Controller, Get, Put, Query } from "@nestjs/common";
 import { z } from "zod";
 import { ProgressService } from "../application/progress.service.js";
 import { SignalsService } from "../application/signals.service.js";
-import { Language, parse } from "../common/http.js";
-import { DAILY_MINUTES, isTimeZone } from "../domain/progress/daily-goal.js";
-
-/** An IANA time zone (e.g. "America/Sao_Paulo"): days, the goal and the streak follow the learner's clock. */
-const TimeZone = z.string().max(64).refine(isTimeZone, "Unknown time zone.");
+import { Language, parse, TimeZone } from "../common/http.js";
+import { DAILY_MINUTES } from "../domain/progress/daily-goal.js";
 const TodayQuery = z.object({ language: Language, timeZone: TimeZone });
 const SignalsQuery = z.object({ language: Language });
 const DailyGoalBody = z.object({

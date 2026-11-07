@@ -8,8 +8,13 @@ import {
   REVIEW_REPOSITORY,
   type ReviewRepository,
   type ReviewSubject,
+  type StoredReviewCard,
 } from "../domain/ports/review.repository.js";
+import { cardsEarningXp, XP_PER_REVIEW } from "../domain/progress/daily-goal.js";
 import { ReviewScheduler } from "./review-scheduler.js";
+
+/** How far back to look for an item's earlier answers the same day; also covers a retried answer. */
+const XP_LOOKBACK_MS = 2 * 86_400_000;
 
 /** How many items one review asks for: short enough for about three minutes by voice. */
 export const REVIEW_SIZE = 5;
@@ -52,6 +57,11 @@ export interface ReviewAnswer {
   rule: string;
   /** When the item comes back. */
   nextDueAt: Date;
+  /**
+   * XP the answer earned: only an item's first answer of the learner's day earns it. A retried answer reports the same
+   * XP without adding more.
+   */
+  xp: number;
 }
 
 @Injectable()
@@ -85,25 +95,32 @@ export class ReviewService {
    * Checks the spoken answer to a card (null: the learner said they don't know) and moves the item's schedule.
    * A card is answered once: sending the same answer again (a retried request) returns the first result.
    */
-  async answer(cardId: string, utterance: string | null): Promise<ReviewAnswer> {
+  async answer(cardId: string, utterance: string | null, timeZone: string): Promise<ReviewAnswer> {
     const card = await this.reviews.card(cardId);
     if (!card) throw new ReviewCardNotFoundError(cardId);
     const item = await this.find(card.subject);
-    if (card.recalled !== null) return this.result(card.recalled, card, item);
+    if (card.recalled !== null) return this.result(card.recalled, card, item, timeZone);
 
     const said = utterance?.trim();
     const recalled = said ? await this.coach.check(item, card, said) : false;
     const now = this.clock.now();
     if (!(await this.reviews.answerCard(card.id, recalled, now))) {
       const first = await this.reviews.card(card.id);
-      return this.result(first?.recalled ?? recalled, card, await this.find(card.subject));
+      return this.result(first?.recalled ?? recalled, card, await this.find(card.subject), timeZone);
     }
     const next = await this.scheduler.answered(item.language, card.subject, recalled ? "recalled" : "missed", now);
-    return { recalled, answer: card.answer, rule: item.rule, nextDueAt: next.dueAt };
+    return { recalled, answer: card.answer, rule: item.rule, nextDueAt: next.dueAt, xp: await this.xpFor(card.id, item.language, timeZone) };
   }
 
-  private result(recalled: boolean, card: ReviewCue, item: ReviewItem): ReviewAnswer {
-    return { recalled, answer: card.answer, rule: item.rule, nextDueAt: item.dueAt };
+  private async result(recalled: boolean, card: StoredReviewCard, item: ReviewItem, timeZone: string): Promise<ReviewAnswer> {
+    return { recalled, answer: card.answer, rule: item.rule, nextDueAt: item.dueAt, xp: await this.xpFor(card.id, item.language, timeZone) };
+  }
+
+  /** Whether the card was its item's first answer of the learner's day (a local day spans at most 26 hours). */
+  private async xpFor(cardId: string, language: string, timeZone: string): Promise<number> {
+    const since = new Date(this.clock.now().getTime() - XP_LOOKBACK_MS);
+    const earning = cardsEarningXp(await this.reviews.answeredSince(language, since), timeZone);
+    return earning.some((c) => c.cardId === cardId) ? XP_PER_REVIEW : 0;
   }
 
   private async find(subject: ReviewSubject): Promise<ReviewItem> {
