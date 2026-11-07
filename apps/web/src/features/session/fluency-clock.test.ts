@@ -54,3 +54,14 @@ describe("FluencyClock", () => {
     expect(clock.timing()).toEqual({ tutorSpeechMs: 0, pausesMs: [1000], learnerSpeechMs: 0 });
   });
 });
+
+describe("FluencyClock.from", () => {
+  it("goes on from the timing measured before a reload", () => {
+    const clock = FluencyClock.from({ learnerSpeechMs: 1000, tutorSpeechMs: 2000, pausesMs: [500] });
+    clock.tutorStarted(0);
+    clock.tutorStopped(1000);
+    clock.learnerStarted(1300);
+    clock.learnerEnded(2300, { silenceMs: 0 });
+    expect(clock.timing()).toEqual({ learnerSpeechMs: 2000, tutorSpeechMs: 3000, pausesMs: [500, 300] });
+  });
+});

@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useEffect, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import { Link, Navigate, useLocation, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -26,23 +26,13 @@ export function SessionPage() {
   return <LiveSession mode={mode} confidenceBefore={checkIn?.confidenceBefore} />;
 }
 
-function useElapsed(running: boolean): string {
-  const [seconds, setSeconds] = useState(0);
-  useEffect(() => {
-    if (!running) return;
-    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
-    return () => clearInterval(timer);
-  }, [running]);
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
 function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?: number }) {
   const session = useVoiceSession(mode, confidenceBefore);
   const modes = useModeInfo();
   const { stage: stageCopy, page } = useCopy(SESSION_COPY);
   const { state } = session;
   const [showTranscript, setShowTranscript] = useState(false);
-  const elapsed = useElapsed(state.sessionId !== null && state.phase !== "paused" && state.phase !== "ended");
+  const { elapsed } = session;
   const stage = stageFor(state, stageCopy);
   const lastCaption = state.captions.at(-1);
   const lastTutor = state.captions.findLast((c) => c.who === "tutor");

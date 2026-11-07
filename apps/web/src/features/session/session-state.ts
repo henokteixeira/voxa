@@ -75,6 +75,14 @@ export type Retry = { kind: "text"; text: string } | { kind: "speak" } | { kind:
 
 export type SessionAction =
   | { type: "started"; sessionId: string; message: string; goals?: string[] }
+  | {
+      type: "resumed";
+      sessionId: string;
+      captions: Caption[];
+      goals: string[];
+      coveredGoals: string[];
+      hint: { hintsGiven: number; revealed: boolean } | null;
+    }
   | { type: "keep_going" }
   | { type: "sent"; request: "audio" | "speak" }
   | { type: "sent"; request: "text"; text: string }
@@ -140,6 +148,23 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         captions: [{ who: "tutor", text: action.message }],
         goals: action.goals ?? [],
       };
+    case "resumed": {
+      // After a reload: paused until a tap (the browser needs one to play and record), then the tutor's last line again.
+      if (state.phase !== "starting") return state;
+      const hint = action.hint;
+      return {
+        ...state,
+        phase: "paused",
+        sessionId: action.sessionId,
+        captions: action.captions,
+        goals: action.goals,
+        coveredGoals: action.coveredGoals,
+        hintStep: hint && !hint.revealed ? Math.min(2, hint.hintsGiven) : 0,
+        hintFor: hint ? (action.captions.findLast((c) => c.who === "you")?.text ?? null) : null,
+        revealed: hint?.revealed ?? false,
+        turn: freshTurn("speak"),
+      };
+    }
     case "keep_going":
       return { ...state, checkIn: false };
     case "sent":
