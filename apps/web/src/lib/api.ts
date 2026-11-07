@@ -307,8 +307,6 @@ export interface TodayProgress {
   streakDays: number;
   /** XP for each reason, to show XP as it is earned. */
   points: Record<XpReason, number>;
-  /** XP for each answered review item. */
-  reviewPoints: number;
 }
 
 /** The device's IANA time zone: days, the goal and the streak follow the learner's clock. */

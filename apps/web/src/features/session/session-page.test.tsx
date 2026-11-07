@@ -806,6 +806,17 @@ describe("session summary", () => {
     expect(screen.getByText("“Eu terminei ontem.”")).toBeInTheDocument();
   });
 
+  it("earns no review XP when the learner leaves the patterns for later", async () => {
+    api.endSession.mockResolvedValue(summaryWith(patterned, { takeaways }));
+    await startAndListen();
+    await endFromPause();
+    await userEvent.click(await screen.findByRole("button", { name: "See what to keep" }));
+    await userEvent.click(screen.getByRole("button", { name: "Later" }));
+
+    expect(screen.getByRole("heading", { name: "Session saved" })).toBeInTheDocument();
+    expect(screen.queryByText(/XP toward today's goal/)).not.toBeInTheDocument();
+  });
+
   it("asks again when nothing was heard, and lets the learner type instead", async () => {
     api.endSession.mockResolvedValue(summaryWith(patterned, { takeaways: takeaways.slice(0, 1) }));
     api.reviewCard.mockResolvedValue({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, language: "en", name: past.name }, cue: "Eu terminei ontem." });

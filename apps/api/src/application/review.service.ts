@@ -9,8 +9,8 @@ import {
   type ReviewRepository,
   type ReviewSubject,
 } from "../domain/ports/review.repository.js";
-import { ReviewScheduler } from "./review-scheduler.js";
 import { XP_PER_REVIEW } from "../domain/progress/daily-goal.js";
+import { ReviewScheduler } from "./review-scheduler.js";
 
 /** How many items one review asks for: short enough for about three minutes by voice. */
 export const REVIEW_SIZE = 5;

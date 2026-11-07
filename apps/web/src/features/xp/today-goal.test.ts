@@ -9,7 +9,6 @@ const today = (earnedXp: number): TodayProgress => ({
   earnedXp,
   goalMet: earnedXp >= 40,
   streakDays: 1,
-  reviewPoints: 1,
   points: { practice_minute: 1, goal_covered: 5, self_corrected: 5, personal_record: 5 },
 });
 
