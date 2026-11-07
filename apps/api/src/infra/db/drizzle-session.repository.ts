@@ -4,6 +4,7 @@ import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import { isTrackStage, type TrackState } from "../../domain/conversation/guided-track.js";
 import { isMode } from "../../domain/conversation/mode.js";
 import { isSupportStep, type SupportStep } from "../../domain/level/speaking-level.js";
+import type { TutorMemory } from "../../domain/memory/learner-fact.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget, Session } from "../../domain/conversation/types.js";
 import type {
   NewTurn,
@@ -35,6 +36,7 @@ function toSession(row: SessionRow): Session {
     step: row.supportStep,
     scaffold: row.scaffold,
     track: toTrack(row),
+    memory: row.memory,
   };
 }
 
@@ -73,6 +75,7 @@ export class DrizzleSessionRepository implements SessionRepository {
     ...input
   }: Pick<Session, "language" | "mode"> & {
     startedAt?: Date;
+    memory?: TutorMemory;
     targets?: PracticeTarget[];
     step?: SupportStep | null;
     track?: TrackState | null;

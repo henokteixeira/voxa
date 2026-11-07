@@ -13,8 +13,8 @@ export interface LearnerMemoryRepository {
    * Facts and the session's recap are saved together.
    */
   save(sessionId: string, language: string, memory: SessionMemory, at: Date): Promise<boolean>;
-  /** The newest ended sessions that have a recap, newest first. */
-  recentSessions(limit: number): Promise<RecalledSession[]>;
+  /** The newest sessions started before `before` that have a recap, newest first. */
+  recentSessions(limit: number, before: Date): Promise<RecalledSession[]>;
 }
 
 export const LEARNER_MEMORY_REPOSITORY = Symbol("LEARNER_MEMORY_REPOSITORY");

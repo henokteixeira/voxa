@@ -37,7 +37,17 @@ describe("DrizzleSessionRepository", () => {
       step: null,
       scaffold: null,
       track: null,
+      memory: { facts: [], recentSessions: [] },
     });
+  });
+
+  it("keeps what the tutor remembered at the start", async () => {
+    const memory = {
+      facts: [{ topic: "work" as const, statement: "Works as a developer." }],
+      recentSessions: [{ mode: "daily" as const, daysAgo: 1, recap: "Fixed a bug." }],
+    };
+    const created = await sessions.create({ language: "en", mode: "free_talk", memory });
+    expect((await sessions.get(created.id))?.memory).toEqual(memory);
   });
 
   it("keeps the start time, the practice targets and the goals' progress", async () => {

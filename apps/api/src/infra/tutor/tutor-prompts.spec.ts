@@ -4,6 +4,7 @@ import { MISTAKE_TYPES } from "../../domain/mistakes/mistake-type.js";
 import { SUPPORT_STEPS, type SupportStep } from "../../domain/level/speaking-level.js";
 import {
   buildSystemPrompt,
+  memorySection,
   buildTrackInstruction,
   buildTurnMessage,
   PLACEMENT_RULES,
@@ -223,5 +224,34 @@ describe("buildTurnMessage", () => {
     expect(message).toContain("<known_mistakes>\nnone\n</known_mistakes>");
     expect(message).toContain("<pending_correction>\nnone\n</pending_correction>");
     expect(message).toContain("<bring_back>\nnone\n</bring_back>");
+  });
+});
+
+describe("memorySection", () => {
+  it("is empty when nothing is remembered", () => {
+    expect(memorySection(undefined)).toBe("");
+    expect(memorySection({ facts: [], recentSessions: [] })).toBe("");
+  });
+
+  it("lists the facts and the recent sessions, and asks to bring one up at most once", () => {
+    const section = memorySection({
+      facts: [{ topic: "work", statement: "Works as a developer." }],
+      recentSessions: [
+        { mode: "daily", daysAgo: 0, recap: "Fixed the upload bug." },
+        { mode: "free_talk", daysAgo: 1, recap: "Talked about a trip." },
+        { mode: "review", daysAgo: 5, recap: "Reviewed the sync PR." },
+      ],
+    });
+    expect(section).toContain("at most once in this session");
+    expect(section).toContain("- Works as a developer. (work)");
+    expect(section).toContain("- earlier today, daily: Fixed the upload bug.");
+    expect(section).toContain("- yesterday, free_talk: Talked about a trip.");
+    expect(section).toContain("- 5 days ago, review: Reviewed the sync PR.");
+  });
+
+  it("goes into the system prompt", () => {
+    const memory = { facts: [{ topic: "life" as const, statement: "Lives in Brazil." }], recentSessions: [] };
+    const prompt = buildSystemPrompt({ mode: "daily", language: "en", learnerContext: "", memory, goals: [], targets: [], step: null }, "pt-BR");
+    expect(prompt).toContain(memorySection(memory));
   });
 });

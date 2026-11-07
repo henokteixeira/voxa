@@ -1,5 +1,6 @@
 import type { Mode } from "../../domain/conversation/mode.js";
 import type { SupportStep } from "../../domain/level/speaking-level.js";
+import type { TutorMemory } from "../../domain/memory/learner-fact.js";
 import type { TrackStage } from "../../domain/conversation/guided-track.js";
 import type { TrackPlan, TrackStep, TutorContext, TutorRequest } from "../../domain/ports/tutor.port.js";
 
@@ -82,9 +83,27 @@ export const PLACEMENT_RULES = [
   "- Keep your own sentences simple and slow at the easy tasks, and natural at the harder ones.",
 ].join("\n");
 
+const ago = (days: number) => (days === 0 ? "earlier today" : days === 1 ? "yesterday" : `${days} days ago`);
+
+/** What the learner told the tutor in earlier sessions; empty when nothing is remembered. */
+export function memorySection(memory: TutorMemory | undefined): string {
+  if (!memory || (!memory.facts.length && !memory.recentSessions.length)) return "";
+  return [
+    "## What you remember",
+    "The learner told you these things in earlier sessions. Remember them like a friend would: at most once in " +
+      'this session, when it fits, bring one up naturally ("Last time you told me you ..."), and connect it to ' +
+      "what the learner says now. Never list them and never quiz the learner about them. When the learner now " +
+      "says something different, believe the learner.",
+    ...memory.facts.map((f) => `- ${f.statement} (${f.topic})`),
+    ...(memory.recentSessions.length
+      ? ["Recent sessions:", ...memory.recentSessions.map((s) => `- ${ago(s.daysAgo)}, ${s.mode}: ${s.recap}`)]
+      : []),
+  ].join("\n");
+}
+
 /** Stable per session, so it can be cached. */
 export function buildSystemPrompt(
-  { mode, language, learnerContext, goals, targets, step }: TutorContext,
+  { mode, language, learnerContext, memory, goals, targets, step }: TutorContext,
   firstLanguage: string,
 ): string {
   return [
@@ -134,6 +153,7 @@ export function buildSystemPrompt(
     learnerContext.trim()
       ? `## About the learner\nUse these facts to make the scene realistic. Do not recite them.\n\n${learnerContext.trim()}`
       : "## About the learner\nNo details were given. Ask about their work when it helps the scene.",
+    memorySection(memory),
     [
       "## Reading the learner's utterance",
       "The text comes from speech recognition. Ignore punctuation, capitalization and filler words.",

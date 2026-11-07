@@ -164,9 +164,11 @@ export class ConversationService {
     ]);
     const step = sessionStep(mode, level?.level ?? null);
     const track = startTrack(step, goalsFor(mode)[0] ?? null);
-    const created = await this.sessions.create({ mode, language, startedAt: this.clock.now(), targets, step, track });
+    const startedAt = this.clock.now();
+    const [learnerContext, memory] = await Promise.all([this.learnerContext.load(), this.memory.recall({ startedAt })]);
+    const created = await this.sessions.create({ mode, language, startedAt, targets, step, track, memory });
     const plan = track ? openingPlan(track, describeGoal) : null;
-    const opening = await this.tutor.open(this.tutorContext(created, await this.learnerContext.load()), plan);
+    const opening = await this.tutor.open(this.tutorContext(created, learnerContext), plan);
     await this.sessions.appendTurn(created.id, { role: "assistant", content: opening.line });
     // In the guided track the opening already gives the first model sentence.
     const scaffold = track && givesWords(track.stage) ? opening.scaffold : null;
@@ -432,6 +434,7 @@ export class ConversationService {
       mode: session.mode,
       language: session.language,
       learnerContext,
+      memory: session.memory,
       goals: goalsFor(session.mode).map((id) => ({ id, description: GOAL_DESCRIPTIONS[id] })),
       targets: session.targets,
       step: session.step,

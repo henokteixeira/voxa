@@ -19,6 +19,7 @@ const session: Session = {
   step: "conversation",
   scaffold: null,
   track: null,
+  memory: { facts: [], recentSessions: [] },
 };
 const reply = { kind: "hint" as const, message: "When did it happen?", selfCorrected: false };
 

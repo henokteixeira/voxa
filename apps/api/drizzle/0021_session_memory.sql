@@ -1,0 +1,1 @@
+ALTER TABLE "sessions" ADD COLUMN "memory" jsonb DEFAULT '{"facts":[],"recentSessions":[]}'::jsonb NOT NULL;
