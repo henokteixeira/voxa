@@ -34,8 +34,11 @@ export interface TutorRequest extends TutorContext {
 export interface TutorPort {
   /** The tutor's first line, which opens the scene for the mode. */
   open(context: TutorContext): Promise<string>;
-  /** Reads the learner's utterance: mistakes, whether a pending one is fixed, and the next line. */
-  evaluate(request: TutorRequest): Promise<TutorVerdict>;
+  /**
+   * Reads the learner's utterance: mistakes, whether a pending one is fixed, and the next line.
+   * `onReply` gets the next line as soon as it is written, while the rest of the reading goes on.
+   */
+  evaluate(request: TutorRequest, onReply?: (reply: string) => void): Promise<TutorVerdict>;
 }
 
 /** The tutor could not answer (provider down, refusal, cut-off or invalid output). */
