@@ -102,16 +102,17 @@ describe("app shell", () => {
 
   it("opens a session full screen, without the tab bar", async () => {
     const router = renderApp("/", up());
-    await userEvent.click(await screen.findByRole("link", { name: "Start" }));
+    await userEvent.click(await screen.findByRole("link", { name: /Daily stand-up/ }));
     expect(router.state.location.pathname).toBe("/session/daily");
     expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
   });
 });
 
 describe("Today", () => {
-  it("offers one session to start when the API is up", async () => {
+  it("asks what to practice, with nothing picked for the learner", async () => {
     renderApp("/", up());
-    expect(await screen.findByRole("link", { name: "Start" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Start" })).toBeNull();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Good (morning|afternoon|evening)$/);
   });
 
@@ -130,13 +131,13 @@ describe("Today", () => {
 
   it("waits for the level before offering a session", async () => {
     renderApp("/", up(), { level: vi.fn(() => new Promise(() => {})) });
-    await screen.findByRole("button", { name: "Other practice" });
-    expect(screen.queryByRole("link", { name: "Start" })).toBeNull();
+    await screen.findByRole("navigation", { name: "Practice categories" });
+    expect(screen.queryByRole("heading", { name: "What do you want to practice now?" })).toBeNull();
   });
 
-  it("offers the daily when the level can't be read", async () => {
+  it("offers the categories when the level can't be read", async () => {
     renderApp("/", up(), { level: vi.fn().mockRejectedValue(new ApiError("server", "boom")) });
-    expect(await screen.findByRole("heading", { name: "Your first session is ready" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
   });
 
   it("shows the voice review on Today only when something is due", async () => {
@@ -146,16 +147,17 @@ describe("Today", () => {
     expect(router.state.location.pathname).toBe("/review");
   });
 
-  it("keeps other practice in a sheet, not in a list under the fold", async () => {
+  it("lists the everyday and work categories at the bottom, and each one starts its session", async () => {
     const router = renderApp("/", up());
-    await userEvent.click(await screen.findByRole("button", { name: "Other practice" }));
-    const sheet = screen.getByRole("dialog", { name: "Other practice" });
-    expect(sheet).toHaveTextContent("Present your project");
-    expect(sheet).toHaveTextContent("Sprint review");
-    // The placement interview is not a meeting to practice.
-    expect(sheet).not.toHaveTextContent("Find your speaking level");
-    await userEvent.click(screen.getByRole("link", { name: /Sprint review/ }));
-    expect(router.state.location.pathname).toBe("/session/review");
+    const categories = await screen.findByRole("navigation", { name: "Practice categories" });
+    const everyday = within(categories).getByRole("region", { name: "Everyday" });
+    expect(everyday).toHaveTextContent(/Free conversation.*Talk about your day.*Tell a story.*Give your opinion/);
+    const work = within(categories).getByRole("region", { name: "Work" });
+    expect(work).toHaveTextContent(/Daily stand-up.*Present your project.*Sprint review/);
+    // The placement interview is not a category to practice.
+    expect(categories).not.toHaveTextContent("Find your speaking level");
+    await userEvent.click(within(everyday).getByRole("link", { name: /Tell a story/ }));
+    expect(router.state.location.pathname).toBe("/session/story");
   });
 
   it("says mistakes are welcome, Portuguese is fine and Voxa can be wrong too", async () => {
@@ -177,13 +179,14 @@ describe("Today", () => {
 
   it("starts in Portuguese and switches the interface to English", async () => {
     renderApp("/", up(), { withLocale: true });
-    expect(await screen.findByRole("link", { name: "Começar" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "O que você quer treinar agora?" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Categorias de treino" })).toHaveTextContent("Contar uma história");
     expect(screen.getByRole("region", { name: "Aqui, errar faz parte" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Principal" })).toHaveTextContent("HojePraticarProgresso");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^(Bom dia|Boa tarde|Boa noite)$/);
 
     await userEvent.click(screen.getByRole("button", { name: "English" }));
-    expect(screen.getByRole("link", { name: "Start" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "English" })).toHaveAttribute("aria-pressed", "true");
     expect(document.documentElement.lang).toBe("en");
   });
@@ -217,11 +220,11 @@ describe("Today", () => {
     renderApp("/", health);
 
     expect(await screen.findByRole("heading", { name: "Voxa's server isn't running" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Start" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Practice categories" })).toBeNull();
 
     health.mockResolvedValue({ status: "ok" });
     await userEvent.click(screen.getByRole("button", { name: "Check again" }));
-    expect(await screen.findByRole("link", { name: "Start" })).toBeInTheDocument();
+    expect(await screen.findByRole("navigation", { name: "Practice categories" })).toBeInTheDocument();
     expect(health).toHaveBeenCalledTimes(2);
   });
 
@@ -249,7 +252,7 @@ describe("Today", () => {
     await screen.findByRole("heading", { name: "Voxa's server isn't running" });
     health.mockResolvedValue({ status: "ok" });
     window.dispatchEvent(new Event("online"));
-    expect(await screen.findByRole("link", { name: "Start" })).toBeInTheDocument();
+    expect(await screen.findByRole("navigation", { name: "Practice categories" })).toBeInTheDocument();
   });
 });
 
@@ -274,7 +277,7 @@ describe("a paused session on Today", () => {
     endSession.mockClear();
     save(121);
     renderApp("/", up());
-    expect(await screen.findByRole("link", { name: "Start" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Continue session" })).toBeNull();
     expect(endSession).toHaveBeenCalledWith("s1", timing);
     await vi.waitFor(() => expect(localStorage.getItem("voxa.liveSession")).toBeNull());

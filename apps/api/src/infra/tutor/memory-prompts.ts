@@ -34,6 +34,9 @@ export function buildMemoryPrompt(): string {
 const MODE_NAMES: Record<Mode, string> = {
   presentation: "project presentation (role play)",
   free_talk: "free conversation",
+  my_day: "chat about the learner's day (role play)",
+  story: "telling a story from the learner's life (role play)",
+  opinion: "giving an opinion on an everyday topic (role play)",
   daily: "daily stand-up (role play)",
   review: "review meeting (role play)",
   placement: "speaking level interview",

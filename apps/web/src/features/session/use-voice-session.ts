@@ -228,7 +228,7 @@ export function useVoiceSession(mode: Mode) {
       }
       const saved = takeSavedSession(api);
       if (saved && saved.mode !== mode) {
-        // Another meeting type was asked for: close the old session, best effort.
+        // Another category was asked for: close the old session, best effort.
         clearSavedSession();
         void api.endSession(saved.sessionId, saved.timing).catch(() => {});
       } else if (saved) {

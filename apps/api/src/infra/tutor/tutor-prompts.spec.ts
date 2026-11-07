@@ -106,8 +106,15 @@ describe("buildSystemPrompt: goals and practice targets", () => {
     );
     expect(prompt).toContain("- `blockers`: the learner said whether anything blocks them.");
     expect(prompt).toMatch(/List in `coveredGoals` the id of each goal this utterance covers/);
-    expect(prompt).toMatch(/Never end the meeting or ask whether to stop/);
+    expect(prompt).toMatch(/Never end the conversation or ask whether to stop/);
     expect(prompt).not.toContain("## Practice targets");
+  });
+
+  it("frames practice as conversation in general, not only meetings", () => {
+    const prompt = buildSystemPrompt({ mode: "my_day", language: "en", learnerContext: "", goals: [], targets: [], step: null }, "pt-BR");
+    expect(prompt).toContain("for real conversations, at work and in daily life");
+    expect(prompt).toContain(SCENES.my_day);
+    expect(prompt).not.toMatch(/meeting/i);
   });
 
   it("has no goals in free talk", () => {
@@ -188,7 +195,7 @@ describe("buildTrackInstruction", () => {
     const step = { stage: "answer" as const, retry: false, goal: null };
     const base = { utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], knownPatterns: [], bringBack: [], coveredGoals: [], scaffold: null };
     expect(buildTurnMessage({ ...base, plan: { otherwise: step, ifStuck: step, hintsPause: false } })).toMatch(
-      /<guided_track>\nAsk the meeting's question for the goal, with no model sentence\. Goal: a short topic/,
+      /<guided_track>\nAsk the scene's question for the goal, with no model sentence\. Goal: a short topic/,
     );
     expect(buildTurnMessage({ ...base, plan: null })).not.toContain("<guided_track>");
   });

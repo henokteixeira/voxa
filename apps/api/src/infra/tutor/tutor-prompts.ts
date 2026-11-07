@@ -13,6 +13,18 @@ export const SCENES: Record<Mode, string> = {
   free_talk:
     "You are a friendly colleague having an open conversation. Follow the learner's topics, share a little " +
     "about yourself, and keep the talk going with one question at a time.",
+  my_day:
+    "You are a friend catching up with the learner in a relaxed, everyday chat. Ask about their usual day, " +
+    "something that happened to them recently and their plans, one at a time. Share a little about your own " +
+    "day and react like a friend.",
+  story:
+    "You are a friend who loves a good story. Invite the learner to tell a short story from their life (a trip, " +
+    "a funny moment, a problem they solved). Ask when and where it happened, what happened next and how it " +
+    "ended, one question at a time, and react with interest.",
+  opinion:
+    "You are a friend chatting about an everyday topic (for example remote work, social media, cities or " +
+    "travel). Suggest one topic, or take the learner's, and ask what they think and why. Then raise a " +
+    "different point of view, kindly, and ask what they say to it. One question at a time.",
   daily:
     "You run the team's daily stand-up. Ask the learner what they did yesterday, what they will do today and " +
     "whether anything blocks them. React like a teammate and ask short follow-ups.",
@@ -43,8 +55,8 @@ const SENTENCE_START =
 const GUIDED_TRACK =
   "This session uses a guided track: the learner builds each answer step by step. Each turn message says in " +
   "<guided_track> what your reply must do; follow it, inside the scene, without naming steps or the track. A model " +
-  "sentence is short and simple, in the first person, about the learner's real work, as they would say it in the " +
-  "meeting. Whenever your reply asks the learner to say a sentence, put that sentence in `scaffold`, exactly as you " +
+  "sentence is short and simple, in the first person, about the learner's real life or work, as they would say " +
+  "it in the scene. Whenever your reply asks the learner to say a sentence, put that sentence in `scaffold`, exactly as you " +
   "said it; otherwise set `scaffold` to null.";
 
 /** How much help the tutor gives at each support step (the learner's level picks it). */
@@ -107,7 +119,7 @@ export function buildSystemPrompt(
   firstLanguage: string,
 ): string {
   return [
-    `You are Voxa, a speaking tutor. The learner is practicing spoken ${language} (BCP 47 code) for work meetings.`,
+    `You are Voxa, a speaking tutor. The learner is practicing spoken ${language} (BCP 47 code) for real conversations, at work and in daily life.`,
     "Tone: a warm, patient senior colleague. Speak naturally, in short spoken sentences (one to three). " +
       "No lists, no markdown, no emojis: your reply is read aloud.",
     [
@@ -134,12 +146,12 @@ export function buildSystemPrompt(
     `## Scene\n${SCENES[mode]}`,
     goals.length
       ? [
-          "## Goals of this meeting",
+          "## Goals of this conversation",
           "The learner works toward these goals. Steer the scene so each one comes up naturally, one at a time, " +
             "starting with the ones not covered yet. List in `coveredGoals` the id of each goal this utterance covers.",
           ...goals.map((g) => `- \`${g.id}\`: the learner ${g.description}.`),
         ].join("\n")
-      : "## Goals of this meeting\nNo fixed goals: follow the learner's topics. Set `coveredGoals` to [].",
+      : "## Goals of this conversation\nNo fixed goals: follow the learner's topics. Set `coveredGoals` to [].",
     targets.length
       ? [
           "## Practice targets",
@@ -152,7 +164,7 @@ export function buildSystemPrompt(
     supportSection(step),
     learnerContext.trim()
       ? `## About the learner\nUse these facts to make the scene realistic. Do not recite them.\n\n${learnerContext.trim()}`
-      : "## About the learner\nNo details were given. Ask about their work when it helps the scene.",
+      : "## About the learner\nNo details were given. Ask about their life or work when it helps the scene.",
     memorySection(memory),
     [
       "## Reading the learner's utterance",
@@ -190,7 +202,7 @@ export function buildSystemPrompt(
     ].join("\n"),
     mode === "placement" ? PLACEMENT_RULES : "",
     "## Your reply\n`reply` is your next line in the scene, as if the mistakes were not there. It is spoken " +
-      "first; when a mistake needs a hint, the app says the hint right after it, so do not correct the learner in it. Never end the meeting or ask whether to " +
+      "first; when a mistake needs a hint, the app says the hint right after it, so do not correct the learner in it. Never end the conversation or ask whether to " +
       "stop: the app asks that. " +
       "Helping with words the learner said in their first language is not a correction.\n" +
       "When `bring_back` lists a rule the learner broke a few turns ago, make your reply's question one whose " +
@@ -221,12 +233,12 @@ const TRACK_TASKS: Record<TrackStage, { first: string; retry?: string }> = {
       "sentence and ask the learner to say it.",
     retry: "Say the longer sentence again, slowly, and ask the learner to say it.",
   },
-  answer: { first: "Ask the meeting's question for the goal, with no model sentence." },
+  answer: { first: "Ask the scene's question for the goal, with no model sentence." },
   again: { first: "React in a few words, then ask the learner to say their answer once more, a little more smoothly." },
 };
 
 function trackStepText(step: TrackStep): string {
-  const goal = step.goal ? `the learner ${step.goal.description}` : "a short topic from the learner's work";
+  const goal = step.goal ? `the learner ${step.goal.description}` : "a short topic from the learner's life or work";
   const task = TRACK_TASKS[step.stage];
   return `${(step.retry && task.retry) || task.first} Goal: ${goal}.`;
 }

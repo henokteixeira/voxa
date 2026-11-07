@@ -20,7 +20,7 @@ export interface TutorContext {
   learnerContext: string;
   /** What the learner told the tutor in earlier sessions. Absent: nothing remembered. */
   memory?: TutorMemory;
-  /** What the learner should cover in this meeting; empty in free talk. */
+  /** What the learner should cover in this session; empty in free talk. */
   goals: { id: string; description: string }[];
   /** Mistakes from the bank the tutor gives the learner chances to say correctly. */
   targets: PracticeTarget[];

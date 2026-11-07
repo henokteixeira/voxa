@@ -2,7 +2,7 @@ import type { Mode } from "./mode.js";
 
 /**
  * Session goals, confirmed by the user on 2026-11-07:
- * - each meeting mode has content goals the learner covers; free talk has none and runs on time;
+ * - each practice mode has content goals the learner covers; free talk has none and runs on time;
  * - the tutor never ends the session: it asks whether to stop or keep going when the goals are covered,
  *   or after GOAL_TIME_LIMIT_MIN (FREE_TALK_CHECK_IN_MIN in free talk), then every CHECK_IN_EVERY_MIN;
  * - the learner can end the session at any time.
@@ -12,6 +12,9 @@ export const SESSION_GOALS = {
   presentation: ["what_it_does", "who_it_serves", "key_decisions", "status", "sponsor_questions"],
   review: ["problem", "change", "testing", "next_steps"],
   free_talk: [],
+  my_day: ["usual_day", "something_recent", "upcoming_plans"],
+  story: ["story_setting", "story_events", "story_ending"],
+  opinion: ["opinion_view", "opinion_reasons", "opinion_other_side"],
   // The placement interview's tasks, from the easiest CEFR level up (see domain/level).
   placement: ["warm_up", "routine", "past_work", "project", "opinion"],
 } as const satisfies Record<Mode, readonly string[]>;
@@ -32,6 +35,15 @@ export const GOAL_DESCRIPTIONS: Record<SessionGoal, string> = {
   change: "explained the change they made",
   testing: "explained how it was tested",
   next_steps: "said what comes next",
+  usual_day: "described what they usually do on a normal day",
+  something_recent: "told something that happened to them recently",
+  upcoming_plans: "said what they plan to do next (later today, this weekend or soon)",
+  story_setting: "said when and where the story happened and who was there",
+  story_events: "told what happened, in order, with at least two events",
+  story_ending: "said how the story ended and how they felt about it",
+  opinion_view: "said clearly what they think about the topic",
+  opinion_reasons: "gave at least one reason for their view, with an example",
+  opinion_other_side: "answered a different point of view you raised",
   warm_up: "answered simple questions about themselves (name, role, where they work) (A1 task)",
   routine: "described their usual workday or current job in simple terms (A2 task)",
   past_work: "told what they did recently and why, connecting a few sentences (B1 task)",
@@ -53,7 +65,7 @@ export type CheckInReason = "goals_met" | "time" | "placement_done";
  */
 const CHECK_IN_LINES: Record<string, Record<CheckInReason, string>> = {
   en: {
-    goals_met: "We've covered everything for this meeting. Do you want to stop here or keep going?",
+    goals_met: "We've covered everything for this conversation. Do you want to stop here or keep going?",
     time: "We've been talking for a while. Do you want to stop here or keep going?",
     placement_done: "That's all I wanted to ask. Shall we stop here so you can see your level?",
   },
@@ -99,7 +111,7 @@ export function checkInDue(input: {
   const all = (list: readonly string[]) => goals.length > 0 && goals.every((goal) => list.includes(goal));
   // Asks once the goals are all covered: on the turn that covers the last one (even after an earlier
   // question about time), or on the next turn that can ask when that one could not (it gave a hint).
-  // In the placement interview "covered" also means skipped as too hard: the interview is over, not a meeting.
+  // In the placement interview "covered" also means skipped as too hard: the interview is over, not a practice session.
   const done = mode === "placement" ? "placement_done" : "goals_met";
   if (all(covered) && (!all(coveredBefore) || lastCheckInMs === null)) return done;
   if (lastCheckInMs !== null) return elapsedMs - lastCheckInMs >= CHECK_IN_EVERY_MIN * MINUTE ? "time" : null;

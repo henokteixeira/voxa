@@ -70,7 +70,7 @@ export interface SessionState {
   turn: Turn;
   /** What the server returned when the session ended; null if it could not be reached. */
   summary: SessionSummary | null;
-  /** Goals of the meeting, in order; empty in free talk. */
+  /** Goals of the session, in order; empty in free talk. */
   goals: string[];
   coveredGoals: string[];
   /** The tutor asked whether to stop or keep going, and the learner has not answered yet. */

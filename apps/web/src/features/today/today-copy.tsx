@@ -15,12 +15,14 @@ export interface TodayCopy {
   readyTitle: string;
   placementTitle: string;
   placementBody: string;
-  readyBody: (mode: string) => string;
+  readyBody: string;
   start: string;
   pausedTitle: string;
   pausedBody: (mode: string, elapsed: string) => string;
   continueSession: string;
-  otherPractice: string;
+  categories: string;
+  everyday: string;
+  work: string;
   close: string;
   language: string;
   settings: string;
@@ -55,16 +57,18 @@ export const TODAY_COPY: Copy<TodayCopy> = {
       },
     },
     checkAgain: "Check again",
-    readyTitle: "Your first session is ready",
+    readyTitle: "What do you want to practice now?",
     placementTitle: "Let's start by finding your level",
     placementBody:
       "A relaxed 7-minute conversation about your work. No corrections: it only shows how much help your sessions should give.",
-    readyBody: (mode) => `${mode} · about 6 min. Your mistake bank and progress start filling from here.`,
+    readyBody: "Pick a category below. Each session takes about 5 to 10 min.",
     start: "Start",
     pausedTitle: "Your session is paused",
     pausedBody: (mode, elapsed) => `${mode} · ${elapsed}. Pick up where you left off.`,
     continueSession: "Continue session",
-    otherPractice: "Other practice",
+    categories: "Practice categories",
+    everyday: "Everyday",
+    work: "Work",
     close: "Close",
     language: "Language",
     settings: "Settings",
@@ -95,16 +99,18 @@ export const TODAY_COPY: Copy<TodayCopy> = {
       },
     },
     checkAgain: "Verificar de novo",
-    readyTitle: "Sua primeira sessão está pronta",
+    readyTitle: "O que você quer treinar agora?",
     placementTitle: "Vamos começar descobrindo seu nível",
     placementBody:
       "Uma conversa tranquila de 7 minutos sobre o seu trabalho. Sem correções: serve só para saber quanta ajuda as sessões devem dar.",
-    readyBody: (mode) => `${mode} · cerca de 6 min. Seu banco de erros e seu progresso começam a ser preenchidos a partir daqui.`,
+    readyBody: "Escolha uma categoria abaixo. Cada sessão leva cerca de 5 a 10 min.",
     start: "Começar",
     pausedTitle: "Sua sessão está pausada",
     pausedBody: (mode, elapsed) => `${mode} · ${elapsed}. Continue de onde parou.`,
     continueSession: "Continuar sessão",
-    otherPractice: "Outros treinos",
+    categories: "Categorias de treino",
+    everyday: "Dia a dia",
+    work: "Trabalho",
     close: "Fechar",
     language: "Idioma",
     settings: "Configurações",

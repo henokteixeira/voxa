@@ -4,7 +4,7 @@ import { useCopy } from "@/lib/i18n/locale";
 import { cn } from "@/lib/utils";
 import { GOALS_COPY } from "./goals-copy";
 
-/** The meeting's goals as chips; covered ones are ticked. Nothing in free talk. */
+/** The session's goals as chips; covered ones are ticked. Nothing in free talk. */
 export function GoalsStrip({ goals, covered }: { goals: string[]; covered: string[] }) {
   const copy = useCopy(GOALS_COPY);
   if (!goals.length) return null;

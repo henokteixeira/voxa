@@ -2,12 +2,13 @@ import { reportError } from "./report-error";
 
 /** Typed client for the Voxa API. Every call fails with ApiError, never a raw fetch error. */
 
-/** Every session mode: the four meetings, plus the placement interview that estimates the speaking level. */
-export const MODES = ["presentation", "free_talk", "daily", "review", "placement"] as const;
+/** Every session mode: the practice categories, plus the placement interview that estimates the speaking level. */
+export const MODES = ["free_talk", "my_day", "story", "opinion", "presentation", "daily", "review", "placement"] as const;
 export type Mode = (typeof MODES)[number];
 
-/** The meetings the learner picks to practice (the placement interview is offered on its own). */
-export const MEETING_MODES = ["presentation", "free_talk", "daily", "review"] as const satisfies readonly Mode[];
+/** The categories the learner picks from, by group (the placement interview is offered on its own). */
+export const EVERYDAY_MODES = ["free_talk", "my_day", "story", "opinion"] as const satisfies readonly Mode[];
+export const WORK_MODES = ["daily", "presentation", "review"] as const satisfies readonly Mode[];
 
 export const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
 export type CefrLevel = (typeof CEFR_LEVELS)[number];
@@ -70,7 +71,7 @@ export interface StartedSession extends Guidance {
   mode: Mode;
   language: string;
   message: string;
-  /** Goals of the meeting, in order; empty in free talk. */
+  /** Goals of the session, in order; empty in free talk. */
   goals: string[];
 }
 
@@ -101,7 +102,7 @@ export interface TurnResult extends Guidance {
   rule?: { name: string; rule: string } | null;
   /** The tutor asked whether to stop or keep going. */
   checkIn?: boolean;
-  /** Goals of the meeting covered so far. */
+  /** Goals of the session covered so far. */
   coveredGoals?: string[];
 }
 

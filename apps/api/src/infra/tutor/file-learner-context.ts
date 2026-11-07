@@ -21,7 +21,7 @@ export class FileLearnerContext implements LearnerContextPort {
         this.cached = null; // try again on the next turn
         throw error;
       }
-      this.logger.warn(`No learner context at ${this.path}; the tutor will ask about your work instead.`);
+      this.logger.warn(`No learner context at ${this.path}; the tutor will ask about you instead.`);
       return "";
     });
     return this.cached;

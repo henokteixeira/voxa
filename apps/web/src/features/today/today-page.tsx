@@ -15,7 +15,7 @@ import { takeSavedSession } from "@/features/session/saved-session";
 import { useApi } from "@/hooks/use-api";
 import { useApiStatus } from "@/hooks/use-api-status";
 import { useOnline } from "@/hooks/use-online";
-import { MEETING_MODES } from "@/lib/api";
+import { EVERYDAY_MODES, type Mode, WORK_MODES } from "@/lib/api";
 import { onboardingSeen } from "@/features/onboarding/onboarding-seen";
 import { ONBOARDING_PATH } from "@/features/onboarding/onboarding-page";
 import { useLevel } from "@/features/progress/use-level";
@@ -82,10 +82,35 @@ function Welcome({ title, body }: { title: string; body: string }) {
 
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
-/** Today: one suggested session, everything else secondary. */
+/** One group of practice categories; each row starts that session. */
+function CategoryGroup({ title, list }: { title: string; list: readonly Mode[] }) {
+  const id = useId();
+  const modes = useModeInfo();
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-3">
+      <h3 id={id} className="m-0 text-label text-taupe">
+        {title}
+      </h3>
+      {list.map((mode) => (
+        <Link
+          key={mode}
+          to={`/session/${mode}`}
+          className="flex min-h-14 items-center gap-3 rounded-md bg-paper px-5 py-4 text-ink no-underline shadow-card transition-[transform,background-color] duration-150 hover:bg-sand-soft motion-safe:active:scale-[0.98]"
+        >
+          <span aria-hidden="true" className="size-3.5 shrink-0 rounded-full" style={{ background: modes[mode].color }} />
+          <span className="flex flex-1 flex-col gap-0.5">
+            <b className="text-body-strong">{modes[mode].title}</b>
+            <span className="text-caption text-taupe">{modes[mode].meta}</span>
+          </span>
+        </Link>
+      ))}
+    </section>
+  );
+}
+
+/** Today: the learner always picks what to practice; nothing is chosen for them. */
 export function TodayPage() {
   const [now] = useState(() => new Date());
-  const [choosing, setChoosing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { status, retry } = useApiStatus();
   const online = useOnline();
@@ -160,7 +185,7 @@ export function TodayPage() {
           </Button>
         </Card>
       ) : level.view === undefined ? (
-        // Wait for the level before offering a session, so Start never leads to the wrong one.
+        // Wait for the level before showing the ready card, so the placement card is never skipped by mistake.
         <Card aria-busy="true" className="items-center gap-3 px-5 py-6 text-center">
           <VoiceBall state="idle" size={104} />
         </Card>
@@ -177,19 +202,18 @@ export function TodayPage() {
         <Card className="items-center gap-3 px-5 py-6 text-center">
           <VoiceBall state="idle" size={104} />
           <h2 className="m-0 text-heading">{copy.readyTitle}</h2>
-          <p className="m-0 text-caption text-taupe">{copy.readyBody(modes.daily.title)}</p>
-          <Button block asChild>
-            <Link to="/session/daily">{copy.start}</Link>
-          </Button>
+          <p className="m-0 text-caption text-taupe">{copy.readyBody}</p>
         </Card>
       )}
 
       {online && status === "ok" && !paused && level.view && !needsPlacement && <TodayReviewCard />}
 
+      {/* Always at the bottom, and always a choice: no category is picked for the learner. */}
       {online && status === "ok" && (
-        <Button variant="ghost" block aria-haspopup="dialog" onClick={() => setChoosing(true)}>
-          {copy.otherPractice}
-        </Button>
+        <nav aria-label={copy.categories} className="flex flex-col gap-5">
+          <CategoryGroup title={copy.everyday} list={EVERYDAY_MODES} />
+          <CategoryGroup title={copy.work} list={WORK_MODES} />
+        </nav>
       )}
 
       {settingsOpen && (
@@ -200,27 +224,6 @@ export function TodayPage() {
           <PauseSetting title={copy.pauseTitle} hint={copy.pauseHint} seconds={copy.seconds} />
           <SoundSetting />
           <MemoryLink />
-        </Sheet>
-      )}
-
-      {choosing && online && status === "ok" && (
-        <Sheet label={copy.otherPractice} closeLabel={copy.close} onClose={() => setChoosing(false)}>
-          <h2 className="m-0 text-heading">{copy.otherPractice}</h2>
-          <nav aria-label={copy.otherPractice} className="flex flex-col gap-3">
-            {MEETING_MODES.map((mode) => (
-              <Link
-                key={mode}
-                to={`/session/${mode}`}
-                className="flex min-h-14 items-center gap-3 rounded-md bg-paper px-5 py-4 text-ink no-underline shadow-card transition-[transform,background-color] duration-150 hover:bg-sand-soft motion-safe:active:scale-[0.98]"
-              >
-                <span aria-hidden="true" className="size-3.5 shrink-0 rounded-full" style={{ background: modes[mode].color }} />
-                <span className="flex flex-1 flex-col gap-0.5">
-                  <b className="text-body-strong">{modes[mode].title}</b>
-                  <span className="text-caption text-taupe">{modes[mode].meta}</span>
-                </span>
-              </Link>
-            ))}
-          </nav>
         </Sheet>
       )}
     </>

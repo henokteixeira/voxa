@@ -18,7 +18,7 @@ export interface GoalsCopy {
 
 export const GOALS_COPY: Copy<GoalsCopy> = {
   "pt-BR": {
-    goalsLabel: "Objetivos da reunião",
+    goalsLabel: "Objetivos da conversa",
     goal: {
       yesterday: "Ontem",
       today: "Hoje",
@@ -32,6 +32,15 @@ export const GOALS_COPY: Copy<GoalsCopy> = {
       change: "A mudança",
       testing: "Como testou",
       next_steps: "Próximos passos",
+      usual_day: "Seu dia a dia",
+      something_recent: "Algo recente",
+      upcoming_plans: "Seus planos",
+      story_setting: "Quando e onde",
+      story_events: "O que aconteceu",
+      story_ending: "Como terminou",
+      opinion_view: "O que você acha",
+      opinion_reasons: "Por quê",
+      opinion_other_side: "O outro lado",
     },
     checkInTitle: "Quer parar aqui?",
     checkInBody: "Você pode encerrar e ver o resumo, ou continuar conversando.",
@@ -45,7 +54,7 @@ export const GOALS_COPY: Copy<GoalsCopy> = {
     nextTime: "Fica para a próxima",
   },
   en: {
-    goalsLabel: "Meeting goals",
+    goalsLabel: "Conversation goals",
     goal: {
       yesterday: "Yesterday",
       today: "Today",
@@ -59,6 +68,15 @@ export const GOALS_COPY: Copy<GoalsCopy> = {
       change: "The change",
       testing: "How you tested",
       next_steps: "Next steps",
+      usual_day: "Your usual day",
+      something_recent: "Something recent",
+      upcoming_plans: "Your plans",
+      story_setting: "When and where",
+      story_events: "What happened",
+      story_ending: "How it ended",
+      opinion_view: "What you think",
+      opinion_reasons: "Why",
+      opinion_other_side: "The other side",
     },
     checkInTitle: "Stop here?",
     checkInBody: "You can end and see the summary, or keep talking.",

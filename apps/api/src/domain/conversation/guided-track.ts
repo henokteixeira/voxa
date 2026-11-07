@@ -2,11 +2,11 @@ import type { SupportStep } from "../level/speaking-level.js";
 
 /**
  * The guided track for A1–A2 (leveling and guided track design, approved by the learner on 2026-11-07).
- * Each goal of the meeting goes through short stages, named by what the learner does in them:
+ * Each goal of the session goes through short stages, named by what the learner does in them:
  * - model: repeat a short model sentence the tutor says (shadowing);
  * - swap: say the same sentence with their own information;
  * - extend: say a longer sentence (the tutor adds a reason, an "and then" or a result);
- * - answer: answer the meeting's question alone, without a model;
+ * - answer: answer the scene's question alone, without a model;
  * - again: say that answer once more, more smoothly.
  * At A1 (build_full) a goal starts at `model`; at A2 (build_light) it starts at `answer`, and the model comes only
  * when the learner is stuck there. The thresholds below are design choices, to tune with real use.
