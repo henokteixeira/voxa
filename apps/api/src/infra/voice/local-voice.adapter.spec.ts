@@ -1,12 +1,34 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { testConfig } from "../../config/testing.js";
 import { VoiceRequestError, VoiceUnavailableError } from "../../domain/ports/voice.port.js";
-import { LocalVoiceAdapter } from "./local-voice.adapter.js";
+import { LocalVoiceAdapter, wavDurationMs } from "./local-voice.adapter.js";
 
 const config = (values: Record<string, string> = {}) => testConfig({ VOICE_SERVICE_URL: "http://voice.test", ...values });
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+
+/** A silent 16 kHz 16-bit mono WAV of the given length. */
+function wav(seconds: number): Buffer {
+  const data = 16_000 * 2 * seconds;
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0, "ascii");
+  header.writeUInt32LE(36 + data, 4);
+  header.write("WAVEfmt ", 8, "ascii");
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(16_000, 24);
+  header.writeUInt32LE(32_000, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36, "ascii");
+  header.writeUInt32LE(data, 40);
+  return Buffer.concat([header, Buffer.alloc(data)]);
+}
+
+const hang = (_url: string, init: RequestInit) =>
+  new Promise<Response>((_resolve, reject) => init.signal?.addEventListener("abort", () => reject(init.signal?.reason)));
 
 function mockFetch(impl: (url: string, init: RequestInit) => Promise<Response>) {
   const fn = vi.fn(impl);
@@ -80,6 +102,30 @@ describe("LocalVoiceAdapter.transcribe", () => {
     );
     const adapter = new LocalVoiceAdapter(config({ VOICE_TIMEOUT_MS: "20" }));
     await expect(adapter.transcribe(Buffer.from("a"), "en")).rejects.toThrow(/timed out/);
+  });
+
+  it("waits longer for a longer recording", async () => {
+    mockFetch(hang);
+    const adapter = new LocalVoiceAdapter(config({ VOICE_TIMEOUT_MS: "20", VOICE_STT_MS_PER_AUDIO_SECOND: "30" }));
+    await expect(adapter.transcribe(wav(2), "en", { mimeType: "audio/wav" })).rejects.toThrow(
+      "STT timed out after 80 ms",
+    );
+  });
+});
+
+describe("wavDurationMs", () => {
+  it("reads the length from the header", () => {
+    expect(wavDurationMs(wav(3))).toBe(3000);
+  });
+
+  it("ignores a header with an implausible byte rate", () => {
+    const bad = wav(1);
+    bad.writeUInt32LE(1, 28);
+    expect(wavDurationMs(bad)).toBeNull();
+  });
+
+  it("is null for audio that is not WAV", () => {
+    expect(wavDurationMs(Buffer.from("not a wav file at all, just some bytes here ok"))).toBeNull();
   });
 });
 

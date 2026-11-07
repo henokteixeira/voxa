@@ -17,7 +17,7 @@ import { useTodayProgress } from "@/features/xp/use-today-progress";
 import { XP_COPY } from "@/features/xp/xp-copy";
 import { XpToast } from "@/features/xp/xp-toast";
 import { useSessionCues } from "./use-session-cues";
-import { useVoiceSession } from "./use-voice-session";
+import { type AutoRetry, useVoiceSession } from "./use-voice-session";
 
 /** The live voice session: talk, get hints, see captions. Takes the whole screen. */
 export function SessionPage() {
@@ -90,7 +90,15 @@ function LiveSession({ mode }: { mode: Mode }) {
   // A correction card carries the help itself, so the screen shows one card, not two.
   let helpInCard = false;
   if (state.phase === "failed" && state.failure) {
-    bottom = <FailureCard code={state.failure} onRetry={session.retry} onEnd={state.sessionId ? session.end : undefined} />;
+    bottom = (
+      <FailureCard
+        code={state.failure}
+        kept={state.retry?.kind === "audio" || state.retry?.kind === "text"}
+        autoRetry={session.autoRetry}
+        onRetry={session.retry}
+        onEnd={state.sessionId ? session.end : undefined}
+      />
+    );
   } else if (state.checkIn && yourTurn) {
     bottom = <CheckInCard onStop={session.end} onKeepGoing={session.keepGoing} />;
   } else if (state.revealed && lastTutor) {
@@ -247,13 +255,27 @@ function Screen({ children, onPointerDown }: { children: ReactNode; onPointerDow
   );
 }
 
-function FailureCard({ code, onRetry, onEnd }: { code: FailureCode; onRetry: () => void; onEnd?: () => void }) {
+function FailureCard(props: {
+  code: FailureCode;
+  /** The learner's answer is kept and goes out again on retry. */
+  kept: boolean;
+  autoRetry: AutoRetry | null;
+  onRetry: () => void;
+  onEnd?: () => void;
+}) {
+  const { code, kept, autoRetry, onRetry, onEnd } = props;
   const { failure, page } = useCopy(SESSION_COPY);
   const copy = failure[code];
   const final = FINAL_FAILURES.includes(code);
   return (
     <section role="alert" aria-label={copy.title} className="flex flex-col gap-3 rounded-lg bg-paper p-5 shadow-card">
       <h1 className="m-0 text-heading">{copy.title}</h1>
+      {kept && <p className="m-0 text-small">{page.keptAnswer}</p>}
+      {autoRetry && (
+        <p role="status" className="m-0 text-small text-taupe">
+          {page.retrying(autoRetry.attempt, autoRetry.of)}
+        </p>
+      )}
       <p className="m-0 text-small text-ink-soft">{copy.body}</p>
       {copy.command && (
         <code className="rounded-[10px] bg-sand-soft px-3 py-2.5 font-mono text-[13px] break-all">{copy.command}</code>

@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useReducer, useRef, useState } from "react";
 import { useApi } from "@/hooks/use-api";
 import { ApiError, type Mode } from "@/lib/api";
+import { reportError } from "@/lib/report-error";
 import { type Microphone, MicrophoneUnavailableError } from "@/lib/voice/microphone";
 import { createFillerPlayer } from "@/lib/voice/filler-player";
 import { readPauseMs } from "@/lib/voice/pause-setting";
@@ -15,6 +16,18 @@ import { VoiceDepsContext } from "./voice-deps";
 const START_FAILURES: FailureCode[] = ["mic_blocked", "mic_missing", "mic_busy", "mic_unsupported", "start_failed"];
 /** Failures that need a new socket on the same session. */
 const SOCKET_FAILURES: FailureCode[] = ["disconnected", "in_use"];
+/** Failures that often pass on their own (a slow or restarting server): retried by themselves first. */
+const AUTO_RETRY_FAILURES: FailureCode[] = ["voice_unavailable", "tutor_unavailable", "server", "disconnected"];
+/** The waits before each automatic retry; after the last one the learner decides. */
+export const AUTO_RETRY_DELAYS_MS = [2_000, 5_000, 10_000];
+/** Expected along the way (no speech, a frame dropped while busy): nothing to report. */
+const QUIET_ERRORS = new Set(["bad_audio", "busy", "too_long"]);
+
+/** An automatic retry is on its way: the attempt number, out of how many. */
+export interface AutoRetry {
+  attempt: number;
+  of: number;
+}
 
 /** Counts the seconds the session runs (not while paused); a resumed session starts from its saved count. */
 function useElapsedSeconds(running: boolean) {
@@ -37,6 +50,9 @@ export function useVoiceSession(mode: Mode) {
   const [state, dispatch] = useReducer(sessionReducer, initialSessionState);
   const [attempt, setAttempt] = useState(0);
   const [typing, setTyping] = useState(false);
+  const [autoRetry, setAutoRetry] = useState<AutoRetry | null>(null);
+  /** Automatic retries spent on the current turn; back to 0 once the server answers it. */
+  const autoRetries = useRef(0);
   const mic = useRef<Microphone | null>(null);
   const socket = useRef<VoiceSocket | null>(null);
   const speaker = useRef<Speaker | null>(null);
@@ -105,23 +121,35 @@ export function useVoiceSession(mode: Mode) {
             muted.current = false;
             dispatch({ type: "sent", request: "speak" });
             ws.speakLast();
+          } else if (onOpen.kind === "audio") {
+            muted.current = false;
+            dispatch({ type: "sent", request: "audio", audio: onOpen.audio });
+            ws.sendTurn(onOpen.audio);
           } else if (onOpen.kind === "text") {
             muted.current = false;
             dispatch({ type: "sent", request: "text", text: onOpen.text });
             clock.current.typed();
             ws.sendText(onOpen.text);
           } else if (onOpen.kind === "listen") {
+            // Nothing was pending: the reconnect alone was the fix.
+            autoRetries.current = 0;
             dispatch({ type: "recover" });
           }
         },
         onTranscript: (text) => {
+          // Each answer from the server ends a run of retries.
+          autoRetries.current = 0;
           filler.current.heard();
           clock.current.learnerSaid(text);
           dispatch({ type: "transcript", text });
         },
-        onTutor: (result) => dispatch({ type: "tutor", result }),
+        onTutor: (result) => {
+          autoRetries.current = 0;
+          dispatch({ type: "tutor", result });
+        },
         onFollowUp: (result) => dispatch({ type: "followup", result }),
         onSpeech: (wav) => {
+          autoRetries.current = 0;
           filler.current.cancel();
           if (paused.current) {
             dispatch({ type: "speech" });
@@ -133,7 +161,8 @@ export function useVoiceSession(mode: Mode) {
           speechQueue.current.push(wav);
           if (!playing.current) playNext();
         },
-        onError: (code) => {
+        onError: (code, message) => {
+          if (!QUIET_ERRORS.has(code)) reportError(new Error(message), { where: `voice socket (${code})` });
           // "busy" answers a message sent mid-request; that request, and its wait, go on.
           if (code !== "busy") filler.current.cancel();
           dispatch({ type: "failed", code });
@@ -183,7 +212,8 @@ export function useVoiceSession(mode: Mode) {
             sentEarly.current = false;
             mic.current?.pause();
             muted.current = false;
-            dispatch({ type: "sent", request: "audio" });
+            // The recording stays in the turn until its transcript arrives, so a failure can send it again.
+            dispatch({ type: "sent", request: "audio", audio: wav });
             socket.current?.sendTurn(wav);
             player.arm(speaker.current);
           },
@@ -302,6 +332,13 @@ export function useVoiceSession(mode: Mode) {
     socket.current?.sendText(text);
   }, []);
 
+  /** Sends a recorded turn again (a retry): the learner does not have to say it twice. */
+  const sendAudio = useCallback((audio: ArrayBuffer) => {
+    muted.current = false;
+    dispatch({ type: "sent", request: "audio", audio });
+    socket.current?.sendTurn(audio);
+  }, []);
+
   const repeatLast = useCallback(() => {
     stopSpeech();
     muted.current = false;
@@ -356,9 +393,38 @@ export function useVoiceSession(mode: Mode) {
       return connect(state.sessionId, next ?? { kind: "listen" });
     }
     if (next?.kind === "text") return sendText(next.text);
+    if (next?.kind === "audio") return sendAudio(next.audio);
     if (next?.kind === "speak") return repeatLast();
     dispatch({ type: "recover" });
-  }, [state, connect, sendText, repeatLast]);
+  }, [state, connect, sendText, sendAudio, repeatLast]);
+
+  /** "Try again" on the failure card: a fresh round of automatic retries follows if it fails again. */
+  const retryNow = useCallback(() => {
+    autoRetries.current = 0;
+    retry();
+  }, [retry]);
+
+  // A failure that may pass on its own is retried by itself, waiting longer each time, with the same turn.
+  const retryLater = useRef(retry);
+  useEffect(() => {
+    retryLater.current = retry;
+  }, [retry]);
+  const canAutoRetry =
+    state.phase === "failed" && state.failure !== null && AUTO_RETRY_FAILURES.includes(state.failure) && state.sessionId !== null;
+  useEffect(() => {
+    if (!canAutoRetry) return;
+    const attempt = autoRetries.current;
+    if (attempt >= AUTO_RETRY_DELAYS_MS.length) return;
+    setAutoRetry({ attempt: attempt + 1, of: AUTO_RETRY_DELAYS_MS.length });
+    const timer = setTimeout(() => {
+      autoRetries.current = attempt + 1;
+      retryLater.current();
+    }, AUTO_RETRY_DELAYS_MS[attempt]);
+    return () => {
+      clearTimeout(timer);
+      setAutoRetry(null);
+    };
+  }, [canAutoRetry, state.retry]);
 
   const end = useCallback(async () => {
     ended.current = true;
@@ -383,5 +449,20 @@ export function useVoiceSession(mode: Mode) {
 
   const elapsed = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
-  return { state, elapsed, typing, setTyping, tapBall, unlock, pause, resume, repeatLast, sendText, retry, end, keepGoing };
+  return {
+    state,
+    elapsed,
+    typing,
+    setTyping,
+    tapBall,
+    unlock,
+    pause,
+    resume,
+    repeatLast,
+    sendText,
+    retry: retryNow,
+    autoRetry,
+    end,
+    keepGoing,
+  };
 }

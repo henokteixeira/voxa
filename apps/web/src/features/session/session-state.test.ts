@@ -6,6 +6,7 @@ function run(...actions: SessionAction[]): SessionState {
   return actions.reduce(sessionReducer, initialSessionState);
 }
 
+const WAV = new ArrayBuffer(64);
 const started: SessionAction = { type: "started", sessionId: "s1", message: "Morning! What did you do yesterday?" };
 const hint = (message = "When did it happen?"): SessionAction => ({
   type: "tutor",
@@ -16,7 +17,7 @@ describe("sessionReducer", () => {
   it("adds a follow-up line after the reply: a hint about what the learner just said", () => {
     const state = run(
       started,
-      { type: "sent", request: "audio" },
+      { type: "sent", request: "audio", audio: WAV },
       { type: "transcript", text: "Yesterday I finish it" },
       { type: "tutor", result: { kind: "reply", message: "Nice. What's next?", selfCorrected: false } },
       {
@@ -36,7 +37,7 @@ describe("sessionReducer", () => {
   it("takes help and goals from a follow-up without a spoken line", () => {
     const state = run(
       started,
-      { type: "sent", request: "audio" },
+      { type: "sent", request: "audio", audio: WAV },
       { type: "transcript", text: "Ontem eu fixed it" },
       { type: "tutor", result: { kind: "reply", message: "Ontem is yesterday. Nice!", selfCorrected: false } },
       { type: "followup", result: { kind: "reply", message: null, selfCorrected: false, support: "Ontem = yesterday.", coveredGoals: ["yesterday"] } },
@@ -51,7 +52,7 @@ describe("sessionReducer", () => {
     expect(state).toMatchObject({ track: { stage: "model" }, scaffold: model });
     state = run(
       { ...started, track: { stage: "model", number: 1, total: 5 }, scaffold: model },
-      { type: "sent", request: "audio" },
+      { type: "sent", request: "audio", audio: WAV },
       { type: "transcript", text: model },
     );
     expect(state).toMatchObject({ track: { stage: "model" }, scaffold: null });
@@ -83,7 +84,7 @@ describe("sessionReducer", () => {
       started,
       { type: "done" },
       { type: "speech_start" },
-      { type: "sent", request: "audio" },
+      { type: "sent", request: "audio", audio: WAV },
       { type: "transcript", text: "I fixed the bug." },
       { type: "tutor", result: { kind: "reply", message: "Nice. What's next?", selfCorrected: false } },
     );
@@ -93,7 +94,7 @@ describe("sessionReducer", () => {
   });
 
   it("shows no excerpt when the hint does not say which words it is about", () => {
-    const state = run(started, { type: "sent", request: "audio" }, { type: "transcript", text: "Yesterday I finish it" }, {
+    const state = run(started, { type: "sent", request: "audio", audio: WAV }, { type: "transcript", text: "Yesterday I finish it" }, {
       type: "tutor",
       result: { kind: "hint", message: "When did it happen?", selfCorrected: false },
     });
@@ -101,15 +102,15 @@ describe("sessionReducer", () => {
   });
 
   it("climbs the hint ladder and keeps the words the hint is about", () => {
-    let state = run(started, { type: "sent", request: "audio" }, { type: "transcript", text: "Yesterday I finish it" }, hint());
+    let state = run(started, { type: "sent", request: "audio", audio: WAV }, { type: "transcript", text: "Yesterday I finish it" }, hint());
     expect(state).toMatchObject({ hintStep: 1, hintFor: "I finish it", revealed: false });
 
     state = run(
       started,
-      { type: "sent", request: "audio" },
+      { type: "sent", request: "audio", audio: WAV },
       { type: "transcript", text: "Yesterday I finish it" },
       hint(),
-      { type: "sent", request: "audio" },
+      { type: "sent", request: "audio", audio: WAV },
       { type: "transcript", text: "Yesterday I finishing it" },
       hint("Past form of finish."),
     );
@@ -128,7 +129,7 @@ describe("sessionReducer", () => {
     expect(state.support).toBe("“Prazo” em inglês é “deadline”.");
     state = sessionReducer(state, hint());
     expect(state.support).toBeNull();
-    state = run(started, withSupport, { type: "sent", request: "audio" });
+    state = run(started, withSupport, { type: "sent", request: "audio", audio: WAV });
     expect(state.support).toBeNull();
   });
 
@@ -142,7 +143,7 @@ describe("sessionReducer", () => {
     expect(state.coveredGoals).toEqual(["today"]);
     expect(state.checkIn).toBe(true);
     expect(sessionReducer(state, { type: "keep_going" }).checkIn).toBe(false);
-    state = sessionReducer(state, { type: "sent", request: "audio" });
+    state = sessionReducer(state, { type: "sent", request: "audio", audio: WAV });
     expect(state.checkIn).toBe(false);
     expect(state.coveredGoals).toEqual(["today"]);
   });
@@ -150,28 +151,28 @@ describe("sessionReducer", () => {
   it("celebrates a fix after a hint and closes the ladder", () => {
     const state = run(
       started,
-      { type: "sent", request: "audio" },
+      { type: "sent", request: "audio", audio: WAV },
       hint(),
-      { type: "sent", request: "audio" },
+      { type: "sent", request: "audio", audio: WAV },
       { type: "tutor", result: { kind: "reply", message: "Right!", selfCorrected: true } },
     );
     expect(state).toMatchObject({ fixed: true, hintStep: 0, hintFor: null });
-    expect(sessionReducer(state, { type: "sent", request: "audio" }).fixed).toBe(false);
+    expect(sessionReducer(state, { type: "sent", request: "audio", audio: WAV }).fixed).toBe(false);
   });
 
   it("says it didn't catch a turn without speech and listens again", () => {
-    const state = run(started, { type: "sent", request: "audio" }, { type: "done" });
+    const state = run(started, { type: "sent", request: "audio", audio: WAV }, { type: "done" });
     expect(state).toMatchObject({ phase: "listening", missed: true });
     expect(sessionReducer(state, { type: "speech_start" }).missed).toBe(false);
   });
 
   it("treats a bad recording as 'didn't catch that', not as a failure", () => {
-    const state = run(started, { type: "sent", request: "audio" }, { type: "failed", code: "bad_audio" });
+    const state = run(started, { type: "sent", request: "audio", audio: WAV }, { type: "failed", code: "bad_audio" });
     expect(state).toMatchObject({ phase: "listening", missed: true, failure: null });
   });
 
   it.each([
-    ["before the transcript", [] as SessionAction[], { kind: "listen" }],
+    ["before the transcript", [] as SessionAction[], { kind: "audio", audio: WAV }],
     ["after the transcript", [{ type: "transcript", text: "I fixed it" }] as SessionAction[], { kind: "text", text: "I fixed it" }],
     [
       "after the tutor answered",
@@ -179,10 +180,16 @@ describe("sessionReducer", () => {
       { kind: "speak" },
     ],
   ])("remembers how to retry a failure %s", (_when, steps, retry) => {
-    const state = run(started, { type: "sent", request: "audio" }, ...steps, { type: "failed", code: "voice_unavailable" });
+    const state = run(started, { type: "sent", request: "audio", audio: WAV }, ...steps, { type: "failed", code: "voice_unavailable" });
     expect(state).toMatchObject({ phase: "failed", failure: "voice_unavailable", retry });
     // The trailing "done" does not hide the failure.
     expect(sessionReducer(state, { type: "done" }).phase).toBe("failed");
+  });
+
+  it("does not resend a recording that held no speech", () => {
+    const missed = run(started, { type: "sent", request: "audio", audio: WAV }, { type: "done" });
+    expect(missed.missed).toBe(true);
+    expect(sessionReducer(missed, { type: "failed", code: "disconnected" }).retry).not.toMatchObject({ kind: "audio" });
   });
 
   it("retries the opening line when speaking it failed", () => {
@@ -204,16 +211,16 @@ describe("sessionReducer", () => {
   });
 
   it("treats busy as out of band: the running request carries on", () => {
-    const thinking = run(started, { type: "sent", request: "audio" });
+    const thinking = run(started, { type: "sent", request: "audio", audio: WAV });
     expect(sessionReducer(thinking, { type: "failed", code: "busy" })).toBe(thinking);
     const paused = sessionReducer(thinking, { type: "pause" });
     expect(sessionReducer(paused, { type: "failed", code: "busy" }).phase).toBe("paused");
   });
 
   it("resumes into thinking while the request is still open, and listens once it is done", () => {
-    const paused = run(started, { type: "sent", request: "audio" }, { type: "pause" });
+    const paused = run(started, { type: "sent", request: "audio", audio: WAV }, { type: "pause" });
     expect(sessionReducer(paused, { type: "resume" }).phase).toBe("thinking");
-    expect(run(started, { type: "sent", request: "audio" }, { type: "pause" }, { type: "done" }, { type: "resume" }).phase).toBe(
+    expect(run(started, { type: "sent", request: "audio", audio: WAV }, { type: "pause" }, { type: "done" }, { type: "resume" }).phase).toBe(
       "listening",
     );
   });
@@ -234,7 +241,7 @@ describe("sessionReducer", () => {
   it("does not caption a retried typed turn twice", () => {
     const state = run(
       started,
-      { type: "sent", request: "audio" },
+      { type: "sent", request: "audio", audio: WAV },
       { type: "transcript", text: "I fixed it" },
       { type: "failed", code: "tutor_unavailable" },
       { type: "sent", request: "text", text: "I fixed it" },
