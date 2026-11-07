@@ -14,6 +14,15 @@ export class FluencyClock {
   /** When the tutor stopped and the learner's answer is awaited. */
   private waitingSince: number | null = null;
 
+  /** Goes on from the timing measured before a reload. */
+  static from(timing: SessionTiming): FluencyClock {
+    const clock = new FluencyClock();
+    clock.learnerMs = timing.learnerSpeechMs;
+    clock.tutorMs = timing.tutorSpeechMs;
+    clock.pauses.push(...timing.pausesMs);
+    return clock;
+  }
+
   tutorStarted(now: number) {
     this.tutorSince = now;
     this.waitingSince = null;

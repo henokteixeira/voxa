@@ -12,6 +12,19 @@ export interface StartedSession {
   goals: string[];
 }
 
+/** An open session as the server keeps it, to pick it up again after a reload. */
+export interface ResumedSession {
+  sessionId: string;
+  mode: Mode;
+  language: string;
+  startedAt: string;
+  turns: { role: "user" | "assistant"; content: string }[];
+  goals: string[];
+  coveredGoals: string[];
+  /** The pending correction's hint step, without the correction. */
+  hint: { hintsGiven: number; revealed: boolean } | null;
+}
+
 export interface TurnResult {
   kind: "reply" | "hint" | "reveal";
   message: string;
@@ -146,6 +159,7 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     health: () => request<{ status: string }>("/health"),
     startSession: (mode: Mode, language = "en") =>
       request<StartedSession>("/sessions", { method: "POST", body: { mode, language } }),
+    resumeSession: (sessionId: string) => request<ResumedSession>(`/sessions/${encodeURIComponent(sessionId)}`),
     sendTurn: (sessionId: string, text: string) =>
       request<TurnResult>(`/sessions/${encodeURIComponent(sessionId)}/turns`, { method: "POST", body: { text } }),
     endSession: (sessionId: string, timing?: SessionTiming) =>

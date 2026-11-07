@@ -7,7 +7,7 @@ describe("FluencyClock", () => {
     clock.tutorStarted(0);
     clock.tutorStopped(4000);
     clock.learnerStarted(5500);
-    // The turn ends after 1.2 s of silence: that silence is not speech.
+    // The turn ends after a silence: that silence is not speech.
     clock.learnerEnded(9700, { silenceMs: 1200 });
 
     expect(clock.timing()).toEqual({ tutorSpeechMs: 4000, pausesMs: [1500], learnerSpeechMs: 3000 });
@@ -52,5 +52,16 @@ describe("FluencyClock", () => {
     clock.learnerStarted(7000);
     clock.learnerEnded(7500, { silenceMs: 1200 });
     expect(clock.timing()).toEqual({ tutorSpeechMs: 0, pausesMs: [1000], learnerSpeechMs: 0 });
+  });
+});
+
+describe("FluencyClock.from", () => {
+  it("goes on from the timing measured before a reload", () => {
+    const clock = FluencyClock.from({ learnerSpeechMs: 1000, tutorSpeechMs: 2000, pausesMs: [500] });
+    clock.tutorStarted(0);
+    clock.tutorStopped(1000);
+    clock.learnerStarted(1300);
+    clock.learnerEnded(2300, { silenceMs: 0 });
+    expect(clock.timing()).toEqual({ learnerSpeechMs: 2000, tutorSpeechMs: 3000, pausesMs: [500, 300] });
   });
 });

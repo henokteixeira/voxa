@@ -18,6 +18,14 @@ describe("createApiClient", () => {
     expect(JSON.parse(init.body)).toEqual({ mode: "daily", language: "en" });
   });
 
+  it("gets an open session to pick it up again", async () => {
+    const fetchImpl = respond(200, { sessionId: "s1", mode: "daily", turns: [], hint: null });
+    const api = createApiClient("http://api", fetchImpl);
+
+    await expect(api.resumeSession("s1")).resolves.toMatchObject({ sessionId: "s1", mode: "daily" });
+    expect(fetchImpl.mock.calls[0][0]).toBe("http://api/api/sessions/s1");
+  });
+
   it("sends a turn to the session", async () => {
     const fetchImpl = respond(200, { kind: "hint", message: "Check the verb.", selfCorrected: false });
     const api = createApiClient("http://api", fetchImpl);
