@@ -45,7 +45,7 @@ describe("sessionReducer", () => {
     expect(state).toMatchObject({ support: "Ontem = yesterday.", coveredGoals: ["yesterday"], hintStep: 0 });
   });
 
-  it("follows the guided track and the words to say, and keeps them when an older server sends neither", () => {
+  it("follows the guided track and the words to say, which leave once the learner answers", () => {
     const model = "Yesterday I worked on the login screen.";
     let state = run({ ...started, track: { stage: "model", number: 1, total: 5 }, scaffold: model });
     expect(state).toMatchObject({ track: { stage: "model" }, scaffold: model });
@@ -53,9 +53,14 @@ describe("sessionReducer", () => {
       { ...started, track: { stage: "model", number: 1, total: 5 }, scaffold: model },
       { type: "sent", request: "audio" },
       { type: "transcript", text: model },
-      { type: "tutor", result: { kind: "reply", message: "Great. Now with your own work.", selfCorrected: false } },
     );
-    expect(state).toMatchObject({ track: { stage: "model" }, scaffold: model });
+    expect(state).toMatchObject({ track: { stage: "model" }, scaffold: null });
+    state = sessionReducer(state, {
+      type: "tutor",
+      result: { kind: "reply", message: "Great. Now with your own work.", selfCorrected: false },
+    });
+    // An older server sends no track: the step stays.
+    expect(state).toMatchObject({ track: { stage: "model" }, scaffold: null });
     state = sessionReducer(state, {
       type: "followup",
       result: { kind: "reply", message: null, selfCorrected: false, track: { stage: "swap", number: 2, total: 5 }, scaffold: null },
