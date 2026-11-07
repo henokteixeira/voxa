@@ -33,9 +33,14 @@ const practice: PracticeView = {
 const nothingDue: ReviewOverview = { due: [], nextDueAt: on(10) };
 
 function renderPage(api: Partial<ApiClient>) {
-  const router = createMemoryRouter([{ path: "/mistakes", element: <PracticePage now={now} /> }, { path: "/review", element: <p>review</p> }], {
-    initialEntries: ["/mistakes"],
-  });
+  const router = createMemoryRouter(
+    [
+      { path: "/mistakes", element: <PracticePage now={now} /> },
+      { path: "/mistakes/patterns/:patternId", element: <PracticePage now={now} /> },
+      { path: "/review", element: <p>review</p> },
+    ],
+    { initialEntries: ["/mistakes"] },
+  );
   render(
     <ApiProvider value={api as ApiClient}>
       <RouterProvider router={router} />
@@ -54,7 +59,7 @@ describe("Practice", () => {
       "“Will” for plansMastered",
     ]);
     expect(screen.getByRole("region", { name: "Articles and prepositions" })).toHaveTextContent("“Wait for” somethingNew · Review Tue");
-    expect(screen.getByRole("region", { name: "Nothing to review today" })).toHaveTextContent("Next review: Tue · 1 item");
+    expect(screen.getByRole("region", { name: "Nothing to review right now" })).toHaveTextContent("Next review: Tue");
 
     await userEvent.click(screen.getByRole("button", { name: "New words · 1" }));
     expect(screen.getByRole("list", { name: "New words · 1" })).toHaveTextContent("deadlineprazoNew · Review tomorrow");
@@ -73,7 +78,8 @@ describe("Practice", () => {
     const router = renderPage({ practice: vi.fn().mockResolvedValue(practice), reviewOverview: vi.fn().mockResolvedValue(nothingDue) });
     await userEvent.click(await screen.findByRole("button", { name: /Past for finished actions/ }));
 
-    expect(screen.getByRole("heading", { name: "Past for finished actions" })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/mistakes/patterns/p-past");
+    expect(screen.getByRole("heading", { name: "Past for finished actions" })).toHaveFocus();
     expect(screen.getByText("Ação que já terminou: verbo no passado.")).toBeInTheDocument();
     expect(screen.getByText("5 times")).toBeInTheDocument();
     const sentences = within(screen.getByRole("region", { name: "Your sentences" })).getAllByRole("listitem");
@@ -84,6 +90,14 @@ describe("Practice", () => {
 
     await userEvent.click(screen.getByRole("link", { name: "Practice this · 1 min" }));
     expect(router.state.location).toMatchObject({ pathname: "/review", search: "?pattern=p-past" });
+    await router.navigate(-1);
+    await userEvent.click(await screen.findByRole("link", { name: "Back" }));
+    expect(await screen.findByRole("region", { name: "Verb tense" })).toBeInTheDocument();
+  });
+
+  it("says when nothing is scheduled yet", async () => {
+    renderPage({ practice: vi.fn().mockResolvedValue(practice), reviewOverview: vi.fn().mockResolvedValue({ due: [], nextDueAt: null }) });
+    expect(await screen.findByRole("region", { name: "Nothing to review right now" })).toHaveTextContent("Nothing scheduled yet.");
   });
 
   it("takes a sentence out of the bank and reloads the pattern", async () => {
@@ -92,7 +106,6 @@ describe("Practice", () => {
     renderPage({ practice: load, reviewOverview: vi.fn().mockResolvedValue(nothingDue), dismissMistake });
     await userEvent.click(await screen.findByRole("button", { name: /Past for finished actions/ }));
     await userEvent.click(screen.getAllByRole("button", { name: "Not a mistake?" })[1]);
-    await userEvent.click(screen.getByRole("button", { name: "This isn't a mistake" }));
     await userEvent.click(screen.getByRole("button", { name: "Both ways are correct" }));
     await userEvent.click(screen.getByRole("button", { name: "Remove from bank" }));
 

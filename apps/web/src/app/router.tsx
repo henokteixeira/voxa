@@ -14,6 +14,7 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <TodayPage /> },
       { path: "mistakes", element: <PracticePage /> },
+      { path: "mistakes/patterns/:patternId", element: <PracticePage /> },
       { path: "progress", element: <ProgressPage /> },
       { path: "progress/level", element: <LevelPage /> },
     ],

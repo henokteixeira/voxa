@@ -8,6 +8,7 @@ import { VoiceBall } from "@/components/voice-ball";
 import { useModeInfo } from "@/features/session/modes";
 import { DailyGoalSetting, SoundSetting } from "@/features/settings/practice-settings";
 import { TodayGoalCard } from "@/features/xp/today-goal-card";
+import { TodayReviewCard } from "@/features/practice/today-review-card";
 import { useTodayProgress } from "@/features/xp/use-today-progress";
 import { takeSavedSession } from "@/features/session/saved-session";
 import { useApi } from "@/hooks/use-api";
@@ -181,6 +182,8 @@ export function TodayPage() {
           </Button>
         </Card>
       )}
+
+      {online && status === "ok" && !paused && level.view && !needsPlacement && <TodayReviewCard />}
 
       {online && status === "ok" && (
         <Button variant="ghost" block aria-haspopup="dialog" onClick={() => setChoosing(true)}>

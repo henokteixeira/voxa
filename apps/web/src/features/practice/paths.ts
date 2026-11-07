@@ -8,3 +8,8 @@ export function reviewPath(subject?: ReviewSubject): string {
   if (!subject) return REVIEW_PATH;
   return `${REVIEW_PATH}?${subject.kind === "pattern" ? "pattern" : "word"}=${encodeURIComponent(subject.id)}`;
 }
+
+/** A pattern's page in the Practice tab. */
+export function patternPath(id: string): string {
+  return `${PRACTICE_PATH}/patterns/${encodeURIComponent(id)}`;
+}

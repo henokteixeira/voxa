@@ -11,9 +11,10 @@ export interface PracticeCopy {
   emptyBody: string;
   dueTitle: (count: number) => string;
   dueNote: string;
+  todayReview: (count: number) => string;
   startReview: string;
   nothingDue: string;
-  nextReview: (day: string, count: number) => string;
+  nextReview: (day: string) => string;
   nothingScheduled: string;
   stillPractice: string;
   view: string;
@@ -48,9 +49,10 @@ export const PRACTICE_COPY: Copy<PracticeCopy> = {
     emptyBody: "Mistakes are how you learn. After your first session, the patterns worth practicing show up here.",
     dueTitle: (n) => `${plural(n, "item", "items")} to review today`,
     dueNote: "By voice · about 3 min",
+    todayReview: (n) => `Review · ${plural(n, "item", "items")}`,
     startReview: "Start review",
-    nothingDue: "Nothing to review today",
-    nextReview: (day, n) => `Next review: ${day} · ${plural(n, "item", "items")}`,
+    nothingDue: "Nothing to review right now",
+    nextReview: (day) => `Next review: ${day}`,
     nothingScheduled: "Nothing scheduled yet.",
     stillPractice: "You can still open any pattern and practice it.",
     view: "Show",
@@ -81,9 +83,10 @@ export const PRACTICE_COPY: Copy<PracticeCopy> = {
     emptyBody: "É errando que se aprende. Depois da sua primeira sessão, os padrões que vale a pena praticar aparecem aqui.",
     dueTitle: (n) => `${plural(n, "item", "itens")} para revisar hoje`,
     dueNote: "Por voz · uns 3 min",
+    todayReview: (n) => `Revisão · ${plural(n, "item", "itens")}`,
     startReview: "Começar revisão",
-    nothingDue: "Nada para revisar hoje",
-    nextReview: (day, n) => `Próxima revisão: ${day} · ${plural(n, "item", "itens")}`,
+    nothingDue: "Nada para revisar agora",
+    nextReview: (day) => `Próxima revisão: ${day}`,
     nothingScheduled: "Nada agendado ainda.",
     stillPractice: "Você ainda pode abrir qualquer padrão e praticar.",
     view: "Mostrar",

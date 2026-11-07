@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useApi } from "@/hooks/use-api";
@@ -10,7 +10,7 @@ import { categoryLabel } from "@/features/mistakes/format";
 import { reviewDay } from "./format";
 import { PatternDetail } from "./pattern-detail";
 import { PRACTICE_COPY } from "./practice-copy";
-import { REVIEW_PATH } from "./paths";
+import { patternPath, REVIEW_PATH } from "./paths";
 
 /** Status dots: honey new, mist improving, sage mastered. */
 const STATUS_DOT: Record<ReviewStatus, string> = {
@@ -32,7 +32,9 @@ export function PracticePage(props: { now?: Date }) {
   const [data, setData] = useState<Loaded | "loading" | "failed">("loading");
   const [attempt, setAttempt] = useState(0);
   const [segment, setSegment] = useState<"patterns" | "words">("patterns");
-  const [open, setOpen] = useState<string | null>(null);
+  // A pattern's page has its own address, so Back returns to the list.
+  const open = useParams().patternId ?? null;
+  const navigate = useNavigate();
 
   useEffect(() => {
     let active = true;
@@ -85,11 +87,7 @@ export function PracticePage(props: { now?: Date }) {
       <PatternDetail
         pattern={pattern}
         now={now}
-        onBack={() => setOpen(null)}
-        onDismissed={() => {
-          setData("loading");
-          setAttempt((n) => n + 1);
-        }}
+        onDismissed={() => setAttempt((n) => n + 1)}
       />
     );
   }
@@ -108,7 +106,7 @@ export function PracticePage(props: { now?: Date }) {
   return (
     <>
       {heading}
-      <ReviewCard reviews={reviews} schedule={practice} now={now} />
+      <ReviewCard reviews={reviews} now={now} />
       <div role="group" aria-label={copy.view} className="grid grid-cols-2 gap-1 rounded-pill bg-sand-soft p-1 lg:max-w-[400px]">
         {(["patterns", "words"] as const).map((s) => (
           <button
@@ -123,7 +121,7 @@ export function PracticePage(props: { now?: Date }) {
         ))}
       </div>
       {segment === "patterns" ? (
-        <Patterns practice={practice} now={now} onOpen={setOpen} />
+        <Patterns practice={practice} now={now} onOpen={(id) => navigate(patternPath(id))} />
       ) : (
         <ul aria-label={copy.newWords(practice.newWords.length)} className="m-0 flex list-none flex-col gap-2.5 p-0">
           {practice.newWords.map((w) => (
@@ -147,7 +145,7 @@ export function PracticePage(props: { now?: Date }) {
 }
 
 /** Due items: a card to start the voice review. Nothing due: when the next review is. */
-function ReviewCard({ reviews, schedule, now }: { reviews: ReviewOverview; schedule: PracticeView; now: Date }) {
+function ReviewCard({ reviews, now }: { reviews: ReviewOverview; now: Date }) {
   const copy = useCopy(PRACTICE_COPY);
   const { locale } = useLocale();
   if (reviews.due.length > 0) {
@@ -164,14 +162,11 @@ function ReviewCard({ reviews, schedule, now }: { reviews: ReviewOverview; sched
     );
   }
   const next = reviews.nextDueAt;
-  // Items that come back on the same day as the next review.
-  const sameDay = (iso: string | null) => iso !== null && next !== null && reviewDay(iso, now, locale) === reviewDay(next, now, locale);
-  const count = [...schedule.patterns, ...schedule.newWords].filter((i) => i.status !== "mastered" && sameDay(i.dueAt)).length;
   return (
     <section aria-label={copy.nothingDue} className="flex flex-col gap-1 rounded-md bg-sage-soft px-5 py-4">
       <span className="text-body-strong">{copy.nothingDue}</span>
       <span className="text-caption text-sage-ink">
-        {next ? copy.nextReview(reviewDay(next, now, locale), Math.max(count, 1)) : copy.nothingScheduled}
+        {next ? copy.nextReview(reviewDay(next, now, locale)) : copy.nothingScheduled}
       </span>
       <span className="text-caption text-taupe">{copy.stillPractice}</span>
     </section>

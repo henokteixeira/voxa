@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { VoiceBall } from "@/components/voice-ball";
 import { useApi } from "@/hooks/use-api";
@@ -13,6 +13,11 @@ import { PRACTICE_PATH } from "./paths";
 
 /** The whole-screen voice review: what is due (or one item), then when each one comes back. */
 export function ReviewPage() {
+  // A new address is a new review.
+  return <Review key={useLocation().search} />;
+}
+
+function Review() {
   const api = useApi();
   const copy = useCopy(PRACTICE_COPY);
   const navigate = useNavigate();
@@ -68,7 +73,7 @@ export function ReviewPage() {
     content = (
       <ReviewRun
         subjects={subjects}
-        onDone={(answered) => (answered.length ? setResults(answered) : navigate(PRACTICE_PATH))}
+        onDone={(answered) => (answered.length ? setResults(answered) : navigate(PRACTICE_PATH, { replace: true }))}
       />
     );
 
@@ -100,7 +105,9 @@ function ReviewDone({ results }: { results: ReviewResult[] }) {
         <p className="m-0 text-caption text-taupe">{copy.reviewDoneNote}</p>
       </div>
       <Button block asChild>
-        <Link to={PRACTICE_PATH}>{copy.done}</Link>
+        <Link to={PRACTICE_PATH} replace>
+          {copy.done}
+        </Link>
       </Button>
     </>
   );
