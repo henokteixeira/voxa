@@ -245,12 +245,17 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
 
   // The microphone listens only on the learner's turn (and not while typing), so it never hears the tutor.
   const listening = (state.phase === "listening" || state.phase === "hearing") && !typing;
+  // Only when `listening` flips: resuming drops what was heard, so doing it again when the learner starts
+  // talking ("listening" → "hearing") would lose their turn and leave nothing to send.
   useEffect(() => {
     if (listening) mic.current?.resume();
     else mic.current?.pause();
-    // Typing or pausing: the wait that follows is not a pause before speaking.
-    if (typing || state.phase === "paused") clock.current.interrupt();
-  }, [listening, typing, state.phase]);
+  }, [listening]);
+  // Typing or pausing: the wait that follows is not a pause before speaking.
+  const interrupted = typing || state.phase === "paused";
+  useEffect(() => {
+    if (interrupted) clock.current.interrupt();
+  }, [interrupted]);
 
   const sendText = useCallback((text: string) => {
     setTyping(false);
