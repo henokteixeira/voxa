@@ -34,7 +34,7 @@ describe("POST /voice/transcriptions", () => {
     expect(res.body).toEqual({ text: "I finished it yesterday." });
     expect(stt.transcribe).toHaveBeenCalledWith(audio, "en", { mimeType: "audio/wav" });
 
-    await post(audio, "audio/webm;codecs=opus", "?language=es").expect(200);
+    await post(audio, "Audio/WebM;codecs=opus", "?language=es").expect(200);
     expect(stt.transcribe).toHaveBeenLastCalledWith(audio, "es", { mimeType: "audio/webm" });
   });
 

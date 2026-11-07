@@ -72,7 +72,7 @@ export function ReviewRun({ subjects, onDone }: { subjects: ReviewSubject[]; onD
 
   const [typing, setTyping] = useState(false);
   const asking = step.kind === "asking" ? step.card : null;
-  const mic = useReviewMicrophone(Boolean(asking) && !typing, (wav) => {
+  const mic = useReviewMicrophone(asking && !typing ? asking.cardId : null, (wav) => {
     if (!asking) return;
     setStep({ kind: "checking", card: asking });
     api
