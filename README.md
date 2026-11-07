@@ -43,18 +43,31 @@ docker compose run --rm voice python -m eval.mixed_language --models small mediu
 
 Recording yourself (`eval.record`) needs the microphone, which Docker on macOS cannot reach.
 
-Golden sessions: scripted conversations against the real tutor (Claude) that check the correction rules
-(hints, at most two, then the correct form), first-language words treated as new words, and a tutor that
-never judges and admits what it does not know. Run them before changing the tutor prompt, the model or the
-effort. They use `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` and `ANTHROPIC_EFFORT` from `.env` and cost API credits
-(about 20 Claude calls), so they are not part of `pnpm test` or CI:
+Golden sessions: a quick check against the real tutor (Claude) that a serious mistake gets a hint and the
+fix counts as a self-correction, that a first-language word is a new word and not a mistake, and that a fluent
+sentence is not corrected. Run them after changing the tutor prompt, the model or the effort. They use
+`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` and `ANTHROPIC_EFFORT` from `.env` and cost API credits (a few Claude
+calls), so they are not part of `pnpm test` or CI:
 
 ```bash
-docker compose run --rm --no-deps --build api pnpm golden
+docker compose run --rm --no-deps api pnpm golden
 ```
 
-The scenarios live in `apps/api/src/golden/scenarios.ts`; a failure prints the rule, what failed and the
-whole transcript.
+The source is mounted into the dev container, so add `--build` only after changing dependencies or config.
+
+Model eval: every scripted conversation (the golden ones plus harder cases: false friends, small slips,
+retries, jargon) against several models, to choose the tutor model by quality, speed and cost. Each model gets
+a row with mistake detection, hints that keep the answer, self-correction, the hint/reply/reveal flow, spoken
+line rules, the wait for the spoken reply (p50/p90), the cost per learner turn at list price, and errors:
+
+```bash
+docker compose run --rm --no-deps api pnpm eval:models
+# Other models or efforts, and runs per scenario (default 2):
+docker compose run --rm --no-deps -e EVAL_MODELS=claude-sonnet-5-5@low,claude-haiku-5-5@medium -e EVAL_RUNS=3 api pnpm eval:models
+```
+
+The report is printed and saved to `apps/api/eval-results/` (gitignored). The scenarios live in
+`apps/api/src/golden/scenarios.ts`; prices in `apps/api/src/model-eval/pricing.ts`.
 
 ## Running without Docker
 
