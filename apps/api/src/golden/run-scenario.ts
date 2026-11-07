@@ -24,8 +24,13 @@ export interface Transcript {
  * the same way ConversationService does, but without a database.
  */
 export async function runScenario(tutor: TutorPort, scenario: Scenario, learnerContext: string): Promise<Transcript> {
-  const goals = goalsFor(scenario.mode).map((id) => ({ id, description: GOAL_DESCRIPTIONS[id] }));
-  const context = { mode: scenario.mode, language: "en", learnerContext, goals, targets: [] };
+  const context = {
+    mode: scenario.mode,
+    language: "en",
+    learnerContext,
+    goals: goalsFor(scenario.mode).map((id) => ({ id, description: GOAL_DESCRIPTIONS[id] })),
+    targets: [],
+  };
   const opening = await tutor.open(context);
   const history: ChatTurn[] = [{ role: "assistant", content: opening }];
   let pending: PendingCorrection | null = null;
@@ -42,12 +47,12 @@ export async function runScenario(tutor: TutorPort, scenario: Scenario, learnerC
       utterance,
       coveredGoals,
     });
-    coveredGoals = mergeCovered(scenario.mode, coveredGoals, verdict.coveredGoals);
     const decision = decide(pending, verdict);
     const support = safeSupport(verdict.support, decision.nextPending?.correction);
     turns.push({ utterance, pendingBefore: pending, verdict, decision, support });
     history.push({ role: "user", content: utterance }, { role: "assistant", content: decision.message });
     pending = decision.nextPending;
+    coveredGoals = mergeCovered(scenario.mode, coveredGoals, verdict.coveredGoals);
   }
   return { opening, turns };
 }
