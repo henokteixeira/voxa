@@ -33,6 +33,15 @@ function renderPage(api: Partial<ApiClient>, { withLocale = false } = {}) {
 }
 
 describe("Mistakes", () => {
+  it("shows placeholders while the bank loads, then the list", async () => {
+    let resolve!: (list: BankMistake[]) => void;
+    renderPage({ listMistakes: vi.fn(() => new Promise<BankMistake[]>((r) => (resolve = r))) });
+    expect(screen.getByRole("status", { name: "Loading your mistakes" })).toBeInTheDocument();
+    resolve(bank);
+    expect(await screen.findByText("Yesterday I finish the screen")).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "Loading your mistakes" })).toBeNull();
+  });
+
   it("shows open mistakes first, with a count per status", async () => {
     renderPage({ listMistakes: vi.fn().mockResolvedValue(bank) });
 

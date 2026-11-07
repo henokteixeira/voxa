@@ -3,6 +3,7 @@ import type { Copy } from "@/lib/i18n/locale";
 
 export interface MistakesCopy {
   title: string;
+  loading: string;
   loadFailed: string;
   loadFailedBody: string;
   tryAgain: string;
@@ -25,6 +26,7 @@ export interface MistakesCopy {
 export const MISTAKES_COPY: Copy<MistakesCopy> = {
   en: {
     title: "Practice",
+    loading: "Loading your mistakes",
     loadFailed: "Can't load your mistakes",
     loadFailedBody: "Check that Voxa's server is running on your PC.",
     tryAgain: "Try again",
@@ -49,6 +51,7 @@ export const MISTAKES_COPY: Copy<MistakesCopy> = {
   },
   "pt-BR": {
     title: "Praticar",
+    loading: "Carregando seus erros",
     loadFailed: "Não deu para carregar seus erros",
     loadFailedBody: "Veja se o servidor do Voxa está rodando no seu PC.",
     tryAgain: "Tentar de novo",

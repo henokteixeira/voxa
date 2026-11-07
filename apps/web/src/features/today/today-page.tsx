@@ -110,7 +110,7 @@ export function TodayPage() {
               <Link
                 key={mode}
                 to={`/session/${mode}/check-in`}
-                className="flex min-h-14 items-center gap-3 rounded-md bg-paper px-5 py-4 text-ink no-underline shadow-card transition-[transform,background-color] duration-150 hover:bg-sand-soft active:scale-[0.98]"
+                className="flex min-h-14 items-center gap-3 rounded-md bg-paper px-5 py-4 text-ink no-underline shadow-card transition-[transform,background-color] duration-150 hover:bg-sand-soft motion-safe:active:scale-[0.98]"
               >
                 <span aria-hidden="true" className="size-3.5 shrink-0 rounded-full" style={{ background: modes[mode].color }} />
                 <span className="flex flex-1 flex-col gap-0.5">
