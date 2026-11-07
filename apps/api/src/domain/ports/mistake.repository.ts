@@ -9,6 +9,8 @@ export interface Mistake {
   category: string;
   occurrences: number;
   lastSeenAt: Date;
+  /** The pattern it breaks; null for new words and for mistakes saved before patterns. */
+  patternId: string | null;
 }
 
 export interface NewMistake {
@@ -34,12 +36,14 @@ export interface SessionMistake {
 
 /** Bank of mistakes and expressions. The concrete implementation lives in infra/. */
 export interface MistakeRepository {
-  record(mistake: NewMistake, occurrence: { sessionId: string; severity: Severity }): Promise<Mistake>;
+  /** Saves the mistake and this occurrence. Null when the learner dismissed it: it left the bank for good. */
+  record(mistake: NewMistake, occurrence: { sessionId: string; severity: Severity }): Promise<Mistake | null>;
   /**
    * Notes that the learner used the correct form of a mistake in this session. Ignored for a mistake
    * that is not in the bank or was made in this same session. Making the mistake again clears these.
+   * Returns the mistake when the use counted, else null.
    */
-  recordCorrectUse(sessionId: string, mistake: { language: string; original: string }): Promise<void>;
+  recordCorrectUse(sessionId: string, mistake: { language: string; original: string }): Promise<Mistake | null>;
   /** Marks the session's latest occurrence of this mistake as fixed by the learner. */
   markSelfCorrected(sessionId: string, mistake: { language: string; original: string }): Promise<void>;
   mostFrequent(language: string, limit: number): Promise<Mistake[]>;

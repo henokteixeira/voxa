@@ -42,6 +42,7 @@ import {
   type SessionRepository,
 } from "../domain/ports/session.repository.js";
 import { type TutorContext, TUTOR_PORT, type TutorPort } from "../domain/ports/tutor.port.js";
+import { ReviewScheduler } from "./review-scheduler.js";
 import { recordTurnLearning } from "./turn-learning.js";
 
 /** How many of the learner's most frequent mistakes the tutor watches for. */
@@ -130,6 +131,7 @@ export class ConversationService {
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(LEVEL_ASSESSOR_PORT) private readonly assessor: LevelAssessorPort,
     @Inject(LEVEL_REPOSITORY) private readonly levels: LevelRepository,
+    private readonly reviews: ReviewScheduler,
   ) {}
 
   async start(mode: Mode, language: string): Promise<SessionStart> {
@@ -252,7 +254,7 @@ export class ConversationService {
     const move = inTrack?.move ?? null;
 
     const pending = session.pending;
-    await recordTurnLearning(this.mistakes, {
+    await recordTurnLearning(this.mistakes, this.reviews, {
       sessionId,
       language: session.language,
       pending,
@@ -260,6 +262,7 @@ export class ConversationService {
       verdict,
       watched: [...known, ...session.targets],
       selfCorrected: decision.selfCorrected,
+      now: this.clock.now(),
     });
 
     // Goals and the stop-or-keep-going question, only on a turn where the conversation goes on.

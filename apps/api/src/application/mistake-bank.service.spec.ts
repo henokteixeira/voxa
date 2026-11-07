@@ -13,6 +13,7 @@ const entry = (id: string, sessionsCorrect: number): BankEntry => ({
   lastSeenAt: seen,
   sessionsCorrect,
   pattern: null,
+  patternId: null,
 });
 
 class FakeBank implements MistakeBankRepository {

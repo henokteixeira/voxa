@@ -102,6 +102,30 @@ export const mistakes = pgTable("mistakes", {
   dismissReason: varchar("dismiss_reason", { length: 32 }), // transcript_error | both_correct | not_needed
 });
 
+/** When each pattern, or each new word, comes back for review. Exactly one of the two subjects is set. */
+export const reviewItems = pgTable(
+  "review_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    language: varchar("language", { length: 16 }).notNull(),
+    patternId: uuid("pattern_id")
+      .unique()
+      .references(() => patterns.id, { onDelete: "cascade" }),
+    /** A new word: its row in mistakes (category new_word). */
+    newWordId: uuid("new_word_id")
+      .unique()
+      .references(() => mistakes.id, { onDelete: "cascade" }),
+    /** Index in REVIEW_INTERVALS_DAYS of the wait before the next review. */
+    step: smallint("step").notNull(),
+    dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+    lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
+  },
+  (t) => [
+    check("review_items_one_subject", sql`(${t.patternId} is null) <> (${t.newWordId} is null)`),
+    index("review_items_due").on(t.language, t.dueAt),
+  ],
+);
+
 /** Each time a mistake shows up in a session. */
 export const mistakeOccurrences = pgTable("mistake_occurrences", {
   id: uuid("id").primaryKey().defaultRandom(),

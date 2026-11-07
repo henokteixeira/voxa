@@ -13,7 +13,7 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankRepository {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
-  async record(m: NewMistake, occurrence: { sessionId: string; severity: Severity }): Promise<Mistake> {
+  async record(m: NewMistake, occurrence: { sessionId: string; severity: Severity }): Promise<Mistake | null> {
     return this.db.transaction(async (tx) => {
       const [existing] = await tx
         .select()
@@ -22,7 +22,7 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
         .limit(1);
 
       // A dismissed mistake left the bank for good: it does not count again.
-      if (existing?.dismissedAt) return toMistake(existing);
+      if (existing?.dismissedAt) return null;
 
       const { pattern, ...fields } = m;
       // A mistake keeps the first pattern it was given: later ones may word the same rule differently.
@@ -60,27 +60,28 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
     return row.id;
   }
 
-  async recordCorrectUse(sessionId: string, mistake: { language: string; original: string }): Promise<void> {
-    await this.db.transaction(async (tx) => {
+  async recordCorrectUse(sessionId: string, mistake: { language: string; original: string }): Promise<Mistake | null> {
+    return this.db.transaction(async (tx) => {
     const [found] = await tx
-      .select({ id: mistakes.id })
+      .select()
       .from(mistakes)
       .where(
         and(eq(mistakes.language, mistake.language), eq(mistakes.original, mistake.original), isNull(mistakes.dismissedAt)),
       )
       .limit(1);
-    if (!found) return;
+    if (!found) return null;
     // Only a session after the mistake counts.
     const [madeHere] = await tx
       .select({ id: mistakeOccurrences.id })
       .from(mistakeOccurrences)
       .where(and(eq(mistakeOccurrences.mistakeId, found.id), eq(mistakeOccurrences.sessionId, sessionId)))
       .limit(1);
-    if (madeHere) return;
+    if (madeHere) return null;
     await tx
       .insert(mistakeCorrectUses)
       .values({ mistakeId: found.id, sessionId, language: mistake.language })
       .onConflictDoNothing();
+    return toMistake(found);
     });
   }
 
@@ -191,6 +192,6 @@ function toPattern(key: string | null, name: string | null, rule: string | null)
 }
 
 function toMistake(row: typeof mistakes.$inferSelect): Mistake {
-  const { id, language, original, correction, category, occurrences, lastSeenAt } = row;
-  return { id, language, original, correction, category, occurrences, lastSeenAt };
+  const { id, language, original, correction, category, occurrences, lastSeenAt, patternId } = row;
+  return { id, language, original, correction, category, occurrences, lastSeenAt, patternId };
 }

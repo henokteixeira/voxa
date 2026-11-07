@@ -32,6 +32,11 @@ import { FileLearnerContext } from "./infra/tutor/file-learner-context.js";
 import { LocalVoiceAdapter } from "./infra/voice/local-voice.adapter.js";
 import { LevelsController } from "./levels/levels.controller.js";
 import { MistakesController } from "./mistakes/mistakes.controller.js";
+import { ReviewsController } from "./reviews/reviews.controller.js";
+import { ReviewScheduler } from "./application/review-scheduler.js";
+import { ReviewService } from "./application/review.service.js";
+import { REVIEW_REPOSITORY } from "./domain/ports/review.repository.js";
+import { DrizzleReviewRepository } from "./infra/db/drizzle-review.repository.js";
 import { ProgressController } from "./progress/progress.controller.js";
 import { SessionsController } from "./sessions/sessions.controller.js";
 import { FillersController } from "./voice/fillers.controller.js";
@@ -41,10 +46,12 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
 // Swapping the database, AI or voice provider = changing useClass/useExisting below.
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ["../../.env"], validate: validateEnv }), DbModule],
-  controllers: [HealthController, SessionsController, MistakesController, FillersController, LevelsController, ProgressController],
+  controllers: [HealthController, SessionsController, MistakesController, FillersController, LevelsController, ProgressController, ReviewsController],
   providers: [
     ConversationService,
     MistakeBankService,
+    ReviewScheduler,
+    ReviewService,
     VoiceConversationService,
     FillerSpeechService,
     LevelService,
@@ -60,6 +67,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
     { provide: LEVEL_REPOSITORY, useClass: DrizzleLevelRepository },
     { provide: PROGRESS_REPOSITORY, useClass: DrizzleProgressRepository },
     { provide: SIGNALS_REPOSITORY, useClass: DrizzleSignalsRepository },
+    { provide: REVIEW_REPOSITORY, useClass: DrizzleReviewRepository },
     DrizzleMistakeRepository,
     { provide: MISTAKE_REPOSITORY, useExisting: DrizzleMistakeRepository },
     { provide: MISTAKE_BANK_REPOSITORY, useExisting: DrizzleMistakeRepository },
