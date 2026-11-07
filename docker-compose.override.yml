@@ -1,0 +1,20 @@
+# Development mode, loaded automatically by `docker compose up`.
+# The source is mounted into the containers: web changes hot-reload in the browser (Vite),
+# API changes restart the server (nest --watch). No rebuild after `git pull`, unless dependencies change.
+# Production build instead (nginx, compiled API): `docker compose -f docker-compose.yml up --build`.
+services:
+  api:
+    build: { target: dev }
+    volumes:
+      - ./apps/api/src:/repo/apps/api/src
+
+  web:
+    build: { target: dev }
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+    ports: !override
+      - "5173:5173"
+    volumes:
+      - ./apps/web:/repo/apps/web
+      # Keep the container's installed packages; the host folder may have none (or Mac builds).
+      - /repo/apps/web/node_modules
