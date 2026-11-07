@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,6 +7,8 @@ import { Sheet } from "@/components/ui/sheet";
 import { VoiceBall } from "@/components/voice-ball";
 import { useModeInfo } from "@/features/session/modes";
 import { DailyGoalSetting, SoundSetting } from "@/features/settings/practice-settings";
+import { TodayGoalCard } from "@/features/xp/today-goal-card";
+import { useTodayProgress } from "@/features/xp/use-today-progress";
 import { takeSavedSession } from "@/features/session/saved-session";
 import { useApi } from "@/hooks/use-api";
 import { useApiStatus } from "@/hooks/use-api-status";
@@ -88,6 +90,14 @@ export function TodayPage() {
   const { locale } = useLocale();
   const modes = useModeInfo();
   const api = useApi();
+  const progress = useTodayProgress();
+  const reloadProgress = progress.reload;
+  // When the API comes back (e.g. after "Check again"), load the goal it could not give before.
+  const lastStatus = useRef(status);
+  useEffect(() => {
+    if (status === "ok" && lastStatus.current !== "ok" && lastStatus.current !== "checking") reloadProgress();
+    lastStatus.current = status;
+  }, [status, reloadProgress]);
   // A session left mid-way (closed tab): continue it, unless it is too old (then it is ended with its summary).
   const [paused] = useState(() => takeSavedSession(api));
   // Before the first placement, Start opens the onboarding, which ends in the placement interview.
@@ -118,6 +128,7 @@ export function TodayPage() {
       </div>
       <h1 className="m-0 text-display">{copy.greeting(now.getHours())}</h1>
       <Welcome title={copy.welcomeTitle} body={copy.welcomeBody} />
+      {online && status === "ok" && progress.today && <TodayGoalCard today={progress.today} />}
 
       {!online ? (
         <Card>
@@ -176,7 +187,8 @@ export function TodayPage() {
       {settingsOpen && (
         <Sheet label={copy.settings} closeLabel={copy.close} onClose={() => setSettingsOpen(false)}>
           <h2 className="m-0 text-heading">{copy.settings}</h2>
-          <DailyGoalSetting />
+          {/* A new practice time changes the goal: the card takes what the server answered. */}
+          <DailyGoalSetting onSaved={progress.set} />
           <PauseSetting title={copy.pauseTitle} hint={copy.pauseHint} seconds={copy.seconds} />
           <SoundSetting />
         </Sheet>

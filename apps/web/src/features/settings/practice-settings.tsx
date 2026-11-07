@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { SegmentedSetting } from "@/components/ui/segmented";
 import { useApi } from "@/hooks/use-api";
-import { DAILY_MINUTES, type DailyMinutes } from "@/lib/api";
+import { DAILY_MINUTES, type DailyMinutes, type TodayProgress } from "@/lib/api";
 import { useCopy } from "@/lib/i18n/locale";
 import { useSounds } from "@/lib/sound/sounds";
 import { SETTINGS_COPY } from "./settings-copy";
 
 /** How long the learner wants to practice a day. Stored on the server: the daily XP goal follows from it. */
-export function DailyGoalSetting() {
+export function DailyGoalSetting({ onSaved }: { onSaved?: (today: TodayProgress) => void }) {
   const api = useApi();
   const copy = useCopy(SETTINGS_COPY);
   const [minutes, setMinutes] = useState<DailyMinutes | null>(null);
@@ -19,7 +19,10 @@ export function DailyGoalSetting() {
     api
       .todayProgress()
       .then((today) => active && setMinutes(today.minutesPerDay))
-      .catch(() => active && setProblem("load"));
+      .catch((error: unknown) => {
+        console.warn("Could not load the practice time a day.", error);
+        if (active) setProblem("load");
+      });
     return () => {
       active = false;
     };
@@ -35,7 +38,9 @@ export function DailyGoalSetting() {
     try {
       const today = await api.setDailyMinutes(next);
       setMinutes(today.minutesPerDay);
-    } catch {
+      onSaved?.(today);
+    } catch (error) {
+      console.warn("Could not save the practice time a day.", error);
       setMinutes(before);
       setProblem("save");
     } finally {

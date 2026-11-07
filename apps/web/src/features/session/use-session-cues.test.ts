@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { initialSessionState, type SessionState } from "./session-state";
-import { cuesFor } from "./use-session-cues";
+import { cuesFor, xpMomentFor } from "./use-session-cues";
 
 const live = (patch: Partial<SessionState> = {}): SessionState => ({
   ...initialSessionState,
@@ -37,5 +37,14 @@ describe("cuesFor", () => {
   it("stays quiet when a session is picked up again", () => {
     const resumed = live({ phase: "paused", hintStep: 1, coveredGoals: ["a"] });
     expect(cuesFor({ ...initialSessionState }, resumed)).toEqual([]);
+  });
+});
+
+describe("xpMomentFor", () => {
+  it("shows XP for a self-correction, which wins over a goal in the same step", () => {
+    const after = live({ fixed: true, coveredGoals: ["a"] });
+    expect(xpMomentFor(live(), after)).toEqual({ reason: "self_corrected", tone: "correction" });
+    expect(xpMomentFor(live(), live({ coveredGoals: ["a"] }))).toEqual({ reason: "goal_covered", tone: "goal" });
+    expect(xpMomentFor(live(), live({ hintStep: 1 }))).toBeNull();
   });
 });

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { VoiceBall } from "@/components/voice-ball";
 import { type FluencySignals, type Mode, NEW_WORD_CATEGORY, type SessionMistake, type SessionSummary } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { SessionXpCard } from "@/features/xp/session-xp";
 import { ConfidenceScale } from "./confidence-scale";
 import { GoalsSummary } from "./goals";
 import { useCopy, useLocale } from "@/lib/i18n/locale";
@@ -47,6 +48,7 @@ export function SummaryFlow(props: {
           </span>
           <h1 className="m-0 text-title">{copy.sessionDone}</h1>
         </div>
+        {summary.xp && <SessionXpCard xp={summary.xp} />}
         <Signals signals={summary.signals} mistakes={mistakes} />
         <GoalsSummary summary={summary} />
         <div className="flex-1" />
