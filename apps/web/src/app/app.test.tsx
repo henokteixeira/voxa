@@ -21,7 +21,14 @@ function renderApp(
   health: ApiClient["health"],
   { withLocale = false, level = vi.fn().mockResolvedValue(placedB1) }: { withLocale?: boolean; level?: ReturnType<typeof vi.fn> } = {},
 ) {
-  const api = { health, endSession, level, listMistakes: vi.fn().mockResolvedValue([]) } as unknown as ApiClient;
+  const api = {
+    health,
+    endSession,
+    level,
+    listMistakes: vi.fn().mockResolvedValue([]),
+    todayProgress: vi.fn().mockResolvedValue(today(30)),
+    setDailyMinutes: vi.fn().mockImplementation(async (minutes: number) => today(minutes)),
+  } as unknown as ApiClient;
   const router = createMemoryRouter(routes, { initialEntries: [path] });
   const app = (
     <ApiProvider value={api}>
@@ -36,6 +43,10 @@ afterEach(() => {
   vi.restoreAllMocks();
   localStorage.clear();
 });
+
+function today(minutesPerDay: number) {
+  return { day: "2026-11-07", minutesPerDay, goalXp: 40, earnedXp: 0, goalMet: false, streakDays: 0, points: {} };
+}
 
 const up = () => vi.fn().mockResolvedValue({ status: "ok" });
 const down = () => vi.fn().mockRejectedValue(new ApiError("offline", "Can't reach the Voxa API."));
@@ -173,6 +184,16 @@ describe("Today", () => {
     expect(within(pause).getByRole("button", { name: "4 s" })).toHaveAttribute("aria-pressed", "true");
     expect(within(pause).getByRole("button", { name: "2.5 s" })).toHaveAttribute("aria-pressed", "false");
     expect(readPauseMs()).toBe(4000);
+  });
+
+  it("lets you choose the practice time a day, which sets the daily goal", async () => {
+    renderApp("/", up());
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const daily = within(screen.getByRole("dialog", { name: "Settings" })).getByRole("group", { name: "Practice time a day" });
+    expect(await within(daily).findByRole("button", { name: "30 min" })).toHaveAttribute("aria-pressed", "true");
+
+    await userEvent.click(within(daily).getByRole("button", { name: "45 min" }));
+    expect(await within(daily).findByRole("button", { name: "45 min" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("says the server isn't running and lets you check again", async () => {

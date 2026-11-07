@@ -121,6 +121,45 @@ export interface SessionSummary {
   targets: { original: string; correction: string; category: string; met: boolean }[];
   /** After a placement interview: the level it gave (null when nothing was said). Missing or null otherwise. */
   level?: SpeakingLevel | null;
+  /** XP the session earned; missing from servers older than XP. */
+  xp?: SessionXp;
+}
+
+/** What earns XP. A mistake never takes XP away. */
+export type XpReason = "practice_minute" | "goal_covered" | "self_corrected" | "personal_record";
+
+export interface XpAward {
+  reason: XpReason;
+  /** How many times it happened: minutes, goals, self-corrections, records. */
+  count: number;
+  points: number;
+}
+
+export interface SessionXp {
+  awards: XpAward[];
+  total: number;
+}
+
+/** How long the learner wants to practice a day; the XP goal follows from it. */
+export const DAILY_MINUTES = [15, 30, 45, 60] as const;
+export type DailyMinutes = (typeof DAILY_MINUTES)[number];
+
+/** Today's XP, goal and streak, in the learner's time zone. */
+export interface TodayProgress {
+  /** YYYY-MM-DD. */
+  day: string;
+  minutesPerDay: DailyMinutes;
+  goalXp: number;
+  earnedXp: number;
+  goalMet: boolean;
+  streakDays: number;
+  /** XP for each reason, to show XP as it is earned. */
+  points: Record<XpReason, number>;
+}
+
+/** The device's IANA time zone: days, the goal and the streak follow the learner's clock. */
+export function deviceTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
 export type MistakeStatus = "open" | "improving" | "mastered";
@@ -236,6 +275,12 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
       (await request<{ mistakes: BankMistake[] }>(`/mistakes?language=${encodeURIComponent(language)}`)).mistakes,
     dismissMistake: (id: string, reason: DismissReason) =>
       request<void>(`/mistakes/${encodeURIComponent(id)}/dismiss`, { method: "POST", body: { reason } }),
+    todayProgress: (language = "en", timeZone = deviceTimeZone()) =>
+      request<TodayProgress>(
+        `/progress/today?language=${encodeURIComponent(language)}&timeZone=${encodeURIComponent(timeZone)}`,
+      ),
+    setDailyMinutes: (minutesPerDay: DailyMinutes, language = "en", timeZone = deviceTimeZone()) =>
+      request<TodayProgress>("/progress/daily-goal", { method: "PUT", body: { language, timeZone, minutesPerDay } }),
   };
 }
 
