@@ -13,6 +13,9 @@ export interface ReflectionCopy {
   continue: string;
   skip: string;
   sessionDone: string;
+  placementDone: string;
+  placementNoLevel: string;
+  placementWhere: string;
   seeMistakes: string;
   mistakesLine: (count: number, fixed: number, newWords: number) => string;
   whatToKeep: string;
@@ -58,6 +61,9 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     continue: "Continue",
     skip: "Skip",
     sessionDone: "Session done",
+    placementDone: "Thanks for the conversation",
+    placementNoLevel: "There wasn't enough to estimate a level this time. You can try again from Progress.",
+    placementWhere: "You'll find your level and the lines behind it in Progress, where you can also adjust it.",
     seeMistakes: "See your mistakes",
     mistakesLine: (count, fixed, newWords) =>
       `${plural(count, "mistake", "mistakes")} · ${fixed} fixed by you` +
@@ -100,6 +106,9 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     continue: "Continuar",
     skip: "Pular",
     sessionDone: "Sessão concluída",
+    placementDone: "Obrigado pela conversa",
+    placementNoLevel: "Não deu para estimar um nível desta vez. Você pode tentar de novo pela aba Progresso.",
+    placementWhere: "Seu nível e as frases que o sustentam ficam na aba Progresso, onde você também pode ajustá-lo.",
     seeMistakes: "Ver seus erros",
     mistakesLine: (count, fixed, newWords) =>
       `${plural(count, "erro", "erros")} · ${plural(fixed, "corrigido", "corrigidos")} por você` +

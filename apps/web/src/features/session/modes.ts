@@ -15,6 +15,7 @@ export const MODE_INFO: Record<Mode, ModeInfo> = {
   free_talk: { title: "Catch up with a colleague", meta: "Colleague · about 5 min", color: "var(--color-lilac)", meeting: "chat with a colleague" },
   daily: { title: "Daily stand-up", meta: "Tech lead · about 6 min", color: "var(--color-mist)", meeting: "daily" },
   review: { title: "Sprint review", meta: "Product owner · about 10 min", color: "var(--color-sage)", meeting: "sprint review" },
+  placement: { title: "Find your speaking level", meta: "Interviewer · about 7 min", color: "var(--color-honey)", meeting: "meeting in English" },
 };
 
 type ModeText = Omit<ModeInfo, "color">;
@@ -28,6 +29,7 @@ const MODE_TEXT: Copy<Record<Mode, ModeText>> = {
     free_talk: { title: "Conversar com um colega", meta: "Colega · cerca de 5 min", meeting: "uma conversa com um colega" },
     daily: { title: "Daily stand-up", meta: "Tech lead · cerca de 6 min", meeting: "uma daily" },
     review: { title: "Sprint review", meta: "Product owner · cerca de 10 min", meeting: "uma sprint review" },
+    placement: { title: "Descobrir seu nível de fala", meta: "Entrevista · cerca de 7 min", meeting: "uma reunião em inglês" },
   },
 };
 

@@ -116,7 +116,8 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
           <TranscriptIcon />
         </IconButton>
       </header>
-      <GoalsStrip goals={state.goals} covered={state.coveredGoals} />
+      {/* The placement interview's tasks are not goals to tick off: showing them would feel like a test. */}
+      {mode !== "placement" && <GoalsStrip goals={state.goals} covered={state.coveredGoals} />}
 
       {showTranscript ? (
         <ol aria-label={page.transcript} inert={state.phase === "paused"} className="m-0 flex min-h-0 flex-1 list-none flex-col gap-3 overflow-y-auto p-0">

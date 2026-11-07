@@ -11,8 +11,17 @@ import { routes } from "./router";
 
 const endSession = vi.fn().mockResolvedValue({});
 
-function renderApp(path: string, health: ApiClient["health"], { withLocale = false } = {}) {
-  const api = { health, endSession, listMistakes: vi.fn().mockResolvedValue([]) } as unknown as ApiClient;
+const placedB1 = {
+  current: { language: "en", level: "B1", source: "placement", evidence: [], assessedAt: "2026-11-07T10:00:00Z", step: "supported" },
+  placementDue: false,
+};
+
+function renderApp(
+  path: string,
+  health: ApiClient["health"],
+  { withLocale = false, level = vi.fn().mockResolvedValue(placedB1) }: { withLocale?: boolean; level?: ReturnType<typeof vi.fn> } = {},
+) {
+  const api = { health, endSession, level, listMistakes: vi.fn().mockResolvedValue([]) } as unknown as ApiClient;
   const router = createMemoryRouter(routes, { initialEntries: [path] });
   const app = (
     <ApiProvider value={api}>
@@ -92,12 +101,32 @@ describe("Today", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Good (morning|afternoon|evening)$/);
   });
 
+  it("suggests the placement interview first, before there is a level", async () => {
+    const router = renderApp("/", up(), { level: vi.fn().mockResolvedValue({ current: null, placementDue: true }) });
+    expect(await screen.findByRole("heading", { name: "Let's start by finding your level" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("link", { name: "Start" }));
+    expect(router.state.location.pathname).toBe("/session/placement");
+  });
+
+  it("waits for the level before offering a session", async () => {
+    renderApp("/", up(), { level: vi.fn(() => new Promise(() => {})) });
+    await screen.findByRole("button", { name: "Other practice" });
+    expect(screen.queryByRole("link", { name: "Start" })).toBeNull();
+  });
+
+  it("offers the daily when the level can't be read", async () => {
+    renderApp("/", up(), { level: vi.fn().mockRejectedValue(new ApiError("server", "boom")) });
+    expect(await screen.findByRole("heading", { name: "Your first session is ready" })).toBeInTheDocument();
+  });
+
   it("keeps other practice in a sheet, not in a list under the fold", async () => {
     const router = renderApp("/", up());
     await userEvent.click(await screen.findByRole("button", { name: "Other practice" }));
     const sheet = screen.getByRole("dialog", { name: "Other practice" });
     expect(sheet).toHaveTextContent("Present your project");
     expect(sheet).toHaveTextContent("Sprint review");
+    // The placement interview is not a meeting to practice.
+    expect(sheet).not.toHaveTextContent("Find your speaking level");
     await userEvent.click(screen.getByRole("link", { name: /Sprint review/ }));
     expect(router.state.location.pathname).toBe("/session/review/check-in");
   });

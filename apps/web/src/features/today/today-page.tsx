@@ -9,7 +9,9 @@ import { takeSavedSession } from "@/features/session/saved-session";
 import { useApi } from "@/hooks/use-api";
 import { useApiStatus } from "@/hooks/use-api-status";
 import { useOnline } from "@/hooks/use-online";
-import { MODES } from "@/lib/api";
+import { MEETING_MODES } from "@/lib/api";
+import { PLACEMENT_PATH } from "@/features/progress/level-card";
+import { useLevel } from "@/features/progress/use-level";
 import { LOCALES, useCopy, useLocale } from "@/lib/i18n/locale";
 import { PAUSE_CHOICES_MS, readPauseMs, savePauseMs } from "@/lib/voice/pause-setting";
 import { cn } from "@/lib/utils";
@@ -106,6 +108,9 @@ export function TodayPage() {
   const api = useApi();
   // A session left mid-way (closed tab): continue it, unless it is too old (then it is ended with its summary).
   const [paused] = useState(() => takeSavedSession(api));
+  // Before the first placement, the suggested session is the placement interview.
+  const level = useLevel();
+  const needsPlacement = level.view?.current === null;
   const date = now.toLocaleDateString(locale, { weekday: "long", month: "short", day: "numeric" });
 
   return (
@@ -155,6 +160,20 @@ export function TodayPage() {
             <Link to={`/session/${paused.mode}`}>{copy.continueSession}</Link>
           </Button>
         </Card>
+      ) : level.view === undefined ? (
+        // Wait for the level before offering a session, so Start never leads to the wrong one.
+        <Card aria-busy="true" className="items-center gap-3 px-5 py-6 text-center">
+          <VoiceBall state="idle" size={104} />
+        </Card>
+      ) : needsPlacement ? (
+        <Card className="items-center gap-3 px-5 py-6 text-center">
+          <VoiceBall state="idle" size={104} />
+          <h2 className="m-0 text-heading">{copy.placementTitle}</h2>
+          <p className="m-0 text-caption text-taupe">{copy.placementBody}</p>
+          <Button block asChild>
+            <Link to={PLACEMENT_PATH}>{copy.start}</Link>
+          </Button>
+        </Card>
       ) : (
         <Card className="items-center gap-3 px-5 py-6 text-center">
           <VoiceBall state="idle" size={104} />
@@ -183,7 +202,7 @@ export function TodayPage() {
         <Sheet label={copy.otherPractice} closeLabel={copy.close} onClose={() => setChoosing(false)}>
           <h2 className="m-0 text-heading">{copy.otherPractice}</h2>
           <nav aria-label={copy.otherPractice} className="flex flex-col gap-3">
-            {MODES.map((mode) => (
+            {MEETING_MODES.map((mode) => (
               <Link
                 key={mode}
                 to={`/session/${mode}/check-in`}
