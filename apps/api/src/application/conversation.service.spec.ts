@@ -19,17 +19,21 @@ import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import type { Mistake, MistakeRepository, NewMistake, SessionMistake } from "../domain/ports/mistake.repository.js";
 import type { SessionTiming } from "../domain/conversation/fluency.js";
 import type { ConfidenceMoment, NewTurn, SessionProgress, SessionRepository } from "../domain/ports/session.repository.js";
-import type { TutorContext, TutorPort, TutorRequest } from "../domain/ports/tutor.port.js";
+import type { TrackPlan, TutorContext, TutorPort, TutorRequest } from "../domain/ports/tutor.port.js";
 import { NEW_WORD_CATEGORY } from "../domain/conversation/types.js";
+import type { TrackState } from "../domain/conversation/guided-track.js";
 import { ConversationService, SessionEndedError, SessionNotFoundError, type TurnResult } from "./conversation.service.js";
 
 class FakeTutor implements TutorPort {
   verdicts: TutorVerdict[] = [];
   opened: TutorContext[] = [];
+  openPlans: (TrackPlan | null)[] = [];
   requests: TutorRequest[] = [];
-  async open(context: TutorContext) {
+  openingScaffold: string | null = null;
+  async open(context: TutorContext, plan: TrackPlan | null = null) {
     this.opened.push(context);
-    return "Tell me about your project.";
+    this.openPlans.push(plan);
+    return { line: "Tell me about your project.", scaffold: this.openingScaffold };
   }
   /** False: behave like a tutor that cannot hand over its reply before the whole verdict. */
   speaksEarly = true;
@@ -46,7 +50,7 @@ type Row = Session & { turns: ChatTurn[]; timing: SessionTiming | null; before: 
 
 class FakeSessions implements SessionRepository {
   rows = new Map<string, Row>();
-  async create(input: { language: string; mode: Mode; startedAt?: Date; targets?: PracticeTarget[]; step?: SupportStep | null }) {
+  async create(input: { language: string; mode: Mode; startedAt?: Date; targets?: PracticeTarget[]; step?: SupportStep | null; track?: TrackState | null }) {
     const id = `s${this.rows.size + 1}`;
     const session: Session = {
       id,
@@ -61,6 +65,7 @@ class FakeSessions implements SessionRepository {
       metTargets: [],
       step: input.step ?? null,
       scaffold: null,
+      track: input.track ?? null,
     };
     this.rows.set(id, { ...session, turns: [], timing: null, before: null, after: null });
     return session;
@@ -745,6 +750,107 @@ describe("ConversationService: help by the learner's level", () => {
     tutor.verdicts.push(verdict({ newWords: [{ said: "prazo", words: "deadline" }] }));
     await service.respond(session.id, "The prazo is Friday.");
     expect(sessions.assisted.get(session.id)).toEqual([true]);
+  });
+});
+
+describe("ConversationService: the guided track (A1–A2)", () => {
+  const placed = (level: SpeakingLevel["level"]): SpeakingLevel => ({
+    language: "en",
+    level,
+    source: "placement",
+    evidence: [],
+    assessedAt: new Date(),
+  });
+  const model = "Yesterday I worked on the login screen.";
+
+  async function startA1() {
+    levels.rows.push(placed("A1"));
+    tutor.openingScaffold = model;
+    return (await service.start("daily", "en")).session;
+  }
+
+  it("opens at A1 with a model sentence for the first goal and keeps it to compare the repetition", async () => {
+    const session = await startA1();
+    expect(tutor.openPlans[0]?.otherwise).toEqual({
+      stage: "model",
+      retry: false,
+      goal: { id: "yesterday", description: "said what they did yesterday" },
+    });
+    expect((await sessions.get(session.id))?.scaffold).toBe(model);
+  });
+
+  it("moves on once the learner repeats the model, and asks the tutor for the next step", async () => {
+    const session = await startA1();
+    tutor.verdicts.push(verdict({ scaffold: model }));
+    await service.respond(session.id, "Yesterday I worked on the login screen.");
+
+    const plan = tutor.requests[0].plan;
+    expect(plan?.otherwise.stage).toBe("swap");
+    expect((await sessions.get(session.id))?.track).toMatchObject({ stage: "swap", goal: "yesterday" });
+    expect(sessions.assisted.get(session.id)).toEqual([true]);
+  });
+
+  it("says the model again, slower, when the repetition does not match", async () => {
+    const session = await startA1();
+    tutor.verdicts.push(verdict({ scaffold: model }));
+    await service.respond(session.id, "Yesterday I...");
+    expect(tutor.requests[0].plan?.otherwise).toMatchObject({ stage: "model", retry: true });
+  });
+
+  it("covers a goal only with the learner's own answer, never while repeating", async () => {
+    const session = await startA1();
+    tutor.verdicts.push(verdict({ scaffold: model, coveredGoals: ["yesterday"] }));
+    expect((await service.respond(session.id, model)).coveredGoals).toEqual([]);
+  });
+
+  it("does not stop for a hint while the learner says the words given", async () => {
+    const session = await startA1();
+    tutor.verdicts.push(verdict({ scaffold: model, issues: [goed] }));
+    expect((await service.respond(session.id, "I goed to the meeting.")).kind).toBe("reply");
+  });
+
+  it("at A2, asks the question first and gives the model only when the learner is stuck", async () => {
+    levels.rows.push(placed("A2"));
+    const { session } = await service.start("daily", "en");
+    expect(tutor.openPlans[0]?.otherwise.stage).toBe("answer");
+    tutor.verdicts.push(verdict({ stuck: true, scaffold: model }));
+
+    await service.respond(session.id, "I don't know.");
+
+    expect(tutor.requests[0].plan?.ifStuck.stage).toBe("model");
+    expect(tutor.requests[0].plan?.otherwise.stage).toBe("again");
+    expect(await sessions.get(session.id)).toMatchObject({ scaffold: model, track: { stage: "model" } });
+  });
+
+  it("stops for a hint at the learner's own answer, and moves on once it is fixed", async () => {
+    levels.rows.push(placed("A2"));
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true }));
+
+    expect((await service.respond(session.id, "I goed to the meeting.")).kind).toBe("hint");
+    expect((await sessions.get(session.id))?.track?.stage).toBe("answer");
+    expect(tutor.requests[0].plan?.hintsPause).toBe(true);
+
+    const fixed = await service.respond(session.id, "I went to the meeting.");
+    expect(fixed.selfCorrected).toBe(true);
+    expect(fixed.coveredGoals).toEqual(["yesterday"]);
+    expect((await sessions.get(session.id))?.track?.stage).toBe("again");
+  });
+
+  it("records a serious mistake made while repeating with its real severity, without a hint", async () => {
+    const session = await startA1();
+    tutor.verdicts.push(verdict({ scaffold: model, issues: [goed] }));
+    await service.respond(session.id, "I goed to the meeting.");
+    expect(mistakes.events.at(-1)).toMatchObject({ original: goed.original, severity: "serious" });
+  });
+
+  it("covers the goal when the learner answers alone, and asks to say it again", async () => {
+    levels.rows.push(placed("A2"));
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ scaffold: "ignored" }));
+    const turn = await service.respond(session.id, "Yesterday I fixed the upload bug.");
+    expect(turn.coveredGoals).toEqual(["yesterday"]);
+    expect(await sessions.get(session.id)).toMatchObject({ scaffold: null, track: { stage: "again" } });
   });
 });
 

@@ -31,6 +31,7 @@ const bored = {
 const turn = (over: Partial<TurnRecord> = {}): TurnRecord => ({
   utterance: "…",
   scaffold: null,
+  stage: null,
   pendingBefore: null,
   verdict: verdict(),
   decision: { kind: "reply", message: "Nice. What will you do today?", nextPending: null, selfCorrected: false },
@@ -119,7 +120,7 @@ describe("runScenario", () => {
     const requests: TutorRequest[] = [];
     const answers = [verdict({ issues: [bored] }), verdict({ pendingResolved: true })];
     const tutor: TutorPort = {
-      open: async () => "Morning! How was yesterday?",
+      open: async () => ({ line: "Morning! How was yesterday?", scaffold: null }),
       evaluate: async (request) => {
         requests.push(request);
         return answers[requests.length - 1];

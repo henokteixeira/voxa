@@ -35,7 +35,7 @@ export interface TurnTiming {
 /** A tutor that times each turn. */
 export function timedTutor(inner: TutorPort, onTiming: (timing: TurnTiming) => void, now = () => performance.now()): TutorPort {
   return {
-    open: (context) => inner.open(context),
+    open: (context, plan) => inner.open(context, plan),
     async evaluate(request: TutorRequest, onReply?: (reply: string) => void): Promise<TutorVerdict> {
       const start = now();
       let replyMs: number | null = null;

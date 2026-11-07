@@ -1,4 +1,5 @@
 import type { TutorVerdict } from "../conversation/correction-policy.js";
+import type { TrackPlan } from "../conversation/guided-track.js";
 import type { Mode } from "../conversation/mode.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget } from "../conversation/types.js";
 import type { SupportStep } from "../level/speaking-level.js";
@@ -22,6 +23,12 @@ export interface TutorContext {
   step: SupportStep | null;
 }
 
+export interface TutorOpening {
+  line: string;
+  /** Words the opening gives the learner to say (the guided track's first model sentence), or null. */
+  scaffold: string | null;
+}
+
 export interface TutorRequest extends TutorContext {
   history: ChatTurn[];
   pending: PendingCorrection | null;
@@ -33,12 +40,14 @@ export interface TutorRequest extends TutorContext {
   coveredGoals: string[];
   /** Words the tutor's last line gave the learner to say (the learner may be completing them), or null. */
   scaffold: string | null;
+  /** In the guided track (A1–A2): what the next line does; null otherwise. */
+  plan: TrackPlan | null;
 }
 
 /** The AI tutor. Implementations live in infra/. */
 export interface TutorPort {
-  /** The tutor's first line, which opens the scene for the mode. */
-  open(context: TutorContext): Promise<string>;
+  /** The tutor's first line, which opens the scene for the mode (and, in the guided track, does its first step). */
+  open(context: TutorContext, plan?: TrackPlan | null): Promise<TutorOpening>;
   /**
    * Reads the learner's utterance: mistakes, whether a pending one is fixed, and the next line.
    * `onReply` gets the next line as soon as it is written, while the rest of the reading goes on.
@@ -50,3 +59,5 @@ export interface TutorPort {
 export class TutorUnavailableError extends Error {}
 
 export const TUTOR_PORT = Symbol("TUTOR_PORT");
+
+export type { TrackPlan, TrackStep } from "../conversation/guided-track.js";

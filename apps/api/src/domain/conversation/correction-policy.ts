@@ -105,8 +105,12 @@ export function safeHint(hint: string | null | undefined, target: { correction: 
   return text;
 }
 
+/** Every mistake counts as minor, so none pauses the talk for a hint; they are still recorded. */
+export function notedOnly(verdict: TutorVerdict): TutorVerdict {
+  return { ...verdict, issues: verdict.issues.map((i) => ({ ...i, severity: "minor", matchesKnownMistake: false })) };
+}
+
 /** In a mode that only observes (the placement interview), every mistake counts as minor, so none gets a hint. */
 export function verdictForMode(mode: Mode, verdict: TutorVerdict): TutorVerdict {
-  if (correctsMistakes(mode)) return verdict;
-  return { ...verdict, issues: verdict.issues.map((i) => ({ ...i, severity: "minor", matchesKnownMistake: false })) };
+  return correctsMistakes(mode) ? verdict : notedOnly(verdict);
 }

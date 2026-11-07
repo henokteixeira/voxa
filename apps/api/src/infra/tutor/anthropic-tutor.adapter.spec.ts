@@ -52,14 +52,18 @@ const request: TutorRequest = {
   coveredGoals: [],
   step: "conversation",
   scaffold: null,
+  plan: null,
 };
 
 describe("AnthropicTutorAdapter.open", () => {
   it("asks for the opening line as structured output, so it never comes back as raw JSON text", async () => {
-    const { messages, parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: { reply: " Morning! " } });
+    const { messages, parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: { reply: " Morning! ", scaffold: null } });
     const adapter = new AnthropicTutorAdapter(messages, config({ ANTHROPIC_MODEL: "claude-test" }));
 
-    await expect(adapter.open({ mode: "daily", language: "en", learnerContext: "", goals: [], targets: [], step: null })).resolves.toBe("Morning!");
+    await expect(adapter.open({ mode: "daily", language: "en", learnerContext: "", goals: [], targets: [], step: null })).resolves.toEqual({
+      line: "Morning!",
+      scaffold: null,
+    });
 
     const params = parse.mock.calls[0][0];
     expect(params.model).toBe("claude-test");
@@ -69,8 +73,20 @@ describe("AnthropicTutorAdapter.open", () => {
     expect(params.messages).toEqual([{ role: "user", content: OPENING_REQUEST }]);
   });
 
+  it("sends the guided track's first step with the opening and returns its model sentence", async () => {
+    const { messages, parse } = fakeMessages({
+      stop_reason: "end_turn",
+      parsed_output: { reply: "Hi! Repeat after me: Yesterday I worked on the login screen.", scaffold: " Yesterday I worked on the login screen. " },
+    });
+    const adapter = new AnthropicTutorAdapter(messages, config());
+    const step = { stage: "model" as const, retry: false, goal: null };
+    const opening = await adapter.open({ ...request, step: "build_full" }, { otherwise: step, ifStuck: step, hintsPause: false });
+    expect(opening.scaffold).toBe("Yesterday I worked on the login screen.");
+    expect(parse.mock.calls[0][0].messages[0].content).toMatch(/^Start the scene[\s\S]*<guided_track>\nSay one short model sentence/);
+  });
+
   it("fails on an empty opening line", async () => {
-    const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: { reply: "  " } });
+    const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: { reply: "  ", scaffold: null } });
     const adapter = new AnthropicTutorAdapter(messages, config());
     await expect(adapter.open(request)).rejects.toBeInstanceOf(TutorUnavailableError);
   });

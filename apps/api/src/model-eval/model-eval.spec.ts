@@ -34,6 +34,7 @@ const bored = {
 const turn = (over: Partial<TurnRecord> = {}): TurnRecord => ({
   utterance: "…",
   scaffold: null,
+  stage: null,
   pendingBefore: null,
   verdict: verdict(),
   decision: { kind: "reply", message: "Nice. What will you do today?", nextPending: null, selfCorrected: false },
@@ -43,7 +44,7 @@ const turn = (over: Partial<TurnRecord> = {}): TurnRecord => ({
 
 describe("scenarios", () => {
   it("keeps the golden sessions a small subset of the eval scenarios", () => {
-    expect(SCENARIOS).toHaveLength(5);
+    expect(SCENARIOS).toHaveLength(6);
     for (const s of SCENARIOS) expect(ALL_SCENARIOS).toContain(s);
     expect(new Set(ALL_SCENARIOS.map((s) => s.name)).size).toBe(ALL_SCENARIOS.length);
   });
@@ -85,7 +86,7 @@ describe("timedTutor", () => {
   it("times the spoken reply and the whole turn, and still hands the reply on", async () => {
     let clock = 0;
     const inner: TutorPort = {
-      open: async () => "Hi",
+      open: async () => ({ line: "Hi", scaffold: null }),
       evaluate: async (_request, onReply) => {
         clock = 1200;
         onReply?.("Nice.");
