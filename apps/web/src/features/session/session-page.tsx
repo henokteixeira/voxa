@@ -84,13 +84,18 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
     helpInCard = true;
   } else if (lastCaption && !showTranscript) {
     const index = state.captions.length - 1;
+    // The learner's own words stay until they speak again, so there is time to check the transcription.
+    const yours = lastCaption.who === "tutor" ? state.captions.at(-2) : undefined;
     bottom = (
-      <LatestCaption
-        key={index}
-        caption={lastCaption}
-        shown={shownCaption === index}
-        onShow={() => setShownCaption(index)}
-      />
+      <>
+        {yours?.who === "you" && <CaptionCard caption={yours} />}
+        <LatestCaption
+          key={index}
+          caption={lastCaption}
+          shown={shownCaption === index}
+          onShow={() => setShownCaption(index)}
+        />
+      </>
     );
   }
 
