@@ -46,6 +46,7 @@ beforeEach(() => {
     onOpen: vi.fn(),
     onTranscript: vi.fn(),
     onTutor: vi.fn(),
+    onFollowUp: vi.fn(),
     onSpeech: vi.fn(),
     onError: vi.fn(),
     onDone: vi.fn(),
@@ -71,6 +72,22 @@ describe("openVoiceSocket", () => {
     expect(handlers.onSpeech).toHaveBeenCalledWith(wav);
     expect(handlers.onError).toHaveBeenCalledWith("voice_unavailable", "Down.");
     expect(handlers.onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the stop-or-keep-going question and the covered goals of a tutor line", () => {
+    const { fake } = open();
+    fake.open();
+    fake.receive({ type: "tutor", kind: "reply", message: "Great.", selfCorrected: false, support: null, checkIn: true, coveredGoals: ["today"] });
+    expect(handlers.onTutor).toHaveBeenCalledWith({ kind: "reply", message: "Great.", selfCorrected: false, checkIn: true, coveredGoals: ["today"] });
+  });
+
+  it("routes a follow-up after the reply, with or without a spoken line", () => {
+    const { fake } = open();
+    fake.open();
+    fake.receive({ type: "followup", kind: "hint", message: "When?", selfCorrected: false, support: "Passado.", checkIn: false, coveredGoals: [] });
+    fake.receive({ type: "followup", kind: "reply", message: null, selfCorrected: false, support: null, checkIn: false, coveredGoals: ["today"] });
+    expect(handlers.onFollowUp).toHaveBeenNthCalledWith(1, { kind: "hint", message: "When?", selfCorrected: false, support: "Passado.", checkIn: false, coveredGoals: [] });
+    expect(handlers.onFollowUp).toHaveBeenNthCalledWith(2, { kind: "reply", message: null, selfCorrected: false, checkIn: false, coveredGoals: ["today"] });
   });
 
   it("sends turns, typed text and speak requests", () => {

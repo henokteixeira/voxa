@@ -37,6 +37,15 @@ export interface TurnResult {
   coveredGoals?: string[];
 }
 
+/**
+ * What the tutor adds after its reply, once it has read the learner's turn: a hint about a serious mistake
+ * (spoken right after the reply), the stop-or-keep-going question, or only on-screen help and goals.
+ */
+export interface FollowUp extends Omit<TurnResult, "message"> {
+  /** The spoken line, or null when there is nothing to say. */
+  message: string | null;
+}
+
 /** The category the API gives a word the learner said in their first language. Not a mistake. */
 export const NEW_WORD_CATEGORY = "new_word";
 

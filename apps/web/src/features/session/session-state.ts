@@ -1,4 +1,4 @@
-import type { SessionSummary, TurnResult } from "@/lib/api";
+import type { FollowUp, SessionSummary, TurnResult } from "@/lib/api";
 import type { VoiceErrorCode } from "@/lib/voice/voice-socket";
 
 /** What is happening in the live session. Pure reducer, so the flow is unit-tested. */
@@ -89,6 +89,7 @@ export type SessionAction =
   | { type: "speech_start" }
   | { type: "transcript"; text: string }
   | { type: "tutor"; result: TurnResult }
+  | { type: "followup"; result: FollowUp }
   | { type: "speech" }
   | { type: "playback_end" }
   | { type: "audio_blocked" }
@@ -199,6 +200,20 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         coveredGoals: action.result.coveredGoals ?? state.coveredGoals,
         turn: { ...state.turn, tutor: true },
       };
+    case "followup": {
+      // Spoken after the reply: a hint about what the learner just said, or the stop-or-keep-going question.
+      const { message } = action.result;
+      // A spoken reply-kind line (the stop-or-keep-going question) keeps what the reply said about a fix.
+      const base = message
+        ? { ...withTutor(state, { ...action.result, message }), ...(action.result.kind === "reply" ? { fixed: state.fixed } : {}) }
+        : state;
+      return {
+        ...base,
+        support: action.result.support ?? state.support,
+        checkIn: action.result.checkIn ?? state.checkIn,
+        coveredGoals: action.result.coveredGoals ?? state.coveredGoals,
+      };
+    }
     case "speech":
       if (state.phase !== "thinking") return { ...state, turn: { ...state.turn, speech: true } };
       return { ...state, phase: "speaking", audioBlocked: false, turn: { ...state.turn, speech: true } };
