@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { decide, isSerious, notedOnly, type TurnKind, verdictForMode } from "../domain/conversation/correction-policy.js";
+import { decide, notedOnly, type TurnKind, verdictForMode } from "../domain/conversation/correction-policy.js";
 import {
   givesWords,
   nextGoalAfter,
@@ -24,8 +24,9 @@ import {
 } from "../domain/conversation/session-goals.js";
 import { keptScaffold, sessionStep, wasAssisted } from "../domain/conversation/support.js";
 import { type ChatTurn, NEW_WORD_CATEGORY, type PracticeTarget, type Session } from "../domain/conversation/types.js";
+import { choosePracticeTargets, metTargetsAfter } from "../domain/conversation/practice-targets.js";
+import { sameText, safeSupport } from "../domain/conversation/text.js";
 import { DomainError } from "../domain/errors.js";
-import { mistakeStatus } from "../domain/mistakes/mistake-status.js";
 import type { SpeakingLevel } from "../domain/level/speaking-level.js";
 import { type SessionSignals, unaidedShare } from "../domain/progress/signal-trend.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
@@ -39,25 +40,10 @@ import {
   type SessionRepository,
 } from "../domain/ports/session.repository.js";
 import { type TutorContext, TUTOR_PORT, type TutorPort } from "../domain/ports/tutor.port.js";
+import { recordTurnLearning } from "./turn-learning.js";
 
 /** How many of the learner's most frequent mistakes the tutor watches for. */
 export const KNOWN_MISTAKES_LIMIT = 20;
-/** How many mistakes from the bank each session practices. */
-export const PRACTICE_TARGETS = 2;
-
-/** Speech-to-text output varies in case and end punctuation; ignore both when matching. */
-export function sameText(a: string, b: string): boolean {
-  const normalize = (s: string) => s.trim().toLowerCase().replace(/[.,!?;:]+$/, "");
-  return normalize(a) === normalize(b);
-}
-
-/** On-screen help must not give away the correction the learner is working on. */
-export function safeSupport(support: string | null, correction: string | undefined): string | null {
-  const text = support?.trim() ?? "";
-  if (!text) return null;
-  if (correction && text.toLowerCase().includes(correction.trim().toLowerCase())) return null;
-  return text;
-}
 
 export class SessionNotFoundError extends DomainError {
   readonly code = "not_found";
@@ -138,7 +124,7 @@ export class ConversationService {
 
   async start(mode: Mode, language: string): Promise<SessionStart> {
     const [targets, level] = await Promise.all([
-      correctsMistakes(mode) ? this.pickTargets(language) : [],
+      correctsMistakes(mode) ? this.bank.list(language).then(choosePracticeTargets) : [],
       this.levels.current(language),
     ]);
     const step = sessionStep(mode, level?.level ?? null);
@@ -248,49 +234,26 @@ export class ConversationService {
         : null;
     const move = inTrack?.move ?? null;
 
-    // Every mistake goes to the bank, except a retry of the one already pending.
     const pending = session.pending;
-    // Recorded with their real severity, also when the track did not stop for them.
-    for (const issue of byMode.issues) {
-      if (pending && (sameText(issue.correction, pending.correction) || sameText(issue.original, pending.original))) {
-        continue;
-      }
-      await this.mistakes.record(
-        { language: session.language, original: issue.original, correction: issue.correction, category: issue.category },
-        { sessionId, severity: isSerious(issue) ? "serious" : "minor" },
-      );
-    }
-    // Correct uses of known mistakes, except the retry of the pending one (that came after a hint).
-    for (const used of verdict.correctUses) {
-      const mistake = [...known, ...session.targets].find((m) => sameText(m.original, used));
-      if (!mistake || (pending && sameText(mistake.original, pending.original))) continue;
-      await this.mistakes.recordCorrectUse(sessionId, { language: session.language, original: mistake.original });
-    }
-    // A new word is never a mistake: skip one the tutor also listed as an issue, the pending one, or a repeat.
-    const taken = [...verdict.issues.map((i) => i.original), ...(pending ? [pending.original] : [])];
-    for (const word of verdict.newWords) {
-      if (taken.some((t) => sameText(t, word.said))) continue;
-      taken.push(word.said);
-      await this.mistakes.record(
-        { language: session.language, original: word.said, correction: word.words, category: NEW_WORD_CATEGORY },
-        { sessionId, severity: "minor" },
-      );
-    }
-    if (decision.selfCorrected && pending) {
-      await this.mistakes.markSelfCorrected(sessionId, { language: session.language, original: pending.original });
-    }
+    await recordTurnLearning(this.mistakes, {
+      sessionId,
+      language: session.language,
+      pending,
+      issues: byMode.issues,
+      verdict,
+      watched: [...known, ...session.targets],
+      selfCorrected: decision.selfCorrected,
+    });
 
     // Goals and the stop-or-keep-going question, only on a turn where the conversation goes on.
     // In the guided track a goal is covered by the learner's own answer, not by repeating the words given.
     const coveredGoals = mergeCovered(session.mode, session.coveredGoals, inTrack?.reportedGoals ?? verdict.coveredGoals);
-    // A target is met by the correct form said without a hint, even if the mistake also came up this session.
-    const metTargets = session.targets
-      .map((t) => t.original)
-      .filter(
-        (original) =>
-          session.metTargets.includes(original) ||
-          (verdict.correctUses.some((u) => sameText(u, original)) && !(pending && sameText(pending.original, original))),
-      );
+    const metTargets = metTargetsAfter({
+      targets: session.targets,
+      alreadyMet: session.metTargets,
+      correctUses: verdict.correctUses,
+      pending,
+    });
     const now = this.clock.now();
     const checkIn =
       decision.kind === "reply"
@@ -387,16 +350,6 @@ export class ConversationService {
     };
     // Two ends at once can both assess; the session still keeps one level.
     return this.levels.addForSession(session.id, placed);
-  }
-
-  /** The most frequent mistakes the learner has not mastered yet. New words are not mistakes. */
-  private async pickTargets(language: string): Promise<PracticeTarget[]> {
-    const entries = await this.bank.list(language);
-    return entries
-      .filter((m) => m.category !== NEW_WORD_CATEGORY && mistakeStatus(m.sessionsCorrect) !== "mastered")
-      .sort((a, b) => b.occurrences - a.occurrences)
-      .slice(0, PRACTICE_TARGETS)
-      .map(({ original, correction, category }) => ({ original, correction, category }));
   }
 
   /** In the guided track, the two ways this turn can move it (stuck or not), so the tutor can follow either. */
