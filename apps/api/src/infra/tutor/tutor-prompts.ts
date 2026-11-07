@@ -19,7 +19,10 @@ export const SCENES: Record<Mode, string> = {
 };
 
 /** Stable per session, so it can be cached. */
-export function buildSystemPrompt({ mode, language, learnerContext }: TutorContext, firstLanguage: string): string {
+export function buildSystemPrompt(
+  { mode, language, learnerContext, goals, targets }: TutorContext,
+  firstLanguage: string,
+): string {
   return [
     `You are Voxa, a speaking tutor. The learner is practicing spoken ${language} (BCP 47 code) for work meetings.`,
     "Tone: a warm, patient senior colleague. Speak naturally, in short spoken sentences (one to three). " +
@@ -46,6 +49,23 @@ export function buildSystemPrompt({ mode, language, learnerContext }: TutorConte
         "of a mistake. Otherwise null.",
     ].join("\n"),
     `## Scene\n${SCENES[mode]}`,
+    goals.length
+      ? [
+          "## Goals of this meeting",
+          "The learner works toward these goals. Steer the scene so each one comes up naturally, one at a time, " +
+            "starting with the ones not covered yet. List in `coveredGoals` the id of each goal this utterance covers.",
+          ...goals.map((g) => `- \`${g.id}\`: the learner ${g.description}.`),
+        ].join("\n")
+      : "## Goals of this meeting\nNo fixed goals: follow the learner's topics. Set `coveredGoals` to [].",
+    targets.length
+      ? [
+          "## Practice targets",
+          "The learner is working on these mistakes from earlier sessions. Once or twice in the session, give a " +
+            "natural chance to say this kind of sentence again, for example with a question whose answer needs it. " +
+            "Never say the corrected words yourself and never mention that it is a target.",
+          ...targets.map((t) => `- "${t.original}" → "${t.correction}" (${t.category})`),
+        ].join("\n")
+      : "",
     learnerContext.trim()
       ? `## About the learner\nUse these facts to make the scene realistic. Do not recite them.\n\n${learnerContext.trim()}`
       : "## About the learner\nNo details were given. Ask about their work when it helps the scene.",
@@ -73,9 +93,12 @@ export function buildSystemPrompt({ mode, language, learnerContext }: TutorConte
       "When there is no pending correction, set `pendingResolved` to false and `nextHint` to null.",
     ].join("\n"),
     "## Your reply\n`reply` is your next line in the scene, as if the mistakes were not there. It is used only " +
-      "when the conversation goes on, so do not correct the learner in it. " +
+      "when the conversation goes on, so do not correct the learner in it. Never end the meeting or ask whether to " +
+      "stop: the app asks that. " +
       "Helping with words the learner said in their first language is not a correction.",
-  ].join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /** The opening request, also replayed as the first user message so history alternates correctly. */
@@ -83,7 +106,7 @@ export const OPENING_REQUEST = "Start the scene with your first line. Keep it sh
 
 /** The per-turn message: the utterance plus what the tutor must check it against. */
 export function buildTurnMessage(
-  request: Pick<TutorRequest, "utterance" | "pending" | "knownMistakes" | "knownNewWords">,
+  request: Pick<TutorRequest, "utterance" | "pending" | "knownMistakes" | "knownNewWords" | "coveredGoals">,
 ): string {
   const known = request.knownMistakes.length
     ? request.knownMistakes.map((m) => `- "${m.original}" → "${m.correction}" (${m.category})`).join("\n")
@@ -100,6 +123,7 @@ export function buildTurnMessage(
     `<known_mistakes>\n${known}\n</known_mistakes>`,
     `<new_words>\n${newWords}\n</new_words>`,
     `<pending_correction>\n${pending}\n</pending_correction>`,
+    `<covered_goals>\n${request.coveredGoals.length ? request.coveredGoals.join(", ") : "none"}\n</covered_goals>`,
     `<utterance>\n${request.utterance}\n</utterance>`,
   ].join("\n");
 }

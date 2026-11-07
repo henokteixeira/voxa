@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { ConversationService } from "./application/conversation.service.js";
 import { MistakeBankService } from "./application/mistake-bank.service.js";
 import { VoiceConversationService } from "./application/voice-conversation.service.js";
+import { CLOCK, systemClock } from "./domain/ports/clock.port.js";
 import { LEARNER_CONTEXT_PORT } from "./domain/ports/learner-context.port.js";
 import { MISTAKE_BANK_REPOSITORY } from "./domain/ports/mistake-bank.repository.js";
 import { MISTAKE_REPOSITORY } from "./domain/ports/mistake.repository.js";
@@ -31,6 +32,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
     VoiceConversationService,
     VoiceSocketServer,
     anthropicClientProvider,
+    { provide: CLOCK, useValue: systemClock },
     { provide: TUTOR_PORT, useClass: AnthropicTutorAdapter },
     { provide: LEARNER_CONTEXT_PORT, useClass: FileLearnerContext },
     { provide: SESSION_REPOSITORY, useClass: DrizzleSessionRepository },

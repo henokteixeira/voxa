@@ -105,6 +105,15 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
     return rows.map((r) => ({ ...r, severity: r.severity === "serious" ? "serious" : "minor" }));
   }
 
+  async correctUsesInSession(sessionId: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ original: mistakes.original })
+      .from(mistakeCorrectUses)
+      .innerJoin(mistakes, eq(mistakeCorrectUses.mistakeId, mistakes.id))
+      .where(and(eq(mistakeCorrectUses.sessionId, sessionId), isNull(mistakes.dismissedAt)));
+    return rows.map((r) => r.original);
+  }
+
   async list(language: string): Promise<BankEntry[]> {
     const rows = await this.db
       .select()

@@ -12,7 +12,7 @@ function fakeMessages(response: object) {
   return { messages: { create, parse } as unknown as AnthropicMessages, create, parse };
 }
 
-const verdict = { reply: "Nice.", issues: [], pendingResolved: false, nextHint: null, correctUses: [], newWords: [], support: null };
+const verdict = { reply: "Nice.", issues: [], pendingResolved: false, nextHint: null, correctUses: [], newWords: [], support: null, coveredGoals: [] };
 const request: TutorRequest = {
   mode: "daily",
   language: "en",
@@ -22,6 +22,9 @@ const request: TutorRequest = {
   knownMistakes: [],
   knownNewWords: [],
   utterance: "I fixed the upload.",
+  goals: [],
+  targets: [],
+  coveredGoals: [],
 };
 
 describe("AnthropicTutorAdapter.open", () => {
@@ -32,7 +35,7 @@ describe("AnthropicTutorAdapter.open", () => {
     });
     const adapter = new AnthropicTutorAdapter(messages, config({ ANTHROPIC_MODEL: "claude-test" }));
 
-    await expect(adapter.open({ mode: "daily", language: "en", learnerContext: "" })).resolves.toBe("Morning!");
+    await expect(adapter.open({ mode: "daily", language: "en", learnerContext: "", goals: [], targets: [] })).resolves.toBe("Morning!");
 
     const params = create.mock.calls[0][0];
     expect(params.model).toBe("claude-test");

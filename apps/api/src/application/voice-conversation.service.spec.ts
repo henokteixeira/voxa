@@ -5,7 +5,17 @@ import { type ConversationService, SessionEndedError, SessionNotFoundError } fro
 import { VoiceConversationService } from "./voice-conversation.service.js";
 
 const id = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
-const session: Session = { id, language: "en-US", mode: "daily", pending: null, endedAt: null };
+const session: Session = {
+  id,
+  language: "en-US",
+  mode: "daily",
+  pending: null,
+  startedAt: new Date(),
+  endedAt: null,
+  coveredGoals: [],
+  lastCheckInAt: null,
+  targets: [],
+};
 const reply = { kind: "hint" as const, message: "When did it happen?", selfCorrected: false };
 
 const stt = { transcribe: vi.fn() };

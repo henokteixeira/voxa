@@ -15,7 +15,7 @@ import { VoiceRequestError, VoiceUnavailableError } from "../domain/ports/voice.
  * Client → server: a binary frame is one finished turn of speech (WAV, at most 10 MB); a text frame
  * is JSON, `{type:"text", text}` (a typed turn) or `{type:"speak"}` (say the tutor's last line again).
  *
- * Server → client, per request: `{type:"transcript", text}`, `{type:"tutor", kind, message, selfCorrected, support}`,
+ * Server → client, per request: `{type:"transcript", text}`, `{type:"tutor", kind, message, selfCorrected, support, checkIn, coveredGoals}`,
  * the speech as a binary WAV frame, then `{type:"done"}`. A failure sends `{type:"error", code, message}`
  * before "done". Any part may be missing (no speech heard → only "done").
  *

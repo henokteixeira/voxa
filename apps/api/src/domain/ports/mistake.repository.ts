@@ -40,6 +40,8 @@ export interface MistakeRepository {
   markSelfCorrected(sessionId: string, mistake: { language: string; original: string }): Promise<void>;
   mostFrequent(language: string, limit: number): Promise<Mistake[]>;
   forSession(sessionId: string): Promise<SessionMistake[]>;
+  /** The `original` of each mistake whose correct form the learner used in this session. */
+  correctUsesInSession(sessionId: string): Promise<string[]>;
 }
 
 export const MISTAKE_REPOSITORY = Symbol("MISTAKE_REPOSITORY");

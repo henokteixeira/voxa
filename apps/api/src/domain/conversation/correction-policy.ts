@@ -18,6 +18,8 @@ export interface TutorVerdict {
   newWords: NewWord[];
   /** A short line in the learner's first language, shown on screen only (never spoken), or null. */
   support: string | null;
+  /** Ids of the session goals this utterance covers. */
+  coveredGoals: string[];
 }
 
 export type TurnKind = "reply" | "hint" | "reveal";
