@@ -1,4 +1,4 @@
-import { sameText } from "../application/conversation.service.js";
+import { sameText } from "../domain/conversation/text.js";
 import { isSerious } from "../domain/conversation/correction-policy.js";
 import type { TurnRecord } from "./run-scenario.js";
 import type { TurnExpectation } from "./scenarios.js";

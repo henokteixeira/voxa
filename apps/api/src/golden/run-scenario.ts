@@ -1,4 +1,4 @@
-import { safeSupport } from "../application/conversation.service.js";
+import { safeSupport } from "../domain/conversation/text.js";
 import {
   decide,
   notedOnly,
