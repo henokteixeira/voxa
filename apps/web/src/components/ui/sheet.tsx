@@ -2,16 +2,18 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
-/** How long the closing animation runs before the sheet unmounts. Matches `.vx-sheet-out` in index.css. */
+/** How long the closing animation runs before the sheet unmounts. Matches the exit in index.css. */
 export const SHEET_EXIT_MS = 200;
 
-function prefersReducedMotion() {
-  return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** No exit animation with reduced motion, or where media queries can't be read (then nothing animates). */
+function skipExit() {
+  return typeof window.matchMedia !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 /**
  * Modal sheet: slides up from the bottom on phones, scales in at the center on wide screens.
- * Closes on the backdrop, Escape, or `close()` passed to children; the exit animates, then `onClose` runs.
+ * Closes on the backdrop, Escape, a screen-reader close button, or `close()` passed to children;
+ * the exit animates, then `onClose` runs once. While open, the app behind it is inert.
  */
 export function Sheet({
   label,
@@ -22,7 +24,8 @@ export function Sheet({
   children,
 }: {
   label: string;
-  closeLabel: string;
+  /** Name of the close control. Omit when a button in the sheet already closes it. */
+  closeLabel?: string;
   onClose: () => void;
   /** False for sheets that need an explicit choice (no backdrop or Escape close). */
   dismissible?: boolean;
@@ -31,17 +34,30 @@ export function Sheet({
 }) {
   const [closing, setClosing] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
-
+  // Closing twice is a no-op; with reduced motion the sheet closes at once.
   const close = useCallback(() => {
-    if (prefersReducedMotion()) return onClose();
-    setClosing(true);
-    window.setTimeout(onClose, SHEET_EXIT_MS);
+    if (skipExit()) onClose();
+    else setClosing(true);
   }, [onClose]);
 
+  // The exit animation runs, then onClose. Unmounting first (a link inside navigated) drops it.
   useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
+    if (!closing) return;
+    const timer = window.setTimeout(onClose, SHEET_EXIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [closing, onClose]);
+
+  // Focus moves in and the app behind goes inert; both come back on unmount.
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const app = document.getElementById("root");
+    const wasInert = app?.inert ?? false;
+    if (app) app.inert = true;
     if (!panel.current?.contains(document.activeElement)) panel.current?.focus();
-    return () => opener?.focus?.();
+    return () => {
+      if (app) app.inert = wasInert;
+      if (opener?.isConnected) opener.focus();
+    };
   }, []);
 
   useEffect(() => {
@@ -55,15 +71,13 @@ export function Sheet({
   return createPortal(
     <div
       data-state={closing ? "closed" : "open"}
-      className="group fixed inset-0 z-10 flex flex-col justify-end lg:items-center lg:justify-center lg:p-8"
+      className="fixed inset-0 z-10 flex flex-col justify-end lg:items-center lg:justify-center lg:p-8"
     >
-      <button
-        type="button"
-        aria-label={closeLabel}
-        tabIndex={-1}
-        disabled={!dismissible}
-        onClick={close}
-        className="vx-fade absolute inset-0 cursor-pointer border-none bg-[rgba(46,37,32,0.32)] disabled:cursor-default"
+      {/* Pointer-only backdrop; keyboard and screen readers use Escape or the close button inside. */}
+      <div
+        aria-hidden="true"
+        onClick={dismissible ? close : undefined}
+        className={cn("vx-fade absolute inset-0 bg-[rgba(46,37,32,0.32)]", dismissible && "cursor-pointer")}
       />
       <div
         ref={panel}
@@ -77,6 +91,16 @@ export function Sheet({
         )}
       >
         <span className="h-[5px] w-10 shrink-0 self-center rounded-[3px] bg-sand lg:hidden" aria-hidden="true" />
+        {dismissible && closeLabel && (
+          // Hidden until focused: phones have no Escape key, so screen readers need a real control.
+          <button
+            type="button"
+            onClick={close}
+            className="sr-only cursor-pointer self-end rounded-pill border-none bg-paper px-4 py-2 font-sans text-sm font-bold text-ink focus:not-sr-only"
+          >
+            {closeLabel}
+          </button>
+        )}
         {typeof children === "function" ? children(close) : children}
       </div>
     </div>,

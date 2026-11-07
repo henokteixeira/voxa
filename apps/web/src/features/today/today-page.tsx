@@ -97,12 +97,12 @@ export function TodayPage() {
       )}
 
       {online && status === "ok" && (
-        <Button variant="ghost" block onClick={() => setChoosing(true)}>
+        <Button variant="ghost" block aria-haspopup="dialog" onClick={() => setChoosing(true)}>
           {copy.otherPractice}
         </Button>
       )}
 
-      {choosing && (
+      {choosing && online && status === "ok" && (
         <Sheet label={copy.otherPractice} closeLabel={copy.close} onClose={() => setChoosing(false)}>
           <h2 className="m-0 text-heading">{copy.otherPractice}</h2>
           <nav aria-label={copy.otherPractice} className="flex flex-col gap-3">
