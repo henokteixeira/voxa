@@ -27,11 +27,6 @@ export function MistakesPage(props: { now?: Date }) {
   const { locale } = useLocale();
   const wide = useMediaQuery(WIDE);
 
-  // A sheet opened on a narrow window doesn't survive widening (the panel takes over).
-  useEffect(() => {
-    if (wide) setSelected(null);
-  }, [wide]);
-
   useEffect(() => {
     let active = true;
     api
