@@ -161,4 +161,24 @@ describe("Mistakes", () => {
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  it("shows the list and one mistake side by side on wide screens", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({ matches: query.includes("min-width"), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    );
+    try {
+      renderPage({ listMistakes: vi.fn().mockResolvedValue(bank) });
+      await screen.findByRole("region", { name: "Mistake" });
+      const first = screen.getAllByRole("button", { name: /Yesterday I finish/ })[0];
+      expect(first).toHaveAttribute("aria-current", "true");
+      expect(screen.getByRole("region", { name: "Mistake" })).toHaveTextContent("Yesterday I finished the screen");
+
+      await userEvent.click(screen.getByRole("button", { name: /I'm waiting the keys/ }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.getByRole("region", { name: "Mistake" })).toHaveTextContent("I'm waiting for the keys");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
