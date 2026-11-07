@@ -35,9 +35,7 @@ import { LEVEL_ASSESSOR_PORT, type LevelAssessorPort } from "../domain/ports/lev
 import { LEVEL_REPOSITORY, type LevelRepository } from "../domain/ports/level.repository.js";
 import { MISTAKE_REPOSITORY, type MistakeRepository, type SessionMistake } from "../domain/ports/mistake.repository.js";
 import {
-  type ConfidenceMoment,
   SESSION_REPOSITORY,
-  type SessionOutcome,
   type SessionRepository,
 } from "../domain/ports/session.repository.js";
 import { type TutorContext, TUTOR_PORT, type TutorPort } from "../domain/ports/tutor.port.js";
@@ -118,7 +116,6 @@ export interface SessionSummary {
   mistakes: SessionMistake[];
   selfCorrections: number;
   signals: SessionSignals;
-  confidence: SessionOutcome["confidence"];
   goals: { id: string; covered: boolean }[];
   /** The mistakes practiced in this session; `met` when the learner said the correct form. */
   targets: (PracticeTarget & { met: boolean })[];
@@ -371,7 +368,6 @@ export class ConversationService {
         }),
         unaidedShare: unaidedShare(outcome?.learnerTurns ?? { total: 0, assisted: 0 }),
       },
-      confidence: outcome?.confidence ?? { before: null, after: null },
       goals: goalsFor(session.mode).map((id) => ({ id, covered: session.coveredGoals.includes(id) })),
       targets: session.targets.map((t) => ({ ...t, met: session.metTargets.includes(t.original) })),
       level,
@@ -391,14 +387,6 @@ export class ConversationService {
     };
     // Two ends at once can both assess; the session still keeps one level.
     return this.levels.addForSession(session.id, placed);
-  }
-
-  /** How ready the learner feels for this meeting type, 1–5. Allowed after the end: "after" is asked then. */
-  async rateConfidence(sessionId: string, moment: ConfidenceMoment, value: number): Promise<void> {
-    if (!Number.isInteger(value) || value < 1 || value > 5) throw new RangeError("Confidence goes from 1 to 5.");
-    const session = await this.sessions.get(sessionId);
-    if (!session) throw new SessionNotFoundError(sessionId);
-    await this.sessions.setConfidence(sessionId, moment, value);
   }
 
   /** The most frequent mistakes the learner has not mastered yet. New words are not mistakes. */

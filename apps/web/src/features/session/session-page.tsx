@@ -1,5 +1,5 @@
 import { type FormEvent, type ReactNode, useState } from "react";
-import { Link, Navigate, useLocation, useParams } from "react-router";
+import { Link, Navigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { VoiceBall } from "@/components/voice-ball";
@@ -17,21 +17,15 @@ import { XpToast } from "@/features/xp/xp-toast";
 import { useSessionCues } from "./use-session-cues";
 import { useVoiceSession } from "./use-voice-session";
 
-/** What the confidence check-in hands to the live session (router state). */
-export interface CheckInState {
-  confidenceBefore?: number;
-}
-
 /** The live voice session: talk, get hints, see captions. Takes the whole screen. */
 export function SessionPage() {
   const { mode } = useParams();
-  const checkIn = useLocation().state as CheckInState | null;
   if (!isMode(mode)) return <Navigate to="/" replace />;
-  return <LiveSession mode={mode} confidenceBefore={checkIn?.confidenceBefore} />;
+  return <LiveSession mode={mode} />;
 }
 
-function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?: number }) {
-  const session = useVoiceSession(mode, confidenceBefore);
+function LiveSession({ mode }: { mode: Mode }) {
+  const session = useVoiceSession(mode);
   const modes = useModeInfo();
   const { stage: stageCopy, page } = useCopy(SESSION_COPY);
   const { state } = session;
@@ -55,7 +49,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
   if (state.phase === "ended") {
     return (
       <Screen>
-        <SummaryFlow mode={mode} elapsed={elapsed} summary={state.summary} onRate={session.rateAfter} />
+        <SummaryFlow mode={mode} elapsed={elapsed} summary={state.summary} />
       </Screen>
     );
   }

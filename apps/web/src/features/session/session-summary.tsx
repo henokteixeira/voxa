@@ -2,33 +2,33 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { VoiceBall } from "@/components/voice-ball";
-import { type FluencySignals, type Mode, NEW_WORD_CATEGORY, type SessionMistake, type SessionSummary } from "@/lib/api";
+import {
+  type FluencySignals,
+  type Mode,
+  NEW_WORD_CATEGORY,
+  type SessionMistake,
+  type SessionSummary,
+  type SignalComparison,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { SessionXpCard } from "@/features/xp/session-xp";
-import { ConfidenceScale } from "./confidence-scale";
 import { GoalsSummary } from "./goals";
 import { useCopy, useLocale } from "@/lib/i18n/locale";
 import { useModeInfo } from "./modes";
 import { REFLECTION_COPY } from "./reflection-copy";
 import { LEVEL_COPY } from "@/features/progress/level-copy";
 
-type Step = "result" | "mistakes" | "confidence" | "saved";
+type Step = "result" | "mistakes" | "saved";
 
 /**
- * After "End session": the result with the 4 fluency signals, the session's mistakes,
- * the confidence check-out, then "Session saved". Without a summary (the end failed), only the last step.
+ * After "End session": the result with the fluency signals and how they compare with the last sessions,
+ * the session's mistakes, then "Session saved". Without a summary (the end failed), only the last step.
  */
-export function SummaryFlow(props: {
-  mode: Mode;
-  elapsed: string;
-  summary: SessionSummary | null;
-  onRate: (value: number) => void;
-}) {
+export function SummaryFlow(props: { mode: Mode; elapsed: string; summary: SessionSummary | null }) {
   const { summary, mode } = props;
   const modes = useModeInfo();
   const copy = useCopy(REFLECTION_COPY);
   const [step, setStep] = useState<Step>(summary ? "result" : "saved");
-  const [after, setAfter] = useState<number | null>(null);
 
   const { mistakes } = summary ?? { mistakes: [] };
   const realMistakes = mistakes.filter((m) => !isNewWord(m));
@@ -36,7 +36,7 @@ export function SummaryFlow(props: {
   const savedMistakes = summary && mode !== "placement" ? realMistakes.length : null;
   if (!summary || step === "saved") return <Saved mistakes={savedMistakes} />;
 
-  // The placement interview ends with the level, not with mistakes or a confidence question.
+  // The placement interview ends with the level, not with mistakes.
   if (mode === "placement") return <PlacementResult summary={summary} onDone={() => setStep("saved")} />;
 
   if (step === "result") {
@@ -49,10 +49,11 @@ export function SummaryFlow(props: {
           <h1 className="m-0 text-title">{copy.sessionDone}</h1>
         </div>
         {summary.xp && <SessionXpCard xp={summary.xp} />}
+        {summary.comparison && <Comparison comparison={summary.comparison} />}
         <Signals signals={summary.signals} mistakes={mistakes} />
         <GoalsSummary summary={summary} />
         <div className="flex-1" />
-        <Button block onClick={() => setStep(mistakes.length ? "mistakes" : "confidence")}>
+        <Button block onClick={() => setStep(mistakes.length ? "mistakes" : "saved")}>
           {mistakes.length ? copy.seeMistakes : copy.continue}
         </Button>
       </>
@@ -76,38 +77,27 @@ export function SummaryFlow(props: {
             </li>
           ))}
         </ul>
-        <Button block onClick={() => setStep("confidence")}>
+        <Button block onClick={() => setStep("saved")}>
           {copy.continue}
         </Button>
       </>
     );
   }
+  return null;
+}
 
-  const before = summary.confidence.before;
-  const label = copy.checkOutQuestion(modes[mode].meeting);
+/**
+ * Inferred confidence: one line on what went better than in the last sessions. Signals that went worse are
+ * not listed: the summary never reads as a grade, and one session is too little to call a drop.
+ */
+function Comparison({ comparison }: { comparison: SignalComparison }) {
+  const copy = useCopy(REFLECTION_COPY).comparison;
+  const better = comparison.signals.filter((s) => s.trend === "better").map((s) => copy.better[s.name]);
   return (
-    <>
-      <div className="flex flex-1 flex-col justify-center gap-6">
-        <h1 className="m-0 text-title">{label}</h1>
-        <ConfidenceScale label={copy.confidenceLabel} low={copy.notAtAll} high={copy.fully} value={after} onChange={setAfter} before={before} />
-        {before !== null && <p className="m-0 text-caption text-taupe">{copy.outlined(before)}</p>}
-      </div>
-      <div className="flex flex-col gap-2">
-        <Button
-          block
-          disabled={after === null}
-          onClick={() => {
-            if (after !== null) props.onRate(after);
-            setStep("saved");
-          }}
-        >
-          {copy.continue}
-        </Button>
-        <Button variant="ghost" block onClick={() => setStep("saved")}>
-          {copy.skip}
-        </Button>
-      </div>
-    </>
+    <section aria-label={copy.label} className="flex flex-col gap-1 rounded-md bg-sage-soft px-4 py-3.5">
+      <span className="text-caption text-sage-ink">{copy.comparedWith(comparison.sessions)}</span>
+      <p className="m-0 text-small text-ink">{better.length ? copy.list(better) : copy.steady(comparison.sessions)}</p>
+    </section>
   );
 }
 

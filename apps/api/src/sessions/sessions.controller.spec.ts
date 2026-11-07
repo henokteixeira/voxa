@@ -14,7 +14,7 @@ import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import { SessionsController } from "./sessions.controller.js";
 
 const id = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
-const service = { start: vi.fn(), resume: vi.fn(), respond: vi.fn(), end: vi.fn(), rateConfidence: vi.fn() };
+const service = { start: vi.fn(), resume: vi.fn(), respond: vi.fn(), end: vi.fn() };
 const progress = { awardSession: vi.fn() };
 const signals = { recordSession: vi.fn() };
 let app: INestApplication;
@@ -169,31 +169,5 @@ describe("POST /sessions/:id/end", () => {
     const res = await request(app.getHttpServer()).post(`/sessions/${id}/end`).send(body);
     expect(res.status).toBe(400);
     expect(service.end).not.toHaveBeenCalled();
-  });
-});
-
-describe("POST /sessions/:id/confidence", () => {
-  it("stores a rating", async () => {
-    const res = await request(app.getHttpServer()).post(`/sessions/${id}/confidence`).send({ moment: "after", value: 4 });
-    expect(res.status).toBe(204);
-    expect(service.rateConfidence).toHaveBeenCalledWith(id, "after", 4);
-  });
-
-  it.each([
-    { moment: "after", value: 0 },
-    { moment: "after", value: 6 },
-    { moment: "after", value: 3.5 },
-    { moment: "during", value: 3 },
-    { value: 3 },
-  ])("rejects %j", async (body) => {
-    const res = await request(app.getHttpServer()).post(`/sessions/${id}/confidence`).send(body);
-    expect(res.status).toBe(400);
-    expect(service.rateConfidence).not.toHaveBeenCalled();
-  });
-
-  it("answers 404 for an unknown session", async () => {
-    service.rateConfidence.mockRejectedValue(new SessionNotFoundError(id));
-    const res = await request(app.getHttpServer()).post(`/sessions/${id}/confidence`).send({ moment: "before", value: 2 });
-    expect(res.status).toBe(404);
   });
 });

@@ -94,12 +94,9 @@ describe("app shell", () => {
     }
   });
 
-  it("opens a session full screen, without the tab bar, after the confidence check-in", async () => {
+  it("opens a session full screen, without the tab bar", async () => {
     const router = renderApp("/", up());
     await userEvent.click(await screen.findByRole("link", { name: "Start" }));
-    expect(router.state.location.pathname).toBe("/session/daily/check-in");
-    expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
     expect(router.state.location.pathname).toBe("/session/daily");
     expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
   });
@@ -139,7 +136,7 @@ describe("Today", () => {
     // The placement interview is not a meeting to practice.
     expect(sheet).not.toHaveTextContent("Find your speaking level");
     await userEvent.click(screen.getByRole("link", { name: /Sprint review/ }));
-    expect(router.state.location.pathname).toBe("/session/review/check-in");
+    expect(router.state.location.pathname).toBe("/session/review");
   });
 
   it("says mistakes are welcome, Portuguese is fine and Voxa can be wrong too", async () => {

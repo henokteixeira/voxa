@@ -6,7 +6,6 @@ import { isMode } from "../../domain/conversation/mode.js";
 import { isSupportStep, type SupportStep } from "../../domain/level/speaking-level.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget, Session } from "../../domain/conversation/types.js";
 import type {
-  ConfidenceMoment,
   NewTurn,
   SessionOutcome,
   SessionProgress,
@@ -120,14 +119,9 @@ export class DrizzleSessionRepository implements SessionRepository {
     await this.db.update(sessions).set({ endedAt: new Date(), timing }).where(eq(sessions.id, sessionId));
   }
 
-  async setConfidence(sessionId: string, moment: ConfidenceMoment, value: number): Promise<void> {
-    const column = moment === "before" ? { confidenceBefore: value } : { confidenceAfter: value };
-    await this.db.update(sessions).set(column).where(eq(sessions.id, sessionId));
-  }
-
   async outcome(sessionId: string): Promise<SessionOutcome | null> {
     const [row] = await this.db
-      .select({ timing: sessions.timing, before: sessions.confidenceBefore, after: sessions.confidenceAfter })
+      .select({ timing: sessions.timing })
       .from(sessions)
       .where(eq(sessions.id, sessionId))
       .limit(1);
@@ -138,7 +132,6 @@ export class DrizzleSessionRepository implements SessionRepository {
       .where(and(eq(turns.sessionId, sessionId), eq(turns.role, "user")));
     return {
       timing: row.timing ?? null,
-      confidence: { before: row.before, after: row.after },
       learnerTurns: learnerTurns ?? { total: 0, assisted: 0 },
     };
   }

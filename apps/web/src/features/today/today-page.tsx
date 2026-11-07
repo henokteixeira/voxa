@@ -173,7 +173,7 @@ export function TodayPage() {
           <h2 className="m-0 text-heading">{copy.readyTitle}</h2>
           <p className="m-0 text-caption text-taupe">{copy.readyBody(modes.daily.title)}</p>
           <Button block asChild>
-            <Link to="/session/daily/check-in">{copy.start}</Link>
+            <Link to="/session/daily">{copy.start}</Link>
           </Button>
         </Card>
       )}
@@ -201,7 +201,7 @@ export function TodayPage() {
             {MEETING_MODES.map((mode) => (
               <Link
                 key={mode}
-                to={`/session/${mode}/check-in`}
+                to={`/session/${mode}`}
                 className="flex min-h-14 items-center gap-3 rounded-md bg-paper px-5 py-4 text-ink no-underline shadow-card transition-[transform,background-color] duration-150 hover:bg-sand-soft motion-safe:active:scale-[0.98]"
               >
                 <span aria-hidden="true" className="size-3.5 shrink-0 rounded-full" style={{ background: modes[mode].color }} />

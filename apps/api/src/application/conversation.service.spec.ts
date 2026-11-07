@@ -18,7 +18,7 @@ import type { LevelRepository } from "../domain/ports/level.repository.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import type { Mistake, MistakeRepository, NewMistake, SessionMistake } from "../domain/ports/mistake.repository.js";
 import type { SessionTiming } from "../domain/conversation/fluency.js";
-import type { ConfidenceMoment, NewTurn, SessionProgress, SessionRepository } from "../domain/ports/session.repository.js";
+import type { NewTurn, SessionProgress, SessionRepository } from "../domain/ports/session.repository.js";
 import type { TrackPlan, TutorContext, TutorPort, TutorRequest } from "../domain/ports/tutor.port.js";
 import { NEW_WORD_CATEGORY } from "../domain/conversation/types.js";
 import type { TrackState } from "../domain/conversation/guided-track.js";
@@ -46,7 +46,7 @@ class FakeTutor implements TutorPort {
   }
 }
 
-type Row = Session & { turns: ChatTurn[]; timing: SessionTiming | null; before: number | null; after: number | null };
+type Row = Session & { turns: ChatTurn[]; timing: SessionTiming | null };
 
 class FakeSessions implements SessionRepository {
   rows = new Map<string, Row>();
@@ -67,7 +67,7 @@ class FakeSessions implements SessionRepository {
       scaffold: null,
       track: input.track ?? null,
     };
-    this.rows.set(id, { ...session, turns: [], timing: null, before: null, after: null });
+    this.rows.set(id, { ...session, turns: [], timing: null });
     return session;
   }
   async setProgress(id: string, progress: SessionProgress) {
@@ -76,7 +76,7 @@ class FakeSessions implements SessionRepository {
   async get(id: string) {
     const row = this.rows.get(id);
     if (!row) return null;
-    const { turns: _t, timing: _ti, before: _b, after: _a, ...session } = row;
+    const { turns: _t, timing: _ti, ...session } = row;
     return session;
   }
   /** Whether each learner turn was helped, in order. */
@@ -94,16 +94,12 @@ class FakeSessions implements SessionRepository {
   async end(id: string, timing: SessionTiming | null) {
     Object.assign(this.rows.get(id)!, { endedAt: new Date(), timing });
   }
-  async setConfidence(id: string, moment: ConfidenceMoment, value: number) {
-    this.rows.get(id)![moment] = value;
-  }
   async outcome(id: string) {
     const row = this.rows.get(id);
     if (!row) return null;
     const helped = this.assisted.get(id) ?? [];
     return {
       timing: row.timing,
-      confidence: { before: row.before, after: row.after },
       learnerTurns: { total: helped.length, assisted: helped.filter(Boolean).length },
     };
   }
@@ -917,13 +913,6 @@ describe("ConversationService.end", () => {
     expect(summary.signals).toMatchObject({ averagePauseMs: null, wordsPerMinute: null, longPausesPerMinute: null });
   });
 
-  it("includes the confidence ratings", async () => {
-    const { session } = await service.start("daily", "en");
-    await service.rateConfidence(session.id, "before", 2);
-    const summary = await service.end(session.id);
-    expect(summary.confidence).toEqual({ before: 2, after: null });
-  });
-
   it("rejects an unknown session", async () => {
     await expect(service.end("nope")).rejects.toBeInstanceOf(SessionNotFoundError);
   });
@@ -965,25 +954,6 @@ describe("ConversationService.resume", () => {
     const { session } = await service.start("daily", "en");
     await service.end(session.id);
     await expect(service.resume(session.id)).rejects.toBeInstanceOf(SessionEndedError);
-  });
-});
-
-describe("ConversationService.rateConfidence", () => {
-  it("stores before and after, even once the session has ended", async () => {
-    const { session } = await service.start("presentation", "en");
-    await service.rateConfidence(session.id, "before", 2);
-    await service.end(session.id);
-    await service.rateConfidence(session.id, "after", 4);
-    expect(await sessions.outcome(session.id)).toMatchObject({ confidence: { before: 2, after: 4 } });
-  });
-
-  it.each([0, 6, 2.5])("rejects %s", async (value) => {
-    const { session } = await service.start("daily", "en");
-    await expect(service.rateConfidence(session.id, "before", value)).rejects.toBeInstanceOf(RangeError);
-  });
-
-  it("rejects an unknown session", async () => {
-    await expect(service.rateConfidence("nope", "after", 3)).rejects.toBeInstanceOf(SessionNotFoundError);
   });
 });
 

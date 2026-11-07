@@ -7,7 +7,7 @@ Personal details (employer, projects, meeting contents) live in a local context 
 
 Voxa is a personal voice-first app that gets its user speaking English in work meetings within 1 to 1.5 months.
 
-- **User:** a software engineer between intermediate and advanced level: understands most of a meeting, but freezes when speaking because he has never practised it.
+- **User:** a software engineer who reads and listens to English well but has almost no speaking practice, so he freezes when speaking. His speaking level is measured, not assumed (see Speaking level and help).
 - **Today:** in English meetings with sponsors (team reports, projects, what the apps do), dailies, plannings and reviews, he stays quiet and relies on others.
 - **Short-term goal:** freeze less, and give project updates and daily updates fluently.
 - **Time available:** 30 to 60 minutes a day, spread across the day.
@@ -62,7 +62,16 @@ Every mistake the tutor detects, serious or small, becomes a record in the mista
 - **Status:** Open, Improving or Mastered (approved in the prototype). Open: new, or made again. Improving: the correct form was used in a later session. Mastered: correct in 3 different sessions without the mistake again. Making it again sends it back to Open (confirmed on 2026-11-06).
 - **"This isn't a mistake":** the user can dismiss a record, for example when the speech-to-text misheard him; it leaves the bank and does not count again.
 - **Summary at the end of a session:** the mistakes of the session (serious and small) with their correct forms, plus the 4 fluency signals: self-correction rate, mistakes per 100 words, pause before answering, pace (words a minute of the learner's own speech, with long pauses of 1 s or more inside an answer). Pace replaced the share of speaking time on 2026-11-07, which mostly measured how much the tutor talked.
-- **Confidence check:** before and after a session, the user rates how ready he feels for that meeting type (1 to 5), as in the approved prototype.
+- **Inferred confidence:** the user is not asked how ready he feels. Each practice session's signals (including the share of answers without help) are stored, and the summary says what went better than in his last 3 sessions, only when there is data. What went worse is not listed. Replaced the 1–5 check before and after a session on 2026-11-07.
+
+## Speaking level and help
+
+Approved on 2026-11-07 (leveling and guided track design).
+
+- **Placement interview:** a short OPI-style conversation that only observes and never corrects; it estimates a CEFR level with the user's own lines as evidence. A new one is suggested every 4 weeks.
+- **Level:** shown in the Progress tab, where the user can also set it by hand.
+- **Support step by level,** inside the existing modes: A1 a full guided track (repeat a model sentence, with the sentence hidden until tapped; say it with his own information; add a piece; answer alone; say the answer again); A2 the model only when he is stuck; B1 free talk plus the start of a sentence when stuck; B2 conversation as before; C1–C2 more demanding.
+- **Step changes in a session:** two goals answered without help skip the model; stuck twice brings it back.
 
 ## Voice loop
 
@@ -112,7 +121,7 @@ Each criterion below becomes at least one automated test; voice criteria are als
 **Summary**
 
 - [ ] Ending a session shows its mistakes with correct forms and the 4 fluency signals.
-- [ ] The confidence check (1 to 5) is asked before and after a session and stored.
+- [ ] The summary compares the session with the last 3 sessions when there is data, without asking the user to rate himself.
 
 **App**
 
@@ -147,7 +156,7 @@ The MVP splits into 6 deliveries; each one ships as small PRs (about 300 lines),
 | D2 | Voice service | faster-whisper STT and Kokoro TTS endpoints, API adapters, test of the Whisper clean-up risk, latency measurement on the user's PC | none |
 | D3 | Web foundation | shadcn/ui with the Voxa tokens, PWA install, 3 tabs (Today, Mistakes, Progress), API client, error states | none |
 | D4 | Live voice session | WebSocket, automatic turn detection (VAD) in the browser, audio playback, captions, hint card, mode picker on Today | D1, D2, D3 |
-| D5 | Session summary | End-of-session summary, 4 fluency signals, confidence check before and after | D4 |
+| D5 | Session summary | End-of-session summary, 4 fluency signals, comparison with the last sessions (inferred confidence) | D4 |
 | D6 | Mistakes screen | List, status (Open, Improving, Mastered), "This isn't a mistake" | D1, D3 |
 
 After the MVP is in daily use, each later phase (2 to 8 in Scope) becomes its own delivery, in the order of the Scope table.
