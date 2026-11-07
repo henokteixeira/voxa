@@ -16,7 +16,7 @@ import { GoalsSummary } from "./goals";
 import { useCopy, useLocale } from "@/lib/i18n/locale";
 import { useModeInfo } from "./modes";
 import { REFLECTION_COPY } from "./reflection-copy";
-import { LEVEL_COPY } from "@/features/progress/level-copy";
+import { LEVEL_PATH } from "@/features/progress/level-card";
 
 type Step = "result" | "mistakes" | "saved";
 
@@ -37,7 +37,7 @@ export function SummaryFlow(props: { mode: Mode; elapsed: string; summary: Sessi
   if (!summary || step === "saved") return <Saved mistakes={savedMistakes} />;
 
   // The placement interview ends with the level, not with mistakes.
-  if (mode === "placement") return <PlacementResult summary={summary} onDone={() => setStep("saved")} />;
+  if (mode === "placement") return <PlacementResult summary={summary} />;
 
   if (step === "result") {
     return (
@@ -199,38 +199,29 @@ function MistakeRow({ mistake }: { mistake: SessionMistake }) {
   );
 }
 
-function PlacementResult({ summary, onDone }: { summary: SessionSummary; onDone: () => void }) {
+/** After the level chat: no result here (the level lives in Progress), then on to Today. */
+function PlacementResult({ summary }: { summary: SessionSummary }) {
   const copy = useCopy(REFLECTION_COPY);
-  const levelCopy = useCopy(LEVEL_COPY);
-  const level = summary.level ?? null;
+  const placed = Boolean(summary.level);
   return (
     <>
-      <div className="flex flex-col gap-1 pt-2">
-        <h1 className="m-0 text-title">{copy.placementDone}</h1>
-      </div>
-      {level ? (
-        <div className="flex flex-col gap-3 rounded-lg bg-paper p-5 shadow-card">
-          <span className="text-caption text-taupe">{levelCopy.estimate}</span>
-          <span className="font-serif text-[32px] leading-none">{levelCopy.levelOf(level.level)}</span>
-          {level.evidence.length > 0 && (
-            <ul aria-label={levelCopy.evidenceLabel} className="m-0 flex list-none flex-col gap-1.5 p-0">
-              {level.evidence.map((line) => (
-                <li key={line} lang={level.language} className="rounded-md bg-sand-soft px-3 py-2 text-small">
-                  “{line}”
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="m-0 text-caption text-taupe">{levelCopy.notAGrade}</p>
+      <div className="flex flex-1 flex-col items-center justify-center gap-7 text-center">
+        <VoiceBall state="success" size={160} />
+        <div className="flex flex-col gap-3">
+          <h1 className="m-0 text-title">{copy.placementDone}</h1>
+          <p className="m-0 text-body text-ink-soft">{placed ? copy.placementWhere : copy.placementNoLevel}</p>
         </div>
-      ) : (
-        <p className="m-0 text-body text-ink-soft">{copy.placementNoLevel}</p>
-      )}
-      <p className="m-0 text-caption text-taupe">{copy.placementWhere}</p>
-      <div className="flex-1" />
-      <Button block onClick={onDone}>
-        {copy.continue}
-      </Button>
+      </div>
+      <div className="flex flex-col gap-2">
+        <Button block asChild>
+          <Link to="/">{copy.firstSession}</Link>
+        </Button>
+        {placed && (
+          <Button variant="ghost" block asChild>
+            <Link to={LEVEL_PATH}>{copy.seeInProgress}</Link>
+          </Button>
+        )}
+      </div>
     </>
   );
 }

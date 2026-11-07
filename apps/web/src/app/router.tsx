@@ -1,6 +1,7 @@
 import type { RouteObject } from "react-router";
 import { OnboardingPage } from "@/features/onboarding/onboarding-page";
 import { MistakesPage } from "@/features/mistakes/mistakes-page";
+import { LevelPage } from "@/features/progress/level-page";
 import { ProgressPage } from "@/features/progress/progress-page";
 import { SessionPage } from "@/features/session/session-page";
 import { TodayPage } from "@/features/today/today-page";
@@ -14,6 +15,7 @@ export const routes: RouteObject[] = [
       // `wide`: on wide screens the page uses more room (list and detail side by side).
       { path: "mistakes", element: <MistakesPage />, handle: { wide: true } },
       { path: "progress", element: <ProgressPage /> },
+      { path: "progress/level", element: <LevelPage /> },
     ],
   },
   // First run: welcome, microphone, then the level chat. Whole screen, no tab bar.

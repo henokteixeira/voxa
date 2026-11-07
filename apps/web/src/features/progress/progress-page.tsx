@@ -1,5 +1,5 @@
 import { useCopy, type Copy } from "@/lib/i18n/locale";
-import { LevelCard, LevelUnavailable } from "./level-card";
+import { LevelCard, LevelUnavailable, StepChangeSheet } from "./level-card";
 import { SignalsHistory } from "./signals-history";
 import { useLevel } from "./use-level";
 
@@ -17,7 +17,18 @@ export function ProgressPage() {
       {level.view === null ? (
         <LevelUnavailable onRetry={level.reload} />
       ) : (
-        level.view && <LevelCard view={level.view} onSet={level.set} onConfirm={level.confirm} />
+        level.view && (
+          <>
+            <LevelCard view={level.view} onSet={level.set} />
+            {level.view.proposal && (
+              <StepChangeSheet
+                key={`${level.view.proposal.basedOn}:${level.view.proposal.to}`}
+                proposal={level.view.proposal}
+                onConfirm={level.confirm}
+              />
+            )}
+          </>
+        )
       )}
       <SignalsHistory />
     </>
