@@ -68,7 +68,28 @@ describe("AnthropicTutorAdapter.evaluate", () => {
     expect(params.output_config.format).toBeDefined();
     expect(params.messages.map((m: { role: string }) => m.role)).toEqual(["user", "assistant", "user"]);
     expect(params.messages[2].content[0].text).toContain("I fixed the upload.");
-    expect(params.messages[2].content[0].cache_control).toEqual({ type: "ephemeral" });
+  });
+
+  it("caches the conversation up to the last saved turn, so the next turn reads it from the cache", async () => {
+    const { messages, parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
+    const adapter = new AnthropicTutorAdapter(messages, config());
+    const history = [
+      { role: "assistant" as const, content: "Morning! What did you do yesterday?" },
+      { role: "user" as const, content: "I fixed the upload." },
+      { role: "assistant" as const, content: "Nice. What's next?" },
+    ];
+
+    await adapter.evaluate({ ...request, history, utterance: "I will test it." });
+
+    const sent = parse.mock.calls[0][0].messages;
+    // The breakpoint sits on the last history turn: those turns are sent the same way next time.
+    expect(sent[3]).toEqual({
+      role: "assistant",
+      content: [{ type: "text", text: "Nice. What's next?", cache_control: { type: "ephemeral" } }],
+    });
+    expect(sent[1]).toEqual({ role: "assistant", content: "Morning! What did you do yesterday?" });
+    // The turn message carries this turn's lists and is never sent again, so caching it would be wasted.
+    expect(sent[4].content[0].cache_control).toBeUndefined();
   });
 
   it.each([
