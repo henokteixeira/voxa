@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decide, safeHint, type TutorVerdict } from "./correction-policy.js";
+import { decide, safeHint, type TutorVerdict, verdictForMode } from "./correction-policy.js";
 import type { Issue, PendingCorrection } from "./types.js";
 
 const issue = (over: Partial<Issue> = {}): Issue => ({
@@ -134,5 +134,27 @@ describe("safeHint", () => {
 
   it("replaces an empty hint", () => {
     expect(safeHint("  ", target)).toContain("Look at the verb tense");
+  });
+});
+
+describe("verdictForMode", () => {
+  const serious = {
+    original: "I goed",
+    correction: "I went",
+    category: "grammar",
+    severity: "serious" as const,
+    hint: "Past tense?",
+    matchesKnownMistake: true,
+  };
+  const v = { reply: "Go on.", issues: [serious], pendingResolved: false, nextHint: null, correctUses: [], newWords: [], support: null, coveredGoals: [] };
+
+  it("keeps the verdict in the meeting modes", () => {
+    expect(verdictForMode("daily", v)).toBe(v);
+  });
+
+  it("makes every mistake minor in the placement interview, so it never pauses for a hint", () => {
+    const observed = verdictForMode("placement", v);
+    expect(observed.issues).toEqual([{ ...serious, severity: "minor", matchesKnownMistake: false }]);
+    expect(decide(null, observed).kind).toBe("reply");
   });
 });

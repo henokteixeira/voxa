@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { decide, isSerious, type TurnKind } from "../domain/conversation/correction-policy.js";
+import { decide, isSerious, type TurnKind, verdictForMode } from "../domain/conversation/correction-policy.js";
 import { type FluencySignals, fluencySignals, type SessionTiming } from "../domain/conversation/fluency.js";
-import type { Mode } from "../domain/conversation/mode.js";
+import { correctsMistakes, type Mode } from "../domain/conversation/mode.js";
 import {
   checkInDue,
   checkInLine,
@@ -11,9 +11,12 @@ import {
 } from "../domain/conversation/session-goals.js";
 import { type ChatTurn, NEW_WORD_CATEGORY, type PracticeTarget, type Session } from "../domain/conversation/types.js";
 import { mistakeStatus } from "../domain/mistakes/mistake-status.js";
+import type { SpeakingLevel } from "../domain/level/speaking-level.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { MISTAKE_BANK_REPOSITORY, type MistakeBankRepository } from "../domain/ports/mistake-bank.repository.js";
 import { LEARNER_CONTEXT_PORT, type LearnerContextPort } from "../domain/ports/learner-context.port.js";
+import { LEVEL_ASSESSOR_PORT, type LevelAssessorPort } from "../domain/ports/level-assessor.port.js";
+import { LEVEL_REPOSITORY, type LevelRepository } from "../domain/ports/level.repository.js";
 import { MISTAKE_REPOSITORY, type MistakeRepository, type SessionMistake } from "../domain/ports/mistake.repository.js";
 import {
   type ConfidenceMoment,
@@ -89,6 +92,8 @@ export interface SessionSummary {
   goals: { id: string; covered: boolean }[];
   /** The mistakes practiced in this session; `met` when the learner said the correct form. */
   targets: (PracticeTarget & { met: boolean })[];
+  /** After a placement interview: the level it gave, or null when the learner said nothing. Null in other modes. */
+  level: SpeakingLevel | null;
 }
 
 @Injectable()
@@ -100,10 +105,12 @@ export class ConversationService {
     @Inject(LEARNER_CONTEXT_PORT) private readonly learnerContext: LearnerContextPort,
     @Inject(MISTAKE_BANK_REPOSITORY) private readonly bank: Pick<MistakeBankRepository, "list">,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(LEVEL_ASSESSOR_PORT) private readonly assessor: LevelAssessorPort,
+    @Inject(LEVEL_REPOSITORY) private readonly levels: LevelRepository,
   ) {}
 
   async start(mode: Mode, language: string): Promise<SessionStart> {
-    const targets = await this.pickTargets(language);
+    const targets = correctsMistakes(mode) ? await this.pickTargets(language) : [];
     const session = await this.sessions.create({ mode, language, startedAt: this.clock.now(), targets });
     const message = await this.tutor.open(this.tutorContext(session, await this.learnerContext.load()));
     await this.sessions.appendTurn(session.id, { role: "assistant", content: message });
@@ -180,11 +187,13 @@ export class ConversationService {
       },
       handOver,
     );
-    const decision = decide(session.pending, verdict);
+    // The placement interview only observes: every mistake is recorded as minor, so none stops it with a hint.
+    const observed = verdictForMode(session.mode, verdict);
+    const decision = decide(session.pending, observed);
 
     // Every mistake goes to the bank, except a retry of the one already pending.
     const pending = session.pending;
-    for (const issue of verdict.issues) {
+    for (const issue of observed.issues) {
       if (pending && (sameText(issue.correction, pending.correction) || sameText(issue.original, pending.original))) {
         continue;
       }
@@ -268,10 +277,15 @@ export class ConversationService {
   async end(sessionId: string, timing: SessionTiming | null = null): Promise<SessionSummary> {
     const session = await this.sessions.get(sessionId);
     if (!session) throw new SessionNotFoundError(sessionId);
+    const history = await this.sessions.history(sessionId);
+    let level: SpeakingLevel | null = null;
+    if (session.mode === "placement") {
+      // Assessed before the session is marked ended: if the tutor is down, ending again retries it.
+      level = session.endedAt ? await this.placementLevel(session) : await this.assessPlacement(session, history);
+    }
     if (!session.endedAt) await this.sessions.end(sessionId, timing);
-    const [mistakes, history, outcome] = await Promise.all([
+    const [mistakes, outcome] = await Promise.all([
       this.mistakes.forSession(sessionId),
-      this.sessions.history(sessionId),
       this.sessions.outcome(sessionId),
     ]);
     return {
@@ -288,7 +302,29 @@ export class ConversationService {
       confidence: outcome?.confidence ?? { before: null, after: null },
       goals: goalsFor(session.mode).map((id) => ({ id, covered: session.coveredGoals.includes(id) })),
       targets: session.targets.map((t) => ({ ...t, met: session.metTargets.includes(t.original) })),
+      level,
     };
+  }
+
+  /** Estimates and stores the level from the interview. No level when the learner said nothing. */
+  private async assessPlacement(session: Session, history: ChatTurn[]): Promise<SpeakingLevel | null> {
+    if (!history.some((t) => t.role === "user")) return null;
+    const { level, evidence } = await this.assessor.assess({ language: session.language, turns: history });
+    const placed: SpeakingLevel = {
+      language: session.language,
+      level,
+      source: "placement",
+      evidence,
+      assessedAt: this.clock.now(),
+    };
+    await this.levels.add(placed);
+    return placed;
+  }
+
+  /** The level an ended placement gave: the newest placement, if it came after the interview started. */
+  private async placementLevel(session: Session): Promise<SpeakingLevel | null> {
+    const current = await this.levels.current(session.language);
+    return current?.source === "placement" && current.assessedAt >= session.startedAt ? current : null;
   }
 
   /** How ready the learner feels for this meeting type, 1–5. Allowed after the end: "after" is asked then. */

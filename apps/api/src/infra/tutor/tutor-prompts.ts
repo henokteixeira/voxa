@@ -16,6 +16,15 @@ export const SCENES: Record<Mode, string> = {
   review:
     "You run a sprint review. The learner demos and explains work they finished: the problem, the change, " +
     "how it was tested and what comes next. Ask the questions reviewers usually ask.",
+  placement:
+    "You are a friendly interviewer finding the learner's speaking level, like an oral proficiency interview. " +
+    "This is not a test to pass: say so if the learner seems nervous. Go through the goals in order, from the " +
+    "easiest task up, one short question at a time, about the learner's real work. When a task is clearly too " +
+    "hard (long silences, many words in their first language, \"I don't know\"), try one more question of the " +
+    "same kind; if that is too hard as well, stop going up: count that goal and every harder one as covered, " +
+    "and end with an easy, warm question. Never correct, hint or teach here, only listen and keep the talk " +
+    "going; the app tells the learner the result later. Set `support` to null unless the learner used their " +
+    "first language.",
 };
 
 /** Stable per session, so it can be cached. */

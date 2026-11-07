@@ -12,6 +12,8 @@ export const SESSION_GOALS = {
   presentation: ["what_it_does", "who_it_serves", "key_decisions", "status", "sponsor_questions"],
   review: ["problem", "change", "testing", "next_steps"],
   free_talk: [],
+  // The placement interview's tasks, from the easiest CEFR level up (see domain/level).
+  placement: ["warm_up", "routine", "past_work", "project", "opinion"],
 } as const satisfies Record<Mode, readonly string[]>;
 
 export type SessionGoal = (typeof SESSION_GOALS)[Mode][number];
@@ -30,9 +32,16 @@ export const GOAL_DESCRIPTIONS: Record<SessionGoal, string> = {
   change: "explained the change they made",
   testing: "explained how it was tested",
   next_steps: "said what comes next",
+  warm_up: "answered simple questions about themselves (name, role, where they work) (A1 task)",
+  routine: "described their usual workday or current job in simple terms (A2 task)",
+  past_work: "told what they did recently and why, connecting a few sentences (B1 task)",
+  project: "explained a project in some detail and answered an unexpected question about it (B2 task)",
+  opinion: "argued a point of view with advantages and disadvantages (C1 task)",
 };
 
 export const GOAL_TIME_LIMIT_MIN = 15;
+/** The placement interview is short (design doc: 6 to 8 minutes); the tutor asks to stop after this. */
+export const PLACEMENT_TIME_LIMIT_MIN = 10;
 export const FREE_TALK_CHECK_IN_MIN = 8;
 export const CHECK_IN_EVERY_MIN = 5;
 
@@ -86,6 +95,7 @@ export function checkInDue(input: {
   // question about time), or on the next turn that can ask when that one could not (it gave a hint).
   if (all(covered) && (!all(coveredBefore) || lastCheckInMs === null)) return "goals_met";
   if (lastCheckInMs !== null) return elapsedMs - lastCheckInMs >= CHECK_IN_EVERY_MIN * MINUTE ? "time" : null;
-  const limit = goals.length === 0 ? FREE_TALK_CHECK_IN_MIN : GOAL_TIME_LIMIT_MIN;
+  const limit =
+    mode === "placement" ? PLACEMENT_TIME_LIMIT_MIN : goals.length === 0 ? FREE_TALK_CHECK_IN_MIN : GOAL_TIME_LIMIT_MIN;
   return elapsedMs >= limit * MINUTE ? "time" : null;
 }

@@ -12,6 +12,10 @@ import type {
 import type { Clock } from "../domain/ports/clock.port.js";
 import type { BankEntry } from "../domain/ports/mistake-bank.repository.js";
 import type { LearnerContextPort } from "../domain/ports/learner-context.port.js";
+import type { SpeakingLevel } from "../domain/level/speaking-level.js";
+import type { LevelAssessorPort } from "../domain/ports/level-assessor.port.js";
+import type { LevelRepository } from "../domain/ports/level.repository.js";
+import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import type { Mistake, MistakeRepository, NewMistake, SessionMistake } from "../domain/ports/mistake.repository.js";
 import type { SessionTiming } from "../domain/conversation/fluency.js";
 import type { ConfidenceMoment, SessionRepository } from "../domain/ports/session.repository.js";
@@ -133,6 +137,29 @@ class FakeMistakes implements MistakeRepository {
   }
 }
 
+class FakeLevels implements LevelRepository {
+  rows: SpeakingLevel[] = [];
+  async add(level: SpeakingLevel) {
+    this.rows.push(level);
+  }
+  async current(language: string) {
+    return this.rows.filter((r) => r.language === language).at(-1) ?? null;
+  }
+  async lastPlacementAt(language: string) {
+    return this.rows.filter((r) => r.language === language && r.source === "placement").at(-1)?.assessedAt ?? null;
+  }
+}
+
+class FakeAssessor implements LevelAssessorPort {
+  calls: Parameters<LevelAssessorPort["assess"]>[0][] = [];
+  failure: Error | null = null;
+  async assess(input: Parameters<LevelAssessorPort["assess"]>[0]) {
+    this.calls.push(input);
+    if (this.failure) throw this.failure;
+    return { level: "A2" as const, evidence: ["Yesterday I fix the upload"] };
+  }
+}
+
 const learnerContext: LearnerContextPort = { load: async () => "Works on Oral Collector." };
 
 const goed: Issue = {
@@ -191,6 +218,8 @@ let mistakes: FakeMistakes;
 let service: ConversationService;
 let clock: FakeClock;
 let bankEntries: BankEntry[];
+let levels: FakeLevels;
+let assessor: FakeAssessor;
 
 beforeEach(() => {
   tutor = new FakeTutor();
@@ -199,7 +228,9 @@ beforeEach(() => {
   clock = new FakeClock();
   bankEntries = [];
   const bank = { list: async (language: string) => bankEntries.filter((e) => e.language === language) };
-  service = new ConversationService(tutor, sessions, mistakes, learnerContext, bank, clock);
+  levels = new FakeLevels();
+  assessor = new FakeAssessor();
+  service = new ConversationService(tutor, sessions, mistakes, learnerContext, bank, clock, assessor, levels);
 });
 
 describe("ConversationService.start", () => {
@@ -800,5 +831,64 @@ describe("correct uses of known mistakes", () => {
     await service.respond(session.id, "I went to the meeting");
 
     expect(mistakes.correctUses).toEqual([]);
+  });
+});
+
+describe("ConversationService, placement interview", () => {
+  it("starts with the placement tasks and no practice targets", async () => {
+    bankEntries = [entry({ occurrences: 5 })];
+    const { session, goals } = await service.start("placement", "en");
+    expect(goals).toEqual(["warm_up", "routine", "past_work", "project", "opinion"]);
+    expect(session.targets).toEqual([]);
+  });
+
+  it("never stops for a hint: a serious mistake is recorded as minor", async () => {
+    const { session } = await service.start("placement", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    const result = await service.respond(session.id, "I goed to the meeting");
+    expect(result.kind).toBe("reply");
+    expect(mistakes.events).toEqual([expect.objectContaining({ original: goed.original, severity: "minor" })]);
+    expect((await sessions.get(session.id))?.pending).toBeNull();
+  });
+
+  it("estimates and stores the level when it ends, once", async () => {
+    const { session } = await service.start("placement", "en");
+    tutor.verdicts.push(verdict({}));
+    await service.respond(session.id, "Yesterday I fix the upload");
+
+    const summary = await service.end(session.id);
+    const placed = { language: "en", level: "A2", source: "placement", evidence: ["Yesterday I fix the upload"], assessedAt: clock.now() };
+    expect(summary.level).toEqual(placed);
+    expect(assessor.calls).toEqual([{ language: "en", turns: await sessions.history(session.id) }]);
+    expect(levels.rows).toEqual([placed]);
+
+    // Ending again shows the same level without assessing again.
+    expect((await service.end(session.id)).level).toEqual(placed);
+    expect(assessor.calls).toHaveLength(1);
+  });
+
+  it("gives no level when the learner said nothing", async () => {
+    const { session } = await service.start("placement", "en");
+    expect((await service.end(session.id)).level).toBeNull();
+    expect(assessor.calls).toEqual([]);
+  });
+
+  it("keeps the session open when the assessment fails, so ending again retries it", async () => {
+    const { session } = await service.start("placement", "en");
+    tutor.verdicts.push(verdict({}));
+    await service.respond(session.id, "Yesterday I fix the upload");
+    assessor.failure = new TutorUnavailableError("down");
+
+    await expect(service.end(session.id)).rejects.toBeInstanceOf(TutorUnavailableError);
+    expect((await sessions.get(session.id))?.endedAt).toBeNull();
+
+    assessor.failure = null;
+    expect((await service.end(session.id)).level?.level).toBe("A2");
+  });
+
+  it("has no level in the meeting modes", async () => {
+    const { session } = await service.start("daily", "en");
+    expect((await service.end(session.id)).level).toBeNull();
+    expect(assessor.calls).toEqual([]);
   });
 });

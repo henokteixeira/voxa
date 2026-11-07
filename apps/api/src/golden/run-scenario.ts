@@ -1,5 +1,10 @@
 import { safeSupport } from "../application/conversation.service.js";
-import { decide, type PolicyDecision, type TutorVerdict } from "../domain/conversation/correction-policy.js";
+import {
+  decide,
+  type PolicyDecision,
+  type TutorVerdict,
+  verdictForMode,
+} from "../domain/conversation/correction-policy.js";
 import { GOAL_DESCRIPTIONS, goalsFor, mergeCovered } from "../domain/conversation/session-goals.js";
 import type { ChatTurn, PendingCorrection } from "../domain/conversation/types.js";
 import type { TutorPort } from "../domain/ports/tutor.port.js";
@@ -47,7 +52,7 @@ export async function runScenario(tutor: TutorPort, scenario: Scenario, learnerC
       utterance,
       coveredGoals,
     });
-    const decision = decide(pending, verdict);
+    const decision = decide(pending, verdictForMode(scenario.mode, verdict));
     const support = safeSupport(verdict.support, decision.nextPending?.correction);
     turns.push({ utterance, pendingBefore: pending, verdict, decision, support });
     history.push({ role: "user", content: utterance }, { role: "assistant", content: decision.message });
