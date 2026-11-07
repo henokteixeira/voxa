@@ -161,6 +161,8 @@ export class VoiceSocketServer implements OnApplicationBootstrap, OnApplicationS
           transcript: (text) => send({ type: "transcript", text }),
           tutor: (result) => send({ ...result, type: "tutor" }),
           cancelled,
+          timing: ({ sttMs, tutorMs, ttsMs, totalMs }) =>
+            this.logger.log(`turn timing stt=${sttMs ?? "-"}ms tutor=${tutorMs}ms tts=${ttsMs}ms total=${totalMs}ms`),
         })
       : await this.voice.speakLast(sessionId);
     if (speech) send(speech);
