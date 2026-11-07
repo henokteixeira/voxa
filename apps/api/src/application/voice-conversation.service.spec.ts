@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "../domain/conversation/types.js";
 import { VoiceUnavailableError } from "../domain/ports/voice.port.js";
 import { type ConversationService, SessionEndedError, SessionNotFoundError } from "./conversation.service.js";
@@ -105,32 +105,31 @@ describe("turn", () => {
 });
 
 describe("turn timing", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   /** Each call to the clock moves it forward by the next step, so every stage gets a known duration. */
   function clockSteps(...steps: number[]) {
     let now = 0;
-    const spy = vi.spyOn(performance, "now").mockImplementation(() => {
+    vi.spyOn(performance, "now").mockImplementation(() => {
       now += steps.shift() ?? 0;
       return now;
     });
-    return spy;
   }
 
   it("reports how long speech-to-text, the tutor and text-to-speech took", async () => {
-    const clock = clockSteps(0, 2500, 4000, 800);
+    clockSteps(0, 2500, 4000, 800);
 
     await service.turn(id, { audio: Buffer.from("audio"), mimeType: "audio/wav" }, events);
 
     expect(events.timing).toHaveBeenCalledWith({ sttMs: 2500, tutorMs: 4000, ttsMs: 800, totalMs: 7300 });
-    clock.mockRestore();
   });
 
   it("reports no speech-to-text time for a typed turn", async () => {
-    const clock = clockSteps(0, 0, 3000, 500);
+    clockSteps(0, 0, 3000, 500);
 
     await service.turn(id, { text: "hi" }, events);
 
     expect(events.timing).toHaveBeenCalledWith({ sttMs: null, tutorMs: 3000, ttsMs: 500, totalMs: 3500 });
-    clock.mockRestore();
   });
 
   it("reports nothing when the turn did not reach the voice", async () => {

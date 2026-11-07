@@ -58,9 +58,9 @@ python -m eval.mixed_language --models small medium --out eval/results/mixed.md
   English with the mixed prompt (the service default), and language detection. Needs your own recordings.
 - **Latency:** STT and TTS times (p50/p95) for a short, medium and long tutor line. Claude's time is
   not included, nor the browser's webm/opus encoding and the API hop; D4 measures the full loop.
-- **Full turn:** the API logs one line per spoken turn, from the end of the learner's speech to the
+- **Full turn:** the API logs one line per turn, from the moment the API has the learner's speech to the
   tutor's voice being ready: `turn timing stt=2500ms tutor=4000ms tts=800ms total=7300ms` (`stt=-` for a
-  typed turn; `tutor` includes Claude and the database). Read them with `docker compose logs api | grep "turn timing"`.
+  typed turn: leave those out of a voice baseline; `tutor` includes Claude and the database). Read them with `docker compose logs api | grep "turn timing"`.
 
 Recordings and results stay out of git.
 
