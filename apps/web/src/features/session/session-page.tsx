@@ -5,7 +5,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { VoiceBall } from "@/components/voice-ball";
 import type { Mode } from "@/lib/api";
 import { useCopy } from "@/lib/i18n/locale";
-import { CheckInCard, GoalsStrip } from "./goals";
+import { CheckInCard, GoalsStrip, PartsBar } from "./goals";
 import { ScaffoldCard, TrackBar } from "./guided-track";
 import { isMode, useModeInfo } from "./modes";
 import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-copy";
@@ -130,8 +130,12 @@ function LiveSession({ mode }: { mode: Mode }) {
           <TranscriptIcon />
         </IconButton>
       </header>
-      {/* The placement interview's tasks are not goals to tick off: showing them would feel like a test. */}
-      {mode !== "placement" && <GoalsStrip goals={state.goals} covered={state.coveredGoals} />}
+      {/* The placement interview's tasks are not goals to tick off: it shows only how far the chat has come. */}
+      {mode === "placement" ? (
+        <PartsBar parts={state.goals} done={state.coveredGoals} />
+      ) : (
+        <GoalsStrip goals={state.goals} covered={state.coveredGoals} />
+      )}
       {state.track && <TrackBar track={state.track} />}
       {/* Always mounted, so screen readers announce each toast; it floats over the ball or the transcript. */}
       <div aria-live="polite" className="pointer-events-none relative z-10 h-0">
