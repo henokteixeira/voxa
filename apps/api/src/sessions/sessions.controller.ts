@@ -3,6 +3,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  Get,
   HttpCode,
   NotFoundException,
   Param,
@@ -56,6 +57,13 @@ export class SessionsController {
       const { session, message, goals } = await this.conversation.start(mode, language);
       return { sessionId: session.id, mode: session.mode, language: session.language, message, goals };
     });
+  }
+
+  /** An open session, to pick it up again (e.g. after the page reloads). */
+  @Get(":id")
+  async resume(@Param("id") id: string) {
+    const sessionId = parse(SessionId, id);
+    return handle(() => this.conversation.resume(sessionId));
   }
 
   @Post(":id/turns")

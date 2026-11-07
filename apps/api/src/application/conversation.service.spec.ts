@@ -601,6 +601,45 @@ describe("ConversationService.end", () => {
   });
 });
 
+describe("ConversationService.resume", () => {
+  it("returns what the screen needs to pick an open session up again", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed], nextHint: "Check the past tense of 'go'.", coveredGoals: ["yesterday"] }));
+    await service.respond(session.id, "I goed to the meeting");
+
+    const resumed = await service.resume(session.id);
+
+    expect(resumed).toEqual({
+      sessionId: session.id,
+      mode: "daily",
+      language: "en",
+      startedAt: session.startedAt,
+      turns: [
+        { role: "assistant", content: "Tell me about your project." },
+        { role: "user", content: "I goed to the meeting" },
+        { role: "assistant", content: expect.any(String) },
+      ],
+      goals: ["yesterday", "today", "blockers"],
+      coveredGoals: ["yesterday"],
+      hint: { hintsGiven: 1, revealed: false },
+    });
+    // The hints must not give the correction away.
+    expect(JSON.stringify(resumed)).not.toContain(goed.correction);
+  });
+
+  it("has no hint when no correction is pending", async () => {
+    const { session } = await service.start("free_talk", "en");
+    expect(await service.resume(session.id)).toMatchObject({ goals: [], coveredGoals: [], hint: null });
+  });
+
+  it("rejects an unknown session and one that has ended", async () => {
+    await expect(service.resume("nope")).rejects.toBeInstanceOf(SessionNotFoundError);
+    const { session } = await service.start("daily", "en");
+    await service.end(session.id);
+    await expect(service.resume(session.id)).rejects.toBeInstanceOf(SessionEndedError);
+  });
+});
+
 describe("ConversationService.rateConfidence", () => {
   it("stores before and after, even once the session has ended", async () => {
     const { session } = await service.start("presentation", "en");
