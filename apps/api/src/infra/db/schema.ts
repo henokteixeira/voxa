@@ -54,6 +54,10 @@ export const sessions = pgTable("sessions", {
   /** Goals in a row answered alone, and stuck at the answer: they move the step between A1 and A2. */
   trackUnaidedStreak: smallint("track_unaided_streak").notNull().default(0),
   trackStuckStreak: smallint("track_stuck_streak").notNull().default(0),
+  /** When what the learner said about themselves was saved to memory; null until then. */
+  rememberedAt: timestamp("remembered_at", { withTimezone: true }),
+  /** One sentence on what the learner talked about, for later sessions; null when there is nothing to recall. */
+  recap: text("recap"),
 });
 
 export const turns = pgTable("turns", {
@@ -260,4 +264,22 @@ export const sessionSignals = pgTable(
     selfCorrectionRate: doublePrecision("self_correction_rate"),
   },
   (t) => [index("session_signals_language_seq").on(t.language, t.seq)],
+);
+
+/** Facts the learner said about themselves. The tutor brings them up in later sessions. */
+export const learnerFacts = pgTable(
+  "learner_facts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Insertion order. Timestamps can tie, so ordering never relies on them. */
+    seq: bigserial("seq", { mode: "number" }).notNull(),
+    topic: varchar("topic", { length: 16 }).notNull(), // work | projects | people | interests | life | goals
+    statement: text("statement").notNull(),
+    /** The language practiced in the session the fact came from. */
+    language: varchar("language", { length: 16 }).notNull(),
+    sourceSessionId: uuid("source_session_id").references(() => sessions.id, { onDelete: "set null" }),
+    learnedAt: timestamp("learned_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("learner_facts_seq").on(t.seq)],
 );
