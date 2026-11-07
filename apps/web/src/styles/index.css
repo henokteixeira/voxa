@@ -184,7 +184,7 @@
 @keyframes vx-pop-in { from { opacity: 0; transform: scale(0.96); } }
 @keyframes vx-pop-out { to { opacity: 0; transform: scale(0.96); } }
 .vx-fade { animation: vx-fade-in 240ms ease-out both; }
-.vx-sheet { animation: vx-sheet-in 320ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+.vx-sheet { animation: vx-sheet-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both; }
 [data-state="closed"] .vx-fade { animation: vx-fade-out 200ms ease-in both; }
 [data-state="closed"] .vx-sheet { animation: vx-sheet-out 200ms ease-in both; }
 @media (min-width: 64rem) {
