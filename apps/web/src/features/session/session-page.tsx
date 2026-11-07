@@ -70,14 +70,18 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
   };
 
   let bottom: ReactNode = null;
+  // A correction card carries the help itself, so the screen shows one card, not two.
+  let helpInCard = false;
   if (state.phase === "failed" && state.failure) {
     bottom = <FailureCard code={state.failure} onRetry={session.retry} onEnd={state.sessionId ? session.end : undefined} />;
   } else if (state.checkIn && yourTurn) {
     bottom = <CheckInCard onStop={session.end} onKeepGoing={session.keepGoing} />;
   } else if (state.revealed && lastTutor) {
-    bottom = <RevealCard message={lastTutor.text} />;
+    bottom = <RevealCard message={lastTutor.text} help={state.support} />;
+    helpInCard = true;
   } else if (state.hintStep > 0 && lastTutor) {
-    bottom = <HintCard step={state.hintStep} said={state.hintFor} tip={lastTutor.text} />;
+    bottom = <HintCard step={state.hintStep} said={state.hintFor} tip={lastTutor.text} help={state.support} />;
+    helpInCard = true;
   } else if (lastCaption && !showTranscript) {
     const index = state.captions.length - 1;
     bottom = (
@@ -137,7 +141,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
       <div inert={state.phase === "paused"} className="flex flex-col gap-3">
         <div aria-live="polite" className="flex flex-col gap-3">
           {bottom}
-          {state.support && state.phase !== "failed" && <SupportNote text={state.support} />}
+          {state.support && !helpInCard && state.phase !== "failed" && <SupportNote text={state.support} />}
         </div>
         {yourTurn &&
           (typing ? (
