@@ -77,3 +77,16 @@ export const mistakeCorrectUses = pgTable(
   },
   (t) => [primaryKey({ columns: [t.mistakeId, t.sessionId] })],
 );
+
+/** The learner's speaking level over time, per language; the newest row is the current level. */
+export const speakingLevels = pgTable("speaking_levels", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  language: varchar("language", { length: 16 }).notNull(),
+  /** Insertion order. Timestamps can tie, so ordering never relies on them. */
+  seq: bigserial("seq", { mode: "number" }).notNull(),
+  level: varchar("level", { length: 2 }).notNull(), // A1 | A2 | B1 | B2 | C1 | C2
+  source: varchar("source", { length: 16 }).notNull(), // placement | manual | step_change
+  /** The learner's own sentences that back the estimate. */
+  evidence: jsonb("evidence").$type<string[]>().notNull().default([]),
+  assessedAt: timestamp("assessed_at", { withTimezone: true }).notNull(),
+});
