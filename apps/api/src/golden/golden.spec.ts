@@ -13,6 +13,7 @@ const verdict = (over: Partial<TutorVerdict> = {}): TutorVerdict => ({
   correctUses: [],
   newWords: [],
   support: null,
+  coveredGoals: [],
   ...over,
 });
 

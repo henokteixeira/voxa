@@ -1,5 +1,6 @@
 import { safeSupport } from "../application/conversation.service.js";
 import { decide, type PolicyDecision, type TutorVerdict } from "../domain/conversation/correction-policy.js";
+import { GOAL_DESCRIPTIONS, goalsFor, mergeCovered } from "../domain/conversation/session-goals.js";
 import type { ChatTurn, PendingCorrection } from "../domain/conversation/types.js";
 import type { TutorPort } from "../domain/ports/tutor.port.js";
 import type { Scenario } from "./scenarios.js";
@@ -23,10 +24,12 @@ export interface Transcript {
  * the same way ConversationService does, but without a database.
  */
 export async function runScenario(tutor: TutorPort, scenario: Scenario, learnerContext: string): Promise<Transcript> {
-  const context = { mode: scenario.mode, language: "en", learnerContext };
+  const goals = goalsFor(scenario.mode).map((id) => ({ id, description: GOAL_DESCRIPTIONS[id] }));
+  const context = { mode: scenario.mode, language: "en", learnerContext, goals, targets: [] };
   const opening = await tutor.open(context);
   const history: ChatTurn[] = [{ role: "assistant", content: opening }];
   let pending: PendingCorrection | null = null;
+  let coveredGoals: string[] = [];
   const turns: TurnRecord[] = [];
 
   for (const { utterance } of scenario.turns) {
@@ -37,7 +40,9 @@ export async function runScenario(tutor: TutorPort, scenario: Scenario, learnerC
       knownMistakes: scenario.knownMistakes ?? [],
       knownNewWords: scenario.knownNewWords ?? [],
       utterance,
+      coveredGoals,
     });
+    coveredGoals = mergeCovered(scenario.mode, coveredGoals, verdict.coveredGoals);
     const decision = decide(pending, verdict);
     const support = safeSupport(verdict.support, decision.nextPending?.correction);
     turns.push({ utterance, pendingBefore: pending, verdict, decision, support });
