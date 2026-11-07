@@ -88,8 +88,16 @@ def create_app(stt: SpeechToText, tts: TextToSpeech, warmup: bool = False) -> Fa
 
 
 def whisper_from_env(env=os.environ) -> WhisperStt:
-    """Unset WHISPER_INITIAL_PROMPT uses the mixed prompt; an empty one means no prompt."""
-    return WhisperStt(env.get("WHISPER_MODEL") or DEFAULT_WHISPER_MODEL, env.get("WHISPER_INITIAL_PROMPT", MIXED_PROMPT))
+    """Unset WHISPER_INITIAL_PROMPT uses the mixed prompt; an empty one means no prompt.
+
+    WHISPER_CPU_THREADS sets the threads; unset leaves two cores free.
+    """
+    threads = env.get("WHISPER_CPU_THREADS", "").strip()
+    return WhisperStt(
+        env.get("WHISPER_MODEL") or DEFAULT_WHISPER_MODEL,
+        env.get("WHISPER_INITIAL_PROMPT", MIXED_PROMPT),
+        cpu_threads=int(threads) if threads.isdigit() else None,
+    )
 
 
 def _default_app() -> FastAPI:
