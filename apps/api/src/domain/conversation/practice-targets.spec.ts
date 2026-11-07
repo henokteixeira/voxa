@@ -17,6 +17,15 @@ describe("choosePracticeTargets", () => {
     ]);
     expect(chosen.map((t) => t.original)).toEqual(["often", "sometimes"]);
   });
+
+  it("starts with patterns due for review, one sentence each, then one per other pattern", () => {
+    const entry = (original: string, occurrences: number, patternId: string | null) =>
+      ({ ...target(original), occurrences, sessionsCorrect: 0, patternId }) as BankEntry;
+    const entries = [entry("often", 9, "p-not-due"), entry("also often", 8, "p-not-due"), entry("due a", 2, "p-due"), entry("due b", 3, "p-due")];
+
+    expect(choosePracticeTargets(entries, new Set(["p-due"])).map((t) => t.original)).toEqual(["due b", "often"]);
+    expect(choosePracticeTargets(entries).map((t) => t.original)).toEqual(["often", "due b"]);
+  });
 });
 
 describe("metTargetsAfter", () => {

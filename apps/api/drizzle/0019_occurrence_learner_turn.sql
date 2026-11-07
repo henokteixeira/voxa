@@ -1,0 +1,1 @@
+ALTER TABLE "mistake_occurrences" ADD COLUMN "learner_turn" integer;

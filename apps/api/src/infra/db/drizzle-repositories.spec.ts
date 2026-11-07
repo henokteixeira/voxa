@@ -197,6 +197,21 @@ describe("DrizzleMistakeRepository", () => {
     ]);
   });
 
+  it("lists the patterns broken in a session with the last learner turn that broke each", async () => {
+    const s = await sessions.create({ language: "en", mode: "daily" });
+    const other = await sessions.create({ language: "en", mode: "daily" });
+    const past = { key: "past_simple", name: "Past", rule: "Passado." };
+    await mistakes.record({ ...goed, category: "verb_tense", pattern: past }, { sessionId: s.id, severity: "minor", learnerTurn: 1 });
+    await mistakes.record(
+      { ...goed, original: "I runned", correction: "I ran", category: "verb_tense", pattern: past },
+      { sessionId: s.id, severity: "minor", learnerTurn: 4 },
+    );
+    await mistakes.record({ ...goed, original: "I opened PR", correction: "I opened a PR", pattern: { key: "a", name: "A", rule: "A." } }, { sessionId: other.id, severity: "minor", learnerTurn: 2 });
+    await mistakes.record({ ...goed, original: "no turn", pattern: { key: "b", name: "B", rule: "B." } }, { sessionId: s.id, severity: "minor" });
+
+    expect(await mistakes.sessionPatterns(s.id)).toEqual([{ key: "past_simple", name: "Past", lastTurn: 4 }]);
+  });
+
   it("gives a pattern to a mistake saved without one, and lists only patterns still in the bank", async () => {
     const s = await sessions.create({ language: "en", mode: "daily" });
     const saved = (await mistakes.record(goed, { sessionId: s.id, severity: "minor" }))!;

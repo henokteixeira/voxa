@@ -16,7 +16,7 @@ import type { SpeakingLevel, SupportStep } from "../domain/level/speaking-level.
 import type { LevelAssessorPort } from "../domain/ports/level-assessor.port.js";
 import type { LevelRepository } from "../domain/ports/level.repository.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
-import type { Mistake, MistakeRepository, NewMistake, SessionMistake } from "../domain/ports/mistake.repository.js";
+import type { Mistake, MistakeRepository, NewMistake, Occurrence, SessionMistake } from "../domain/ports/mistake.repository.js";
 import type { SessionTiming } from "../domain/conversation/fluency.js";
 import type { KnownPattern, MistakePattern } from "../domain/mistakes/pattern.js";
 import type { ReviewRepository, ReviewSubject } from "../domain/ports/review.repository.js";
@@ -109,7 +109,7 @@ class FakeSessions implements SessionRepository {
   }
 }
 
-class FakeReviews implements Pick<ReviewRepository, "state" | "save"> {
+class FakeReviews implements Pick<ReviewRepository, "state" | "save" | "schedules"> {
   items = new Map<string, ReviewState & { language: string }>();
   async state(subject: ReviewSubject) {
     const item = this.items.get(`${subject.kind}:${subject.id}`);
@@ -118,12 +118,22 @@ class FakeReviews implements Pick<ReviewRepository, "state" | "save"> {
   async save(language: string, subject: ReviewSubject, state: ReviewState) {
     this.items.set(`${subject.kind}:${subject.id}`, { language, ...state });
   }
+  async schedules(language: string) {
+    return [...this.items]
+      .filter(([, item]) => item.language === language)
+      .map(([key, { step, dueAt }]) => {
+        const [kind, id] = key.split(":") as ["pattern" | "new_word", string];
+        return { subject: { kind, id }, step, dueAt };
+      });
+  }
 }
 
 class FakeMistakes implements MistakeRepository {
   bank: (Mistake & { pattern: MistakePattern | null })[] = [];
   events: { sessionId: string; original: string; severity: Severity; selfCorrected: boolean }[] = [];
-  async record(m: NewMistake, o: { sessionId: string; severity: Severity }) {
+  /** The learner turn of each event, by index. */
+  turns = new Map<number, number | undefined>();
+  async record(m: NewMistake, o: Occurrence) {
     let saved = this.bank.find((b) => b.language === m.language && b.original === m.original);
     if (saved) saved.occurrences += 1;
     else {
@@ -132,6 +142,7 @@ class FakeMistakes implements MistakeRepository {
       this.bank.push(saved);
     }
     this.events.push({ sessionId: o.sessionId, original: m.original, severity: o.severity, selfCorrected: false });
+    this.turns.set(this.events.length - 1, o.learnerTurn);
     return saved;
   }
   correctUses: { sessionId: string; language: string; original: string }[] = [];
@@ -170,6 +181,17 @@ class FakeMistakes implements MistakeRepository {
             ),
         };
       });
+  }
+  async sessionPatterns(sessionId: string) {
+    const last = new Map<string, { key: string; name: string; lastTurn: number }>();
+    this.events.forEach((e, i) => {
+      const turn = this.turns.get(i);
+      const pattern = this.bank.find((b) => b.original === e.original)?.pattern;
+      if (e.sessionId === sessionId && turn !== undefined && pattern) {
+        last.set(pattern.key, { key: pattern.key, name: pattern.name, lastTurn: turn });
+      }
+    });
+    return [...last.values()];
   }
   async patterns(language: string, limit: number): Promise<KnownPattern[]> {
     const seen = this.bank.filter((m) => m.language === language && m.pattern).map((m) => m.pattern!);
@@ -322,6 +344,19 @@ describe("ConversationService.start", () => {
     const { session } = await service.start("daily", "en");
     expect(session.targets.map((t) => t.original)).toEqual(["improving", "open"]);
     expect(tutor.opened[0].targets.map((t) => t.original)).toEqual(["improving", "open"]);
+  });
+
+  it("practices the patterns due for review first", async () => {
+    bankEntries = [
+      entry({ original: "often", occurrences: 9, patternId: "p-later" }),
+      entry({ original: "due", occurrences: 2, patternId: "p-due" }),
+      entry({ original: "also often", occurrences: 8 }),
+    ];
+    reviews.items.set("pattern:p-due", { language: "en", step: 1, dueAt: clock.now() });
+    reviews.items.set("pattern:p-later", { language: "en", step: 1, dueAt: new Date(clock.now().getTime() + 86_400_000) });
+
+    const { session } = await service.start("daily", "en");
+    expect(session.targets.map((t) => t.original)).toEqual(["due", "often"]);
   });
 });
 
@@ -1050,6 +1085,21 @@ describe("takeaways in the summary", () => {
     await service.respond(session.id, "I opened PR");
 
     expect((await service.end(session.id)).takeaways).toEqual([]);
+  });
+});
+
+describe("a pattern comes back in the session", () => {
+  it("asks the tutor to bring a pattern back 3 to 5 learner turns after it was broken", async () => {
+    const pattern = { key: "articles", name: "A before a singular noun", rule: "Use a antes de substantivo singular." };
+    const { session } = await service.start("free_talk", "en");
+    tutor.verdicts.push(verdict({ issues: [{ ...article, severity: "minor", pattern }] }));
+    await service.respond(session.id, "I opened PR");
+    for (const line of ["Then I tested it", "It went well"]) {
+      tutor.verdicts.push(verdict({}));
+      await service.respond(session.id, line);
+    }
+
+    expect(tutor.requests.map((r) => r.bringBack)).toEqual([[], [], [{ key: "articles", name: pattern.name }]]);
   });
 });
 

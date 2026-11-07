@@ -6,13 +6,31 @@ import { NEW_WORD_CATEGORY, type PendingCorrection, type PracticeTarget } from "
 /** How many mistakes from the bank each session practices. */
 export const PRACTICE_TARGETS = 2;
 
-/** The most frequent mistakes the learner has not mastered yet. New words are not mistakes. */
-export function choosePracticeTargets(entries: readonly BankEntry[]): PracticeTarget[] {
-  return entries
+/**
+ * Patterns due for review first (decided with the user on 2026-11-07): one sentence each, the one said most
+ * often. Then the most frequent mistakes the learner has not mastered yet. New words are not mistakes.
+ */
+export function choosePracticeTargets(entries: readonly BankEntry[], duePatterns: ReadonlySet<string> = new Set()): PracticeTarget[] {
+  const open = entries
     .filter((m) => m.category !== NEW_WORD_CATEGORY && mistakeStatus(m.sessionsCorrect) !== "mastered")
-    .toSorted((a, b) => b.occurrences - a.occurrences)
-    .slice(0, PRACTICE_TARGETS)
-    .map(({ original, correction, category }) => ({ original, correction, category }));
+    .toSorted((a, b) => b.occurrences - a.occurrences);
+  const chosen: BankEntry[] = [];
+  const patterns = new Set<string>();
+  for (const m of open) {
+    if (chosen.length === PRACTICE_TARGETS) break;
+    if (m.patternId && duePatterns.has(m.patternId) && !patterns.has(m.patternId)) {
+      chosen.push(m);
+      patterns.add(m.patternId);
+    }
+  }
+  for (const m of open) {
+    if (chosen.length === PRACTICE_TARGETS) break;
+    if (!chosen.includes(m) && !(m.patternId && patterns.has(m.patternId))) {
+      chosen.push(m);
+      if (m.patternId) patterns.add(m.patternId);
+    }
+  }
+  return chosen.map(({ original, correction, category }) => ({ original, correction, category }));
 }
 
 /**
