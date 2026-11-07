@@ -1,5 +1,20 @@
 import { sql } from "drizzle-orm";
-import { bigserial, boolean, check, index, integer, jsonb, pgTable, primaryKey, smallint, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import {
+  bigserial,
+  boolean,
+  check,
+  doublePrecision,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  smallint,
+  text,
+  timestamp,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import type { PendingCorrection, PracticeTarget } from "../../domain/conversation/types.js";
 
@@ -161,4 +176,27 @@ export const xpAwards = pgTable(
       sql`${t.reason} in ('practice_minute', 'goal_covered', 'self_corrected', 'personal_record')`,
     ),
   ],
+);
+
+/** The fluency signals of one ended practice session, to compare it with the ones before and show them over time. */
+export const sessionSignals = pgTable(
+  "session_signals",
+  {
+    sessionId: uuid("session_id")
+      .primaryKey()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    language: varchar("language", { length: 16 }).notNull(),
+    mode: varchar("mode", { length: 32 }).notNull(),
+    /** Insertion order. Timestamps can tie, so ordering never relies on them. */
+    seq: bigserial("seq", { mode: "number" }).notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+    // Each signal is null when the session gave nothing to measure it.
+    unaidedShare: doublePrecision("unaided_share"),
+    wordsPerMinute: integer("words_per_minute"),
+    longPausesPerMinute: doublePrecision("long_pauses_per_minute"),
+    averagePauseMs: integer("average_pause_ms"),
+    mistakesPer100Words: doublePrecision("mistakes_per_100_words"),
+    selfCorrectionRate: doublePrecision("self_correction_rate"),
+  },
+  (t) => [index("session_signals_language_seq").on(t.language, t.seq)],
 );

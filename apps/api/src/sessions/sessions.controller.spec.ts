@@ -8,12 +8,14 @@ import {
   SessionNotFoundError,
 } from "../application/conversation.service.js";
 import { ProgressService } from "../application/progress.service.js";
+import { SignalsService } from "../application/signals.service.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import { SessionsController } from "./sessions.controller.js";
 
 const id = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
 const service = { start: vi.fn(), resume: vi.fn(), respond: vi.fn(), end: vi.fn(), rateConfidence: vi.fn() };
 const progress = { awardSession: vi.fn() };
+const signals = { recordSession: vi.fn() };
 let app: INestApplication;
 
 beforeEach(async () => {
@@ -23,6 +25,7 @@ beforeEach(async () => {
     providers: [
       { provide: ConversationService, useValue: service },
       { provide: ProgressService, useValue: progress },
+      { provide: SignalsService, useValue: signals },
     ],
   }).compile();
   app = mod.createNestApplication();
@@ -109,6 +112,7 @@ describe("POST /sessions/:id/end", () => {
   const summary = {
     sessionId: id,
     mode: "daily",
+    language: "en",
     mistakes: [],
     selfCorrections: 1,
     signals: { wordsPerMinute: 72 },
@@ -119,12 +123,16 @@ describe("POST /sessions/:id/end", () => {
   };
   const xp = { awards: [{ reason: "self_corrected", count: 1, points: 5 }], total: 5 };
 
-  it("returns the summary with the XP the session earned", async () => {
+  const comparison = { sessions: 2, signals: [{ name: "wordsPerMinute", current: 72, baseline: 60, trend: "better" }] };
+
+  it("returns the summary with the XP the session earned and how it compares with the ones before", async () => {
     service.end.mockResolvedValue(summary);
     progress.awardSession.mockResolvedValue(xp);
+    signals.recordSession.mockResolvedValue(comparison);
     const res = await request(app.getHttpServer()).post(`/sessions/${id}/end`);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ...summary, xp });
+    expect(res.body).toEqual({ ...summary, xp, comparison });
+    expect(signals.recordSession).toHaveBeenCalledWith(summary);
     expect(service.end).toHaveBeenCalledWith(id, null);
     expect(progress.awardSession).toHaveBeenCalledWith({
       sessionId: id,

@@ -107,7 +107,19 @@ describe("DrizzleSessionRepository", () => {
     const { id } = await sessions.create({ language: "en", mode: "review" });
     await sessions.end(id, null);
     expect((await sessions.get(id))?.endedAt).toBeInstanceOf(Date);
-    expect(await sessions.outcome(id)).toEqual({ timing: null, confidence: { before: null, after: null } });
+    expect(await sessions.outcome(id)).toEqual({
+      timing: null,
+      confidence: { before: null, after: null },
+      learnerTurns: { total: 0, assisted: 0 },
+    });
+  });
+
+  it("counts the learner's turns and the ones that had help", async () => {
+    const { id } = await sessions.create({ language: "en", mode: "daily" });
+    await sessions.appendTurn(id, { role: "assistant", content: "Say: I worked on the login." });
+    await sessions.appendTurn(id, { role: "user", content: "I worked on the login.", assisted: true });
+    await sessions.appendTurn(id, { role: "user", content: "Today I fix the upload." });
+    expect((await sessions.outcome(id))?.learnerTurns).toEqual({ total: 2, assisted: 1 });
   });
 
   it("stores the timing of an ended session", async () => {

@@ -16,6 +16,7 @@ import {
   SessionNotFoundError,
 } from "../application/conversation.service.js";
 import { ProgressService } from "../application/progress.service.js";
+import { SignalsService } from "../application/signals.service.js";
 import { Language, parse } from "../common/http.js";
 import { MODES } from "../domain/conversation/mode.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
@@ -60,6 +61,7 @@ export class SessionsController {
   constructor(
     private readonly conversation: ConversationService,
     private readonly progress: ProgressService,
+    private readonly signals: SignalsService,
   ) {}
 
   @Post()
@@ -93,13 +95,16 @@ export class SessionsController {
     const { timing } = parse(EndBody, body);
     return handle(async () => {
       const summary = await this.conversation.end(sessionId, timing ?? null);
-      const xp = await this.progress.awardSession({
-        sessionId,
-        goalsCovered: summary.goals.filter((goal) => goal.covered).length,
-        selfCorrections: summary.selfCorrections,
-        wordsPerMinute: summary.signals.wordsPerMinute,
-      });
-      return { ...summary, xp };
+      const [xp, comparison] = await Promise.all([
+        this.progress.awardSession({
+          sessionId,
+          goalsCovered: summary.goals.filter((goal) => goal.covered).length,
+          selfCorrections: summary.selfCorrections,
+          wordsPerMinute: summary.signals.wordsPerMinute,
+        }),
+        this.signals.recordSession(summary),
+      ]);
+      return { ...summary, xp, comparison };
     });
   }
 
