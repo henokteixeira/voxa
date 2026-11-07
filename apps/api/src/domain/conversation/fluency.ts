@@ -14,7 +14,7 @@ export interface SessionTiming {
   spokenWords?: number;
 }
 
-/** The 4 fluency signals of a session. Null when the session gives nothing to measure. */
+/** The fluency signals of a session. Null when the session gives nothing to measure. */
 export interface FluencySignals {
   /** Share (0–1) of the mistakes that got a hint which the learner then fixed alone. */
   selfCorrectionRate: number | null;
@@ -43,13 +43,15 @@ export function fluencySignals(input: {
   const words = learnerUtterances.reduce((sum, text) => sum + countWords(text), 0);
   const pauses = timing?.pausesMs ?? [];
   // Words and long pauses are measured from 2026-11-07 on; older sessions have no rate.
-  const minutes = timing?.spokenWords !== undefined ? timing.learnerSpeechMs / 60_000 : 0;
+  const minutes = timing ? timing.learnerSpeechMs / 60_000 : 0;
+  const spokenWords = timing?.spokenWords;
+  const longPauses = timing?.longPausesMs;
 
   return {
     selfCorrectionRate: hinted.length ? hinted.filter((m) => m.selfCorrected).length / hinted.length : null,
     mistakesPer100Words: words ? (mistakes.length / words) * 100 : null,
     averagePauseMs: pauses.length ? Math.round(pauses.reduce((a, b) => a + b, 0) / pauses.length) : null,
-    wordsPerMinute: minutes ? Math.round((timing?.spokenWords ?? 0) / minutes) : null,
-    longPausesPerMinute: minutes ? (timing?.longPausesMs ?? []).length / minutes : null,
+    wordsPerMinute: minutes && spokenWords !== undefined ? Math.round(spokenWords / minutes) : null,
+    longPausesPerMinute: minutes && longPauses ? longPauses.length / minutes : null,
   };
 }

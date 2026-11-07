@@ -62,6 +62,16 @@ describe("fluencySignals", () => {
     expect(signals.longPausesPerMinute).toBeNull();
   });
 
+  it("gives each rate only from the field it comes from", () => {
+    const signals = fluencySignals({
+      mistakes: [],
+      learnerUtterances: ["hi"],
+      timing: { learnerSpeechMs: 60_000, tutorSpeechMs: 0, pausesMs: [], spokenWords: 80 },
+    });
+    expect(signals.wordsPerMinute).toBe(80);
+    expect(signals.longPausesPerMinute).toBeNull();
+  });
+
   it("has no pause without pauses and no rate without speech", () => {
     const signals = fluencySignals({
       mistakes: [],

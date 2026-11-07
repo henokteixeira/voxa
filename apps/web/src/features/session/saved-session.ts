@@ -31,16 +31,16 @@ const isMsList = (list: unknown): list is number[] => Array.isArray(list) && lis
 
 const EMPTY_TIMING: SessionTiming = { learnerSpeechMs: 0, tutorSpeechMs: 0, pausesMs: [], longPausesMs: [], spokenWords: 0 };
 
-/** A saved timing; one saved before the long pauses and words were measured gets none of them. */
+/** A saved timing. One saved before the long pauses and words were measured keeps them missing: it has no pace. */
 function readTiming(value: unknown): SessionTiming {
   const t = value as Partial<SessionTiming> | null;
   if (!t || !isMs(t.learnerSpeechMs) || !isMs(t.tutorSpeechMs) || !isMsList(t.pausesMs)) return EMPTY_TIMING;
+  const measuredPace = isMsList(t.longPausesMs) && isMs(t.spokenWords);
   return {
     learnerSpeechMs: t.learnerSpeechMs as number,
     tutorSpeechMs: t.tutorSpeechMs as number,
     pausesMs: t.pausesMs,
-    longPausesMs: isMsList(t.longPausesMs) ? t.longPausesMs : [],
-    spokenWords: isMs(t.spokenWords) ? (t.spokenWords as number) : 0,
+    ...(measuredPace && { longPausesMs: t.longPausesMs, spokenWords: t.spokenWords }),
   };
 }
 

@@ -626,6 +626,7 @@ describe("fluency timing", () => {
     // 4 s of speech plus the chosen 4 s of silence.
     now.mockReturnValue(12_500);
     act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("I fixed it"));
 
     await endFromPause();
     await screen.findByRole("heading", { name: "Session done" });
@@ -647,6 +648,7 @@ describe("fluency timing", () => {
     now.mockReturnValue(4000);
     await userEvent.click(screen.getByRole("button", { name: "Send now" }));
     act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("I fixed it"));
 
     await endFromPause();
     await screen.findByRole("heading", { name: "Session done" });

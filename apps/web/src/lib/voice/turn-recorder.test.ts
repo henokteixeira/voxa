@@ -60,6 +60,15 @@ describe("TurnRecorder", () => {
     expect(end).toEqual([expect.objectContaining({ type: "turn", pausesMs: [1000] })]);
   });
 
+  it("keeps the silences inside the turn when it is sent early", () => {
+    const recorder = new TurnRecorder(new TurnDetector({ minSpeechMs: 200, endSilenceMs: 1500 }), RATE);
+    feed(recorder, 0.001, 1000);
+    feed(recorder, 0.2, 500);
+    feed(recorder, 0.001, 1000);
+    feed(recorder, 0.2, 500);
+    expect(recorder.flush()?.pausesMs).toEqual([1000]);
+  });
+
   it("forgets the turn on discard", () => {
     const recorder = new TurnRecorder(new TurnDetector({ minSpeechMs: 200, endSilenceMs: 600 }), RATE);
     feed(recorder, 0.001, 600);

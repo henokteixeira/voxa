@@ -11,7 +11,9 @@ export function countWords(text: string): number {
 /**
  * Measures a live session for the fluency signals: how long each side spoke, the pause between
  * the end of the tutor's voice and the start of the learner's answer, the long silences inside his
- * answers and how many words he spoke (typed turns do not count). Pure (times are passed in).
+ * answers and how many words he spoke. Pure (times are passed in).
+ * A spoken turn counts (speech time, long pauses, words) only once its transcript comes back, so
+ * a turn that held no speech or failed adds nothing, and typed turns never count.
  * Speech is approximate: the learner's time runs from the detected start of speech to the end of the turn.
  */
 export class FluencyClock {
@@ -20,8 +22,10 @@ export class FluencyClock {
   private readonly pauses: number[] = [];
   private readonly longPauses: number[] = [];
   private spokenWords = 0;
-  /** A spoken turn was sent and its transcript is awaited. */
-  private awaitingTranscript = false;
+  /** False for a timing saved before words and long pauses were measured: it has no pace. */
+  private measuresPace = true;
+  /** A spoken turn that was sent, waiting for its transcript. */
+  private pendingTurn: { speechMs: number; longPausesMs: number[] } | null = null;
   private tutorSince: number | null = null;
   private learnerSince: number | null = null;
   /** When the tutor stopped and the learner's answer is awaited. */
@@ -33,8 +37,9 @@ export class FluencyClock {
     clock.learnerMs = timing.learnerSpeechMs;
     clock.tutorMs = timing.tutorSpeechMs;
     clock.pauses.push(...timing.pausesMs);
-    clock.longPauses.push(...timing.longPausesMs);
-    clock.spokenWords = timing.spokenWords;
+    clock.measuresPace = timing.spokenWords !== undefined && timing.longPausesMs !== undefined;
+    clock.longPauses.push(...(timing.longPausesMs ?? []));
+    clock.spokenWords = timing.spokenWords ?? 0;
     return clock;
   }
 
@@ -60,17 +65,24 @@ export class FluencyClock {
    * @param pausesMs the silences inside the turn that speech resumed after.
    */
   learnerEnded(now: number, { silenceMs, pausesMs = [] }: { silenceMs: number; pausesMs?: readonly number[] }) {
-    if (this.learnerSince !== null) this.learnerMs += Math.max(0, now - this.learnerSince - silenceMs);
+    const speechMs = this.learnerSince === null ? 0 : Math.max(0, now - this.learnerSince - silenceMs);
     this.learnerSince = null;
-    this.longPauses.push(...pausesMs.filter((ms) => ms >= LONG_PAUSE_MS));
-    this.awaitingTranscript = true;
+    this.pendingTurn = { speechMs, longPausesMs: pausesMs.filter((ms) => ms >= LONG_PAUSE_MS) };
   }
 
-  /** The transcript of a turn came back. Only a spoken turn's words count. */
+  /** The transcript of a turn came back: the spoken turn waiting for it counts now. */
   learnerSaid(text: string) {
-    if (!this.awaitingTranscript) return;
-    this.awaitingTranscript = false;
+    const turn = this.pendingTurn;
+    if (!turn) return;
+    this.pendingTurn = null;
+    this.learnerMs += turn.speechMs;
+    this.longPauses.push(...turn.longPausesMs);
     this.spokenWords += countWords(text);
+  }
+
+  /** The learner typed an answer: a spoken turn still waiting for its transcript never gets one. */
+  typed() {
+    this.pendingTurn = null;
   }
 
   /** The microphone opened: the learner's pause runs from now, not from the end of a clip heard before a wait. */
@@ -88,8 +100,7 @@ export class FluencyClock {
       learnerSpeechMs: Math.round(this.learnerMs),
       tutorSpeechMs: Math.round(this.tutorMs),
       pausesMs: this.pauses.map(Math.round),
-      longPausesMs: this.longPauses.map(Math.round),
-      spokenWords: this.spokenWords,
+      ...(this.measuresPace && { longPausesMs: this.longPauses.map(Math.round), spokenWords: this.spokenWords }),
     };
   }
 }

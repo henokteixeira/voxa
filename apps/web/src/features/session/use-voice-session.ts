@@ -116,6 +116,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
           } else if (onOpen.kind === "text") {
             muted.current = false;
             dispatch({ type: "sent", request: "text", text: onOpen.text });
+            clock.current.typed();
             ws.sendText(onOpen.text);
           } else if (onOpen.kind === "listen") {
             dispatch({ type: "recover" });
@@ -297,6 +298,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
     setTyping(false);
     muted.current = false;
     dispatch({ type: "sent", request: "text", text });
+    clock.current.typed();
     socket.current?.sendText(text);
   }, []);
 

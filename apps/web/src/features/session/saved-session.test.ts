@@ -39,7 +39,7 @@ describe("saved session", () => {
   it("reads a timing saved before the long pauses and words were measured", () => {
     const old = { learnerSpeechMs: 1000, tutorSpeechMs: 2000, pausesMs: [900] };
     localStorage.setItem("voxa.liveSession", JSON.stringify({ ...saved, timing: old }));
-    expect(loadSavedSession()?.timing).toEqual({ ...old, longPausesMs: [], spokenWords: 0 });
+    expect(loadSavedSession()?.timing).toEqual(old);
   });
 
   it("can be picked up for 2 hours after it was last saved", () => {
