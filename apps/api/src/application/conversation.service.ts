@@ -261,7 +261,7 @@ export class ConversationService {
 
     const assisted = wasAssisted({ scaffoldBefore: session.scaffold, usedFirstLanguage: verdict.newWords.length > 0 });
     // Words to say only come with a plain reply: a hint or the correct form asks for the learner's own sentence.
-    const scaffold = decision.kind === "reply" ? keptScaffold(session.step, verdict.scaffold) : null;
+    const scaffold = decision.kind === "reply" ? keptScaffold(session.step, verdict) : null;
     await this.sessions.appendTurn(sessionId, { role: "user", content: utterance, assisted });
     await this.sessions.appendTurn(sessionId, { role: "assistant", content: said });
     await this.sessions.setPending(sessionId, decision.nextPending);

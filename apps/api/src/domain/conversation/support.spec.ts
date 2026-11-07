@@ -11,12 +11,20 @@ describe("sessionStep", () => {
 });
 
 describe("keptScaffold", () => {
+  const stuck = (scaffold: string) => ({ scaffold, stuck: true });
+
   it("keeps words to say only up to B1", () => {
-    expect(keptScaffold("supported", " Yesterday I... ")).toBe("Yesterday I...");
-    expect(keptScaffold("build_full", "I worked on the login screen.")).toBe("I worked on the login screen.");
-    expect(keptScaffold("conversation", "Yesterday I...")).toBeNull();
-    expect(keptScaffold(null, "Yesterday I...")).toBeNull();
-    expect(keptScaffold("supported", "  ")).toBeNull();
+    expect(keptScaffold("supported", stuck(" Yesterday I... "))).toBe("Yesterday I...");
+    expect(keptScaffold("build_full", { scaffold: "I worked on the login screen.", stuck: false })).toBe(
+      "I worked on the login screen.",
+    );
+    expect(keptScaffold("conversation", stuck("Yesterday I..."))).toBeNull();
+    expect(keptScaffold(null, stuck("Yesterday I..."))).toBeNull();
+    expect(keptScaffold("supported", stuck("  "))).toBeNull();
+  });
+
+  it("at B1, keeps them only when the learner was stuck", () => {
+    expect(keptScaffold("supported", { scaffold: "Yesterday I...", stuck: false })).toBeNull();
   });
 });
 

@@ -34,7 +34,9 @@ const STUCK =
 const SENTENCE_START =
   "When the learner is stuck, reassure them in a few words and, in `reply`, give only the start of a sentence they " +
   "can finish with their own information (for example: \"You could start with: Yesterday I worked on...\"). " +
-  "Never the whole answer. Put that start in `scaffold`, exactly as you said it.";
+  "Never the whole answer. Put that start in `scaffold`, exactly as you said it. When the utterance has a serious " +
+  "mistake or one from the known mistakes list, give no sentence start: `reply` is said before the hint, and the " +
+  "learner should retry their own sentence.";
 
 /**
  * How much help the tutor gives at each support step (the learner's level picks it). The guided track for
@@ -46,7 +48,7 @@ export const SUPPORT_RULES: Record<SupportStep, string> = {
   build_light: "The learner speaks at about CEFR A2. Use short, simple sentences. " + SENTENCE_START,
   supported: "The learner speaks at about CEFR B1. Talk freely. " + SENTENCE_START,
   conversation:
-    "The learner speaks at about CEFR B2. Talk naturally. Do not give sentences to say: help only with hints and " +
+    "Talk naturally. Do not give sentences to say: help only with hints and " +
     "first-language words, as above. Set `scaffold` to null.",
   demanding:
     "The learner is advanced (CEFR C1 or above). Talk naturally and ask harder follow-ups: the reasons behind a " +

@@ -125,6 +125,7 @@ describe("buildSystemPrompt: help by support step", () => {
     expect(prompt("supported")).toContain(SUPPORT_RULES.supported);
     expect(SUPPORT_RULES.supported).toMatch(/only the start of a sentence/);
     expect(SUPPORT_RULES.supported).toMatch(/Never the whole answer/);
+    expect(SUPPORT_RULES.supported).toMatch(/serious mistake .* give no sentence start/);
   });
 
   it("gives no words to say from B2 up, and none in the placement interview", () => {

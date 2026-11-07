@@ -18,10 +18,15 @@ export function givesScaffold(step: SupportStep | null): boolean {
   return step === "build_full" || step === "build_light" || step === "supported";
 }
 
-/** The words the tutor gave for the learner to say next, kept only where the step allows them. */
-export function keptScaffold(step: SupportStep | null, scaffold: string | null): string | null {
-  const text = scaffold?.trim() ?? "";
-  return givesScaffold(step) && text ? text : null;
+/**
+ * The words the tutor gave for the learner to say next, kept only where the step allows them.
+ * At B1 they are only a way out when the learner is stuck.
+ */
+export function keptScaffold(step: SupportStep | null, verdict: { scaffold: string | null; stuck: boolean }): string | null {
+  const text = verdict.scaffold?.trim() ?? "";
+  if (!text || !givesScaffold(step)) return null;
+  if (step === "supported" && !verdict.stuck) return null;
+  return text;
 }
 
 /**
