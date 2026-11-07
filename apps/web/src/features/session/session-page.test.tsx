@@ -34,8 +34,9 @@ const api = {
   todayProgress: vi.fn(),
   reviewCard: vi.fn(),
   answerReview: vi.fn(),
+  transcribe: vi.fn(),
   voiceUrl: (id: string) => `ws://api/api/sessions/${id}/voice`,
-} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "resumeSession" | "fillerSpeech" | "todayProgress" | "reviewCard" | "answerReview"]: ReturnType<typeof vi.fn> };
+} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "resumeSession" | "fillerSpeech" | "todayProgress" | "reviewCard" | "answerReview" | "transcribe"]: ReturnType<typeof vi.fn> };
 
 const deps: VoiceDeps = {
   openMicrophone: vi.fn(async (handlers: MicrophoneHandlers) => {
@@ -696,8 +697,8 @@ describe("session summary", () => {
     const inDays = (days: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 12).toISOString();
     api.endSession.mockResolvedValue(summaryWith(patterned, { takeaways }));
     api.reviewCard
-      .mockResolvedValueOnce({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, name: past.name }, cue: "Eu terminei ontem." })
-      .mockResolvedValueOnce({ cardId: "c2", item: { subject: { kind: "pattern", id: "p2" }, name: waitFor.name }, cue: "Estou esperando as chaves." });
+      .mockResolvedValueOnce({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, language: "en", name: past.name }, cue: "Eu terminei ontem." })
+      .mockResolvedValueOnce({ cardId: "c2", item: { subject: { kind: "pattern", id: "p2" }, language: "en", name: waitFor.name }, cue: "Estou esperando as chaves." });
     api.answerReview
       .mockResolvedValueOnce({ recalled: true, answer: "I finished it yesterday.", rule: past.rule, nextDueAt: inDays(3) })
       .mockResolvedValueOnce({ recalled: false, answer: "I'm waiting for the keys.", rule: waitFor.rule, nextDueAt: inDays(1) });
@@ -708,10 +709,15 @@ describe("session summary", () => {
 
     expect(await screen.findByText("“Eu terminei ontem.”")).toBeInTheDocument();
     expect(screen.getByText("1 of 2")).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText("Your answer"), "Yesterday I finished it{Enter}");
+    // Answered aloud: the recording is transcribed, then checked.
+    expect(await screen.findByText("Say it aloud")).toBeInTheDocument();
+    api.transcribe.mockResolvedValueOnce("Yesterday I finished it");
+    const wav = new ArrayBuffer(16);
+    act(() => micHandlers.onTurn(wav));
+    expect(api.transcribe).toHaveBeenCalledWith(wav, "en");
     expect(api.reviewCard).toHaveBeenCalledWith({ kind: "pattern", id: "p1" });
-    expect(api.answerReview).toHaveBeenCalledWith("c1", "Yesterday I finished it");
     expect(await screen.findByRole("status")).toHaveTextContent("That's it");
+    expect(api.answerReview).toHaveBeenCalledWith("c1", "Yesterday I finished it");
     expect(screen.getByRole("region", { name: "You said" })).toHaveTextContent(`Yesterday I finished it${past.name}. ${past.rule}`);
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
 
@@ -731,7 +737,7 @@ describe("session summary", () => {
 
   it("says when an answer can't be checked, and keeps the question", async () => {
     api.endSession.mockResolvedValue(summaryWith(patterned, { takeaways: takeaways.slice(0, 1) }));
-    api.reviewCard.mockResolvedValue({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, name: past.name }, cue: "Eu terminei ontem." });
+    api.reviewCard.mockResolvedValue({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, language: "en", name: past.name }, cue: "Eu terminei ontem." });
     api.answerReview.mockRejectedValueOnce(new Error("offline"));
     await startAndListen();
     await endFromPause();
@@ -743,11 +749,31 @@ describe("session summary", () => {
     expect(screen.getByText("“Eu terminei ontem.”")).toBeInTheDocument();
   });
 
+  it("asks again when nothing was heard, and lets the learner type instead", async () => {
+    api.endSession.mockResolvedValue(summaryWith(patterned, { takeaways: takeaways.slice(0, 1) }));
+    api.reviewCard.mockResolvedValue({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, language: "en", name: past.name }, cue: "Eu terminei ontem." });
+    api.transcribe.mockResolvedValueOnce("");
+    api.answerReview.mockResolvedValue({ recalled: true, answer: "I finished it yesterday.", rule: past.rule, nextDueAt: new Date().toISOString() });
+    await startAndListen();
+    await endFromPause();
+    await userEvent.click(await screen.findByRole("button", { name: "See what to keep" }));
+    await userEvent.click(screen.getByRole("button", { name: "Try them · 1 min" }));
+    await screen.findByText("Say it aloud");
+
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    expect(await screen.findByRole("alert")).toHaveTextContent("I didn't catch that. Say it again.");
+    expect(api.answerReview).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Type instead" }));
+    await userEvent.type(screen.getByLabelText("Your answer"), "I finished it yesterday{Enter}");
+    expect(api.answerReview).toHaveBeenCalledWith("c1", "I finished it yesterday");
+  });
+
   it("offers to try again when a cue can't be loaded", async () => {
     api.endSession.mockResolvedValue(summaryWith(patterned, { takeaways: takeaways.slice(0, 1) }));
     api.reviewCard
       .mockRejectedValueOnce(new Error("offline"))
-      .mockResolvedValueOnce({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, name: past.name }, cue: "Eu terminei ontem." });
+      .mockResolvedValueOnce({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, language: "en", name: past.name }, cue: "Eu terminei ontem." });
     await startAndListen();
     await endFromPause();
     await userEvent.click(await screen.findByRole("button", { name: "See what to keep" }));

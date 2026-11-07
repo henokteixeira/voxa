@@ -7,6 +7,7 @@ import { useCopy, useLocale } from "@/lib/i18n/locale";
 import { cn } from "@/lib/utils";
 import { comesBack } from "./format";
 import { REVIEW_COPY } from "./review-copy";
+import { useReviewMicrophone } from "./use-review-microphone";
 
 /** One answered item: what it was and when it comes back. */
 export interface ReviewResult {
@@ -19,7 +20,8 @@ export interface ReviewResult {
 type Step =
   | { kind: "loading" }
   | { kind: "failed" }
-  | { kind: "asking"; card: ReviewCard; failed?: boolean }
+  /** `problem`: the last answer couldn't be checked, or nothing was heard. */
+  | { kind: "asking"; card: ReviewCard; problem?: "failed" | "not_heard" }
   | { kind: "checking"; card: ReviewCard }
   | { kind: "answered"; card: ReviewCard; said: string | null; answer: ReviewAnswer };
 
@@ -64,9 +66,23 @@ export function ReviewRun({ subjects, onDone }: { subjects: ReviewSubject[]; onD
       setResults((r) => [...r, { subject: card.item.subject, name: card.item.name, recalled: result.recalled, nextDueAt: result.nextDueAt }]);
       setStep({ kind: "answered", card, said, answer: result });
     } catch {
-      setStep({ kind: "asking", card, failed: true });
+      setStep({ kind: "asking", card, problem: "failed" });
     }
   }
+
+  const [typing, setTyping] = useState(false);
+  const asking = step.kind === "asking" ? step.card : null;
+  const mic = useReviewMicrophone(asking && !typing ? asking.cardId : null, (wav) => {
+    if (!asking) return;
+    setStep({ kind: "checking", card: asking });
+    api
+      .transcribe(wav, asking.item.language)
+      .then((said) =>
+        said ? answer(asking, said) : setStep({ kind: "asking", card: asking, problem: "not_heard" }),
+      )
+      .catch(() => setStep({ kind: "asking", card: asking, problem: "failed" }));
+  });
+  const typed = typing || mic.available === false;
 
   function submit(event: FormEvent<HTMLFormElement>, card: ReviewCard) {
     event.preventDefault();
@@ -82,7 +98,8 @@ export function ReviewRun({ subjects, onDone }: { subjects: ReviewSubject[]; onD
   }
 
   return (
-    <>
+    // The browser lets the microphone start only after a tap.
+    <div className="contents" onPointerDown={mic.unlock}>
       <div className="flex items-center justify-between pt-2">
         <button
           type="button"
@@ -138,30 +155,48 @@ export function ReviewRun({ subjects, onDone }: { subjects: ReviewSubject[]; onD
               “{step.card.cue}”
             </span>
           </section>
-          <div className="flex flex-1 items-center justify-center">
-            <VoiceBall state={step.kind === "checking" ? "thinking" : "listening"} size={160} />
-          </div>
-          <form onSubmit={(e) => submit(e, step.card)} className="flex gap-2">
-            <label htmlFor="review-answer" className="sr-only">
-              {copy.yourAnswer}
-            </label>
-            <input
-              id="review-answer"
-              name="answer"
-              lang="en"
-              autoFocus
-              autoComplete="off"
-              maxLength={2000}
-              disabled={step.kind === "checking"}
-              className="min-h-[52px] min-w-0 flex-1 rounded-md border-none bg-paper px-4 text-body shadow-[inset_0_0_0_1.5px_var(--color-sand)]"
+          <div className="flex flex-1 flex-col items-center justify-center gap-3">
+            <VoiceBall
+              state={step.kind === "checking" ? "thinking" : mic.speaking ? "listening" : "idle"}
+              size={160}
             />
-            <Button type="submit" disabled={step.kind === "checking"}>
-              {step.kind === "checking" ? copy.checking : copy.check}
-            </Button>
-          </form>
-          {step.kind === "asking" && step.failed && (
+            <span aria-live="polite" className="text-label text-mist-ink">
+              {step.kind === "checking" ? copy.checking : typed ? "" : mic.available ? copy.sayItAloud : ""}
+            </span>
+          </div>
+          {typed ? (
+            <form onSubmit={(e) => submit(e, step.card)} className="flex gap-2">
+              <label htmlFor="review-answer" className="sr-only">
+                {copy.yourAnswer}
+              </label>
+              <input
+                id="review-answer"
+                name="answer"
+                lang="en"
+                autoFocus
+                autoComplete="off"
+                maxLength={2000}
+                disabled={step.kind === "checking"}
+                className="min-h-[52px] min-w-0 flex-1 rounded-md border-none bg-paper px-4 text-body shadow-[inset_0_0_0_1.5px_var(--color-sand)]"
+              />
+              <Button type="submit" disabled={step.kind === "checking"}>
+                {copy.check}
+              </Button>
+            </form>
+          ) : (
+            mic.available && (
+              <button
+                type="button"
+                onClick={() => setTyping(true)}
+                className="cursor-pointer self-center border-none bg-transparent p-0 text-small text-taupe underline-offset-4 hover:text-ink hover:underline"
+              >
+                {copy.typeInstead}
+              </button>
+            )
+          )}
+          {step.kind === "asking" && step.problem && (
             <p role="alert" className="m-0 text-center text-caption text-honey-ink">
-              {copy.answerFailed}
+              {step.problem === "failed" ? copy.answerFailed : copy.notHeard}
             </p>
           )}
           <Button variant="ghost" block disabled={step.kind === "checking"} onClick={() => void answer(step.card, null)}>
@@ -200,6 +235,6 @@ export function ReviewRun({ subjects, onDone }: { subjects: ReviewSubject[]; onD
           </Button>
         </>
       )}
-    </>
+    </div>
   );
 }

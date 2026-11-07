@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { validateEnv } from "./config/env.js";
 import { ConversationService } from "./application/conversation.service.js";
 import { FillerSpeechService } from "./application/filler-speech.service.js";
+import { TranscriptionService } from "./application/transcription.service.js";
 import { LevelService } from "./application/level.service.js";
 import { MistakeBankService } from "./application/mistake-bank.service.js";
 import { ProgressService } from "./application/progress.service.js";
@@ -41,6 +42,7 @@ import { AnthropicReviewCoach } from "./infra/tutor/anthropic-review-coach.js";
 import { DrizzleReviewRepository } from "./infra/db/drizzle-review.repository.js";
 import { ProgressController } from "./progress/progress.controller.js";
 import { SessionsController } from "./sessions/sessions.controller.js";
+import { TranscriptionsController } from "./voice/transcriptions.controller.js";
 import { FillersController } from "./voice/fillers.controller.js";
 import { VoiceSocketServer } from "./voice/voice-socket.server.js";
 
@@ -48,7 +50,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
 // Swapping the database, AI or voice provider = changing useClass/useExisting below.
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ["../../.env"], validate: validateEnv }), DbModule],
-  controllers: [HealthController, SessionsController, MistakesController, FillersController, LevelsController, ProgressController, ReviewsController],
+  controllers: [HealthController, SessionsController, MistakesController, FillersController, LevelsController, ProgressController, ReviewsController, TranscriptionsController],
   providers: [
     ConversationService,
     MistakeBankService,
@@ -56,6 +58,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
     ReviewService,
     VoiceConversationService,
     FillerSpeechService,
+    TranscriptionService,
     LevelService,
     ProgressService,
     SignalsService,

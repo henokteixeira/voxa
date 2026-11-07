@@ -18,6 +18,9 @@ export interface ReviewCopy {
   finish: string;
   failed: string;
   answerFailed: string;
+  notHeard: string;
+  sayItAloud: string;
+  typeInstead: string;
   retry: string;
   skip: string;
 }
@@ -40,6 +43,9 @@ export const REVIEW_COPY: Copy<ReviewCopy> = {
     finish: "Finish",
     failed: "Couldn't load this one.",
     answerFailed: "Couldn't check that answer. Try again.",
+    notHeard: "I didn't catch that. Say it again.",
+    sayItAloud: "Say it aloud",
+    typeInstead: "Type instead",
     retry: "Try again",
     skip: "Skip",
   },
@@ -60,6 +66,9 @@ export const REVIEW_COPY: Copy<ReviewCopy> = {
     finish: "Concluir",
     failed: "Não deu para carregar este.",
     answerFailed: "Não deu para conferir essa resposta. Tente de novo.",
+    notHeard: "Não ouvi. Diga de novo.",
+    sayItAloud: "Diga em voz alta",
+    typeInstead: "Digitar",
     retry: "Tentar de novo",
     skip: "Pular",
   },
