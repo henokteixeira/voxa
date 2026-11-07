@@ -120,6 +120,8 @@ describe("live session", () => {
 
     act(() => socketHandlers.onTutor({ kind: "reply", message: "Nice. What's next?", selfCorrected: false }));
     expect(screen.queryByText("Nice. What's next?")).not.toBeInTheDocument();
+    // The learner's words stay on screen until they speak again, so they can check them.
+    expect(screen.getByText("I fixed the login bug")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Show what the tutor said" }));
     expect(screen.getByText("Nice. What's next?")).toHaveFocus();
 
