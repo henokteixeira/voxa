@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { clearSavedSession, isExpired, loadSavedSession, RESUME_LIMIT_MS, saveSession } from "./saved-session";
+import { describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api";
+import { clearSavedSession, isExpired, loadSavedSession, RESUME_LIMIT_MS, saveSession, takeSavedSession } from "./saved-session";
 
 const saved = {
   sessionId: "s1",
@@ -34,5 +35,24 @@ describe("saved session", () => {
     expect(RESUME_LIMIT_MS).toBe(2 * 60 * 60 * 1000);
     expect(isExpired({ ...saved, savedAt: now - RESUME_LIMIT_MS }, now)).toBe(false);
     expect(isExpired({ ...saved, savedAt: now - RESUME_LIMIT_MS - 1 }, now)).toBe(true);
+  });
+
+  it("treats an entry with no save time as too old", () => {
+    localStorage.setItem("voxa.liveSession", JSON.stringify(saved));
+    expect(loadSavedSession()?.savedAt).toBe(0);
+  });
+
+  it("ends an expired session, and forgets it only once the server has it", async () => {
+    const old = JSON.stringify({ ...saved, savedAt: Date.now() - RESUME_LIMIT_MS - 1 });
+    localStorage.setItem("voxa.liveSession", old);
+    const offline = { endSession: vi.fn().mockRejectedValue(new ApiError("offline", "Can't reach the Voxa API.")) };
+    expect(takeSavedSession(offline)).toBeNull();
+    await vi.waitFor(() => expect(offline.endSession).toHaveBeenCalledWith("s1", saved.timing));
+    await Promise.resolve();
+    expect(localStorage.getItem("voxa.liveSession")).toBe(old);
+
+    const up = { endSession: vi.fn().mockResolvedValue({}) };
+    expect(takeSavedSession(up)).toBeNull();
+    await vi.waitFor(() => expect(localStorage.getItem("voxa.liveSession")).toBeNull());
   });
 });

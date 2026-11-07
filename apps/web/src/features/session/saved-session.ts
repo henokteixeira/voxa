@@ -1,4 +1,4 @@
-import { type ApiClient, MODES, type Mode, type SessionTiming } from "@/lib/api";
+import { ApiError, type ApiClient, type ApiErrorKind, MODES, type Mode, type SessionTiming } from "@/lib/api";
 
 /**
  * The live session, kept in the browser so a reload can pick it up again.
@@ -19,6 +19,9 @@ export const RESUME_LIMIT_MS = 2 * 60 * 60 * 1000;
 export function isExpired(saved: SavedSession, now = Date.now()): boolean {
   return now - saved.savedAt > RESUME_LIMIT_MS;
 }
+
+/** API errors that may pass: the saved session is kept for later. */
+export const TRANSIENT_ERRORS: ApiErrorKind[] = ["offline", "server", "tutor_unavailable"];
 
 const KEY = "voxa.liveSession";
 
@@ -70,7 +73,12 @@ export function clearSavedSession() {
 export function takeSavedSession(api: Pick<ApiClient, "endSession">): SavedSession | null {
   const saved = loadSavedSession();
   if (!saved || !isExpired(saved)) return saved;
-  clearSavedSession();
-  void api.endSession(saved.sessionId, saved.timing).catch(() => {});
+  // Forgotten only once the server has it (ending twice is safe): offline, it waits for the next visit.
+  void api.endSession(saved.sessionId, saved.timing).then(
+    () => clearSavedSession(),
+    (error: unknown) => {
+      if (!(error instanceof ApiError && TRANSIENT_ERRORS.includes(error.kind))) clearSavedSession();
+    },
+  );
   return null;
 }

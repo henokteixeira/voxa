@@ -211,7 +211,7 @@ describe("a paused session on Today", () => {
     expect(await screen.findByRole("link", { name: "Start" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Continue session" })).toBeNull();
     expect(endSession).toHaveBeenCalledWith("s1", timing);
-    expect(localStorage.getItem("voxa.liveSession")).toBeNull();
+    await vi.waitFor(() => expect(localStorage.getItem("voxa.liveSession")).toBeNull());
   });
 });
 
