@@ -16,3 +16,10 @@ export function reviewDay(iso: string, now: Date, locale: Locale = "en"): string
   if (days < 7) return new Intl.DateTimeFormat(locale, { weekday: "short" }).format(due);
   return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(due);
 }
+
+/** Whether a review item is due by the end of today, by calendar day. */
+export function isDue(iso: string | null, now: Date): boolean {
+  if (!iso) return false;
+  const day = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return day(new Date(iso)) <= day(now);
+}
