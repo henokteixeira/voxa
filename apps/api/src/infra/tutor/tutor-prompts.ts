@@ -92,8 +92,8 @@ export function buildSystemPrompt(
       "- `nextHint`: when it is not fixed, a new clue, more specific than before. Never the corrected words.",
       "When there is no pending correction, set `pendingResolved` to false and `nextHint` to null.",
     ].join("\n"),
-    "## Your reply\n`reply` is your next line in the scene, as if the mistakes were not there. It is used only " +
-      "when the conversation goes on, so do not correct the learner in it. Never end the meeting or ask whether to " +
+    "## Your reply\n`reply` is your next line in the scene, as if the mistakes were not there. It is spoken " +
+      "first; when a mistake needs a hint, the app says the hint right after it, so do not correct the learner in it. Never end the meeting or ask whether to " +
       "stop: the app asks that. " +
       "Helping with words the learner said in their first language is not a correction.",
   ]

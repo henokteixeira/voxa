@@ -125,7 +125,15 @@ export class ConversationService {
     };
   }
 
-  async respond(sessionId: string, utterance: string): Promise<TurnResult> {
+  /**
+   * The tutor's answer to one learner turn.
+   *
+   * With `onReply`, the tutor's reply is handed over as soon as it is written, before the mistakes are
+   * analysed, so it can be spoken at once. The returned result is then what follows the reply: its
+   * message is the hint or the stop-or-keep-going question, or "" when there is nothing more to say.
+   * While a hint is pending the reply may not be said, so the answer always comes in one piece.
+   */
+  async respond(sessionId: string, utterance: string, onReply?: (reply: TurnResult) => void): Promise<TurnResult> {
     const session = await this.openSession(sessionId);
     const [history, known, learnerContext] = await Promise.all([
       this.sessions.history(sessionId),
@@ -142,15 +150,33 @@ export class ConversationService {
       ...knownMistakes.map(toKnown),
       ...session.targets.filter((t) => !knownMistakes.some((m) => sameText(m.original, t.original))),
     ];
-    const verdict = await this.tutor.evaluate({
-      ...this.tutorContext(session, learnerContext),
-      history,
-      pending: session.pending,
-      knownMistakes: watched,
-      knownNewWords: knownNewWords.map(toKnown),
-      utterance,
-      coveredGoals: session.coveredGoals,
-    });
+    const early = { reply: null as string | null };
+    const handOver =
+      onReply && !session.pending
+        ? (reply: string) => {
+            early.reply = reply;
+            onReply({
+              kind: "reply",
+              message: reply,
+              selfCorrected: false,
+              support: null,
+              checkIn: false,
+              coveredGoals: session.coveredGoals,
+            });
+          }
+        : undefined;
+    const verdict = await this.tutor.evaluate(
+      {
+        ...this.tutorContext(session, learnerContext),
+        history,
+        pending: session.pending,
+        knownMistakes: watched,
+        knownNewWords: knownNewWords.map(toKnown),
+        utterance,
+        coveredGoals: session.coveredGoals,
+      },
+      handOver,
+    );
     const decision = decide(session.pending, verdict);
 
     // Every mistake goes to the bank, except a retry of the one already pending.
@@ -205,10 +231,18 @@ export class ConversationService {
             lastCheckInMs: session.lastCheckInAt ? session.lastCheckInAt.getTime() - session.startedAt.getTime() : null,
           })
         : null;
-    const message = checkIn ? `${decision.message} ${checkInLine(checkIn, session.language)}` : decision.message;
+    const question = checkIn ? checkInLine(checkIn, session.language) : null;
+    // Without a pending hint the decision is a reply or a hint: after a reply already said, only the hint is new.
+    const message =
+      early.reply !== null
+        ? decision.kind === "hint"
+          ? decision.message
+          : (question ?? "")
+        : [decision.message, question].filter(Boolean).join(" ");
+    const said = early.reply !== null ? [early.reply, message].filter(Boolean).join(" ") : message;
 
     await this.sessions.appendTurn(sessionId, { role: "user", content: utterance });
-    await this.sessions.appendTurn(sessionId, { role: "assistant", content: message });
+    await this.sessions.appendTurn(sessionId, { role: "assistant", content: said });
     await this.sessions.setPending(sessionId, decision.nextPending);
     await this.sessions.setProgress(sessionId, {
       coveredGoals,

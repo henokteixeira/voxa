@@ -19,7 +19,12 @@ export interface TurnTiming {
 /** Partial results, sent as soon as they exist so captions do not wait for the voice. */
 export interface VoiceTurnEvents {
   transcript(text: string): void;
+  /** The tutor's reply; when its analysis is still running, `speech` and `followUp` come after it. */
   tutor(result: TurnResult): void;
+  /** The reply's speech (WAV), sent as soon as it is ready, before the follow-up. */
+  speech(wav: Buffer): void;
+  /** What follows a reply said early: a hint, the stop-or-keep-going question, or "" (only help and goals). */
+  followUp(result: TurnResult): void;
   /** True once the learner has left; the service then skips work nobody will hear. */
   cancelled(): boolean;
   /** Sent once the tutor's voice is ready, to measure the loop. */
@@ -52,18 +57,51 @@ export class VoiceConversationService {
     events.transcript(text);
     if (events.cancelled()) return null;
 
-    const result = await this.conversation.respond(sessionId, text);
+    const report = (answered: number, spoken: number) =>
+      events.timing?.({
+        sttMs: "text" in input ? null : Math.round(heard - started),
+        tutorMs: Math.round(answered - heard),
+        ttsMs: Math.round(spoken - answered),
+        totalMs: Math.round(spoken - started),
+      });
+
+    // The reply is spoken while the tutor still analyses the turn.
+    const reply: { spoken: Promise<void> | null } = { spoken: null };
+    const speakReply = (line: TurnResult) => {
+      const answered = performance.now();
+      events.tutor(line);
+      if (events.cancelled()) return;
+      reply.spoken = this.tts.synthesize(line.message, session.language).then((wav) => {
+        if (events.cancelled()) return;
+        report(answered, performance.now());
+        events.speech(wav);
+      });
+      // Awaited below; this only keeps a failure from going unhandled while the analysis runs.
+      reply.spoken.catch(() => {});
+    };
+
+    let result: TurnResult;
+    try {
+      result = await this.conversation.respond(sessionId, text, speakReply);
+    } catch (error) {
+      // The reply's speech must not arrive after the failure is reported.
+      await reply.spoken?.catch(() => {});
+      throw error;
+    }
+    if (reply.spoken) {
+      const followUp = result.message ? this.tts.synthesize(result.message, session.language) : null;
+      followUp?.catch(() => {});
+      await reply.spoken;
+      if (events.cancelled()) return null;
+      events.followUp(result);
+      return followUp;
+    }
+
     const answered = performance.now();
     events.tutor(result);
     if (events.cancelled()) return null;
     const speech = await this.tts.synthesize(result.message, session.language);
-    const spoken = performance.now();
-    events.timing?.({
-      sttMs: "text" in input ? null : Math.round(heard - started),
-      tutorMs: Math.round(answered - heard),
-      ttsMs: Math.round(spoken - answered),
-      totalMs: Math.round(spoken - started),
-    });
+    report(answered, performance.now());
     return speech;
   }
 
