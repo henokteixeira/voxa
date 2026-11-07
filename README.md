@@ -61,7 +61,7 @@ a row with mistake detection, hints that keep the answer, self-correction, the h
 line rules, the wait for the spoken reply (p50/p90), the cost per learner turn at list price, and errors:
 
 ```bash
-docker compose run --rm --no-deps api pnpm eval:models
+docker compose run --rm --no-deps --build api pnpm eval:models   # --build the first time only
 # Other models or efforts, and runs per scenario (default 2):
 docker compose run --rm --no-deps -e EVAL_MODELS=claude-sonnet-5-5@low,claude-haiku-5-5@medium -e EVAL_RUNS=3 api pnpm eval:models
 ```

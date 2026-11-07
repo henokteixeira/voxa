@@ -4,7 +4,7 @@ import type { TurnRecord } from "../golden/run-scenario.js";
 import type { TurnExpectation } from "../golden/scenarios.js";
 import type { TurnTiming } from "./metering.js";
 
-export const CATEGORIES = ["detection", "hints", "selfCorrection", "flow", "speech"] as const;
+export const CATEGORIES = ["detection", "hints", "selfCorrection", "flow", "content", "speech"] as const;
 export type Category = (typeof CATEGORIES)[number];
 
 export const CATEGORY_LABELS: Record<Category, string> = {
@@ -12,6 +12,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   hints: "Hints keep the answer",
   selfCorrection: "Self-correction",
   flow: "Hint / reply / reveal",
+  content: "Reply content",
   speech: "Spoken line",
 };
 
@@ -23,6 +24,7 @@ export function categoryOf(failure: string): Category {
   if (failure.includes("gives the answer away")) return "hints";
   if (failure.startsWith("selfCorrected:")) return "selfCorrection";
   if (failure.startsWith("kind:")) return "flow";
+  if (failure === "no on-screen help shown" || failure.startsWith("spoken line does not match")) return "content";
   return "speech";
 }
 
@@ -36,6 +38,7 @@ function checkedCategories(turn: TurnRecord, expect: TurnExpectation): Category[
   if (firstHint || nextHint || help) out.push("hints");
   if (expect.selfCorrected !== undefined) out.push("selfCorrection");
   if (expect.kind) out.push("flow");
+  if (expect.support || expect.message) out.push("content");
   return out;
 }
 
@@ -169,6 +172,7 @@ export function formatReport(results: ModelResult[], runs: number): string {
     "",
     `Each scenario ran ${runs} time(s) per model. Percentages count checked turns that passed.`,
     "Reply wait: from the request to the spoken reply. Cost per turn: one learner turn, tokens at list price.",
+    "Hints are checked only when the model gave one, so read that column next to mistake detection.",
     `Spent on this run: ${dollars(spent, 2)}.`,
     "",
     table,

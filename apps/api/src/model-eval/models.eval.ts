@@ -28,7 +28,9 @@ const models = (process.env.EVAL_MODELS || DEFAULT_MODELS)
   .map((s) => s.trim())
   .filter(Boolean)
   .map((spec) => {
-    const [model, effort = defaultEffort] = spec.split("@");
+    const [model, asked = defaultEffort] = spec.split("@");
+    // The adapter runs anything other than medium or high at low effort; label the row with what really ran.
+    const effort = asked === "medium" || asked === "high" ? asked : "low";
     return { model, effort };
   });
 const runs = Math.max(1, Number(process.env.EVAL_RUNS) || 2);
@@ -50,10 +52,15 @@ async function pool<T>(items: T[], size: number, work: (item: T) => Promise<void
 async function evaluateModel(model: string, effort: string): Promise<ModelResult> {
   let openCost: number | null = 0;
   let turnCost: number | null = 0;
+  // Every finished turn call, also one whose answer was then rejected: it was paid for.
+  let turns = 0;
   const messages = meteredMessages(anthropicClientProvider.useFactory(), (kind, usage) => {
     const cost = costOf(model, usage);
     if (kind === "open") openCost = openCost === null || cost === null ? null : openCost + cost;
-    else turnCost = turnCost === null || cost === null ? null : turnCost + cost;
+    else {
+      turns++;
+      turnCost = turnCost === null || cost === null ? null : turnCost + cost;
+    }
   });
   const config = new ConfigService({ ...process.env, ANTHROPIC_MODEL: model, ANTHROPIC_EFFORT: effort });
   const timings: TurnTiming[] = [];
@@ -72,7 +79,7 @@ async function evaluateModel(model: string, effort: string): Promise<ModelResult
       scenarios.push({ scenario: scenario.name, turns: null, error: (error as Error).message });
     }
   });
-  return { label: `${model} (${effort})`, scenarios, timings, openCost, turnCost, turns: timings.length };
+  return { label: `${model} (${effort})`, scenarios, timings, openCost, turnCost, turns };
 }
 
 const results: ModelResult[] = [];

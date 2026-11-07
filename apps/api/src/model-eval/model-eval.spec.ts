@@ -108,6 +108,8 @@ describe("scoreTurn", () => {
     expect(categoryOf('hint gives the answer away: "x"')).toBe("hints");
     expect(categoryOf("selfCorrected: expected true, got false")).toBe("selfCorrection");
     expect(categoryOf("kind: expected hint, got reply")).toBe("flow");
+    expect(categoryOf("no on-screen help shown")).toBe("content");
+    expect(categoryOf('spoken line does not match /budget/: "x"')).toBe("content");
     expect(categoryOf('spoken line has markdown: "x"')).toBe("speech");
   });
 
