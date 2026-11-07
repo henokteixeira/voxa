@@ -111,7 +111,7 @@ describe("ProgressService.today", () => {
     });
   });
 
-  it("adds 1 XP for each answered review item, right or wrong, on the day it was answered", async () => {
+  it("adds 1 XP for each item reviewed today, right or wrong, once a day per item", async () => {
     const session = await sessions.create({ language: "en", mode: "daily" });
     const word = await new DrizzleMistakeRepository(db).record(
       { language: "en", original: "prazo", correction: "deadline", category: "new_word", pattern: null },
@@ -123,12 +123,12 @@ describe("ProgressService.today", () => {
       const card = await reviews.addCard(subject, { cue: "Qual é o prazo?", answer: "What is the deadline?" });
       await reviews.answerCard(card.id, recalled, new Date(at));
     };
-    await answer(true, "2026-11-07T14:00:00Z");
-    await answer(false, "2026-11-07T14:01:00Z");
+    await answer(false, "2026-11-07T14:00:00Z");
+    await answer(true, "2026-11-07T14:01:00Z"); // the same item again today: no more XP
     await answer(true, "2026-11-06T14:00:00Z"); // yesterday
     await reviews.addCard(subject, { cue: "Qual é o prazo?", answer: "What is the deadline?" }); // never answered
 
-    expect((await service.today("en", tz)).earnedXp).toBe(2);
+    expect((await service.today("en", tz)).earnedXp).toBe(1);
   });
 
   it("adds up today's XP in the learner's day and counts the streak", async () => {

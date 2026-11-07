@@ -54,15 +54,16 @@ describe("POST /reviews/answers", () => {
   it("checks a spoken answer to a card, or none when the learner doesn't know", async () => {
     service.answer.mockResolvedValue({ recalled: false });
     const cardId = subject.id;
-    await request(app.getHttpServer()).post("/reviews/answers").send({ cardId, utterance: "I finish it" }).expect(200);
-    await request(app.getHttpServer()).post("/reviews/answers").send({ cardId, utterance: null }).expect(200);
+    await request(app.getHttpServer()).post("/reviews/answers").send({ cardId, utterance: "I finish it", timeZone: "America/Sao_Paulo" }).expect(200);
+    await request(app.getHttpServer()).post("/reviews/answers").send({ cardId, utterance: null, timeZone: "America/Sao_Paulo" }).expect(200);
     expect(service.answer.mock.calls).toEqual([
-      [cardId, "I finish it"],
-      [cardId, null],
+      [cardId, "I finish it", "America/Sao_Paulo"],
+      [cardId, null, "America/Sao_Paulo"],
     ]);
   });
 
-  it("rejects an answer without a card", async () => {
-    await request(app.getHttpServer()).post("/reviews/answers").send({ utterance: "hi" }).expect(400);
+  it("rejects an answer without a card or a time zone", async () => {
+    await request(app.getHttpServer()).post("/reviews/answers").send({ utterance: "hi", timeZone: "America/Sao_Paulo" }).expect(400);
+    await request(app.getHttpServer()).post("/reviews/answers").send({ cardId: subject.id, utterance: "hi" }).expect(400);
   });
 });

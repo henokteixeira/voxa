@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ApiError, createApiClient } from "./api";
+import { ApiError, createApiClient, deviceTimeZone } from "./api";
 
 function respond(status: number, body: unknown) {
   return vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status }));
@@ -96,7 +96,7 @@ describe("createApiClient", () => {
     await api.answerReview("c1", null);
     expect(fetchImpl.mock.calls.map(([url, init]) => [url, init.method, JSON.parse(init.body)])).toEqual([
       ["http://api/api/reviews/cards", "POST", { subject: { kind: "pattern", id: "p1" } }],
-      ["http://api/api/reviews/answers", "POST", { cardId: "c1", utterance: null }],
+      ["http://api/api/reviews/answers", "POST", { cardId: "c1", utterance: null, timeZone: deviceTimeZone() }],
     ]);
   });
 

@@ -470,7 +470,7 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     reviewCard: (subject: ReviewSubject) => request<ReviewCard>("/reviews/cards", { method: "POST", body: { subject } }),
     /** What the learner said to a card; null when they chose "I don't know". */
     answerReview: (cardId: string, utterance: string | null) =>
-      request<ReviewAnswer>("/reviews/answers", { method: "POST", body: { cardId, utterance } }),
+      request<ReviewAnswer>("/reviews/answers", { method: "POST", body: { cardId, utterance, timeZone: deviceTimeZone() } }),
     /** The words in a short recording, e.g. a spoken review answer; empty when nothing was heard. */
     transcribe: async (wav: ArrayBuffer, language = "en") =>
       (await postAudio<{ text: string }>(`/voice/transcriptions?language=${encodeURIComponent(language)}`, wav)).text,

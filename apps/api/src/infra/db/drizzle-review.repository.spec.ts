@@ -100,7 +100,7 @@ describe("DrizzleReviewRepository", () => {
     expect(await reviews.answerCard(card.id, true, now)).toBe(true);
     expect(await reviews.answerCard(card.id, false, now)).toBe(false);
     expect((await reviews.card(card.id))?.recalled).toBe(true);
-    expect(await reviews.answeredSince("en", day(-1))).toEqual([now]);
+    expect(await reviews.answeredSince("en", day(-1))).toEqual([{ cardId: card.id, itemId: expect.any(String), answeredAt: now }]);
     expect(await reviews.answeredSince("en", day(1))).toEqual([]);
     expect(await reviews.answeredSince("es", day(-1))).toEqual([]);
   });

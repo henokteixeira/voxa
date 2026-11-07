@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lte, min, or, type SQL, sql } from "drizzle-orm";
 import { NEW_WORD_CATEGORY } from "../../domain/conversation/types.js";
-import type { ReviewItem, ReviewRepository, ReviewSchedule, ReviewSubject, StoredReviewCard } from "../../domain/ports/review.repository.js";
+import type { AnsweredCard, ReviewItem, ReviewRepository, ReviewSchedule, ReviewSubject, StoredReviewCard } from "../../domain/ports/review.repository.js";
 import type { ReviewState } from "../../domain/review/review-schedule.js";
 import { DATABASE, type Database } from "./db.module.js";
 import { mistakes, patterns, reviewCards, reviewItems } from "./schema.js";
@@ -115,13 +115,13 @@ export class DrizzleReviewRepository implements ReviewRepository {
     return updated.length > 0;
   }
 
-  async answeredSince(language: string, since: Date): Promise<Date[]> {
+  async answeredSince(language: string, since: Date): Promise<AnsweredCard[]> {
     const rows = await this.db
-      .select({ answeredAt: reviewCards.answeredAt })
+      .select({ cardId: reviewCards.id, itemId: reviewCards.reviewItemId, answeredAt: reviewCards.answeredAt })
       .from(reviewCards)
       .where(and(eq(reviewCards.language, language), gte(reviewCards.answeredAt, since)))
       .orderBy(asc(reviewCards.answeredAt));
-    return rows.flatMap((row) => (row.answeredAt ? [row.answeredAt] : []));
+    return rows.flatMap(({ cardId, itemId, answeredAt }) => (answeredAt ? [{ cardId, itemId, answeredAt }] : []));
   }
 
   async schedules(language: string): Promise<ReviewSchedule[]> {

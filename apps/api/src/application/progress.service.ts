@@ -6,6 +6,7 @@ import {
   isPersonalRecord,
   type LocalDay,
   localDay,
+  cardsEarningXp,
   minutesForDay,
   streakDays,
   XP_PER_REVIEW,
@@ -78,7 +79,10 @@ export class ProgressService {
       this.progress.earnedSince(language, since),
       this.reviews.answeredSince(language, since),
     ]);
-    const earned = [...sessionsEarned, ...reviewsAnswered.map((awardedAt) => ({ total: XP_PER_REVIEW, awardedAt }))];
+    const earned = [
+      ...sessionsEarned,
+      ...cardsEarningXp(reviewsAnswered, timeZone).map(({ answeredAt }) => ({ total: XP_PER_REVIEW, awardedAt: answeredAt })),
+    ];
 
     const xpByDay = new Map<LocalDay, number>();
     for (const { total, awardedAt } of earned) {

@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { InvalidInputError } from "../domain/errors.js";
+import { isTimeZone } from "../domain/progress/daily-goal.js";
+
+/** An IANA time zone (e.g. "America/Sao_Paulo"): days, the goal and the streak follow the learner's clock. */
+export const TimeZone = z.string().max(64).refine(isTimeZone, "Unknown time zone.");
 
 /** A BCP 47 language tag, e.g. "en" or "en-US". English when missing. */
 export const Language = z
