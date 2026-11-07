@@ -53,6 +53,26 @@ describe("PracticeService", () => {
     expect(pastView.sentences.map((s) => s.id)).toEqual(["m1", "m2"]);
   });
 
+  it("puts the soonest review first within a type, and new words likewise", async () => {
+    const view = await service(
+      [
+        entry("a", { patternId: "p-late", pattern: past }),
+        entry("b", { patternId: "p-soon", pattern: { ...past, key: "soon" } }),
+        entry("n1", { category: "new_word" }),
+        entry("n2", { category: "new_word" }),
+      ],
+      [
+        { subject: { kind: "pattern", id: "p-late" }, step: 1, dueAt: day(7) },
+        { subject: { kind: "pattern", id: "p-soon" }, step: 1, dueAt: day(1) },
+        { subject: { kind: "new_word", id: "n1" }, step: 3, dueAt: day(2) },
+        { subject: { kind: "new_word", id: "n2" }, step: 0, dueAt: day(5) },
+      ],
+    ).view("en");
+
+    expect(view.patterns.map((p) => p.id)).toEqual(["p-soon", "p-late"]);
+    expect(view.newWords.map((w) => w.id)).toEqual(["n2", "n1"]);
+  });
+
   it("lists new words with their schedule, and mistakes from before patterns on their own", async () => {
     const view = await service(
       [entry("n1", { category: "new_word", original: "prazo", correction: "deadline" }), entry("old")],
