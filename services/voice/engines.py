@@ -3,6 +3,7 @@
 Models load lazily on first use (or at startup when warmup is on).
 """
 
+import os
 import threading
 from dataclasses import dataclass
 from typing import BinaryIO, Protocol
@@ -58,8 +59,10 @@ class WhisperStt:
     compare variants.
     """
 
-    def __init__(self, model: str, initial_prompt: str | None = None):
+    def __init__(self, model: str, initial_prompt: str | None = None, cpu_threads: int | None = None):
         self.model_name = model
+        # faster-whisper uses 4 threads unless told otherwise; use every core the container gets.
+        self.cpu_threads = cpu_threads or os.cpu_count() or 0
         self.initial_prompt = (initial_prompt or "").strip() or None
         self._model = None
         self._lock = threading.Lock()
@@ -71,7 +74,9 @@ class WhisperStt:
                 try:
                     from faster_whisper import WhisperModel
 
-                    self._model = WhisperModel(self.model_name, device="cpu", compute_type="int8")
+                    self._model = WhisperModel(
+                        self.model_name, device="cpu", compute_type="int8", cpu_threads=self.cpu_threads
+                    )
                 except Exception as e:  # import, download or load failure
                     raise EngineError(f"Whisper failed to load: {e}") from e
             return self._model

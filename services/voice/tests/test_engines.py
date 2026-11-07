@@ -75,3 +75,12 @@ def test_whisper_from_env_empty_prompt_means_none():
 
     stt = whisper_from_env({"WHISPER_MODEL": "small", "WHISPER_INITIAL_PROMPT": " "})
     assert (stt.model_name, stt.initial_prompt) == ("small", None)
+
+
+def test_whisper_uses_every_core_unless_capped(monkeypatch):
+    from main import whisper_from_env
+
+    monkeypatch.setattr("os.cpu_count", lambda: 10)
+    assert whisper_from_env({}).cpu_threads == 10
+    assert whisper_from_env({"WHISPER_CPU_THREADS": "6"}).cpu_threads == 6
+    assert whisper_from_env({"WHISPER_CPU_THREADS": "lots"}).cpu_threads == 10
