@@ -128,8 +128,14 @@
   html {
     color-scheme: light;
   }
+  html,
+  body {
+    /* The app scrolls inside its screens, never as a whole page: no rubber-band on the window. */
+    overscroll-behavior: none;
+  }
   body {
     margin: 0;
+    -webkit-tap-highlight-color: transparent;
     background: var(--color-linen);
     color: var(--color-ink);
     font-family: var(--font-sans);
@@ -165,4 +171,13 @@
 .vx-talk { transform-box: fill-box; transform-origin: 50% 0; animation: vx-talk 0.22s ease-in-out infinite alternate; }
 @media (prefers-reduced-motion: reduce) {
   [class*="vx-s-"], .vx-blink, .vx-talk { animation: none !important; }
+}
+
+/* App motion (Apple HIG: brief, purposeful, never blocking). Durations stay under 300 ms. */
+.vx-spring { transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1); }
+@keyframes vx-page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.vx-page-in { animation: vx-page-in 220ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .vx-page-in { animation: none; }
+  .vx-spring { transition: none; }
 }
