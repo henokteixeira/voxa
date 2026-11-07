@@ -11,9 +11,19 @@ export interface ReflectionCopy {
   firstSession: string;
   seeInProgress: string;
   seeMistakes: string;
-  mistakesLine: (count: number, fixed: number, newWords: number) => string;
-  whatToKeep: string;
-  sessionMistakes: string;
+  takeThese: string;
+  takeaways: string;
+  youSaid: (words: string) => string;
+  newWords: string;
+  smallDetails: (count: number) => string;
+  smallDetailsTitle: string;
+  smallDetailsNote: string;
+  tryThem: string;
+  later: string;
+  reviewSaved: string;
+  reviewSavedNote: string;
+  done: string;
+  close: string;
   signalsLabel: string;
   comparison: {
     label: string;
@@ -38,9 +48,6 @@ export interface ReflectionCopy {
     notMeasured: string;
     ofTotal: (fixed: number, total: number) => string;
   };
-  resolution: { fixed: string; answer: string; small: string; newWord: string };
-  seen: (times: number) => string;
-  isNew: string;
   saved: string;
   savedEncouragement: string;
   savedSession: string;
@@ -60,12 +67,20 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     placementWhere: "Your sessions now start with the right amount of help. You can see what the tutor noticed in Progress.",
     firstSession: "Start my first session",
     seeInProgress: "See it in Progress",
-    seeMistakes: "See your mistakes",
-    mistakesLine: (count, fixed, newWords) =>
-      `${plural(count, "mistake", "mistakes")} · ${fixed} fixed by you` +
-      (newWords ? ` · ${plural(newWords, "new word", "new words")}` : ""),
-    whatToKeep: "What to keep",
-    sessionMistakes: "Mistakes from this session",
+    seeMistakes: "See what to keep",
+    takeThese: "Take these with you",
+    takeaways: "Patterns to take with you",
+    youSaid: (words) => `You said: “${words}”`,
+    newWords: "New words",
+    smallDetails: (n) => `+ ${plural(n, "small detail", "small details")}, saved for later`,
+    smallDetailsTitle: "Small details",
+    smallDetailsNote: "They didn't get in the way. Saved for your practice.",
+    tryThem: "Try them · 1 min",
+    later: "Later",
+    reviewSaved: "Saved for your review",
+    reviewSavedNote: "Mistakes are how you learn. These will come back a little later each time.",
+    done: "Done",
+    close: "Close",
     signalsLabel: "Fluency signals",
     comparison: {
       label: "Compared with your last sessions",
@@ -95,9 +110,6 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
       notMeasured: "not measured",
       ofTotal: (fixed, total) => `${fixed} of ${total}`,
     },
-    resolution: { fixed: "Fixed after a hint", answer: "Learned with help", small: "Small mistake", newWord: "New word" },
-    seen: (times) => `Seen ${times} times`,
-    isNew: "New",
     saved: "Session saved",
     savedEncouragement: "Every mistake today is something you'll say better next time.",
     savedSession: "Your session is saved.",
@@ -112,12 +124,20 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     placementWhere: "Agora suas sessões começam com a ajuda certa. Você pode ver o que o tutor percebeu na aba Progresso.",
     firstSession: "Começar minha primeira sessão",
     seeInProgress: "Ver no Progresso",
-    seeMistakes: "Ver seus erros",
-    mistakesLine: (count, fixed, newWords) =>
-      `${plural(count, "erro", "erros")} · ${plural(fixed, "corrigido", "corrigidos")} por você` +
-      (newWords ? ` · ${plural(newWords, "palavra nova", "palavras novas")}` : ""),
-    whatToKeep: "Para guardar",
-    sessionMistakes: "Erros desta sessão",
+    seeMistakes: "Ver o que levar",
+    takeThese: "Leve estes com você",
+    takeaways: "Padrões para levar",
+    youSaid: (words) => `Você disse: “${words}”`,
+    newWords: "Palavras novas",
+    smallDetails: (n) => `+ ${plural(n, "detalhe pequeno", "detalhes pequenos")}, guardados para depois`,
+    smallDetailsTitle: "Detalhes pequenos",
+    smallDetailsNote: "Não atrapalharam. Guardados para a sua prática.",
+    tryThem: "Tentar · 1 min",
+    later: "Depois",
+    reviewSaved: "Guardado para sua revisão",
+    reviewSavedNote: "É errando que se aprende. Eles vão voltar, cada vez um pouco mais tarde.",
+    done: "Concluir",
+    close: "Fechar",
     signalsLabel: "Sinais de fluência",
     comparison: {
       label: "Comparado com suas últimas sessões",
@@ -148,9 +168,6 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
       notMeasured: "não medido",
       ofTotal: (fixed, total) => `${fixed} de ${total}`,
     },
-    resolution: { fixed: "Corrigido depois de uma dica", answer: "Aprendido com ajuda", small: "Erro pequeno", newWord: "Palavra nova" },
-    seen: (times) => `Visto ${times} vezes`,
-    isNew: "Novo",
     saved: "Sessão salva",
     savedEncouragement: "Cada erro de hoje é algo que você vai dizer melhor da próxima vez.",
     savedSession: "Sua sessão está salva.",
