@@ -8,6 +8,8 @@ export interface GoalsCopy {
   stop: string;
   keepGoing: string;
   goalsDone: (done: number, total: number) => string;
+  /** The placement interview's progress, by part, never by score. */
+  partOf: (part: number, total: number) => string;
   practice: string;
   practiceDone: (done: number, total: number) => string;
   saidRight: string;
@@ -36,6 +38,7 @@ export const GOALS_COPY: Copy<GoalsCopy> = {
     stop: "Parar e ver o resumo",
     keepGoing: "Continuar",
     goalsDone: (done, total) => `Objetivos: ${done} de ${total}`,
+    partOf: (part, total) => `Parte ${part} de ${total}`,
     practice: "Prática dos seus erros",
     practiceDone: (done, total) => `Você acertou ${done} de ${total}`,
     saidRight: "Acertou",
@@ -62,6 +65,7 @@ export const GOALS_COPY: Copy<GoalsCopy> = {
     stop: "Stop and see the summary",
     keepGoing: "Keep going",
     goalsDone: (done, total) => `Goals: ${done} of ${total}`,
+    partOf: (part, total) => `Part ${part} of ${total}`,
     practice: "Practicing your mistakes",
     practiceDone: (done, total) => `You got ${done} of ${total} right`,
     saidRight: "Got it",

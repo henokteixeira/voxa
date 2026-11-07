@@ -29,6 +29,27 @@ export function GoalsStrip({ goals, covered }: { goals: string[]; covered: strin
   );
 }
 
+/**
+ * The placement interview's parts as a bar that fills part by part (warm-up up to the harder tasks).
+ * It never shows how well the learner did: a part the tutor skipped as too hard fills like any other.
+ */
+export function PartsBar({ parts, done }: { parts: string[]; done: string[] }) {
+  const copy = useCopy(GOALS_COPY);
+  if (!parts.length) return null;
+  const finished = parts.filter((part) => done.includes(part)).length;
+  const label = copy.partOf(Math.min(finished + 1, parts.length), parts.length);
+  return (
+    <span role="img" aria-label={label} className="flex gap-1">
+      {parts.map((part, index) => (
+        <i
+          key={part}
+          className={cn("h-1 flex-1 rounded-[2px] transition-colors duration-300", index <= finished ? "bg-apricot" : "bg-sand")}
+        />
+      ))}
+    </span>
+  );
+}
+
 /** The tutor asked whether to stop or keep going. */
 export function CheckInCard({ onStop, onKeepGoing }: { onStop: () => void; onKeepGoing: () => void }) {
   const copy = useCopy(GOALS_COPY);

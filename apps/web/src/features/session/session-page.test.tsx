@@ -987,7 +987,7 @@ describe("after a reload", () => {
 
 describe("placement interview", () => {
   it("ends with the estimated level and the learner's lines", async () => {
-    api.startSession.mockResolvedValue({ sessionId: "s1", mode: "placement", language: "en", message: "Hi! What do you do?", goals: ["warm_up"] });
+    api.startSession.mockResolvedValue({ sessionId: "s1", mode: "placement", language: "en", message: "Hi! What do you do?", goals: ["warm_up", "routine"] });
     api.endSession.mockResolvedValue(
       summaryWith([mistake("minor", false, "I work in app for translate", "I work on a translation app")], {
         mode: "placement",
@@ -1000,8 +1000,13 @@ describe("placement interview", () => {
     act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
     act(() => socketHandlers.onDone());
     await act(async () => finishPlayback());
-    // The interview's tasks are not shown as goals to tick off.
+    // The interview's tasks are not shown as goals to tick off, only how far the chat has come.
     expect(screen.queryByText("Warm up")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Part 1 of 2" })).toBeInTheDocument();
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("I am developer."));
+    act(() => socketHandlers.onTutor({ kind: "reply", message: "Nice. What do you do every day?", selfCorrected: false, coveredGoals: ["warm_up"] }));
+    expect(screen.getByRole("img", { name: "Part 2 of 2" })).toBeInTheDocument();
 
     await endFromPause();
     expect(await screen.findByRole("heading", { name: "Thanks for the conversation" })).toBeInTheDocument();
