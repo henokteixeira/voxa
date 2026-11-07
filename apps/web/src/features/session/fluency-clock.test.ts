@@ -10,7 +10,7 @@ describe("FluencyClock", () => {
     // The turn ends after a silence: that silence is not speech.
     clock.learnerEnded(9700, { silenceMs: 1200 });
 
-    expect(clock.timing()).toEqual({ tutorSpeechMs: 4000, pausesMs: [1500], learnerSpeechMs: 3000 });
+    expect(clock.timing()).toMatchObject({ tutorSpeechMs: 4000, pausesMs: [1500], learnerSpeechMs: 3000 });
   });
 
   it("counts no silence when the learner tapped to send", () => {
@@ -28,7 +28,7 @@ describe("FluencyClock", () => {
       clock.learnerStarted(start + 3000);
       clock.learnerEnded(start + 6000, { silenceMs: 1000 });
     }
-    expect(clock.timing()).toEqual({ tutorSpeechMs: 4000, pausesMs: [1000, 1000], learnerSpeechMs: 4000 });
+    expect(clock.timing()).toMatchObject({ tutorSpeechMs: 4000, pausesMs: [1000, 1000], learnerSpeechMs: 4000 });
   });
 
   it("counts no pause after a pause, a typed answer or a second line from the tutor", () => {
@@ -51,18 +51,50 @@ describe("FluencyClock", () => {
     clock.tutorStopped(6000);
     clock.learnerStarted(7000);
     clock.learnerEnded(7500, { silenceMs: 1200 });
-    expect(clock.timing()).toEqual({ tutorSpeechMs: 0, pausesMs: [1000], learnerSpeechMs: 0 });
+    expect(clock.timing()).toMatchObject({ tutorSpeechMs: 0, pausesMs: [1000], learnerSpeechMs: 0 });
+  });
+});
+
+describe("FluencyClock, long pauses and words", () => {
+  it("keeps only the silences of at least a second inside an answer", () => {
+    const clock = new FluencyClock();
+    clock.learnerStarted(0);
+    clock.learnerEnded(8000, { silenceMs: 2500, pausesMs: [300, 999, 1000, 1800] });
+    expect(clock.timing().longPausesMs).toEqual([1000, 1800]);
+  });
+
+  it("counts the words of spoken turns, not typed ones", () => {
+    const clock = new FluencyClock();
+    clock.learnerSaid("a typed answer here"); // no spoken turn was sent
+    clock.learnerStarted(0);
+    clock.learnerEnded(3000, { silenceMs: 0 });
+    clock.learnerSaid("I'm fixing the API-keys bug");
+    clock.learnerSaid("another typed one"); // the spoken turn's transcript already came
+    expect(clock.timing().spokenWords).toBe(5);
   });
 });
 
 describe("FluencyClock.from", () => {
   it("goes on from the timing measured before a reload", () => {
-    const clock = FluencyClock.from({ learnerSpeechMs: 1000, tutorSpeechMs: 2000, pausesMs: [500] });
+    const clock = FluencyClock.from({
+      learnerSpeechMs: 1000,
+      tutorSpeechMs: 2000,
+      pausesMs: [500],
+      longPausesMs: [1100],
+      spokenWords: 4,
+    });
     clock.tutorStarted(0);
     clock.tutorStopped(1000);
     clock.learnerStarted(1300);
-    clock.learnerEnded(2300, { silenceMs: 0 });
-    expect(clock.timing()).toEqual({ learnerSpeechMs: 2000, tutorSpeechMs: 3000, pausesMs: [500, 300] });
+    clock.learnerEnded(2300, { silenceMs: 0, pausesMs: [1000] });
+    clock.learnerSaid("two words");
+    expect(clock.timing()).toEqual({
+      learnerSpeechMs: 2000,
+      tutorSpeechMs: 3000,
+      pausesMs: [500, 300],
+      longPausesMs: [1100, 1000],
+      spokenWords: 6,
+    });
   });
 
   it("counts the pause from when the microphone opened, not from a clip heard before a wait", () => {

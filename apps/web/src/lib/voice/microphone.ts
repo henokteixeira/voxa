@@ -1,5 +1,5 @@
 import { TurnDetector, type TurnDetectorOptions } from "./turn-detector";
-import { TurnRecorder } from "./turn-recorder";
+import { type RecordedTurn, TurnRecorder } from "./turn-recorder";
 
 /**
  * Browser glue: microphone → 20 ms frames → TurnRecorder. The logic lives in TurnRecorder
@@ -8,8 +8,8 @@ import { TurnRecorder } from "./turn-recorder";
 export interface MicrophoneHandlers {
   /** The learner started talking. */
   onSpeechStart(): void;
-  /** A finished turn, as 16 kHz WAV. */
-  onTurn(wav: ArrayBuffer): void;
+  /** A finished turn, as 16 kHz WAV, with the silences inside it. */
+  onTurn(wav: ArrayBuffer, turn?: Pick<RecordedTurn, "pausesMs">): void;
 }
 
 /** blocked: no permission. busy: another app holds it, or it can't be opened. */
@@ -111,7 +111,7 @@ export async function openMicrophone(
     }
     const result = recorder.push(event.data);
     if (result?.type === "start") handlers.onSpeechStart();
-    else if (result?.type === "turn") handlers.onTurn(result.wav);
+    else if (result?.type === "turn") handlers.onTurn(result.wav, { pausesMs: result.pausesMs });
   };
 
   return {
@@ -127,9 +127,9 @@ export async function openMicrophone(
       context.resume().catch(() => {});
     },
     sendNow: () => {
-      const wav = recorder.flush();
-      if (wav) handlers.onTurn(wav);
-      return wav !== null;
+      const turn = recorder.flush();
+      if (turn) handlers.onTurn(turn.wav, { pausesMs: turn.pausesMs });
+      return turn !== null;
     },
     unlock: () => {
       if (!stopped) context.resume().catch(() => {});

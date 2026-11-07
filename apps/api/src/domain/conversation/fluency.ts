@@ -8,6 +8,10 @@ export interface SessionTiming {
   tutorSpeechMs: number;
   /** For each spoken answer: from the end of the tutor's voice to the start of the learner's speech. */
   pausesMs: number[];
+  /** Silences of at least 1 s inside the learner's spoken answers. Missing in sessions measured before it existed. */
+  longPausesMs?: number[];
+  /** Words the learner spoke (typed turns do not count). Missing in sessions measured before it existed. */
+  spokenWords?: number;
 }
 
 /** The 4 fluency signals of a session. Null when the session gives nothing to measure. */
@@ -18,8 +22,10 @@ export interface FluencySignals {
   mistakesPer100Words: number | null;
   /** Average pause before answering, in milliseconds. */
   averagePauseMs: number | null;
-  /** Share (0–1) of the speaking time that was the learner's. */
-  speakingShare: number | null;
+  /** Words the learner spoke per minute of his own speech (his pauses inside an answer included). */
+  wordsPerMinute: number | null;
+  /** Long silences inside his answers per minute of his own speech. */
+  longPausesPerMinute: number | null;
 }
 
 export function countWords(text: string): number {
@@ -36,12 +42,14 @@ export function fluencySignals(input: {
   const hinted = mistakes.filter((m) => m.severity === "serious");
   const words = learnerUtterances.reduce((sum, text) => sum + countWords(text), 0);
   const pauses = timing?.pausesMs ?? [];
-  const speech = timing ? timing.learnerSpeechMs + timing.tutorSpeechMs : 0;
+  // Words and long pauses are measured from 2026-11-07 on; older sessions have no rate.
+  const minutes = timing?.spokenWords !== undefined ? timing.learnerSpeechMs / 60_000 : 0;
 
   return {
     selfCorrectionRate: hinted.length ? hinted.filter((m) => m.selfCorrected).length / hinted.length : null,
     mistakesPer100Words: words ? (mistakes.length / words) * 100 : null,
     averagePauseMs: pauses.length ? Math.round(pauses.reduce((a, b) => a + b, 0) / pauses.length) : null,
-    speakingShare: timing && speech ? timing.learnerSpeechMs / speech : null,
+    wordsPerMinute: minutes ? Math.round((timing?.spokenWords ?? 0) / minutes) : null,
+    longPausesPerMinute: minutes ? (timing?.longPausesMs ?? []).length / minutes : null,
   };
 }

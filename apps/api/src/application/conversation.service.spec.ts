@@ -667,28 +667,35 @@ describe("ConversationService.end", () => {
     await service.respond(session.id, "I goed to the meeting"); // 5 words
     await service.respond(session.id, "I went to the meeting and I opened PR"); // 9 words
 
-    const timing = { learnerSpeechMs: 30_000, tutorSpeechMs: 20_000, pausesMs: [1000, 2000] };
+    const timing = {
+      learnerSpeechMs: 30_000,
+      tutorSpeechMs: 20_000,
+      pausesMs: [1000, 2000],
+      longPausesMs: [1200],
+      spokenWords: 14,
+    };
     const summary = await service.end(session.id, timing);
 
     expect(summary.signals).toEqual({
       selfCorrectionRate: 1,
       mistakesPer100Words: (2 / 14) * 100,
       averagePauseMs: 1500,
-      speakingShare: 0.6,
+      wordsPerMinute: 28,
+      longPausesPerMinute: 2,
     });
   });
 
   it("can be called twice, keeping the first timing", async () => {
     const { session } = await service.start("daily", "en");
-    await service.end(session.id, { learnerSpeechMs: 1000, tutorSpeechMs: 1000, pausesMs: [] });
-    const again = await service.end(session.id, { learnerSpeechMs: 9000, tutorSpeechMs: 1000, pausesMs: [] });
-    expect(again).toMatchObject({ sessionId: session.id, signals: { speakingShare: 0.5 } });
+    await service.end(session.id, { learnerSpeechMs: 60_000, tutorSpeechMs: 1000, pausesMs: [], spokenWords: 90 });
+    const again = await service.end(session.id, { learnerSpeechMs: 9000, tutorSpeechMs: 1000, pausesMs: [], spokenWords: 1 });
+    expect(again).toMatchObject({ sessionId: session.id, signals: { wordsPerMinute: 90 } });
   });
 
   it("has no timing signals when the app sent no timing", async () => {
     const { session } = await service.start("daily", "en");
     const summary = await service.end(session.id);
-    expect(summary.signals).toMatchObject({ averagePauseMs: null, speakingShare: null });
+    expect(summary.signals).toMatchObject({ averagePauseMs: null, wordsPerMinute: null, longPausesPerMinute: null });
   });
 
   it("includes the confidence ratings", async () => {

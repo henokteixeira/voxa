@@ -27,9 +27,21 @@ const KEY = "voxa.liveSession";
 
 const isMs = (n: unknown) => typeof n === "number" && Number.isFinite(n) && n >= 0;
 
-function isTiming(value: unknown): value is SessionTiming {
+const isMsList = (list: unknown): list is number[] => Array.isArray(list) && list.every(isMs);
+
+const EMPTY_TIMING: SessionTiming = { learnerSpeechMs: 0, tutorSpeechMs: 0, pausesMs: [], longPausesMs: [], spokenWords: 0 };
+
+/** A saved timing; one saved before the long pauses and words were measured gets none of them. */
+function readTiming(value: unknown): SessionTiming {
   const t = value as Partial<SessionTiming> | null;
-  return !!t && isMs(t.learnerSpeechMs) && isMs(t.tutorSpeechMs) && Array.isArray(t.pausesMs) && t.pausesMs.every(isMs);
+  if (!t || !isMs(t.learnerSpeechMs) || !isMs(t.tutorSpeechMs) || !isMsList(t.pausesMs)) return EMPTY_TIMING;
+  return {
+    learnerSpeechMs: t.learnerSpeechMs as number,
+    tutorSpeechMs: t.tutorSpeechMs as number,
+    pausesMs: t.pausesMs,
+    longPausesMs: isMsList(t.longPausesMs) ? t.longPausesMs : [],
+    spokenWords: isMs(t.spokenWords) ? (t.spokenWords as number) : 0,
+  };
 }
 
 export function loadSavedSession(): SavedSession | null {
@@ -40,7 +52,7 @@ export function loadSavedSession(): SavedSession | null {
       sessionId: value.sessionId,
       mode: value.mode as Mode,
       elapsedSeconds: Number.isFinite(value.elapsedSeconds) ? Number(value.elapsedSeconds) : 0,
-      timing: isTiming(value.timing) ? value.timing : { learnerSpeechMs: 0, tutorSpeechMs: 0, pausesMs: [] },
+      timing: readTiming(value.timing),
       // Unknown age: too old to pick up.
       savedAt: Number.isFinite(value.savedAt) ? Number(value.savedAt) : 0,
     };

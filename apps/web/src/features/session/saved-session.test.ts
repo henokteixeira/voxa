@@ -6,7 +6,7 @@ const saved = {
   sessionId: "s1",
   mode: "daily" as const,
   elapsedSeconds: 65,
-  timing: { learnerSpeechMs: 1000, tutorSpeechMs: 2000, pausesMs: [900] },
+  timing: { learnerSpeechMs: 1000, tutorSpeechMs: 2000, pausesMs: [900], longPausesMs: [1200], spokenWords: 12 },
 };
 
 describe("saved session", () => {
@@ -27,7 +27,19 @@ describe("saved session", () => {
 
   it("starts the timing from zero when the saved timing is broken", () => {
     localStorage.setItem("voxa.liveSession", JSON.stringify({ ...saved, timing: { learnerSpeechMs: 5 } }));
-    expect(loadSavedSession()?.timing).toEqual({ learnerSpeechMs: 0, tutorSpeechMs: 0, pausesMs: [] });
+    expect(loadSavedSession()?.timing).toEqual({
+      learnerSpeechMs: 0,
+      tutorSpeechMs: 0,
+      pausesMs: [],
+      longPausesMs: [],
+      spokenWords: 0,
+    });
+  });
+
+  it("reads a timing saved before the long pauses and words were measured", () => {
+    const old = { learnerSpeechMs: 1000, tutorSpeechMs: 2000, pausesMs: [900] };
+    localStorage.setItem("voxa.liveSession", JSON.stringify({ ...saved, timing: old }));
+    expect(loadSavedSession()?.timing).toEqual({ ...old, longPausesMs: [], spokenWords: 0 });
   });
 
   it("can be picked up for 2 hours after it was last saved", () => {

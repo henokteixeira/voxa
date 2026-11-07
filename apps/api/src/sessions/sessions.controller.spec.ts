@@ -112,7 +112,13 @@ describe("POST /sessions/:id/end", () => {
 
   it("passes the timing the app measured", async () => {
     service.end.mockResolvedValue({});
-    const timing = { learnerSpeechMs: 61_000, tutorSpeechMs: 40_200, pausesMs: [900, 1800] };
+    const timing = {
+      learnerSpeechMs: 61_000,
+      tutorSpeechMs: 40_200,
+      pausesMs: [900, 1800],
+      longPausesMs: [1300],
+      spokenWords: 84,
+    };
     const res = await request(app.getHttpServer()).post(`/sessions/${id}/end`).send({ timing });
     expect(res.status).toBe(200);
     expect(service.end).toHaveBeenCalledWith(id, timing);
@@ -123,6 +129,8 @@ describe("POST /sessions/:id/end", () => {
     { timing: { learnerSpeechMs: 1.5, tutorSpeechMs: 0, pausesMs: [] } },
     { timing: { learnerSpeechMs: 0, tutorSpeechMs: 0, pausesMs: [-5] } },
     { timing: { learnerSpeechMs: 0, tutorSpeechMs: 0 } },
+    { timing: { learnerSpeechMs: 0, tutorSpeechMs: 0, pausesMs: [], longPausesMs: [-1] } },
+    { timing: { learnerSpeechMs: 0, tutorSpeechMs: 0, pausesMs: [], spokenWords: 2.5 } },
   ])("rejects bad timing %j", async (body) => {
     const res = await request(app.getHttpServer()).post(`/sessions/${id}/end`).send(body);
     expect(res.status).toBe(400);

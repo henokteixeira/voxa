@@ -4,7 +4,13 @@ import { downsample, encodeWav, SPEECH_SAMPLE_RATE } from "./wav";
 /** Audio kept from before the detector fires, so the first syllable is not cut off. */
 const PRE_ROLL_MS = 400;
 
-export type RecorderEvent = { type: "start" } | { type: "turn"; wav: ArrayBuffer } | null;
+/** A finished turn: its audio, and the silences inside it that speech resumed after (ms). */
+export interface RecordedTurn {
+  wav: ArrayBuffer;
+  pausesMs: number[];
+}
+
+export type RecorderEvent = { type: "start" } | ({ type: "turn" } & RecordedTurn) | null;
 
 /**
  * Turns a stream of microphone frames into finished turns (WAV), using a TurnDetector.
@@ -34,7 +40,7 @@ export class TurnRecorder {
     }
     if (wasSpeaking) {
       this.turn.push(frame);
-      return event === "end" ? { type: "turn", wav: this.finish() } : null;
+      return event === "end" ? { type: "turn", ...this.finish() } : null;
     }
     this.keepPreRoll(frame);
     return null;
@@ -46,7 +52,7 @@ export class TurnRecorder {
   }
 
   /** Ends the turn now (the learner tapped to send). Null when nobody was talking. */
-  flush(): ArrayBuffer | null {
+  flush(): RecordedTurn | null {
     if (!this.detector.isSpeaking) return null;
     this.detector.reset();
     return this.finish();
@@ -59,7 +65,7 @@ export class TurnRecorder {
     this.clearPreRoll();
   }
 
-  private finish(): ArrayBuffer {
+  private finish(): RecordedTurn {
     const length = this.turn.reduce((n, f) => n + f.length, 0);
     const samples = new Float32Array(length);
     let offset = 0;
@@ -68,7 +74,10 @@ export class TurnRecorder {
       offset += f.length;
     }
     this.turn = [];
-    return encodeWav(downsample(samples, this.sampleRate), Math.min(this.sampleRate, SPEECH_SAMPLE_RATE));
+    return {
+      wav: encodeWav(downsample(samples, this.sampleRate), Math.min(this.sampleRate, SPEECH_SAMPLE_RATE)),
+      pausesMs: [...this.detector.pausesMs],
+    };
   }
 
   private keepPreRoll(frame: Float32Array) {

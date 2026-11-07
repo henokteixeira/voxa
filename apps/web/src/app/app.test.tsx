@@ -188,7 +188,7 @@ describe("Today", () => {
 });
 
 describe("a paused session on Today", () => {
-  const timing = { learnerSpeechMs: 4000, tutorSpeechMs: 6000, pausesMs: [800] };
+  const timing = { learnerSpeechMs: 4000, tutorSpeechMs: 6000, pausesMs: [800], longPausesMs: [], spokenWords: 10 };
   const save = (minutesAgo: number) =>
     localStorage.setItem(
       "voxa.liveSession",

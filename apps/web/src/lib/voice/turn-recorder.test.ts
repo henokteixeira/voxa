@@ -46,8 +46,18 @@ describe("TurnRecorder", () => {
     feed(recorder, 0.001, 600);
     expect(recorder.flush()).toBeNull();
     feed(recorder, 0.2, 500);
-    expect(recorder.flush()).toBeInstanceOf(ArrayBuffer);
+    expect(recorder.flush()?.wav).toBeInstanceOf(ArrayBuffer);
     expect(feed(recorder, 0.001, 2000)).toEqual([]);
+  });
+
+  it("hands over the silences inside the turn with it", () => {
+    const recorder = new TurnRecorder(new TurnDetector({ minSpeechMs: 200, endSilenceMs: 1500 }), RATE);
+    feed(recorder, 0.001, 1000);
+    feed(recorder, 0.2, 500);
+    feed(recorder, 0.001, 1000);
+    feed(recorder, 0.2, 500);
+    const end = feed(recorder, 0.001, 1500);
+    expect(end).toEqual([expect.objectContaining({ type: "turn", pausesMs: [1000] })]);
   });
 
   it("forgets the turn on discard", () => {

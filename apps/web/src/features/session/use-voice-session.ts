@@ -123,6 +123,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
         },
         onTranscript: (text) => {
           filler.current.heard();
+          clock.current.learnerSaid(text);
           dispatch({ type: "transcript", text });
         },
         onTutor: (result) => dispatch({ type: "tutor", result }),
@@ -181,9 +182,10 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
             clock.current.learnerStarted(performance.now());
             dispatch({ type: "speech_start" });
           },
-          onTurn: (wav) => {
+          onTurn: (wav, turn) => {
             clock.current.learnerEnded(performance.now(), {
               silenceMs: sentEarly.current ? 0 : endSilenceMs,
+              pausesMs: turn?.pausesMs,
             });
             sentEarly.current = false;
             mic.current?.pause();

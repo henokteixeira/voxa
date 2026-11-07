@@ -65,6 +65,10 @@ export interface SessionTiming {
   learnerSpeechMs: number;
   tutorSpeechMs: number;
   pausesMs: number[];
+  /** Silences of at least 1 s inside the learner's spoken answers. */
+  longPausesMs: number[];
+  /** Words the learner spoke (typed turns do not count). */
+  spokenWords: number;
 }
 
 /** The 4 fluency signals. Null when the session gave nothing to measure. */
@@ -73,8 +77,10 @@ export interface FluencySignals {
   selfCorrectionRate: number | null;
   mistakesPer100Words: number | null;
   averagePauseMs: number | null;
-  /** 0–1: the learner's share of the speaking time. */
-  speakingShare: number | null;
+  /** Words the learner spoke per minute of his own speech. */
+  wordsPerMinute: number | null;
+  /** Long silences inside his answers per minute of his own speech. */
+  longPausesPerMinute: number | null;
 }
 
 export type ConfidenceMoment = "before" | "after";
