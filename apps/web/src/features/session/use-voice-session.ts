@@ -255,7 +255,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
   const interrupted = typing || state.phase === "paused";
   useEffect(() => {
     if (interrupted) clock.current.interrupt();
-  }, [interrupted]);
+  }, [interrupted, state.phase]);
 
   const sendText = useCallback((text: string) => {
     setTyping(false);
