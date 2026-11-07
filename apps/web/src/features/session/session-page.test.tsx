@@ -269,14 +269,19 @@ describe("live session", () => {
 
     act(() => socketHandlers.onTranscript("Yesterday I finish the upload screen"));
     expect(screen.getByText("Yesterday I finish the upload screen")).toBeInTheDocument();
-    act(() => socketHandlers.onTutor({ kind: "hint", message: "When did this happen?", selfCorrected: false }));
+    act(() =>
+      socketHandlers.onTutor({ kind: "hint", message: "When did this happen?", selfCorrected: false, mistake: "I finish" }),
+    );
     act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
     act(() => socketHandlers.onDone());
     await act(async () => finishPlayback());
 
     const card = screen.getByRole("region", { name: "Hint 1 of 2" });
-    expect(card).toHaveTextContent("“Yesterday I finish the upload screen”");
-    expect(card).toHaveTextContent("When did this happen?");
+    // The hint leads; only the words with the mistake follow, not the whole answer.
+    expect(card.querySelector("p")).toHaveTextContent("When did this happen?");
+    expect(within(card).getByText("“I finish”")).toBeInTheDocument();
+    expect(card).toHaveTextContent("What you said");
+    expect(card).not.toHaveTextContent("upload screen");
     expect(screen.queryByRole("button", { name: "Show what the tutor said" })).not.toBeInTheDocument();
     expect(screen.getByText("Hint · say it again")).toBeInTheDocument();
   });
@@ -764,7 +769,7 @@ describe("after a reload", () => {
     ],
     goals: ["yesterday", "today", "blockers"],
     coveredGoals: ["yesterday"],
-    hint: { hintsGiven: 1, revealed: false },
+    hint: { hintsGiven: 1, revealed: false, mistake: "I goed" },
   };
   const saved = () => JSON.parse(localStorage.getItem("voxa.liveSession") ?? "null");
 
@@ -788,7 +793,7 @@ describe("after a reload", () => {
     expect(api.startSession).not.toHaveBeenCalled();
     expect(deps.openVoiceSocket).not.toHaveBeenCalled();
     // The hint the learner was working on is still there.
-    expect(screen.getByText("“I goed to the meeting”")).toBeInTheDocument();
+    expect(screen.getByText("“I goed”")).toBeInTheDocument();
     expect(screen.getByText("When did it happen?")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Resume" }));

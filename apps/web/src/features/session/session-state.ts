@@ -81,7 +81,7 @@ export type SessionAction =
       captions: Caption[];
       goals: string[];
       coveredGoals: string[];
-      hint: { hintsGiven: number; revealed: boolean } | null;
+      hint: { hintsGiven: number; revealed: boolean; mistake?: string } | null;
     }
   | { type: "keep_going" }
   | { type: "sent"; request: "audio" | "speak" }
@@ -161,7 +161,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         goals: action.goals,
         coveredGoals: action.coveredGoals,
         hintStep: hint && !hint.revealed ? Math.min(2, hint.hintsGiven) : 0,
-        hintFor: hint ? (action.captions.findLast((c) => c.who === "you")?.text ?? null) : null,
+        hintFor: hint?.mistake ?? null,
         revealed: hint?.revealed ?? false,
         turn: freshTurn("speak"),
       };
@@ -254,8 +254,9 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
 
 function withTutor(state: SessionState, result: TurnResult): SessionState {
   const captions = [...state.captions, { who: "tutor" as const, text: result.message }];
-  const said = state.turn.transcript;
   if (result.kind === "hint") {
+    // Only the words with the mistake, never the whole answer: the hint stays the focus.
+    const said = result.mistake ?? null;
     const first = state.hintStep === 0 || state.revealed;
     return {
       ...state,
