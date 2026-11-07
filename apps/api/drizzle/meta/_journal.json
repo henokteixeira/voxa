@@ -71,6 +71,13 @@
       "when": 1794026232408,
       "tag": "0009_level_session",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794027150886,
+      "tag": "0010_xp_and_daily_goal",
+      "breakpoints": true
     }
   ]
 }
