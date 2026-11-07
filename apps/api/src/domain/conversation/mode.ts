@@ -1,5 +1,8 @@
-/** The meeting modes, plus `placement`: the speaking-level interview (it never corrects, it only observes). */
-export const MODES = ["presentation", "free_talk", "daily", "review", "placement"] as const;
+/**
+ * The practice modes (everyday conversations and work meetings), plus `placement`: the speaking-level
+ * interview (it never corrects, it only observes).
+ */
+export const MODES = ["free_talk", "my_day", "story", "opinion", "presentation", "daily", "review", "placement"] as const;
 
 export type Mode = (typeof MODES)[number];
 
@@ -12,7 +15,7 @@ export function correctsMistakes(mode: Mode): boolean {
   return mode !== "placement";
 }
 
-/** The placement interview's tasks are steps of the interview, not meeting goals: covering them earns no XP. */
+/** The placement interview's tasks are steps of the interview, not practice goals: covering them earns no XP. */
 export function rewardsGoals(mode: Mode): boolean {
   return mode !== "placement";
 }

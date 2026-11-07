@@ -533,7 +533,7 @@ describe("live session", () => {
       }),
     );
     await startAndListen();
-    const goals = screen.getByRole("list", { name: "Meeting goals" });
+    const goals = screen.getByRole("list", { name: "Conversation goals" });
     expect(goals).toHaveTextContent("Yesterday");
     expect(goals).not.toHaveTextContent("✓");
 
@@ -550,7 +550,7 @@ describe("live session", () => {
     );
     act(() => socketHandlers.onDone());
 
-    expect(screen.getByRole("list", { name: "Meeting goals" })).toHaveTextContent("✓ Blockers");
+    expect(screen.getByRole("list", { name: "Conversation goals" })).toHaveTextContent("✓ Blockers");
     await userEvent.click(screen.getByRole("button", { name: "Keep going" }));
     expect(screen.queryByRole("region", { name: "Stop here?" })).not.toBeInTheDocument();
 
@@ -650,8 +650,7 @@ describe("live session", () => {
   it("sends Today's mode picker to the right session and rejects unknown modes", async () => {
     const router = renderSession("/session/karaoke");
     expect(router.state.location.pathname).toBe("/");
-    await userEvent.click(await screen.findByRole("button", { name: "Other practice" }));
-    await userEvent.click(screen.getByRole("link", { name: /Sprint review/ }));
+    await userEvent.click(await screen.findByRole("link", { name: /Sprint review/ }));
     expect(router.state.location.pathname).toBe("/session/review");
   });
 });

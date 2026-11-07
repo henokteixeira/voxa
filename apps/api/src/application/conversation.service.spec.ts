@@ -380,7 +380,7 @@ describe("Session goals", () => {
     const result = await service.respond(session.id, "Yesterday tests, today deploy, no blockers.");
 
     expect(result.checkIn).toBe(true);
-    expect(result.message).toBe("Thanks. We've covered everything for this meeting. Do you want to stop here or keep going?");
+    expect(result.message).toBe("Thanks. We've covered everything for this conversation. Do you want to stop here or keep going?");
     expect((await sessions.history(session.id)).at(-1)?.content).toBe(result.message);
   });
 
@@ -719,10 +719,10 @@ describe("ConversationService.respond: the reply first, the analysis after", () 
 
     expect(result).toMatchObject({
       checkIn: true,
-      message: "We've covered everything for this meeting. Do you want to stop here or keep going?",
+      message: "We've covered everything for this conversation. Do you want to stop here or keep going?",
     });
     expect((await sessions.history(session.id)).at(-1)?.content).toBe(
-      "Thanks. We've covered everything for this meeting. Do you want to stop here or keep going?",
+      "Thanks. We've covered everything for this conversation. Do you want to stop here or keep going?",
     );
   });
 

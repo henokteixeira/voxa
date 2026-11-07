@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { checkInDue, checkInLine, mergeCovered } from "./session-goals.js";
+import { MODES } from "./mode.js";
+import { checkInDue, checkInLine, describeGoal, goalsFor, mergeCovered } from "./session-goals.js";
 
 const min = (n: number) => n * 60_000;
 
@@ -70,5 +71,24 @@ describe("mergeCovered", () => {
   it("keeps only the mode's goals, once, in the mode's order", () => {
     expect(mergeCovered("daily", ["today"], ["blockers", "today", "status", "made_up"])).toEqual(["today", "blockers"]);
     expect(mergeCovered("free_talk", [], ["today"])).toEqual([]);
+  });
+});
+
+describe("everyday modes", () => {
+  it("each has three goals the tutor can read", () => {
+    for (const mode of ["my_day", "story", "opinion"] as const) {
+      expect(goalsFor(mode)).toHaveLength(3);
+      for (const goal of goalsFor(mode)) expect(describeGoal(goal)).toBeTruthy();
+    }
+  });
+
+  it("asks once the story is told", () => {
+    const told = ["story_setting", "story_events", "story_ending"];
+    expect(checkInDue({ coveredBefore: [], mode: "story", covered: told, elapsedMs: min(4), lastCheckInMs: null })).toBe("goals_met");
+  });
+
+  it("never shares a goal id between modes", () => {
+    const ids = MODES.flatMap((mode) => goalsFor(mode));
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
