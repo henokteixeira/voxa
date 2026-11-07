@@ -71,7 +71,7 @@ export interface StartedSession extends Guidance {
   mode: Mode;
   language: string;
   message: string;
-  /** Goals of the meeting, in order; empty in free talk. */
+  /** Goals of the session, in order; empty in free talk. */
   goals: string[];
 }
 
@@ -102,7 +102,7 @@ export interface TurnResult extends Guidance {
   rule?: { name: string; rule: string } | null;
   /** The tutor asked whether to stop or keep going. */
   checkIn?: boolean;
-  /** Goals of the meeting covered so far. */
+  /** Goals of the session covered so far. */
   coveredGoals?: string[];
 }
 

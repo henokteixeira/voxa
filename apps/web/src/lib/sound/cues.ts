@@ -34,7 +34,7 @@ export const CUES = {
     [523, 0, 0.3],
     [659, 0.09, 0.3],
   ],
-  /** A goal of the meeting is covered. */
+  /** A goal of the session is covered. */
   goalCovered: [
     [880, 0, 0.25],
     [1109, 0.1, 0.25],

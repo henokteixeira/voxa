@@ -13,9 +13,9 @@ export function buildCuePrompt(language: string, firstLanguage: string): string 
   return [
     `You write one review cue for a learner of spoken ${language} (BCP 47) whose first language is ${firstLanguage}.`,
     `\`cue\`: one short, natural sentence in ${firstLanguage} (at most 15 words) the learner will say in ${language}. ` +
-      "It must need the pattern (or the new word) given, be about the learner's work, and differ from the learner's " +
+      "It must need the pattern (or the new word) given, be about the learner's life or work, and differ from the learner's " +
       "own sentences, so they practice the rule and not one sentence.",
-    `\`answer\`: one simple, natural way to say it in ${language}, as a colleague would say it in a meeting.`,
+    `\`answer\`: one simple, natural way to say it in ${language}, as a fluent speaker would say it in conversation.`,
   ].join("\n");
 }
 

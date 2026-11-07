@@ -184,7 +184,7 @@ export function TodayPage() {
           </Button>
         </Card>
       ) : level.view === undefined ? (
-        // Wait for the level before offering a session, so Start never leads to the wrong one.
+        // Wait for the level before showing the ready card, so the placement card is never skipped by mistake.
         <Card aria-busy="true" className="items-center gap-3 px-5 py-6 text-center">
           <VoiceBall state="idle" size={104} />
         </Card>

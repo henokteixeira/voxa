@@ -24,7 +24,7 @@ import type { PendingCorrection, PracticeTarget } from "../../domain/conversatio
 export const sessions = pgTable("sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
   language: varchar("language", { length: 16 }).notNull(),
-  mode: varchar("mode", { length: 32 }).notNull(), // presentation | free_talk | daily | review | placement
+  mode: varchar("mode", { length: 32 }).notNull(), // a Mode: free_talk, my_day, story, opinion, presentation, daily, review or placement
   /** The serious mistake the conversation is paused on, if any. */
   pending: jsonb("pending").$type<PendingCorrection>(),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),

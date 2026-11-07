@@ -17,7 +17,7 @@ export interface TutorContext {
   language: string;
   /** Free-text facts about the learner (role, projects, vocabulary). */
   learnerContext: string;
-  /** What the learner should cover in this meeting; empty in free talk. */
+  /** What the learner should cover in this session; empty in free talk. */
   goals: { id: string; description: string }[];
   /** Mistakes from the bank the tutor gives the learner chances to say correctly. */
   targets: PracticeTarget[];
