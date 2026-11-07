@@ -1,4 +1,4 @@
-import { MODES, type Mode, type SessionTiming } from "@/lib/api";
+import { type ApiClient, MODES, type Mode, type SessionTiming } from "@/lib/api";
 
 /**
  * The live session, kept in the browser so a reload can pick it up again.
@@ -9,6 +9,15 @@ export interface SavedSession {
   mode: Mode;
   elapsedSeconds: number;
   timing: SessionTiming;
+  /** When it was last saved (ms since epoch): the last moment the session was running. */
+  savedAt: number;
+}
+
+/** How long a session left mid-way can be picked up again (confirmed by the learner on 2026-11-07). */
+export const RESUME_LIMIT_MS = 2 * 60 * 60 * 1000;
+
+export function isExpired(saved: SavedSession, now = Date.now()): boolean {
+  return now - saved.savedAt > RESUME_LIMIT_MS;
 }
 
 const KEY = "voxa.liveSession";
@@ -29,6 +38,8 @@ export function loadSavedSession(): SavedSession | null {
       mode: value.mode as Mode,
       elapsedSeconds: Number.isFinite(value.elapsedSeconds) ? Number(value.elapsedSeconds) : 0,
       timing: isTiming(value.timing) ? value.timing : { learnerSpeechMs: 0, tutorSpeechMs: 0, pausesMs: [] },
+      // Unknown age: too old to pick up.
+      savedAt: Number.isFinite(value.savedAt) ? Number(value.savedAt) : 0,
     };
   } catch {
     return null;
@@ -36,9 +47,9 @@ export function loadSavedSession(): SavedSession | null {
 }
 
 /** Best effort: without storage, a reload just starts a new session. */
-export function saveSession(session: SavedSession) {
+export function saveSession(session: Omit<SavedSession, "savedAt">) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(session));
+    localStorage.setItem(KEY, JSON.stringify({ ...session, savedAt: Date.now() }));
   } catch {
     // Storage blocked or full.
   }
@@ -50,4 +61,16 @@ export function clearSavedSession() {
   } catch {
     // Storage blocked.
   }
+}
+
+/**
+ * The saved session, if it can still be picked up. One left for more than RESUME_LIMIT_MS is ended on the
+ * server with its timing, so its summary is kept, and forgotten here.
+ */
+export function takeSavedSession(api: Pick<ApiClient, "endSession">): SavedSession | null {
+  const saved = loadSavedSession();
+  if (!saved || !isExpired(saved)) return saved;
+  clearSavedSession();
+  void api.endSession(saved.sessionId, saved.timing).catch(() => {});
+  return null;
 }

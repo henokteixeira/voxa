@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clearSavedSession, loadSavedSession, saveSession } from "./saved-session";
+import { clearSavedSession, isExpired, loadSavedSession, RESUME_LIMIT_MS, saveSession } from "./saved-session";
 
 const saved = {
   sessionId: "s1",
@@ -12,7 +12,7 @@ describe("saved session", () => {
   it("keeps the live session across a reload, until it is cleared", () => {
     expect(loadSavedSession()).toBeNull();
     saveSession(saved);
-    expect(loadSavedSession()).toEqual(saved);
+    expect(loadSavedSession()).toEqual({ ...saved, savedAt: expect.any(Number) });
     clearSavedSession();
     expect(loadSavedSession()).toBeNull();
   });
@@ -27,5 +27,12 @@ describe("saved session", () => {
   it("starts the timing from zero when the saved timing is broken", () => {
     localStorage.setItem("voxa.liveSession", JSON.stringify({ ...saved, timing: { learnerSpeechMs: 5 } }));
     expect(loadSavedSession()?.timing).toEqual({ learnerSpeechMs: 0, tutorSpeechMs: 0, pausesMs: [] });
+  });
+
+  it("can be picked up for 2 hours after it was last saved", () => {
+    const now = Date.now();
+    expect(RESUME_LIMIT_MS).toBe(2 * 60 * 60 * 1000);
+    expect(isExpired({ ...saved, savedAt: now - RESUME_LIMIT_MS }, now)).toBe(false);
+    expect(isExpired({ ...saved, savedAt: now - RESUME_LIMIT_MS - 1 }, now)).toBe(true);
   });
 });

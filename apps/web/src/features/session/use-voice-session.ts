@@ -7,7 +7,7 @@ import { readPauseMs } from "@/lib/voice/pause-setting";
 import { AudioBlockedError, type Speaker } from "@/lib/voice/speaker";
 import type { VoiceSocket } from "@/lib/voice/voice-socket";
 import { FluencyClock } from "./fluency-clock";
-import { clearSavedSession, loadSavedSession, saveSession } from "./saved-session";
+import { clearSavedSession, saveSession, takeSavedSession } from "./saved-session";
 import { type FailureCode, initialSessionState, type Retry, sessionReducer } from "./session-state";
 import { VoiceDepsContext } from "./voice-deps";
 
@@ -171,7 +171,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
         if (!cancelled) dispatch({ type: "failed", code: `mic_${reason}` });
         return;
       }
-      const saved = loadSavedSession();
+      const saved = takeSavedSession(api);
       if (saved && saved.mode !== mode) {
         // Another meeting type was asked for: close the old session, best effort.
         clearSavedSession();
