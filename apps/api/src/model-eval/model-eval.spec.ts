@@ -29,6 +29,7 @@ const bored = {
   severity: "serious" as const,
   hint: "Say: I am very bored.",
   matchesKnownMistake: false,
+  pattern: null,
 };
 
 const turn = (over: Partial<TurnRecord> = {}): TurnRecord => ({

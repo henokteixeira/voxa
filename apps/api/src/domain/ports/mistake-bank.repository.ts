@@ -1,3 +1,4 @@
+import type { MistakePattern } from "../mistakes/pattern.js";
 import type { Mistake } from "./mistake.repository.js";
 
 /** Why the learner says a record is not a mistake. */
@@ -8,6 +9,8 @@ export type DismissReason = (typeof DISMISS_REASONS)[number];
 export interface BankEntry extends Mistake {
   /** Sessions, after the latest time the mistake was made, in which the learner used the correct form. */
   sessionsCorrect: number;
+  /** The rule it breaks; null for new words and for mistakes saved before patterns. */
+  pattern: MistakePattern | null;
 }
 
 /** Reading and curating the mistake bank. The concrete implementation lives in infra/. */

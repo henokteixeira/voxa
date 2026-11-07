@@ -4,6 +4,7 @@ import type { Mode } from "../conversation/mode.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget } from "../conversation/types.js";
 import { DomainError } from "../errors.js";
 import type { SupportStep } from "../level/speaking-level.js";
+import type { KnownPattern } from "../mistakes/pattern.js";
 
 export interface KnownMistake {
   original: string;
@@ -36,6 +37,8 @@ export interface TutorRequest extends TutorContext {
   knownMistakes: KnownMistake[];
   /** Words the learner once said in their first language: `original` as said, `correction` in the target language. */
   knownNewWords: KnownMistake[];
+  /** Patterns already in the bank: a mistake that breaks one of them reuses its key. */
+  knownPatterns: KnownPattern[];
   utterance: string;
   /** Ids of the goals covered before this utterance. */
   coveredGoals: string[];

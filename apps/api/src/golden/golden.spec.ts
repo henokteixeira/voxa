@@ -26,6 +26,7 @@ const bored = {
   severity: "serious" as const,
   hint: "Think about how you feel, not how others feel.",
   matchesKnownMistake: false,
+  pattern: null,
 };
 
 const turn = (over: Partial<TurnRecord> = {}): TurnRecord => ({

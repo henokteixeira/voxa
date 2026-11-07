@@ -18,6 +18,7 @@ import type { LevelRepository } from "../domain/ports/level.repository.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import type { Mistake, MistakeRepository, NewMistake, SessionMistake } from "../domain/ports/mistake.repository.js";
 import type { SessionTiming } from "../domain/conversation/fluency.js";
+import type { KnownPattern, MistakePattern } from "../domain/mistakes/pattern.js";
 import type { NewTurn, SessionProgress, SessionRepository } from "../domain/ports/session.repository.js";
 import type { TrackPlan, TutorContext, TutorPort, TutorRequest } from "../domain/ports/tutor.port.js";
 import { NEW_WORD_CATEGORY } from "../domain/conversation/types.js";
@@ -106,7 +107,7 @@ class FakeSessions implements SessionRepository {
 }
 
 class FakeMistakes implements MistakeRepository {
-  bank: Mistake[] = [];
+  bank: (Mistake & { pattern: MistakePattern | null })[] = [];
   events: { sessionId: string; original: string; severity: Severity; selfCorrected: boolean }[] = [];
   async record(m: NewMistake, o: { sessionId: string; severity: Severity }) {
     let saved = this.bank.find((b) => b.language === m.language && b.original === m.original);
@@ -144,8 +145,13 @@ class FakeMistakes implements MistakeRepository {
           severity: e.severity,
           selfCorrected: e.selfCorrected,
           occurrences: m.occurrences,
+          pattern: m.pattern,
         };
       });
+  }
+  async patterns(language: string, limit: number): Promise<KnownPattern[]> {
+    const seen = this.bank.filter((m) => m.language === language && m.pattern).map((m) => m.pattern!);
+    return [...new Map(seen.map((p) => [p.key, { key: p.key, name: p.name }])).values()].slice(0, limit);
   }
 }
 
@@ -192,6 +198,7 @@ const goed: Issue = {
   severity: "serious",
   hint: "Check the past tense of 'go'.",
   matchesKnownMistake: false,
+  pattern: null,
 };
 const article: Issue = {
   original: "I opened PR",
@@ -200,6 +207,7 @@ const article: Issue = {
   severity: "minor",
   hint: "Something small is missing before 'PR'.",
   matchesKnownMistake: false,
+  pattern: null,
 };
 const verdict = (v: Partial<TutorVerdict>): TutorVerdict => ({
   reply: "Nice. What happened next?",
@@ -234,6 +242,7 @@ const entry = (over: Partial<BankEntry>): BankEntry => ({
   occurrences: 1,
   lastSeenAt: new Date(),
   sessionsCorrect: 0,
+  pattern: null,
   ...over,
 });
 
@@ -361,7 +370,7 @@ describe("Session goals", () => {
 
   it("watches a target outside the known mistakes list once, by its exact text", async () => {
     bankEntries = [entry({ original: "I goed", occurrences: 3 })];
-    mistakes.bank.push({ id: "m1", language: "en", original: "I goed", correction: "I went", category: "grammar", occurrences: 3, lastSeenAt: new Date() });
+    mistakes.bank.push({ id: "m1", language: "en", original: "I goed", correction: "I went", category: "grammar", occurrences: 3, lastSeenAt: new Date(), pattern: null });
     const { session } = await service.start("daily", "en");
     tutor.verdicts.push(verdict({}));
     await service.respond(session.id, "Hi");
@@ -412,6 +421,18 @@ describe("ConversationService.respond", () => {
     expect(result.message).toBe("Check the past tense of 'go'.");
     expect((await sessions.get(session.id))?.pending).toMatchObject({ original: goed.original, hintsGiven: 1 });
     expect(mistakes.events[0].severity).toBe("serious");
+  });
+
+  it("records the pattern a mistake breaks, with a clean key, and shows the tutor the bank's patterns", async () => {
+    const { session } = await service.start("daily", "en");
+    const pattern = { key: " Past Simple ", name: "Past for finished actions", rule: "Ação terminada: passado." };
+    tutor.verdicts.push(verdict({ issues: [{ ...article, pattern }] }), verdict({}));
+
+    await service.respond(session.id, "I opened PR");
+    await service.respond(session.id, "Then I left");
+
+    expect(mistakes.bank[0].pattern).toEqual({ ...pattern, key: "past_simple" });
+    expect(tutor.requests[1].knownPatterns).toEqual([{ key: "past_simple", name: "Past for finished actions" }]);
   });
 
   it("pauses on a minor mistake that is already in the bank, and records it as serious", async () => {
@@ -988,7 +1009,7 @@ describe("ConversationService.resume", () => {
 describe("correct uses of known mistakes", () => {
   it("records each known mistake the learner got right, by its bank text", async () => {
     const { session: old } = await service.start("daily", "en");
-    await mistakes.record({ language: "en", original: goed.original, correction: goed.correction, category: "grammar" }, { sessionId: old.id, severity: "serious" });
+    await mistakes.record({ language: "en", original: goed.original, correction: goed.correction, category: "grammar", pattern: null }, { sessionId: old.id, severity: "serious" });
     const { session } = await service.start("daily", "en");
     tutor.verdicts.push(verdict({ correctUses: ["i goed to the meeting.", "something never in the bank"] }));
 
@@ -999,7 +1020,7 @@ describe("correct uses of known mistakes", () => {
 
   it("keeps a correct use of another known mistake while a correction is pending", async () => {
     const { session: old } = await service.start("daily", "en");
-    await mistakes.record({ language: "en", original: article.original, correction: article.correction, category: "grammar" }, { sessionId: old.id, severity: "minor" });
+    await mistakes.record({ language: "en", original: article.original, correction: article.correction, category: "grammar", pattern: null }, { sessionId: old.id, severity: "minor" });
     const { session } = await service.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true, correctUses: [goed.original, article.original] }));
 

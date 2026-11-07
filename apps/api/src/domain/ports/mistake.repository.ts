@@ -1,4 +1,5 @@
 import type { Severity } from "../conversation/types.js";
+import type { KnownPattern, MistakePattern } from "../mistakes/pattern.js";
 
 export interface Mistake {
   id: string;
@@ -15,6 +16,8 @@ export interface NewMistake {
   original: string;
   correction: string;
   category: string;
+  /** The rule it breaks; null for new words and when the tutor gave none. */
+  pattern: MistakePattern | null;
 }
 
 /** One mistake as it happened in one session. */
@@ -26,6 +29,7 @@ export interface SessionMistake {
   selfCorrected: boolean;
   /** How many times this mistake has been seen across all sessions. */
   occurrences: number;
+  pattern: MistakePattern | null;
 }
 
 /** Bank of mistakes and expressions. The concrete implementation lives in infra/. */
@@ -40,6 +44,8 @@ export interface MistakeRepository {
   markSelfCorrected(sessionId: string, mistake: { language: string; original: string }): Promise<void>;
   mostFrequent(language: string, limit: number): Promise<Mistake[]>;
   forSession(sessionId: string): Promise<SessionMistake[]>;
+  /** The patterns in this language's bank, most recently seen first, so the tutor reuses their keys. */
+  patterns(language: string, limit: number): Promise<KnownPattern[]>;
 }
 
 export const MISTAKE_REPOSITORY = Symbol("MISTAKE_REPOSITORY");

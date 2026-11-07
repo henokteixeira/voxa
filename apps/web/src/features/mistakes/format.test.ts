@@ -29,6 +29,8 @@ describe("categoryLabel", () => {
   it("names the known categories in Portuguese and keeps unknown ones readable", () => {
     expect(categoryLabel("grammar", "pt-BR")).toBe("Gramática");
     expect(categoryLabel("word_choice", "pt-BR")).toBe("Escolha de palavra");
-    expect(categoryLabel("verb_tense", "pt-BR")).toBe("Verb tense");
+    expect(categoryLabel("verb_tense", "pt-BR")).toBe("Tempo verbal");
+    expect(categoryLabel("articles_prepositions")).toBe("Articles and prepositions");
+    expect(categoryLabel("idiom", "pt-BR")).toBe("Idiom");
   });
 });
