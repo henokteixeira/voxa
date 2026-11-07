@@ -29,8 +29,8 @@ export const ONBOARDING_COPY: Copy<OnboardingCopy> = {
     back: "Back",
     stepOf: (step, total) => `Step ${step} of ${total}`,
     welcome: {
-      title: "Speak up in your meetings.",
-      body: "Practice real work conversations by voice. Mistakes are welcome: that's how you learn.",
+      title: "Speak English with confidence.",
+      body: "Practice real conversations by voice, everyday and at work. Mistakes are welcome: that's how you learn.",
       action: "Get started",
     },
     mic: {
@@ -59,8 +59,8 @@ export const ONBOARDING_COPY: Copy<OnboardingCopy> = {
     back: "Voltar",
     stepOf: (step, total) => `Passo ${step} de ${total}`,
     welcome: {
-      title: "Fale nas suas reuniões.",
-      body: "Pratique conversas reais de trabalho por voz. Errar é bem-vindo: é assim que se aprende.",
+      title: "Converse em inglês com confiança.",
+      body: "Pratique conversas reais por voz, do dia a dia e do trabalho. Errar é bem-vindo: é assim que se aprende.",
       action: "Começar",
     },
     mic: {
