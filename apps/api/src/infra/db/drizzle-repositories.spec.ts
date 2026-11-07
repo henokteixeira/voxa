@@ -151,6 +151,7 @@ describe("DrizzleMistakeRepository", () => {
         occurrences: 2,
         pattern: null,
         patternId: null,
+        patternSeenBefore: false,
       },
     ]);
   });
@@ -168,6 +169,32 @@ describe("DrizzleMistakeRepository", () => {
     expect((await mistakes.forSession(s.id)).map((m) => m.pattern)).toEqual([past, past, past]);
     expect((await mistakes.list("en")).map((m) => m.pattern)).toEqual([past, past]);
     expect(await mistakes.patterns("en", 10)).toEqual([{ key: "past_simple", name: "Past for finished actions" }]);
+  });
+
+  it("tells whether a pattern was broken in an earlier session, through any of its mistakes", async () => {
+    const before = await sessions.create({ language: "en", mode: "daily" });
+    const now = await sessions.create({ language: "en", mode: "daily" });
+    const past = { key: "past_simple", name: "Past", rule: "Passado." };
+    const articles = { key: "articles", name: "Articles", rule: "Artigos." };
+    await mistakes.record({ ...goed, category: "verb_tense", pattern: past }, { sessionId: before.id, severity: "minor" });
+    await mistakes.record(
+      { ...goed, original: "I runned", correction: "I ran", category: "verb_tense", pattern: past },
+      { sessionId: now.id, severity: "minor" },
+    );
+    await mistakes.record(
+      { ...goed, original: "I opened PR", correction: "I opened a PR", pattern: articles },
+      { sessionId: now.id, severity: "minor" },
+    );
+    await mistakes.record(
+      { ...goed, original: "I opened PR", correction: "I opened a PR", pattern: articles },
+      { sessionId: now.id, severity: "minor" },
+    );
+
+    expect((await mistakes.forSession(now.id)).map((m) => [m.original, m.patternSeenBefore])).toEqual([
+      ["I runned", true],
+      ["I opened PR", false],
+      ["I opened PR", false],
+    ]);
   });
 
   it("gives a pattern to a mistake saved without one, and lists only patterns still in the bank", async () => {

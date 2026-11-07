@@ -11,6 +11,7 @@ const mistake = (patternId: string | null, over: Partial<SessionMistake> = {}): 
   occurrences: 1,
   pattern: patternId ? { key: patternId, name: `name ${patternId}`, rule: `rule ${patternId}` } : null,
   patternId,
+  patternSeenBefore: false,
   ...over,
 });
 
@@ -19,7 +20,7 @@ describe("chooseTakeaways", () => {
     const picked = chooseTakeaways([
       mistake("a"),
       mistake("b"),
-      mistake("c", { occurrences: 4 }),
+      mistake("c", { patternSeenBefore: true }),
       mistake("d"),
       mistake("d"),
       mistake("e", { severity: "serious" }),

@@ -16,7 +16,7 @@ export interface Takeaway {
 
 /**
  * At most MAX_TAKEAWAYS patterns from the session: serious ones first, then those broken more than once in the
- * session, then those already in the bank from earlier sessions, then in the order they came up.
+ * session, then those broken in earlier sessions, then in the order they came up.
  */
 export function chooseTakeaways(mistakes: readonly SessionMistake[]): Takeaway[] {
   const groups = new Map<string, { takeaway: Takeaway; serious: boolean; times: number; seenBefore: boolean; first: number }>();
@@ -29,13 +29,13 @@ export function chooseTakeaways(mistakes: readonly SessionMistake[]): Takeaway[]
         takeaway: { patternId: m.patternId, category: m.category, name: m.pattern.name, rule: m.pattern.rule, said: m.original },
         serious,
         times: 1,
-        seenBefore: m.occurrences > 1,
+        seenBefore: m.patternSeenBefore,
         first: index,
       });
       return;
     }
     group.times += 1;
-    group.seenBefore ||= m.occurrences > 1;
+    group.seenBefore ||= m.patternSeenBefore;
     if (serious && !group.serious) group.takeaway.said = m.original;
     group.serious ||= serious;
   });

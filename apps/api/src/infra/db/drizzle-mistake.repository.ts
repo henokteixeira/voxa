@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, count, desc, eq, inArray, isNull, max, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, max, ne, sql } from "drizzle-orm";
 import type { Severity } from "../../domain/conversation/types.js";
 import type { KnownPattern, MistakePattern } from "../../domain/mistakes/pattern.js";
 import type { BankEntry, DismissReason, MistakeBankRepository } from "../../domain/ports/mistake-bank.repository.js";
@@ -130,11 +130,25 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
       .leftJoin(patterns, eq(mistakes.patternId, patterns.id))
       .where(and(eq(mistakeOccurrences.sessionId, sessionId), isNull(mistakes.dismissedAt)))
       .orderBy(asc(mistakeOccurrences.seq));
+    const seenBefore = await this.patternsSeenOutside(sessionId, rows.map((r) => r.patternId));
     return rows.map(({ patternKey, patternName, patternRule, ...r }) => ({
       ...r,
       severity: r.severity === "serious" ? "serious" : "minor",
       pattern: toPattern(patternKey, patternName, patternRule),
+      patternSeenBefore: r.patternId !== null && seenBefore.has(r.patternId),
     }));
+  }
+
+  /** Which of these patterns were broken in a session other than this one. */
+  private async patternsSeenOutside(sessionId: string, patternIds: (string | null)[]): Promise<Set<string>> {
+    const ids = [...new Set(patternIds.filter((id): id is string => id !== null))];
+    if (ids.length === 0) return new Set();
+    const rows = await this.db
+      .selectDistinct({ patternId: mistakes.patternId })
+      .from(mistakeOccurrences)
+      .innerJoin(mistakes, eq(mistakeOccurrences.mistakeId, mistakes.id))
+      .where(and(inArray(mistakes.patternId, ids), ne(mistakeOccurrences.sessionId, sessionId)));
+    return new Set(rows.flatMap((r) => (r.patternId ? [r.patternId] : [])));
   }
 
   async patterns(language: string, limit: number): Promise<KnownPattern[]> {

@@ -33,6 +33,8 @@ export interface SessionMistake {
   occurrences: number;
   pattern: MistakePattern | null;
   patternId: string | null;
+  /** Whether the learner broke this pattern in an earlier session. False without a pattern. */
+  patternSeenBefore: boolean;
 }
 
 /** Bank of mistakes and expressions. The concrete implementation lives in infra/. */
