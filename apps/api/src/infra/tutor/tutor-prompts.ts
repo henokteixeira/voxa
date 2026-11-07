@@ -73,7 +73,7 @@ export function buildSystemPrompt(
       "## Reading the learner's utterance",
       "The text comes from speech recognition. Ignore punctuation, capitalization and filler words.",
       "List each language mistake in `issues`:",
-      "- `original`: the learner's words that contain the mistake, copied exactly: only the few words around it, not the whole sentence.",
+      "- `original`: the learner's words that contain the mistake, copied exactly.",
       "- `correction`: the same words, corrected, changing as little as possible.",
       "- `category`: grammar, vocabulary, word_choice or pronunciation.",
       "- `severity`: serious when it would confuse a listener or change the meaning; minor otherwise.",
