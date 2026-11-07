@@ -116,6 +116,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
           } else if (onOpen.kind === "text") {
             muted.current = false;
             dispatch({ type: "sent", request: "text", text: onOpen.text });
+            clock.current.typed();
             ws.sendText(onOpen.text);
           } else if (onOpen.kind === "listen") {
             dispatch({ type: "recover" });
@@ -123,6 +124,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
         },
         onTranscript: (text) => {
           filler.current.heard();
+          clock.current.learnerSaid(text);
           dispatch({ type: "transcript", text });
         },
         onTutor: (result) => dispatch({ type: "tutor", result }),
@@ -181,9 +183,10 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
             clock.current.learnerStarted(performance.now());
             dispatch({ type: "speech_start" });
           },
-          onTurn: (wav) => {
+          onTurn: (wav, turn) => {
             clock.current.learnerEnded(performance.now(), {
               silenceMs: sentEarly.current ? 0 : endSilenceMs,
+              pausesMs: turn?.pausesMs,
             });
             sentEarly.current = false;
             mic.current?.pause();
@@ -295,6 +298,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
     setTyping(false);
     muted.current = false;
     dispatch({ type: "sent", request: "text", text });
+    clock.current.typed();
     socket.current?.sendText(text);
   }, []);
 

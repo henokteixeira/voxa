@@ -61,7 +61,7 @@ Every mistake the tutor detects, serious or small, becomes a record in the mista
 - **Repeat detection:** a mistake that matches an existing record increases its count instead of creating a new one; a mistake already in the bank counts as serious (see Correction rules).
 - **Status:** Open, Improving or Mastered (approved in the prototype). Open: new, or made again. Improving: the correct form was used in a later session. Mastered: correct in 3 different sessions without the mistake again. Making it again sends it back to Open (confirmed on 2026-11-06).
 - **"This isn't a mistake":** the user can dismiss a record, for example when the speech-to-text misheard him; it leaves the bank and does not count again.
-- **Summary at the end of a session:** the mistakes of the session (serious and small) with their correct forms, plus the 4 fluency signals: self-correction rate, mistakes per 100 words, pause before answering, share of speaking time.
+- **Summary at the end of a session:** the mistakes of the session (serious and small) with their correct forms, plus the 4 fluency signals: self-correction rate, mistakes per 100 words, pause before answering, pace (words a minute of the learner's own speech, with long pauses of 1 s or more inside an answer). Pace replaced the share of speaking time on 2026-11-07, which mostly measured how much the tutor talked.
 - **Confidence check:** before and after a session, the user rates how ready he feels for that meeting type (1 to 5), as in the approved prototype.
 
 ## Voice loop

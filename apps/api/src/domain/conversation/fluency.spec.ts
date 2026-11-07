@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { countWords, fluencySignals } from "./fluency.js";
 
-const timing = { learnerSpeechMs: 60_000, tutorSpeechMs: 40_000, pausesMs: [1000, 2000, 3000] };
+const timing = {
+  learnerSpeechMs: 120_000,
+  tutorSpeechMs: 40_000,
+  pausesMs: [1000, 2000, 3000],
+  longPausesMs: [1500, 1100, 2000],
+  spokenWords: 190,
+};
 const serious = (selfCorrected: boolean) => ({ severity: "serious" as const, selfCorrected });
 const minor = { severity: "minor" as const, selfCorrected: false };
 
@@ -23,7 +29,8 @@ describe("fluencySignals", () => {
       selfCorrectionRate: 2 / 3,
       mistakesPer100Words: 40,
       averagePauseMs: 2000,
-      speakingShare: 0.6,
+      wordsPerMinute: 95,
+      longPausesPerMinute: 1.5,
     });
   });
 
@@ -41,16 +48,37 @@ describe("fluencySignals", () => {
   it("has no timing signals when the timing was not measured", () => {
     const signals = fluencySignals({ mistakes: [], learnerUtterances: ["hi"], timing: null });
     expect(signals.averagePauseMs).toBeNull();
-    expect(signals.speakingShare).toBeNull();
+    expect(signals.wordsPerMinute).toBeNull();
+    expect(signals.longPausesPerMinute).toBeNull();
   });
 
-  it("has no pause without pauses and no share without speech", () => {
+  it("has no rate for a session measured before words and long pauses were", () => {
     const signals = fluencySignals({
       mistakes: [],
       learnerUtterances: ["hi"],
-      timing: { learnerSpeechMs: 0, tutorSpeechMs: 0, pausesMs: [] },
+      timing: { learnerSpeechMs: 60_000, tutorSpeechMs: 0, pausesMs: [] },
+    });
+    expect(signals.wordsPerMinute).toBeNull();
+    expect(signals.longPausesPerMinute).toBeNull();
+  });
+
+  it("gives each rate only from the field it comes from", () => {
+    const signals = fluencySignals({
+      mistakes: [],
+      learnerUtterances: ["hi"],
+      timing: { learnerSpeechMs: 60_000, tutorSpeechMs: 0, pausesMs: [], spokenWords: 80 },
+    });
+    expect(signals.wordsPerMinute).toBe(80);
+    expect(signals.longPausesPerMinute).toBeNull();
+  });
+
+  it("has no pause without pauses and no rate without speech", () => {
+    const signals = fluencySignals({
+      mistakes: [],
+      learnerUtterances: ["hi"],
+      timing: { learnerSpeechMs: 0, tutorSpeechMs: 0, pausesMs: [], longPausesMs: [], spokenWords: 0 },
     });
     expect(signals.averagePauseMs).toBeNull();
-    expect(signals.speakingShare).toBeNull();
+    expect(signals.wordsPerMinute).toBeNull();
   });
 });

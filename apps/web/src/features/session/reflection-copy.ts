@@ -19,8 +19,9 @@ export interface ReflectionCopy {
   sessionMistakes: string;
   signalsLabel: string;
   signals: {
-    spoke: string;
-    ofTheTime: string;
+    pace: string;
+    /** Under the words per minute; null when the long pauses were not measured. */
+    perMinute: (longPausesPerMinute: string | null) => string;
     fixedYourself: string;
     afterHint: string;
     noHints: string;
@@ -65,8 +66,8 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     sessionMistakes: "Mistakes from this session",
     signalsLabel: "Fluency signals",
     signals: {
-      spoke: "You spoke",
-      ofTheTime: "of the time",
+      pace: "Pace",
+      perMinute: (pauses) => (pauses === null ? "words a minute" : `words a minute · ${pauses} long pauses a minute`),
       fixedYourself: "Fixed yourself",
       afterHint: "after a hint",
       noHints: "no hints needed",
@@ -107,8 +108,9 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     sessionMistakes: "Erros desta sessão",
     signalsLabel: "Sinais de fluência",
     signals: {
-      spoke: "Você falou",
-      ofTheTime: "do tempo",
+      pace: "Ritmo",
+      perMinute: (pauses) =>
+        pauses === null ? "palavras por minuto" : `palavras por minuto · ${pauses} pausas longas por minuto`,
       fixedYourself: "Autocorreção",
       afterHint: "depois de uma dica",
       noHints: "sem precisar de dica",

@@ -37,6 +37,7 @@ export class TurnDetector {
   private silentMs = 0;
   private turnMs = 0;
   private heardMs = 0;
+  private gaps: number[] = [];
 
   constructor(options: Partial<TurnDetectorOptions> = {}) {
     this.options = { ...DEFAULT_TURN_OPTIONS, ...options };
@@ -44,6 +45,11 @@ export class TurnDetector {
 
   get isSpeaking(): boolean {
     return this.speaking;
+  }
+
+  /** The silences inside the current (or last) turn that speech resumed after, in ms. Not the silence that ended it. */
+  get pausesMs(): readonly number[] {
+    return this.gaps;
   }
 
   /** Feeds one frame's RMS level and length; returns "start" or "end" when the turn changes. */
@@ -68,10 +74,12 @@ export class TurnDetector {
       this.speaking = true;
       this.turnMs = this.loudMs;
       this.silentMs = 0;
+      this.gaps = [];
       return "start";
     }
 
     this.turnMs += frameMs;
+    if (loud && this.silentMs > 0) this.gaps.push(this.silentMs);
     this.silentMs = loud ? 0 : this.silentMs + frameMs;
     if (this.silentMs >= endSilenceMs || this.turnMs >= maxTurnMs) {
       this.reset();

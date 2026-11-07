@@ -111,9 +111,9 @@ function Signals({ signals, mistakes }: { signals: FluencySignals; mistakes: Ses
   const hinted = mistakes.filter((m) => m.severity === "serious");
   const tiles = [
     {
-      name: t.spoke,
-      value: signals.speakingShare === null ? null : `${Math.round(signals.speakingShare * 100)}%`,
-      note: t.ofTheTime,
+      name: t.pace,
+      value: signals.wordsPerMinute === null ? null : String(signals.wordsPerMinute),
+      note: t.perMinute(signals.longPausesPerMinute === null ? null : decimal.format(signals.longPausesPerMinute)),
       empty: t.notMeasured,
     },
     {

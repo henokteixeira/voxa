@@ -39,7 +39,7 @@ describe("createApiClient", () => {
   it("ends a session with the measured timing", async () => {
     const fetchImpl = respond(200, { sessionId: "s1" });
     const api = createApiClient("http://api", fetchImpl);
-    const timing = { learnerSpeechMs: 1000, tutorSpeechMs: 2000, pausesMs: [500] };
+    const timing = { learnerSpeechMs: 1000, tutorSpeechMs: 2000, pausesMs: [500], longPausesMs: [1200], spokenWords: 3 };
 
     await api.endSession("s1", timing);
 

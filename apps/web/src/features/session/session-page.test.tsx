@@ -43,7 +43,7 @@ const deps: VoiceDeps = {
 
 let cleanupApp: () => void = () => {};
 
-const noSignals = { selfCorrectionRate: null, mistakesPer100Words: null, averagePauseMs: null, speakingShare: null };
+const noSignals = { selfCorrectionRate: null, mistakesPer100Words: null, averagePauseMs: null, wordsPerMinute: null, longPausesPerMinute: null };
 function summaryWith(mistakes: unknown[], extra: Record<string, unknown> = {}) {
   return {
     sessionId: "s1",
@@ -526,7 +526,13 @@ describe("session summary", () => {
           mistake("minor", false, "on the next sprint", "in the next sprint"),
         ],
         {
-          signals: { selfCorrectionRate: 0.5, mistakesPer100Words: 4.25, averagePauseMs: 1840, speakingShare: 0.594 },
+          signals: {
+            selfCorrectionRate: 0.5,
+            mistakesPer100Words: 4.25,
+            averagePauseMs: 1840,
+            wordsPerMinute: 92,
+            longPausesPerMinute: 1.25,
+          },
           confidence: { before: 3, after: null },
         },
       ),
@@ -535,7 +541,7 @@ describe("session summary", () => {
     await endFromPause();
 
     const signals = await screen.findByLabelText("Fluency signals");
-    expect(signals).toHaveTextContent("You spoke59%of the time");
+    expect(signals).toHaveTextContent("Pace92words a minute · 1.3 long pauses a minute");
     expect(signals).toHaveTextContent("Fixed yourself1 of 2after a hint");
     expect(signals).toHaveTextContent("Pause before answering1.8 saverage");
     expect(signals).toHaveTextContent("Mistakes4.3per 100 words");
@@ -585,7 +591,7 @@ describe("session summary", () => {
     await endFromPause();
 
     expect(await screen.findByLabelText("Fluency signals")).toHaveTextContent("Fixed yourself–no hints needed");
-    expect(screen.getByLabelText("Fluency signals")).toHaveTextContent("You spoke–not measured");
+    expect(screen.getByLabelText("Fluency signals")).toHaveTextContent("Pace–not measured");
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     await userEvent.click(screen.getByRole("button", { name: "Skip" }));
 
@@ -622,10 +628,14 @@ describe("fluency timing", () => {
     // 4 s of speech plus the chosen 4 s of silence.
     now.mockReturnValue(12_500);
     act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("I fixed it"));
 
     await endFromPause();
     await screen.findByRole("heading", { name: "Session done" });
-    expect(api.endSession).toHaveBeenCalledWith("s1", { tutorSpeechMs: 3000, pausesMs: [1500], learnerSpeechMs: 4000 });
+    expect(api.endSession).toHaveBeenCalledWith(
+      "s1",
+      expect.objectContaining({ tutorSpeechMs: 3000, pausesMs: [1500], learnerSpeechMs: 4000 }),
+    );
     now.mockRestore();
   });
 
@@ -640,6 +650,7 @@ describe("fluency timing", () => {
     now.mockReturnValue(4000);
     await userEvent.click(screen.getByRole("button", { name: "Send now" }));
     act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("I fixed it"));
 
     await endFromPause();
     await screen.findByRole("heading", { name: "Session done" });
@@ -647,7 +658,7 @@ describe("fluency timing", () => {
     now.mockRestore();
   });
 
-  it("sends the pause before answering and the speaking time it measured", async () => {
+  it("sends the pause before answering, the speaking time, the long pauses and the spoken words", async () => {
     const now = vi.spyOn(performance, "now");
     now.mockReturnValue(0);
     renderSession();
@@ -662,11 +673,18 @@ describe("fluency timing", () => {
     act(() => micHandlers.onSpeechStart());
     // 4 s of speech plus the end-of-turn silence (2.5 s), which is not speech.
     now.mockReturnValue(11_000);
-    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => micHandlers.onTurn(new ArrayBuffer(16), { pausesMs: [1400, 600] }));
+    act(() => socketHandlers.onTranscript("I fixed the login bug"));
 
     await endFromPause();
     await screen.findByRole("heading", { name: "Session done" });
-    expect(api.endSession).toHaveBeenCalledWith("s1", { tutorSpeechMs: 3000, pausesMs: [1500], learnerSpeechMs: 4000 });
+    expect(api.endSession).toHaveBeenCalledWith("s1", {
+      tutorSpeechMs: 3000,
+      pausesMs: [1500],
+      learnerSpeechMs: 4000,
+      longPausesMs: [1400],
+      spokenWords: 5,
+    });
     now.mockRestore();
   });
 
@@ -756,7 +774,7 @@ describe("after a reload", () => {
     sessionId: "s1",
     mode: "daily",
     elapsedSeconds: 65,
-    timing: { learnerSpeechMs: 4000, tutorSpeechMs: 6000, pausesMs: [800] },
+    timing: { learnerSpeechMs: 4000, tutorSpeechMs: 6000, pausesMs: [800], longPausesMs: [], spokenWords: 10 },
     savedAt: Date.now(),
   };
   const resumed = {

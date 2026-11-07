@@ -28,7 +28,15 @@ const Ms = z.number().int().min(0).max(24 * 60 * 60 * 1000);
 /** Timing the web app measured; missing when the session ends without it (e.g. the learner left). */
 const EndBody = z
   .object({
-    timing: z.object({ learnerSpeechMs: Ms, tutorSpeechMs: Ms, pausesMs: z.array(Ms).max(5000) }).optional(),
+    timing: z
+      .object({
+        learnerSpeechMs: Ms,
+        tutorSpeechMs: Ms,
+        pausesMs: z.array(Ms).max(5000),
+        longPausesMs: z.array(Ms).max(5000).optional(),
+        spokenWords: z.number().int().min(0).max(1_000_000).optional(),
+      })
+      .optional(),
   })
   .default({});
 const ConfidenceBody = z.object({ moment: z.enum(["before", "after"]), value: z.number().int().min(1).max(5) });

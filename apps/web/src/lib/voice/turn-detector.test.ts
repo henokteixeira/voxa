@@ -42,6 +42,22 @@ describe("TurnDetector", () => {
     expect(detector.isSpeaking).toBe(true);
   });
 
+  it("keeps the silences inside a turn, not the one that ends it", () => {
+    const detector = new TurnDetector({ endSilenceMs: 1200 });
+    feed(detector, QUIET, 500);
+    feed(detector, LOUD, 500);
+    feed(detector, QUIET, 800);
+    feed(detector, LOUD, 300);
+    feed(detector, QUIET, 200);
+    feed(detector, LOUD, 300);
+    expect(feed(detector, QUIET, 1200)).toEqual(["end"]);
+    expect(detector.pausesMs).toEqual([800, 200]);
+
+    // A new turn starts with none.
+    feed(detector, LOUD, 300);
+    expect(detector.pausesMs).toEqual([]);
+  });
+
   it("ends the turn after the end-of-turn silence", () => {
     const detector = new TurnDetector({ endSilenceMs: 1200 });
     feed(detector, QUIET, 500);
