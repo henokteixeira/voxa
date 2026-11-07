@@ -1,6 +1,7 @@
 import type { TutorVerdict } from "../conversation/correction-policy.js";
 import type { Mode } from "../conversation/mode.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget } from "../conversation/types.js";
+import { DomainError } from "../errors.js";
 
 export interface KnownMistake {
   original: string;
@@ -42,6 +43,12 @@ export interface TutorPort {
 }
 
 /** The tutor could not answer (provider down, refusal, cut-off or invalid output). */
-export class TutorUnavailableError extends Error {}
+export class TutorUnavailableError extends DomainError {
+  readonly code = "tutor_unavailable";
+
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, "The tutor is not available right now.", options);
+  }
+}
 
 export const TUTOR_PORT = Symbol("TUTOR_PORT");

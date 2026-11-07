@@ -1,3 +1,5 @@
+import { DomainError } from "../errors.js";
+
 export interface Transcription {
   text: string;
   language: string;
@@ -22,21 +24,23 @@ export interface TextToSpeechPort {
 }
 
 /** The voice engine is unreachable, timed out or failed; the caller should show an error state. */
-export class VoiceUnavailableError extends Error {
+export class VoiceUnavailableError extends DomainError {
+  readonly code = "voice_unavailable";
+
   constructor(message: string, options?: { cause?: unknown }) {
-    super(message, options);
-    this.name = "VoiceUnavailableError";
+    super(message, "The voice server isn't running.", options);
   }
 }
 
 /** The voice engine rejected the request itself (empty audio, unsupported language, text too long). */
-export class VoiceRequestError extends Error {
+export class VoiceRequestError extends DomainError {
+  readonly code = "bad_audio";
+
   constructor(
     message: string,
     readonly status: number,
   ) {
-    super(message);
-    this.name = "VoiceRequestError";
+    super(message, "Voxa couldn't use that recording.");
   }
 }
 

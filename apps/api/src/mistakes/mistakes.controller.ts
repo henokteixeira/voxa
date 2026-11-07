@@ -1,6 +1,6 @@
-import { Body, Controller, Get, HttpCode, NotFoundException, Param, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from "@nestjs/common";
 import { z } from "zod";
-import { MistakeBankService, MistakeNotFoundError } from "../application/mistake-bank.service.js";
+import { MistakeBankService } from "../application/mistake-bank.service.js";
 import { Language, parse } from "../common/http.js";
 import { DISMISS_REASONS } from "../domain/ports/mistake-bank.repository.js";
 
@@ -23,11 +23,6 @@ export class MistakesController {
   async dismiss(@Param("id") id: string, @Body() body: unknown) {
     const mistakeId = parse(MistakeId, id);
     const { reason } = parse(DismissBody, body);
-    try {
-      await this.bank.dismiss(mistakeId, reason);
-    } catch (error) {
-      if (error instanceof MistakeNotFoundError) throw new NotFoundException("Mistake not found.");
-      throw error;
-    }
+    await this.bank.dismiss(mistakeId, reason);
   }
 }

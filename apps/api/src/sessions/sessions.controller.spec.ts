@@ -2,6 +2,7 @@ import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { applyHttpConventions } from "../common/http-app.js";
 import {
   ConversationService,
   SessionEndedError,
@@ -20,7 +21,7 @@ beforeEach(async () => {
     controllers: [SessionsController],
     providers: [{ provide: ConversationService, useValue: service }],
   }).compile();
-  app = mod.createNestApplication();
+  app = applyHttpConventions(mod.createNestApplication());
   await app.init();
 });
 afterEach(() => app.close());

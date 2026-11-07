@@ -2,6 +2,7 @@ import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { applyHttpConventions } from "../common/http-app.js";
 import { FillerNotFoundError, FillerSpeechService } from "../application/filler-speech.service.js";
 import { VoiceUnavailableError } from "../domain/ports/voice.port.js";
 import { FillersController } from "./fillers.controller.js";
@@ -15,7 +16,7 @@ beforeEach(async () => {
     controllers: [FillersController],
     providers: [{ provide: FillerSpeechService, useValue: service }],
   }).compile();
-  app = mod.createNestApplication();
+  app = applyHttpConventions(mod.createNestApplication());
   await app.init();
 });
 afterEach(() => app.close());
