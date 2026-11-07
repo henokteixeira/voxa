@@ -1,10 +1,19 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { Session } from "../domain/conversation/types.js";
-import { daysBetween, type TutorMemory } from "../domain/memory/learner-fact.js";
+import { DomainError } from "../domain/errors.js";
+import { daysBetween, type LearnerFact, type TutorMemory } from "../domain/memory/learner-fact.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { LEARNER_MEMORY_REPOSITORY, type LearnerMemoryRepository } from "../domain/ports/learner-memory.repository.js";
 import { MEMORY_EXTRACTOR_PORT, type MemoryExtractorPort } from "../domain/ports/memory-extractor.port.js";
 import { SESSION_REPOSITORY, type SessionRepository } from "../domain/ports/session.repository.js";
+
+export class LearnerFactNotFoundError extends DomainError {
+  readonly code = "not_found";
+
+  constructor(id: string) {
+    super(`Learner fact ${id} not found.`, "This fact no longer exists.");
+  }
+}
 
 /** How many unremembered sessions one sweep picks up. */
 const SWEEP_LIMIT = 5;
@@ -81,5 +90,20 @@ export class LearnerMemoryService {
       facts: facts.map(({ topic, statement }) => ({ topic, statement })),
       recentSessions: recent.map((s) => ({ mode: s.mode, daysAgo: daysBetween(s.startedAt, session.startedAt), recap: s.recap })),
     };
+  }
+
+  /** Every fact, oldest first: what the learner sees on "What Voxa knows about you". */
+  facts(): Promise<LearnerFact[]> {
+    return this.memory.facts();
+  }
+
+  async editFact(id: string, statement: string): Promise<LearnerFact> {
+    const fact = await this.memory.editFact(id, statement, this.clock.now());
+    if (!fact) throw new LearnerFactNotFoundError(id);
+    return fact;
+  }
+
+  async deleteFact(id: string): Promise<void> {
+    if (!(await this.memory.deleteFact(id))) throw new LearnerFactNotFoundError(id);
   }
 }

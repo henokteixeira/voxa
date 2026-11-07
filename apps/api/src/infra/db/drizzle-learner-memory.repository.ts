@@ -58,6 +58,20 @@ export class DrizzleLearnerMemoryRepository implements LearnerMemoryRepository {
     });
   }
 
+  async editFact(id: string, statement: string, at: Date): Promise<LearnerFact | null> {
+    const [row] = await this.db
+      .update(learnerFacts)
+      .set({ statement, updatedAt: at })
+      .where(eq(learnerFacts.id, id))
+      .returning();
+    return row ? toFact(row) : null;
+  }
+
+  async deleteFact(id: string): Promise<boolean> {
+    const rows = await this.db.delete(learnerFacts).where(eq(learnerFacts.id, id)).returning({ id: learnerFacts.id });
+    return rows.length > 0;
+  }
+
   async recentSessions(limit: number, before: Date): Promise<RecalledSession[]> {
     const rows = await this.db
       .select({ mode: sessions.mode, language: sessions.language, startedAt: sessions.startedAt, recap: sessions.recap })

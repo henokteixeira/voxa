@@ -1,4 +1,5 @@
 import type { RouteObject } from "react-router";
+import { MemoryPage } from "@/features/memory/memory-page";
 import { OnboardingPage } from "@/features/onboarding/onboarding-page";
 import { PracticePage } from "@/features/practice/practice-page";
 import { ReviewPage } from "@/features/practice/review-page";
@@ -18,6 +19,7 @@ export const routes: RouteObject[] = [
       { path: "mistakes/patterns/:patternId", element: <PracticePage /> },
       { path: "progress", element: <ProgressPage /> },
       { path: "progress/level", element: <LevelPage /> },
+      { path: "memory", element: <MemoryPage /> },
     ],
   },
   // First run: welcome, microphone, then the level chat. Whole screen, no tab bar.
