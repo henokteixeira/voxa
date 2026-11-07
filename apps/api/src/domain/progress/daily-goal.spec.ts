@@ -2,20 +2,20 @@ import { describe, expect, it } from "vitest";
 import { dailyGoalXp, isPersonalRecord, localDay, streakDays, xpForSession } from "./daily-goal.js";
 
 describe("dailyGoalXp", () => {
-  it("turns the minutes a day into an XP goal", () => {
-    expect([15, 30, 45, 60].map((m) => dailyGoalXp(m as 15 | 30 | 45 | 60))).toEqual([20, 40, 60, 80]);
+  it("makes the goal 1 XP a minute of the chosen time", () => {
+    expect([15, 30, 45, 60].map((m) => dailyGoalXp(m as 15 | 30 | 45 | 60))).toEqual([15, 30, 45, 60]);
   });
 });
 
 describe("xpForSession", () => {
-  it("gives 1 XP a full minute and 5 for each goal, self-correction and record", () => {
+  it("gives 1 XP a full minute, with small bonuses for goals, self-corrections and records", () => {
     expect(
       xpForSession({ conversationMs: 8 * 60_000 + 59_000, goalsCovered: 2, selfCorrections: 1, personalRecord: true }),
     ).toEqual([
       { reason: "practice_minute", count: 8, points: 8 },
-      { reason: "goal_covered", count: 2, points: 10 },
-      { reason: "self_corrected", count: 1, points: 5 },
-      { reason: "personal_record", count: 1, points: 5 },
+      { reason: "goal_covered", count: 2, points: 2 },
+      { reason: "self_corrected", count: 1, points: 2 },
+      { reason: "personal_record", count: 1, points: 3 },
     ]);
   });
 

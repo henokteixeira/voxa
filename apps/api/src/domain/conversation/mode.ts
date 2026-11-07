@@ -11,3 +11,8 @@ export function isMode(value: unknown): value is Mode {
 export function correctsMistakes(mode: Mode): boolean {
   return mode !== "placement";
 }
+
+/** The placement interview's tasks are steps of the interview, not meeting goals: covering them earns no XP. */
+export function rewardsGoals(mode: Mode): boolean {
+  return mode !== "placement";
+}
