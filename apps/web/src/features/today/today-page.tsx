@@ -2,9 +2,11 @@ import { useId, useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { SegmentedSetting } from "@/components/ui/segmented";
 import { Sheet } from "@/components/ui/sheet";
 import { VoiceBall } from "@/components/voice-ball";
 import { useModeInfo } from "@/features/session/modes";
+import { DailyGoalSetting, SoundSetting } from "@/features/settings/practice-settings";
 import { takeSavedSession } from "@/features/session/saved-session";
 import { useApi } from "@/hooks/use-api";
 import { useApiStatus } from "@/hooks/use-api-status";
@@ -46,37 +48,17 @@ function LanguageSwitch({ label }: { label: string }) {
 /** How long the learner can stay quiet before their turn is sent. */
 function PauseSetting({ title, hint, seconds }: { title: string; hint: string; seconds: (ms: number) => string }) {
   const [pauseMs, setPauseMs] = useState(readPauseMs);
-  const titleId = useId();
-  const hintId = useId();
-  const choose = (ms: number) => {
-    setPauseMs(ms);
-    savePauseMs(ms);
-  };
   return (
-    <section className="flex flex-col gap-2">
-      <h3 id={titleId} className="m-0 text-body-strong">
-        {title}
-      </h3>
-      <p id={hintId} className="m-0 text-caption text-taupe">
-        {hint}
-      </p>
-      <div role="group" aria-labelledby={titleId} aria-describedby={hintId} className="flex rounded-pill bg-sand-soft p-1">
-        {PAUSE_CHOICES_MS.map((ms) => (
-          <button
-            key={ms}
-            type="button"
-            aria-pressed={ms === pauseMs}
-            onClick={() => choose(ms)}
-            className={cn(
-              "min-h-11 flex-1 cursor-pointer rounded-pill border-none bg-transparent px-3 text-sm font-bold text-taupe",
-              ms === pauseMs && "bg-paper text-ink shadow-tab",
-            )}
-          >
-            {seconds(ms)}
-          </button>
-        ))}
-      </div>
-    </section>
+    <SegmentedSetting
+      title={title}
+      hint={hint}
+      options={PAUSE_CHOICES_MS.map((ms) => ({ value: ms, label: seconds(ms) }))}
+      value={pauseMs}
+      onChange={(ms) => {
+        setPauseMs(ms);
+        savePauseMs(ms);
+      }}
+    />
   );
 }
 
@@ -194,7 +176,9 @@ export function TodayPage() {
       {settingsOpen && (
         <Sheet label={copy.settings} closeLabel={copy.close} onClose={() => setSettingsOpen(false)}>
           <h2 className="m-0 text-heading">{copy.settings}</h2>
+          <DailyGoalSetting />
           <PauseSetting title={copy.pauseTitle} hint={copy.pauseHint} seconds={copy.seconds} />
+          <SoundSetting />
         </Sheet>
       )}
 

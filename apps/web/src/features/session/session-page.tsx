@@ -11,6 +11,7 @@ import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-co
 import { CaptionCard, HintCard, IconButton, LatestCaption, PauseIcon, QuietLink, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
 import { SummaryFlow } from "./session-summary";
 import type { FailureCode } from "./session-state";
+import { useSessionCues } from "./use-session-cues";
 import { useVoiceSession } from "./use-voice-session";
 
 /** What the confidence check-in hands to the live session (router state). */
@@ -31,6 +32,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
   const modes = useModeInfo();
   const { stage: stageCopy, page } = useCopy(SESSION_COPY);
   const { state } = session;
+  useSessionCues(state);
   const [showTranscript, setShowTranscript] = useState(false);
   // Which caption the learner chose to read: a new tutor line starts hidden again.
   const [shownCaption, setShownCaption] = useState(-1);
