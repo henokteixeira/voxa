@@ -150,6 +150,7 @@ describe("DrizzleMistakeRepository", () => {
         selfCorrected: false,
         occurrences: 2,
         pattern: null,
+        patternId: null,
       },
     ]);
   });

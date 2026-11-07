@@ -122,6 +122,7 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
         severity: mistakeOccurrences.severity,
         selfCorrected: mistakeOccurrences.selfCorrected,
         occurrences: mistakes.occurrences,
+        patternId: mistakes.patternId,
         ...patternColumns,
       })
       .from(mistakeOccurrences)

@@ -44,6 +44,7 @@ import {
 import { type TutorContext, TUTOR_PORT, type TutorPort } from "../domain/ports/tutor.port.js";
 import { ReviewScheduler } from "./review-scheduler.js";
 import { recordTurnLearning } from "./turn-learning.js";
+import { chooseTakeaways, type Takeaway } from "../domain/mistakes/takeaways.js";
 
 /** How many of the learner's most frequent mistakes the tutor watches for. */
 export const KNOWN_MISTAKES_LIMIT = 20;
@@ -116,6 +117,8 @@ export interface SessionSummary {
   goals: { id: string; covered: boolean }[];
   /** The mistakes practiced in this session; `met` when the learner said the correct form. */
   targets: (PracticeTarget & { met: boolean })[];
+  /** Up to three patterns from the session for the learner to take away and try saying. */
+  takeaways: Takeaway[];
   /** After a placement interview: the level it gave, or null when the learner said nothing. Null in other modes. */
   level: SpeakingLevel | null;
 }
@@ -355,6 +358,8 @@ export class ConversationService {
       },
       goals: goalsFor(session.mode).map((id) => ({ id, covered: session.coveredGoals.includes(id) })),
       targets: session.targets.map((t) => ({ ...t, met: session.metTargets.includes(t.original) })),
+      // The placement interview only observes: nothing to take away.
+      takeaways: session.mode === "placement" ? [] : chooseTakeaways(mistakes),
       level,
     };
   }

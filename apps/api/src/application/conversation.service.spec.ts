@@ -162,6 +162,7 @@ class FakeMistakes implements MistakeRepository {
           selfCorrected: e.selfCorrected,
           occurrences: m.occurrences,
           pattern: m.pattern,
+          patternId: m.patternId,
         };
       });
   }
@@ -1022,6 +1023,19 @@ describe("ConversationService.resume", () => {
     const { session } = await service.start("daily", "en");
     await service.end(session.id);
     await expect(service.resume(session.id)).rejects.toBeInstanceOf(SessionEndedError);
+  });
+});
+
+describe("takeaways in the summary", () => {
+  it("lists the session's patterns to take away", async () => {
+    const pattern = { key: "articles", name: "A before a singular noun", rule: "Use a antes de substantivo singular." };
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [{ ...article, pattern }] }));
+    await service.respond(session.id, "I opened PR");
+
+    expect((await service.end(session.id)).takeaways).toEqual([
+      { patternId: "p-articles", category: "grammar", name: pattern.name, rule: pattern.rule, said: article.original },
+    ]);
   });
 });
 

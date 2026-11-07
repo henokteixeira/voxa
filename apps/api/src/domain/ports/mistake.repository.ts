@@ -32,6 +32,7 @@ export interface SessionMistake {
   /** How many times this mistake has been seen across all sessions. */
   occurrences: number;
   pattern: MistakePattern | null;
+  patternId: string | null;
 }
 
 /** Bank of mistakes and expressions. The concrete implementation lives in infra/. */
