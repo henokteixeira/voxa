@@ -111,13 +111,14 @@ export class ConversationService {
   /** The state of an open session, so the learner can go on where they left off. */
   async resume(sessionId: string): Promise<SessionResume> {
     const session = await this.openSession(sessionId);
+    const turns = await this.sessions.history(sessionId);
     const { pending } = session;
     return {
       sessionId: session.id,
       mode: session.mode,
       language: session.language,
       startedAt: session.startedAt,
-      turns: await this.sessions.history(sessionId),
+      turns,
       goals: goalsFor(session.mode),
       coveredGoals: session.coveredGoals,
       hint: pending ? { hintsGiven: pending.hintsGiven, revealed: pending.revealed } : null,

@@ -623,6 +623,8 @@ describe("ConversationService.resume", () => {
       coveredGoals: ["yesterday"],
       hint: { hintsGiven: 1, revealed: false },
     });
+    // The hints must not give the correction away.
+    expect(JSON.stringify(resumed)).not.toContain(goed.correction);
   });
 
   it("has no hint when no correction is pending", async () => {
