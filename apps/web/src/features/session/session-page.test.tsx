@@ -390,6 +390,14 @@ describe("live session", () => {
     expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ pausesMs: expect.any(Array) }));
   });
 
+  it("keeps the learner's turn when they start talking", async () => {
+    await startAndListen();
+    mic.resume.mockClear();
+    act(() => micHandlers.onSpeechStart());
+    expect(screen.getByText("Listening")).toBeInTheDocument();
+    expect(mic.resume).not.toHaveBeenCalled();
+  });
+
   it("lets the learner send early or stop the tutor by tapping the ball", async () => {
     await startAndListen();
     act(() => micHandlers.onSpeechStart());

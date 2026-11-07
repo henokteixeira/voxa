@@ -248,9 +248,11 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
   useEffect(() => {
     if (listening) mic.current?.resume();
     else mic.current?.pause();
+  }, [listening]);
+  useEffect(() => {
     // Typing or pausing: the wait that follows is not a pause before speaking.
     if (typing || state.phase === "paused") clock.current.interrupt();
-  }, [listening, typing, state.phase]);
+  }, [typing, state.phase]);
 
   const sendText = useCallback((text: string) => {
     setTyping(false);
