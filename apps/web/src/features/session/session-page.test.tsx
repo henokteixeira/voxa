@@ -538,6 +538,13 @@ describe("live session", () => {
     expect(screen.getByText("Finish the sentence")).toBeInTheDocument();
     expect(screen.getByText("Today I'm going to…")).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: /Step \d of 5/ })).not.toBeInTheDocument();
+
+    // Once the learner answers, the sentence start leaves the screen.
+    act(() => socketHandlers.onDone());
+    await act(async () => finishPlayback());
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("Today I'm going to fix the upload."));
+    expect(screen.queryByText("Finish the sentence")).not.toBeInTheDocument();
   });
 
   it("keeps the microphone off while the learner types", async () => {

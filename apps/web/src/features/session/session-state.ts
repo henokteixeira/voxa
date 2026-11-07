@@ -198,6 +198,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         ...state,
         captions: repeat ? state.captions : [...state.captions, { who: "you", text: action.text }],
         turn: { ...state.turn, transcript: action.text },
+        // The words to say have done their job once the learner answers: they leave the screen.
+        scaffold: null,
       };
     }
     case "tutor":
