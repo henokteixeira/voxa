@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router";
@@ -43,33 +43,27 @@ describe("Progress", () => {
     renderProgress({ level: vi.fn().mockResolvedValue(placed) }, (n) => <LocaleProvider>{n}</LocaleProvider>);
     expect(screen.getByRole("heading", { name: "Progresso" })).toBeInTheDocument();
     expect(await screen.findByText(/toda sessão conta, com erros e tudo/)).toBeInTheDocument();
-    expect(await screen.findByText("Nível A2")).toBeInTheDocument();
-    expect(screen.getByText(/não uma nota/)).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: "Nível A2" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Por que A2?" })).toBeInTheDocument();
   });
 
-  it("shows the level with the learner's own lines, as an estimate", async () => {
+  it("shows the level on the scale with the help it gives, and links to why", async () => {
     renderProgress({ level: vi.fn().mockResolvedValue(placed) });
-    const card = await screen.findByRole("region", { name: "Your speaking level" });
-    expect(card).toHaveTextContent("Level A2");
-    expect(card).toHaveTextContent("From the placement interview");
-    expect(card).toHaveTextContent("“Yesterday I fix one bug in the upload”");
-    expect(card).toHaveTextContent("An estimate, not a grade");
-    expect(screen.getByRole("link", { name: "Do the placement again" })).toHaveAttribute("href", "/session/placement");
+    const card = await screen.findByRole("region", { name: "Speaking level · estimate" });
+    expect(within(card).getByRole("img", { name: "Level A2" })).toBeInTheDocument();
+    expect(card).toHaveTextContent("guided, light · From the level chat");
+    expect(screen.getByRole("link", { name: "Why A2?" })).toHaveAttribute("href", "/progress/level");
   });
 
-  it("invites a placement when there is no level yet", async () => {
-    renderProgress({ level: vi.fn().mockResolvedValue({ current: null, placementDue: true }) });
-    expect(await screen.findByRole("link", { name: "Start the conversation" })).toHaveAttribute("href", "/session/placement");
-  });
-
-  it("lets the learner set a level by hand when there is none", async () => {
+  it("invites a level chat when there is no level yet, or a level set by hand", async () => {
     const setLevel = vi.fn().mockResolvedValue({ ...placed, current: { ...placed.current!, source: "manual" } });
     renderProgress({ level: vi.fn().mockResolvedValue({ current: null, placementDue: true }), setLevel });
-    await userEvent.click(await screen.findByRole("button", { name: "Or set it by hand" }));
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Level" }), "A2");
+    expect(await screen.findByRole("link", { name: "Start the conversation" })).toHaveAttribute("href", "/session/placement");
+    await userEvent.click(screen.getByRole("button", { name: "Or set it by hand" }));
+    await userEvent.click(screen.getByRole("radio", { name: "A2 · guided, light" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(setLevel).toHaveBeenCalledWith("A2");
-    expect(await screen.findByText("Level A2")).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: "Level A2" })).toBeInTheDocument();
   });
 
   it("says when the level can't be loaded and tries again", async () => {
@@ -77,58 +71,45 @@ describe("Progress", () => {
     renderProgress({ level });
     expect(await screen.findByText("Couldn't load your level")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
-    expect(await screen.findByText("Level A2")).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: "Level A2" })).toBeInTheDocument();
   });
 
-  it("says when a new placement is due", async () => {
+  it("says when a new level chat is due", async () => {
     renderProgress({ level: vi.fn().mockResolvedValue({ ...placed, placementDue: true }) });
     expect(await screen.findByText(/It's been 4 weeks/)).toBeInTheDocument();
-  });
-
-  it("lets the learner adjust the level by hand", async () => {
-    const setLevel = vi.fn().mockResolvedValue({
-      ...placed,
-      current: { ...placed.current!, level: "B1", source: "manual", evidence: [] },
-    });
-    renderProgress({ level: vi.fn().mockResolvedValue(placed), setLevel });
-    await userEvent.click(await screen.findByRole("button", { name: "Adjust the level" }));
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Level" }), "B1");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(setLevel).toHaveBeenCalledWith("B1");
-    expect(await screen.findByText("Level B1")).toBeInTheDocument();
-    expect(screen.getByText(/Set by you/)).toBeInTheDocument();
-  });
-
-  it("says when the level could not be saved", async () => {
-    renderProgress({ level: vi.fn().mockResolvedValue(placed), setLevel: vi.fn().mockRejectedValue(new Error("down")) });
-    await userEvent.click(await screen.findByRole("button", { name: "Adjust the level" }));
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save");
   });
 
   afterEach(() => localStorage.clear());
 
   const goingUp: LevelView = { ...placed, proposal: { direction: "up", to: "B1", basedOn: "s7" } };
 
-  it("proposes a step change the learner confirms", async () => {
+  it("proposes a step change in a sheet the learner confirms", async () => {
     const confirmStepChange = vi.fn().mockResolvedValue({
       ...placed,
       current: { ...placed.current!, level: "B1", source: "step_change", evidence: [] },
       proposal: null,
     });
     renderProgress({ level: vi.fn().mockResolvedValue(goingUp), confirmStepChange });
-    const proposal = await screen.findByRole("region", { name: "Ready for B1?" });
-    expect(proposal).toHaveTextContent("at least 8 in 10 of your answers needed no help");
-    await userEvent.click(screen.getByRole("button", { name: "Move to B1" }));
+    const sheet = await screen.findByRole("dialog", { name: "Ready for a bit less help? (B1)" });
+    expect(sheet).toHaveTextContent("at least 8 in 10 of your answers needed no help");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Yes, try it" }));
     expect(confirmStepChange).toHaveBeenCalledWith("B1");
-    expect(await screen.findByText("Level B1")).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Ready for B1?" })).toBeNull();
+    expect(await screen.findByRole("img", { name: "Level B1" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("hides a proposal after Not now, until the proposal changes", async () => {
+  it("keeps the step-change sheet open with the error when confirming fails", async () => {
+    renderProgress({ level: vi.fn().mockResolvedValue(goingUp), confirmStepChange: vi.fn().mockRejectedValue(new Error("down")) });
+    await userEvent.click(await screen.findByRole("button", { name: "Yes, try it" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save");
+    expect(screen.getByRole("dialog", { name: "Ready for a bit less help? (B1)" })).toBeInTheDocument();
+    expect(localStorage.getItem("voxa.stepChangeDismissed")).toBeNull();
+  });
+
+  it("hides a proposal after Not yet, until the proposal changes", async () => {
     renderProgress({ level: vi.fn().mockResolvedValue(goingUp) });
-    await userEvent.click(await screen.findByRole("button", { name: "Not now" }));
-    expect(screen.queryByRole("region", { name: "Ready for B1?" })).toBeNull();
+    await userEvent.click(await screen.findByRole("button", { name: "Not yet" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(localStorage.getItem("voxa.stepChangeDismissed")).toBe("s7:up:B1");
   });
 

@@ -1,80 +1,174 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Sheet } from "@/components/ui/sheet";
+import { VoiceBall } from "@/components/voice-ball";
 import { CEFR_LEVELS, type CefrLevel, type LevelView, type StepChangeProposal } from "@/lib/api";
 import { useCopy, useLocale } from "@/lib/i18n/locale";
+import { cn } from "@/lib/utils";
 import { LEVEL_COPY } from "./level-copy";
+import { proposalKey } from "./use-level";
 
 export const PLACEMENT_PATH = "/session/placement";
+/** What the tutor noticed: the evidence behind the level, and ways to change it. */
+export const LEVEL_PATH = "/progress/level";
 
-/** The speaking level on the Progress tab: the estimate, the learner's own lines behind it, and ways to change it. */
-export function LevelCard({
-  view,
-  onSet,
-  onConfirm,
-}: {
-  view: LevelView;
-  onSet: (level: CefrLevel) => Promise<void>;
-  onConfirm: (to: CefrLevel) => Promise<void>;
-}) {
+/** The speaking level on the Progress tab: the estimate on the CEFR scale, how much help it gives, and "Why A2?". */
+export function LevelCard({ view, onSet }: { view: LevelView; onSet: (level: CefrLevel) => Promise<void> }) {
   const copy = useCopy(LEVEL_COPY);
   const { locale } = useLocale();
   const titleId = useId();
+  const title = useRef<HTMLHeadingElement>(null);
+  const [changing, setChanging] = useState(false);
   const { current, placementDue } = view;
+
+  // Outside the branches: saving a first level swaps the card, and the sheet must stay mounted to close.
+  const sheet = changing && (
+    <LevelSheet
+      current={current?.level ?? null}
+      onSet={onSet}
+      onClose={() => {
+        setChanging(false);
+        // The button that opened the sheet may be gone (the card changed): keep the focus on the card.
+        if (!document.activeElement || document.activeElement === document.body) title.current?.focus();
+      }}
+    />
+  );
 
   if (!current) {
     return (
       <Card role="region" aria-labelledby={titleId} className="gap-3">
-        <h2 id={titleId} className="m-0 text-body-strong">
+        <h2 ref={title} id={titleId} tabIndex={-1} className="m-0 text-body-strong outline-none">
           {copy.noLevelTitle}
         </h2>
         <p className="m-0 text-caption text-taupe">{copy.noLevelBody}</p>
         <Button block asChild>
           <Link to={PLACEMENT_PATH}>{copy.startPlacement}</Link>
         </Button>
-        <AdjustLevel current={null} onSet={onSet} />
+        <Button variant="ghost" block onClick={() => setChanging(true)}>
+          {copy.setByHand}
+        </Button>
+        {sheet}
       </Card>
     );
   }
 
   const date = new Date(current.assessedAt).toLocaleDateString(locale, { day: "numeric", month: "short" });
   return (
-    <Card role="region" aria-labelledby={titleId} className="gap-3">
-      <h2 id={titleId} className="m-0 text-caption text-taupe">
-        {copy.levelTitle}
-      </h2>
-      <span className="font-serif text-[32px] leading-none">{copy.levelOf(current.level)}</span>
-      <span className="text-caption text-taupe">{copy.source(current.source, date)}</span>
-      {current.evidence.length > 0 && (
-        <section className="flex flex-col gap-1.5">
-          <h3 className="m-0 text-label text-taupe">{copy.evidenceLabel}</h3>
-          <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
-            {current.evidence.map((line) => (
-              <li key={line} lang={current.language} className="rounded-md bg-sand-soft px-3 py-2 text-small">
-                “{line}”
-              </li>
+    <>
+      <Card role="region" aria-labelledby={titleId} className="gap-3">
+        <h2 ref={title} id={titleId} tabIndex={-1} className="m-0 text-label text-taupe outline-none">
+          {copy.estimateLabel}
+        </h2>
+        <span className="font-serif text-[40px] leading-none">{current.level}</span>
+        <LevelScale level={current.level} label={copy.levelOf(current.level)} />
+        <span className="text-caption text-taupe">
+          {copy.help[current.level]} · {copy.source(current.source, date)}
+        </span>
+        {placementDue && <p className="m-0 text-caption text-honey-ink">{copy.placementDue}</p>}
+        {sheet}
+      </Card>
+      <Link
+        to={LEVEL_PATH}
+        className="flex min-h-[52px] items-center justify-between gap-3 rounded-md bg-paper px-5 text-body-strong text-ink no-underline shadow-card"
+      >
+        {copy.why(current.level)}
+        <ChevronIcon />
+      </Link>
+    </>
+  );
+}
+
+/** The CEFR levels as a row, the learner's one filled. */
+function LevelScale({ level, label }: { level: CefrLevel; label: string }) {
+  return (
+    <span role="img" aria-label={label} className="flex gap-1.5">
+      {CEFR_LEVELS.map((l) => (
+        <span
+          key={l}
+          aria-hidden="true"
+          className={cn(
+            "flex-1 rounded-pill py-1 text-center text-[12px] font-bold transition-colors duration-300",
+            l === level ? "bg-ink text-paper" : "bg-sand-soft text-taupe",
+          )}
+        >
+          {l}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Change the level by hand: each level with how much help it gives. */
+export function LevelSheet({
+  current,
+  onSet,
+  onClose,
+}: {
+  current: CefrLevel | null;
+  onSet: (level: CefrLevel) => Promise<void>;
+  onClose: () => void;
+}) {
+  const copy = useCopy(LEVEL_COPY);
+  const [choice, setChoice] = useState<CefrLevel>(current ?? CEFR_LEVELS[0]);
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const titleId = useId();
+  return (
+    <Sheet label={copy.sheetTitle} closeLabel={copy.back} onClose={onClose}>
+      {(close) => (
+        <>
+          <h2 id={titleId} className="m-0 text-heading">
+            {copy.sheetTitle}
+          </h2>
+          <div role="radiogroup" aria-labelledby={titleId} className="flex flex-col gap-2">
+            {CEFR_LEVELS.map((level) => (
+              <button
+                key={level}
+                type="button"
+                role="radio"
+                aria-checked={choice === level}
+                onClick={() => setChoice(level)}
+                className={cn(
+                  "vx-spring flex min-h-12 cursor-pointer items-center gap-2 rounded-pill border-none px-5 text-left font-sans text-body",
+                  choice === level ? "bg-ink text-paper" : "bg-paper text-ink shadow-[inset_0_0_0_1.5px_var(--color-sand)]",
+                )}
+              >
+                <b>{level}</b> · {copy.help[level]}
+              </button>
             ))}
-          </ul>
-        </section>
+          </div>
+          {failed && (
+            <p role="alert" className="m-0 text-caption text-honey-ink">
+              {copy.saveFailed}
+            </p>
+          )}
+          <Button
+            block
+            disabled={saving}
+            onClick={async () => {
+              setFailed(false);
+              setSaving(true);
+              try {
+                await onSet(choice);
+                close();
+              } catch {
+                setFailed(true);
+                setSaving(false);
+              }
+            }}
+          >
+            {copy.save}
+          </Button>
+        </>
       )}
-      <p className="m-0 text-caption text-taupe">{copy.notAGrade}</p>
-      {view.proposal && (
-        <StepChange key={proposalKey(view.proposal)} proposal={view.proposal} onConfirm={onConfirm} />
-      )}
-      {placementDue && <p className="m-0 text-caption text-honey-ink">{copy.placementDue}</p>}
-      <AdjustLevel current={current.level} onSet={onSet} />
-      <Button variant="ghost" block asChild>
-        <Link to={PLACEMENT_PATH}>{copy.redoPlacement}</Link>
-      </Button>
-    </Card>
+    </Sheet>
   );
 }
 
 const DISMISSED_KEY = "voxa.stepChangeDismissed";
 
-/** "Not now" hides one proposal: after another session that still points the same way, it comes back. */
-const proposalKey = (proposal: StepChangeProposal) => `${proposal.basedOn}:${proposal.direction}:${proposal.to}`;
 
 function wasDismissed(key: string): boolean {
   try {
@@ -84,64 +178,71 @@ function wasDismissed(key: string): boolean {
   }
 }
 
-/** The step change the last sessions point to. The learner decides; "Not now" hides it until the next session. */
-function StepChange({
+/** The step change the last sessions point to, as a sheet. The learner decides; "Not yet" hides it until the next session. */
+export function StepChangeSheet({
   proposal,
   onConfirm,
 }: {
   proposal: StepChangeProposal;
   onConfirm: (to: CefrLevel) => Promise<void>;
 }) {
-  const copy = useCopy(LEVEL_COPY);
+  const { stepChange: copy, saveFailed } = useCopy(LEVEL_COPY);
   const key = proposalKey(proposal);
-  const [hidden, setHidden] = useState(() => wasDismissed(key));
+  const [open, setOpen] = useState(() => !wasDismissed(key));
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
-  const titleId = useId();
-  if (hidden) return null;
+  if (!open) return null;
 
+  const title = copy.title(proposal.direction, proposal.to);
   const dismiss = () => {
     try {
       localStorage.setItem(DISMISSED_KEY, key);
     } catch {
       // Without storage the proposal simply comes back next time.
     }
-    setHidden(true);
-  };
-  const confirm = async () => {
-    setFailed(false);
-    setSaving(true);
-    try {
-      await onConfirm(proposal.to);
-    } catch {
-      setFailed(true);
-      setSaving(false);
-    }
+    setOpen(false);
   };
   return (
-    <section aria-labelledby={titleId} className="flex flex-col gap-2 rounded-md bg-sage-soft p-4">
-      <h3 id={titleId} className="m-0 text-label text-sage-ink">
-        {copy.stepChange.title(proposal.direction, proposal.to)}
-      </h3>
-      <p className="m-0 text-small text-ink-soft">{copy.stepChange.body(proposal.direction)}</p>
-      {failed && (
-        <p role="alert" className="m-0 text-caption text-honey-ink">
-          {copy.saveFailed}
-        </p>
+    // While the change is saving, it can't be dismissed: a failure must stay visible.
+    <Sheet label={title} onClose={dismiss} dismissible={!saving}>
+      {(close) => (
+        <>
+          <div className="self-center">
+            <VoiceBall state="success" size={88} />
+          </div>
+          <h2 className="m-0 text-heading">{title}</h2>
+          <p className="m-0 text-body text-ink-soft">{copy.body(proposal.direction)}</p>
+          {failed && (
+            <p role="alert" className="m-0 text-caption text-honey-ink">
+              {saveFailed}
+            </p>
+          )}
+          <Button
+            block
+            disabled={saving}
+            onClick={async () => {
+              setFailed(false);
+              setSaving(true);
+              try {
+                await onConfirm(proposal.to);
+                setOpen(false);
+              } catch {
+                setFailed(true);
+                setSaving(false);
+              }
+            }}
+          >
+            {copy.confirm}
+          </Button>
+          <Button variant="ghost" block disabled={saving} onClick={close}>
+            {copy.notNow}
+          </Button>
+        </>
       )}
-      <div className="flex gap-2">
-        <Button variant="ghost" block disabled={saving} onClick={dismiss}>
-          {copy.stepChange.notNow}
-        </Button>
-        <Button block disabled={saving} onClick={confirm}>
-          {copy.stepChange.confirm(proposal.to)}
-        </Button>
-      </div>
-    </section>
+    </Sheet>
   );
 }
 
-/** Hand correction. Without a level yet (e.g. a placement where little was said), it starts from the lowest level. */
 /** The level could not be read: say so, instead of looking like there is no level. */
 export function LevelUnavailable({ onRetry }: { onRetry: () => void }) {
   const copy = useCopy(LEVEL_COPY);
@@ -156,63 +257,10 @@ export function LevelUnavailable({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-function AdjustLevel({ current, onSet }: { current: CefrLevel | null; onSet: (level: CefrLevel) => Promise<void> }) {
-  const copy = useCopy(LEVEL_COPY);
-  const [open, setOpen] = useState(false);
-  const [choice, setChoice] = useState<CefrLevel>(current ?? CEFR_LEVELS[0]);
-  const [failed, setFailed] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const selectId = useId();
-
-  if (!open) {
-    return (
-      <Button variant="ghost" block onClick={() => setOpen(true)}>
-        {current ? copy.adjust : copy.setByHand}
-      </Button>
-    );
-  }
-  const save = async () => {
-    setFailed(false);
-    setSaving(true);
-    try {
-      await onSet(choice);
-      setOpen(false);
-    } catch {
-      setFailed(true);
-    } finally {
-      setSaving(false);
-    }
-  };
+function ChevronIcon() {
   return (
-    <div className="flex flex-col gap-2">
-      <label htmlFor={selectId} className="text-label text-taupe">
-        {copy.adjustLabel}
-      </label>
-      <select
-        id={selectId}
-        value={choice}
-        onChange={(e) => setChoice(e.target.value as CefrLevel)}
-        className="min-h-11 rounded-md border-none bg-sand-soft px-3 text-body text-ink"
-      >
-        {CEFR_LEVELS.map((level) => (
-          <option key={level} value={level}>
-            {level}
-          </option>
-        ))}
-      </select>
-      {failed && (
-        <p role="alert" className="m-0 text-caption text-honey-ink">
-          {copy.saveFailed}
-        </p>
-      )}
-      <div className="flex gap-2">
-        <Button variant="ghost" block disabled={saving} onClick={() => setOpen(false)}>
-          {copy.cancel}
-        </Button>
-        <Button block disabled={saving} onClick={save}>
-          {copy.save}
-        </Button>
-      </div>
-    </div>
+    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-taupe">
+      <path d="M9 6l6 6-6 6" />
+    </svg>
   );
 }

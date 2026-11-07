@@ -986,7 +986,7 @@ describe("after a reload", () => {
 
 
 describe("placement interview", () => {
-  it("ends with the estimated level and the learner's lines", async () => {
+  it("ends without a result and points to Progress", async () => {
     api.startSession.mockResolvedValue({ sessionId: "s1", mode: "placement", language: "en", message: "Hi! What do you do?", goals: ["warm_up", "routine"] });
     api.endSession.mockResolvedValue(
       summaryWith([mistake("minor", false, "I work in app for translate", "I work on a translation app")], {
@@ -1009,12 +1009,12 @@ describe("placement interview", () => {
     expect(screen.getByRole("img", { name: "Part 2 of 2" })).toBeInTheDocument();
 
     await endFromPause();
-    expect(await screen.findByRole("heading", { name: "Thanks for the conversation" })).toBeInTheDocument();
-    expect(screen.getByText("Level A2")).toBeInTheDocument();
-    expect(screen.getByText("“I work in app for translate”")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(await screen.findByRole("heading", { name: "Session saved" })).toBeInTheDocument();
+    // No result here: the level lives in Progress.
+    expect(await screen.findByRole("heading", { name: "Thanks for the chat" })).toBeInTheDocument();
+    expect(screen.queryByText(/A2/)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "See it in Progress" })).toHaveAttribute("href", "/progress/level");
+    expect(screen.getByRole("link", { name: "Start my first session" })).toHaveAttribute("href", "/");
     // Slips noted during the interview are not presented as mistakes.
-    expect(screen.queryByText(/mistake bank/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/mistake/i)).not.toBeInTheDocument();
   });
 });
