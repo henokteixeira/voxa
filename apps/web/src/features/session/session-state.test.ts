@@ -45,6 +45,24 @@ describe("sessionReducer", () => {
     expect(state).toMatchObject({ support: "Ontem = yesterday.", coveredGoals: ["yesterday"], hintStep: 0 });
   });
 
+  it("follows the guided track and the words to say, and keeps them when an older server sends neither", () => {
+    const model = "Yesterday I worked on the login screen.";
+    let state = run({ ...started, track: { stage: "model", number: 1, total: 5 }, scaffold: model });
+    expect(state).toMatchObject({ track: { stage: "model" }, scaffold: model });
+    state = run(
+      { ...started, track: { stage: "model", number: 1, total: 5 }, scaffold: model },
+      { type: "sent", request: "audio" },
+      { type: "transcript", text: model },
+      { type: "tutor", result: { kind: "reply", message: "Great. Now with your own work.", selfCorrected: false } },
+    );
+    expect(state).toMatchObject({ track: { stage: "model" }, scaffold: model });
+    state = sessionReducer(state, {
+      type: "followup",
+      result: { kind: "reply", message: null, selfCorrected: false, track: { stage: "swap", number: 2, total: 5 }, scaffold: null },
+    });
+    expect(state).toMatchObject({ track: { stage: "swap", number: 2 }, scaffold: null });
+  });
+
   it("opens with the tutor's first line, speaks it, then hands over", () => {
     let state = run(started, { type: "sent", request: "speak" });
     expect(state.phase).toBe("thinking");

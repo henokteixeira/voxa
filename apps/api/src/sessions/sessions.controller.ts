@@ -4,6 +4,7 @@ import { ConversationService } from "../application/conversation.service.js";
 import { ProgressService } from "../application/progress.service.js";
 import { SignalsService } from "../application/signals.service.js";
 import { Language, parse } from "../common/http.js";
+import { trackView } from "../domain/conversation/guided-track.js";
 import { MODES } from "../domain/conversation/mode.js";
 
 const StartBody = z.object({
@@ -40,7 +41,15 @@ export class SessionsController {
   async start(@Body() body: unknown) {
     const { mode, language } = parse(StartBody, body);
     const { session, message, goals } = await this.conversation.start(mode, language);
-    return { sessionId: session.id, mode: session.mode, language: session.language, message, goals };
+    return {
+      sessionId: session.id,
+      mode: session.mode,
+      language: session.language,
+      message,
+      goals,
+      track: trackView(session.track),
+      scaffold: session.scaffold,
+    };
   }
 
   /** An open session, to pick it up again (e.g. after the page reloads). */

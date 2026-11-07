@@ -6,6 +6,7 @@ import { VoiceBall } from "@/components/voice-ball";
 import type { Mode } from "@/lib/api";
 import { useCopy } from "@/lib/i18n/locale";
 import { CheckInCard, GoalsStrip } from "./goals";
+import { ScaffoldCard, TrackBar } from "./guided-track";
 import { isMode, useModeInfo } from "./modes";
 import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-copy";
 import { CaptionCard, HintCard, IconButton, LatestCaption, PauseIcon, QuietLink, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
@@ -85,6 +86,16 @@ function LiveSession({ mode }: { mode: Mode }) {
   } else if (state.hintStep > 0 && lastTutor) {
     bottom = <HintCard step={state.hintStep} said={state.hintFor} tip={lastTutor.text} help={state.support} />;
     helpInCard = true;
+  } else if (state.scaffold && !showTranscript) {
+    // Words to say: one card with them replaces the tutor's line, which is in the transcript.
+    // The learner's own last words stay, so there is time to check the transcription.
+    const yours = lastCaption?.who === "you" ? lastCaption : state.captions.at(-2);
+    bottom = (
+      <>
+        {yours?.who === "you" && <CaptionCard caption={yours} />}
+        <ScaffoldCard key={state.scaffold} text={state.scaffold} track={state.track} />
+      </>
+    );
   } else if (lastCaption && !showTranscript) {
     const index = state.captions.length - 1;
     // The learner's own words stay until they speak again, so there is time to check the transcription.
@@ -121,6 +132,7 @@ function LiveSession({ mode }: { mode: Mode }) {
       </header>
       {/* The placement interview's tasks are not goals to tick off: showing them would feel like a test. */}
       {mode !== "placement" && <GoalsStrip goals={state.goals} covered={state.coveredGoals} />}
+      {state.track && <TrackBar track={state.track} />}
       {/* Always mounted, so screen readers announce each toast; it floats over the ball or the transcript. */}
       <div aria-live="polite" className="pointer-events-none relative z-10 h-0">
         {toast && typeof toastXp === "number" && (

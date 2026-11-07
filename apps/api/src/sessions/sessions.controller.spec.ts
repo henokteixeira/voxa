@@ -37,12 +37,21 @@ afterEach(() => app.close());
 describe("POST /sessions", () => {
   it("starts a session in English by default", async () => {
     service.start.mockResolvedValue({
-      session: { id, language: "en", mode: "daily", pending: null, endedAt: null },
+      session: { id, language: "en", mode: "daily", pending: null, endedAt: null, track: null, scaffold: null },
       message: "Morning!",
+      goals: [],
     });
     const res = await request(app.getHttpServer()).post("/sessions").send({ mode: "daily" });
     expect(res.status).toBe(201);
-    expect(res.body).toEqual({ sessionId: id, mode: "daily", language: "en", message: "Morning!" });
+    expect(res.body).toEqual({
+      sessionId: id,
+      mode: "daily",
+      language: "en",
+      message: "Morning!",
+      goals: [],
+      track: null,
+      scaffold: null,
+    });
     expect(service.start).toHaveBeenCalledWith("daily", "en");
   });
 

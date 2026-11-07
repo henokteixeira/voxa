@@ -104,6 +104,16 @@ describe("openVoiceSocket", () => {
     expect(handlers.onFollowUp).toHaveBeenNthCalledWith(2, { kind: "reply", message: null, selfCorrected: false, checkIn: false, coveredGoals: ["today"] });
   });
 
+  it("keeps the guided track and the words to say, null included", () => {
+    const { fake } = open();
+    fake.open();
+    const track = { stage: "swap", number: 2, total: 5 };
+    fake.receive({ type: "tutor", kind: "reply", message: "Now yours.", selfCorrected: false, track, scaffold: "Yesterday I…" });
+    fake.receive({ type: "followup", kind: "reply", message: null, selfCorrected: false, track: null, scaffold: null });
+    expect(handlers.onTutor).toHaveBeenCalledWith({ kind: "reply", message: "Now yours.", selfCorrected: false, track, scaffold: "Yesterday I…" });
+    expect(handlers.onFollowUp).toHaveBeenCalledWith({ kind: "reply", message: null, selfCorrected: false, track: null, scaffold: null });
+  });
+
   it("sends turns, typed text and speak requests", () => {
     const { socket, fake } = open();
     fake.open();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advance, repeatedModel, startTrack, type TrackState, type TrackTurn } from "./guided-track.js";
+import { advance, repeatedModel, startTrack, type TrackState, type TrackTurn, trackView } from "./guided-track.js";
 
 const ok: TrackTurn = { stuck: false, repeated: true, nextGoal: "today" };
 const stuck: TrackTurn = { stuck: true, repeated: false, nextGoal: "today" };
@@ -11,6 +11,14 @@ const at = (stage: TrackState["stage"], over: Partial<TrackState> = {}): TrackSt
   unaidedStreak: 0,
   stuckStreak: 0,
   ...over,
+});
+
+describe("trackView", () => {
+  it("numbers the stage in the track, and is null without a track", () => {
+    const track = startTrack("build_light", "yesterday");
+    expect(trackView(track)).toEqual({ stage: "answer", number: 4, total: 5 });
+    expect(trackView(null)).toBeNull();
+  });
 });
 
 describe("startTrack", () => {

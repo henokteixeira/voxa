@@ -1,4 +1,4 @@
-import type { FollowUp, SessionSummary, TurnResult } from "@/lib/api";
+import type { FollowUp, Guidance, SessionSummary, TrackView, TurnResult } from "@/lib/api";
 import type { VoiceErrorCode } from "@/lib/voice/voice-socket";
 
 /** What is happening in the live session. Pure reducer, so the flow is unit-tested. */
@@ -69,20 +69,24 @@ export interface SessionState {
   coveredGoals: string[];
   /** The tutor asked whether to stop or keep going, and the learner has not answered yet. */
   checkIn: boolean;
+  /** Where the learner is in the guided track (A1–A2), or null. */
+  track: TrackView | null;
+  /** Words the tutor gave for the next turn, or null. */
+  scaffold: string | null;
 }
 
 export type Retry = { kind: "text"; text: string } | { kind: "speak" } | { kind: "listen" };
 
 export type SessionAction =
-  | { type: "started"; sessionId: string; message: string; goals?: string[] }
-  | {
+  | ({ type: "started"; sessionId: string; message: string; goals?: string[] } & Guidance)
+  | ({
       type: "resumed";
       sessionId: string;
       captions: Caption[];
       goals: string[];
       coveredGoals: string[];
       hint: { hintsGiven: number; revealed: boolean; mistake?: string } | null;
-    }
+    } & Guidance)
   | { type: "keep_going" }
   | { type: "sent"; request: "audio" | "speak" }
   | { type: "sent"; request: "text"; text: string }
@@ -129,6 +133,8 @@ export const initialSessionState: SessionState = {
   goals: [],
   coveredGoals: [],
   checkIn: false,
+  track: null,
+  scaffold: null,
 };
 
 /** Failures that do not stop the session: say "didn't catch that" and listen again. */
@@ -148,6 +154,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         sessionId: action.sessionId,
         captions: [{ who: "tutor", text: action.message }],
         goals: action.goals ?? [],
+        ...guidance(state, action),
       };
     case "resumed": {
       // After a reload: paused until a tap (the browser needs one to play and record), then the tutor's last line again.
@@ -164,6 +171,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         hintFor: hint?.mistake ?? null,
         revealed: hint?.revealed ?? false,
         turn: freshTurn("speak"),
+        ...guidance(state, action),
       };
     }
     case "keep_going":
@@ -199,6 +207,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         checkIn: action.result.checkIn ?? false,
         coveredGoals: action.result.coveredGoals ?? state.coveredGoals,
         turn: { ...state.turn, tutor: true },
+        ...guidance(state, action.result),
       };
     case "followup": {
       // Spoken after the reply: a hint about what the learner just said, or the stop-or-keep-going question.
@@ -212,6 +221,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         support: action.result.support ?? state.support,
         checkIn: action.result.checkIn ?? state.checkIn,
         coveredGoals: action.result.coveredGoals ?? state.coveredGoals,
+        ...guidance(state, action.result),
       };
     }
     case "speech":
@@ -250,6 +260,14 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case "ended":
       return { ...state, phase: "ended", summary: action.summary };
   }
+}
+
+/** The track and the words to say, as the server sent them; an older server sends neither, so they stay. */
+function guidance(state: SessionState, from: Guidance): Pick<SessionState, "track" | "scaffold"> {
+  return {
+    track: from.track === undefined ? state.track : from.track,
+    scaffold: from.scaffold === undefined ? state.scaffold : from.scaffold,
+  };
 }
 
 function withTutor(state: SessionState, result: TurnResult): SessionState {
