@@ -9,8 +9,10 @@ import { readPauseMs } from "@/lib/voice/pause-setting";
 import { ApiProvider } from "./api-context";
 import { routes } from "./router";
 
+const endSession = vi.fn().mockResolvedValue({});
+
 function renderApp(path: string, health: ApiClient["health"], { withLocale = false } = {}) {
-  const api = { health, listMistakes: vi.fn().mockResolvedValue([]) } as unknown as ApiClient;
+  const api = { health, endSession, listMistakes: vi.fn().mockResolvedValue([]) } as unknown as ApiClient;
   const router = createMemoryRouter(routes, { initialEntries: [path] });
   const app = (
     <ApiProvider value={api}>
@@ -184,3 +186,32 @@ describe("Today", () => {
     expect(await screen.findByRole("link", { name: "Start" })).toBeInTheDocument();
   });
 });
+
+describe("a paused session on Today", () => {
+  const timing = { learnerSpeechMs: 4000, tutorSpeechMs: 6000, pausesMs: [800] };
+  const save = (minutesAgo: number) =>
+    localStorage.setItem(
+      "voxa.liveSession",
+      JSON.stringify({ sessionId: "s1", mode: "review", elapsedSeconds: 185, timing, savedAt: Date.now() - minutesAgo * 60_000 }),
+    );
+
+  it("offers to continue a session left less than 2 hours ago", async () => {
+    save(119);
+    renderApp("/", up());
+    const link = await screen.findByRole("link", { name: "Continue session" });
+    expect(link).toHaveAttribute("href", "/session/review");
+    expect(screen.getByText(/3:05/)).toBeInTheDocument();
+    expect(endSession).not.toHaveBeenCalled();
+  });
+
+  it("ends a session left more than 2 hours ago, keeping its summary, and offers a new one", async () => {
+    endSession.mockClear();
+    save(121);
+    renderApp("/", up());
+    expect(await screen.findByRole("link", { name: "Start" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Continue session" })).toBeNull();
+    expect(endSession).toHaveBeenCalledWith("s1", timing);
+    await vi.waitFor(() => expect(localStorage.getItem("voxa.liveSession")).toBeNull());
+  });
+});
+

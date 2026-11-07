@@ -656,6 +656,7 @@ describe("after a reload", () => {
     mode: "daily",
     elapsedSeconds: 65,
     timing: { learnerSpeechMs: 4000, tutorSpeechMs: 6000, pausesMs: [800] },
+    savedAt: Date.now(),
   };
   const resumed = {
     sessionId: "s1",
@@ -739,6 +740,13 @@ describe("after a reload", () => {
     api.resumeSession.mockRejectedValue(error);
     await startAndListen();
     expect(api.startSession).toHaveBeenCalledWith("daily");
+  });
+
+  it("ends a session left more than 2 hours ago and starts a new one", async () => {
+    localStorage.setItem("voxa.liveSession", JSON.stringify({ ...savedDaily, sessionId: "old", savedAt: Date.now() - 3 * 60 * 60_000 }));
+    await startAndListen();
+    expect(api.resumeSession).not.toHaveBeenCalled();
+    expect(api.endSession).toHaveBeenCalledWith("old", savedDaily.timing);
   });
 
   it("starts a new session when the saved one has ended", async () => {
