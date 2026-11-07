@@ -2,15 +2,39 @@ import { Logger } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import { describe, expect, it, vi } from "vitest";
 import { type TutorRequest, TutorUnavailableError } from "../../domain/ports/tutor.port.js";
-import { type AnthropicMessages, AnthropicTutorAdapter } from "./anthropic-tutor.adapter.js";
+import { type AnthropicMessages, AnthropicTutorAdapter, leadingReply } from "./anthropic-tutor.adapter.js";
 import { OPENING_REQUEST } from "./tutor-prompts.js";
 
 const config = (values: Record<string, string> = {}) => ({ get: (key: string) => values[key] }) as unknown as ConfigService;
 
+/** A stream that writes the answer's JSON in small pieces, then resolves to the final message. */
+function fakeStream(response: { parsed_output?: unknown } & object, failure?: Error) {
+  const listeners: ((delta: string, snapshot: string) => void)[] = [];
+  const stream = {
+    on(event: string, listener: (delta: string, snapshot: string) => void) {
+      if (event === "text") listeners.push(listener);
+      return stream;
+    },
+    async finalMessage() {
+      if (failure) throw failure;
+      const json = response.parsed_output ? JSON.stringify(response.parsed_output) : "";
+      let snapshot = "";
+      for (let i = 0; i < json.length; i += 7) {
+        const delta = json.slice(i, i + 7);
+        snapshot += delta;
+        for (const listener of listeners) listener(delta, snapshot);
+      }
+      return response;
+    },
+  };
+  return stream;
+}
+
 function fakeMessages(response: object) {
   const create = vi.fn().mockResolvedValue(response);
   const parse = vi.fn().mockResolvedValue(response);
-  return { messages: { create, parse } as unknown as AnthropicMessages, create, parse };
+  const stream = vi.fn((_params: any, _options?: any) => fakeStream(response));
+  return { messages: { create, parse, stream } as unknown as AnthropicMessages, create, parse, stream };
 }
 
 const verdict = { reply: "Nice.", issues: [], pendingResolved: false, nextHint: null, correctUses: [], newWords: [], support: null, coveredGoals: [] };
@@ -57,13 +81,42 @@ describe("AnthropicTutorAdapter.open", () => {
 });
 
 describe("AnthropicTutorAdapter.evaluate", () => {
+  it("hands over the spoken line once, as soon as it is written, before the answer is complete", async () => {
+    const answer = { ...verdict, reply: 'Nice. "Ship it" today?' };
+    const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: answer });
+    let settled = false;
+    const handed: { reply: string; settled: boolean }[] = [];
+
+    const result = await new AnthropicTutorAdapter(messages, config())
+      .evaluate(request, (reply) => handed.push({ reply, settled }))
+      .finally(() => {
+        settled = true;
+      });
+
+    expect(result).toEqual(answer);
+    expect(handed).toEqual([{ reply: 'Nice. "Ship it" today?', settled: false }]);
+  });
+
+  it("limits the whole stream, not only the wait for its first byte", async () => {
+    const { messages, stream } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
+    await new AnthropicTutorAdapter(messages, config()).evaluate(request);
+    expect(stream.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("still fails when the answer is refused after the line was written", async () => {
+    const { messages } = fakeMessages({ stop_reason: "refusal", parsed_output: verdict });
+    const onReply = vi.fn();
+    await expect(new AnthropicTutorAdapter(messages, config()).evaluate(request, onReply)).rejects.toBeInstanceOf(TutorUnavailableError);
+    expect(onReply).toHaveBeenCalledWith("Nice.");
+  });
+
   it("sends the history after the opening request, then the turn, and returns the parsed verdict", async () => {
-    const { messages, parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
+    const { messages, stream } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
     const adapter = new AnthropicTutorAdapter(messages, config({ ANTHROPIC_EFFORT: "medium" }));
 
     await expect(adapter.evaluate(request)).resolves.toEqual(verdict);
 
-    const params = parse.mock.calls[0][0];
+    const params = stream.mock.calls[0][0];
     expect(params.output_config.effort).toBe("medium");
     expect(params.output_config.format).toBeDefined();
     expect(params.messages.map((m: { role: string }) => m.role)).toEqual(["user", "assistant", "user"]);
@@ -71,7 +124,7 @@ describe("AnthropicTutorAdapter.evaluate", () => {
   });
 
   it("caches the conversation up to the last saved turn, so the next turn reads it from the cache", async () => {
-    const { messages, parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
+    const { messages, stream } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
     const adapter = new AnthropicTutorAdapter(messages, config());
     const history = [
       { role: "assistant" as const, content: "Morning! What did you do yesterday?" },
@@ -81,7 +134,7 @@ describe("AnthropicTutorAdapter.evaluate", () => {
 
     await adapter.evaluate({ ...request, history, utterance: "I will test it." });
 
-    const sent = parse.mock.calls[0][0].messages;
+    const sent = stream.mock.calls[0][0].messages;
     // The breakpoint sits on the last history turn: those turns are sent the same way next time.
     expect(sent[3]).toEqual({
       role: "assistant",
@@ -104,8 +157,8 @@ describe("AnthropicTutorAdapter.evaluate", () => {
   });
 
   it("wraps API errors", async () => {
-    const parse = vi.fn().mockRejectedValue(new Error("529 overloaded"));
-    const adapter = new AnthropicTutorAdapter({ create: vi.fn(), parse } as unknown as AnthropicMessages, config());
+    const stream = vi.fn((_params: any) => fakeStream({}, new Error("529 overloaded")));
+    const adapter = new AnthropicTutorAdapter({ create: vi.fn(), parse: vi.fn(), stream } as unknown as AnthropicMessages, config());
     await expect(adapter.evaluate(request)).rejects.toThrow(/529 overloaded/);
   });
 });
@@ -121,7 +174,7 @@ describe("AnthropicTutorAdapter.open when the context window is full", () => {
   });
 
   it("tells the tutor the learner's first language (pt-BR unless configured)", async () => {
-    const { messages, parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
+    const { messages, stream: parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
     await new AnthropicTutorAdapter(messages, config()).evaluate(request);
     await new AnthropicTutorAdapter(messages, config({ LEARNER_FIRST_LANGUAGE: "es" })).evaluate(request);
     expect(parse.mock.calls[0][0].system[0].text).toContain("The learner's first language is pt-BR");
@@ -150,5 +203,18 @@ describe("AnthropicTutorAdapter usage log", () => {
 
     expect(log).not.toHaveBeenCalled();
     log.mockRestore();
+  });
+});
+
+describe("leadingReply", () => {
+  it.each([
+    ['{"reply":"Nice', null],
+    ['{"reply":"Say \\"hi', null],
+    ['{"reply":"Nice."', "Nice."],
+    ['{ "reply" : "Say \\"hi\\" to \\u00e9quipe.\\n" , "issues":[', 'Say "hi" to équipe.'],
+    ['{"issues":[],"reply":"Nice."', null],
+    ['{"reply":"  "', null],
+  ])("%s → %s", (partial, expected) => {
+    expect(leadingReply(partial)).toBe(expected);
   });
 });
