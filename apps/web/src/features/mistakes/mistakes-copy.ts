@@ -19,6 +19,7 @@ export interface MistakesCopy {
   leavesBank: string;
   removeFailed: string;
   remove: string;
+  removed: string;
   timesSoFar: (n: number) => string;
   notAMistake: string;
 }
@@ -46,6 +47,7 @@ export const MISTAKES_COPY: Copy<MistakesCopy> = {
     leavesBank: "It leaves the bank and won't count again.",
     removeFailed: "Couldn't remove it. Try again.",
     remove: "Remove from bank",
+    removed: "Removed from the bank.",
     timesSoFar: (n) => (n === 1 ? "Once so far" : `${n} times so far`),
     notAMistake: "This isn't a mistake",
   },
@@ -71,6 +73,7 @@ export const MISTAKES_COPY: Copy<MistakesCopy> = {
     leavesBank: "Ele sai do banco e não conta mais.",
     removeFailed: "Não deu para remover. Tente de novo.",
     remove: "Remover do banco",
+    removed: "Removido do banco.",
     timesSoFar: (n) => (n === 1 ? "Uma vez até agora" : `${n} vezes até agora`),
     notAMistake: "Isso não é um erro",
   },

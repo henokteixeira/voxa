@@ -1,9 +1,10 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ApiProvider } from "@/app/api-context";
 import { ApiError, type ApiClient, type BankMistake } from "@/lib/api";
 import { LocaleProvider } from "@/lib/i18n/locale-provider";
+import { WIDE } from "@/hooks/use-media-query";
 import { MistakesPage } from "./mistakes-page";
 
 const now = new Date("2026-11-06T12:00:00");
@@ -160,5 +161,76 @@ describe("Mistakes", () => {
     expect(screen.getByRole("dialog")).toHaveFocus();
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("shows the list and one mistake side by side on wide screens", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({ matches: query === WIDE, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    );
+    try {
+      renderPage({ listMistakes: vi.fn().mockResolvedValue(bank) });
+      await screen.findByRole("region", { name: "Mistake" });
+      const first = screen.getAllByRole("button", { name: /Yesterday I finish/ })[0];
+      expect(first).toHaveAttribute("aria-current", "true");
+      expect(screen.getByRole("region", { name: "Mistake" })).toHaveTextContent("Yesterday I finished the screen");
+
+      await userEvent.click(screen.getByRole("button", { name: /I'm waiting the keys/ }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.getByRole("region", { name: "Mistake" })).toHaveTextContent("I'm waiting for the keys");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("removes the shown mistake from the panel, shows the next one and says so", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({ matches: query === WIDE, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    );
+    try {
+      const dismissMistake = vi.fn().mockResolvedValue(undefined);
+      renderPage({ listMistakes: vi.fn().mockResolvedValue(bank), dismissMistake });
+      const panel = await screen.findByRole("region", { name: "Mistake" });
+      await userEvent.click(within(panel).getByRole("button", { name: "This isn't a mistake" }));
+      expect(screen.getByRole("heading", { name: "Why isn't it a mistake?" })).toHaveFocus();
+      await userEvent.click(screen.getByRole("button", { name: "Both ways are correct" }));
+      await userEvent.click(screen.getByRole("button", { name: "Remove from bank" }));
+      expect(dismissMistake).toHaveBeenCalledWith("m1", "both_correct");
+      const next = await screen.findByRole("region", { name: "Mistake" });
+      expect(next).toHaveTextContent("I'm waiting for the keys");
+      expect(next).toHaveFocus();
+      expect(screen.getByRole("status")).toHaveTextContent("Removed from the bank.");
+      expect(screen.queryByText("Yesterday I finish the screen")).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("doesn't open a sheet on its own when a wide window narrows", async () => {
+    const listeners = new Set<() => void>();
+    let wide = true;
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        get matches() {
+          return query === WIDE && wide;
+        },
+        media: query,
+        addEventListener: (_: string, l: () => void) => listeners.add(l),
+        removeEventListener: (_: string, l: () => void) => listeners.delete(l),
+      })),
+    );
+    try {
+      renderPage({ listMistakes: vi.fn().mockResolvedValue(bank) });
+      await screen.findByRole("region", { name: "Mistake" });
+      await userEvent.click(screen.getByRole("button", { name: /I'm waiting the keys/ }));
+      wide = false;
+      act(() => listeners.forEach((l) => l()));
+      expect(screen.queryByRole("region", { name: "Mistake" })).toBeNull();
+      expect(screen.queryByRole("dialog")).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

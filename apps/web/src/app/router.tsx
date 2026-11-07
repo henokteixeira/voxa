@@ -11,7 +11,8 @@ export const routes: RouteObject[] = [
     element: <AppLayout />,
     children: [
       { index: true, element: <TodayPage /> },
-      { path: "mistakes", element: <MistakesPage /> },
+      // `wide`: on wide screens the page uses more room (list and detail side by side).
+      { path: "mistakes", element: <MistakesPage />, handle: { wide: true } },
       { path: "progress", element: <ProgressPage /> },
     ],
   },
