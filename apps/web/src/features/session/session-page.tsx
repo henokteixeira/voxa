@@ -12,6 +12,7 @@ import { isMode, useModeInfo } from "./modes";
 import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-copy";
 import { CaptionCard, FadingCaption, HintCard, IconButton, PauseIcon, QuietLink, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
 import { SummaryFlow } from "./session-summary";
+import { TurnTimer } from "./turn-timer";
 import type { FailureCode } from "./session-state";
 import { useTodayProgress } from "@/features/xp/use-today-progress";
 import { XP_COPY } from "@/features/xp/xp-copy";
@@ -195,6 +196,7 @@ function LiveSession({ mode }: { mode: Mode }) {
           <span aria-live="polite" className="text-caption text-taupe">
             {stage.hint}
           </span>
+          {state.phase === "hearing" && !typing && <TurnTimer />}
           {state.audioBlocked && <span className="text-caption text-taupe">{page.tapToHear}</span>}
         </div>
       )}
