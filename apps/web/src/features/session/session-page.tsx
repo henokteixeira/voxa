@@ -8,7 +8,7 @@ import { useCopy } from "@/lib/i18n/locale";
 import { CheckInCard, GoalsStrip } from "./goals";
 import { isMode, useModeInfo } from "./modes";
 import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-copy";
-import { CaptionCard, HintCard, IconButton, PauseIcon, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
+import { CaptionCard, HintCard, IconButton, LatestCaption, PauseIcon, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
 import { SummaryFlow } from "./session-summary";
 import type { FailureCode } from "./session-state";
 import { useVoiceSession } from "./use-voice-session";
@@ -87,7 +87,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
   } else if (state.hintStep > 0 && lastTutor) {
     bottom = <HintCard step={state.hintStep} said={state.hintFor} tip={lastTutor.text} />;
   } else if (lastCaption && !showTranscript) {
-    bottom = <CaptionCard caption={lastCaption} />;
+    bottom = <LatestCaption key={state.captions.length} caption={lastCaption} />;
   }
 
   return (

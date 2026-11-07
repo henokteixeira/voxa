@@ -75,10 +75,14 @@ function renderSession(path = "/session/daily", { withLocale = false } = {}) {
   return router;
 }
 
+const SHOW_TUTOR = /^(Show what the tutor said|Ver o que o tutor disse)$/;
+/** Waits for the session to open: the tutor's opening line arrives, hidden behind a tap. */
+const opened = () => screen.findByRole("button", { name: SHOW_TUTOR });
+
 /** Starts a session and plays the opening line through to the learner's turn. */
 async function startAndListen(options: { withLocale?: boolean } = {}) {
   renderSession("/session/daily", options);
-  await screen.findByText("Morning! What did you work on yesterday?");
+  await opened();
   act(() => socketHandlers.onOpen());
   act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
   act(() => socketHandlers.onDone());
@@ -102,6 +106,28 @@ beforeEach(() => {
 });
 
 describe("live session", () => {
+  it("hides the tutor's line until the learner taps, so they listen first", async () => {
+    await startAndListen();
+    expect(screen.queryByText("Morning! What did you work on yesterday?")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show what the tutor said" }));
+    expect(screen.getByText("Morning! What did you work on yesterday?")).toBeInTheDocument();
+
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("I fixed the login bug"));
+    expect(screen.getByText("I fixed the login bug")).toBeInTheDocument();
+
+    act(() => socketHandlers.onTutor({ kind: "reply", message: "Nice. What's next?", selfCorrected: false }));
+    expect(screen.queryByText("Nice. What's next?")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show what the tutor said" }));
+    expect(screen.getByText("Nice. What's next?")).toBeInTheDocument();
+  });
+
+  it("keeps the whole conversation readable from the transcript button", async () => {
+    await startAndListen();
+    await userEvent.click(screen.getByRole("button", { name: "Show transcript" }));
+    expect(screen.getByRole("list", { name: "Transcript" })).toHaveTextContent("Morning! What did you work on yesterday?");
+  });
+
   it("starts the session, speaks the opening line, then listens", async () => {
     await startAndListen();
     expect(api.startSession).toHaveBeenCalledWith("daily");
@@ -114,7 +140,7 @@ describe("live session", () => {
 
   it("keeps the microphone off while the tutor speaks", async () => {
     renderSession();
-    await screen.findByText("Morning! What did you work on yesterday?");
+    await opened();
     act(() => socketHandlers.onOpen());
     act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
     expect(screen.getByText("Speaking")).toBeInTheDocument();
@@ -227,7 +253,7 @@ describe("live session", () => {
     expect(api.startSession).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
-    await screen.findByText("Morning! What did you work on yesterday?");
+    await opened();
     expect(api.startSession).toHaveBeenCalledTimes(1);
   });
 
@@ -350,7 +376,7 @@ describe("confidence check-in", () => {
     await userEvent.click(screen.getByRole("radio", { name: "2" }));
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    await screen.findByText("Morning! What did you work on yesterday?");
+    await opened();
     expect(api.startSession).toHaveBeenCalledWith("presentation");
     expect(api.rateConfidence).toHaveBeenCalledWith("s1", "before", 2);
   });
@@ -367,7 +393,7 @@ describe("confidence check-in", () => {
   it("can be skipped", async () => {
     renderSession("/session/daily/check-in");
     await userEvent.click(screen.getByRole("button", { name: "Skip" }));
-    await screen.findByText("Morning! What did you work on yesterday?");
+    await opened();
     expect(api.rateConfidence).not.toHaveBeenCalled();
   });
 });
@@ -464,7 +490,7 @@ describe("fluency timing", () => {
     const now = vi.spyOn(performance, "now");
     now.mockReturnValue(0);
     renderSession();
-    await screen.findByText("Morning! What did you work on yesterday?");
+    await opened();
     act(() => socketHandlers.onOpen());
     act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
     act(() => socketHandlers.onDone());
@@ -486,7 +512,7 @@ describe("fluency timing", () => {
     const now = vi.spyOn(performance, "now");
     now.mockReturnValue(0);
     renderSession();
-    await screen.findByText("Morning! What did you work on yesterday?");
+    await opened();
     act(() => socketHandlers.onOpen());
     act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
     act(() => socketHandlers.onDone());
@@ -517,7 +543,7 @@ describe("fluency timing", () => {
         </VoiceDepsContext.Provider>
       </ApiProvider>,
     ).unmount;
-    await screen.findByText("Morning! What did you work on yesterday?");
+    await opened();
     expect(api.rateConfidence).toHaveBeenCalledWith("s1", "before", 2);
   });
 });
@@ -557,6 +583,7 @@ describe("a safe place to speak", () => {
 
   it("marks the conversation text as English for screen readers", async () => {
     await startAndListen({ withLocale: true });
+    await userEvent.click(screen.getByRole("button", { name: "Ver o que o tutor disse" }));
     expect(screen.getByText("Morning! What did you work on yesterday?")).toHaveAttribute("lang", "en");
   });
 });

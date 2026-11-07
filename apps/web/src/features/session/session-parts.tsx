@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { useCopy } from "@/lib/i18n/locale";
 import { SESSION_COPY } from "./session-copy";
 import type { Caption } from "./session-state";
@@ -40,6 +40,29 @@ export function CaptionCard({ caption }: { caption: Caption }) {
     <div className="flex flex-col gap-1 rounded-md bg-paper px-[18px] py-4 shadow-card">
       <span className="text-label text-taupe">{caption.who === "tutor" ? parts.tutor : parts.you}</span>
       <p lang="en" className="m-0 text-body">{caption.text}</p>
+    </div>
+  );
+}
+
+/**
+ * The latest line on the main screen. The tutor's words stay hidden until a tap,
+ * so the learner listens first; their own words show so they can check the transcription.
+ * Give it a `key` per caption so each new tutor line starts hidden again.
+ */
+export function LatestCaption({ caption }: { caption: Caption }) {
+  const { parts } = useCopy(SESSION_COPY);
+  const [shown, setShown] = useState(false);
+  if (caption.who !== "tutor" || shown) return <CaptionCard caption={caption} />;
+  return (
+    <div className="flex flex-col gap-1 rounded-md bg-paper px-[18px] py-4 shadow-card">
+      <span className="text-label text-taupe">{parts.tutor}</span>
+      <button
+        type="button"
+        onClick={() => setShown(true)}
+        className="cursor-pointer self-start border-none bg-transparent p-0 text-left text-body text-ink-soft underline decoration-sand underline-offset-4 hover:text-ink"
+      >
+        {parts.showTutorLine}
+      </button>
     </div>
   );
 }
