@@ -185,6 +185,69 @@ describe("live session", () => {
     expect(screen.getByText("Daily stand-up")).toBeInTheDocument();
   });
 
+  it("keeps the turn the learner started: the microphone is not restarted when they start talking", async () => {
+    await startAndListen();
+    mic.resume.mockClear();
+    mic.pause.mockClear();
+
+    act(() => micHandlers.onSpeechStart());
+
+    expect(screen.getByText("Listening")).toBeInTheDocument();
+    // Restarting it would drop what was heard and stop the detector, so the turn could never end or be sent.
+    expect(mic.resume).not.toHaveBeenCalled();
+    expect(mic.pause).not.toHaveBeenCalled();
+  });
+
+  it("plays the reply and then the hint after it, and listens only after both", async () => {
+    await startAndListen();
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("Yesterday I finish it"));
+    act(() => socketHandlers.onTutor({ kind: "reply", message: "Nice. What's next?", selfCorrected: false }));
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
+    act(() => socketHandlers.onFollowUp({ kind: "hint", message: "When did it happen?", selfCorrected: false }));
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(9)));
+    act(() => socketHandlers.onDone());
+    mic.resume.mockClear();
+
+    // One clip at a time: the hint waits for the reply to finish.
+    expect(speaker.play).toHaveBeenCalledTimes(2);
+    await act(async () => finishPlayback());
+    expect(speaker.play).toHaveBeenCalledTimes(3);
+    expect(speaker.play.mock.calls[2][0].byteLength).toBe(9);
+    expect(screen.getByText("Speaking")).toBeInTheDocument();
+    expect(mic.resume).not.toHaveBeenCalled();
+
+    await act(async () => finishPlayback());
+    expect(mic.resume).toHaveBeenCalled();
+  });
+
+  it("stays silent for the rest of the turn after the learner stops the tutor", async () => {
+    await startAndListen();
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTutor({ kind: "reply", message: "Nice.", selfCorrected: false }));
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
+    await userEvent.click(screen.getByRole("button", { name: "Stop the tutor" }));
+    const plays = speaker.play.mock.calls.length;
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(9)));
+    expect(speaker.play).toHaveBeenCalledTimes(plays);
+  });
+
+  it("plays a hint that arrives after the reply finished", async () => {
+    await startAndListen();
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTutor({ kind: "reply", message: "Nice.", selfCorrected: false }));
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
+    await act(async () => finishPlayback());
+    expect(mic.resume).toHaveBeenCalledTimes(1);
+
+    act(() => socketHandlers.onFollowUp({ kind: "hint", message: "When did it happen?", selfCorrected: false }));
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(9)));
+    expect(screen.getByText("Speaking")).toBeInTheDocument();
+    act(() => socketHandlers.onDone());
+    await act(async () => finishPlayback());
+    expect(mic.resume).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps the microphone off while the tutor speaks", async () => {
     renderSession();
     await opened();

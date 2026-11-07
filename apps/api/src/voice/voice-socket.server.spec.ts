@@ -80,6 +80,42 @@ describe("voice socket", () => {
     ws.close();
   });
 
+  it("sends the reply's speech, then the follow-up and its speech", async () => {
+    voice.turn.mockImplementation(async (_id: string, _input: unknown, events: VoiceTurnEvents) => {
+      events.tutor(tutor as never);
+      events.speech(Buffer.from("RIFFreply"));
+      events.followUp({ ...tutor, kind: "hint", message: "When did it happen?" } as never);
+      return Buffer.from("RIFFhint");
+    });
+    const { ws, until } = await connect();
+
+    ws.send(wav());
+    const frames = await until("done");
+
+    expect(frames).toEqual([
+      { json: { type: "tutor", ...tutor } },
+      { binary: Buffer.from("RIFFreply") },
+      { json: { type: "followup", ...tutor, kind: "hint", message: "When did it happen?" } },
+      { binary: Buffer.from("RIFFhint") },
+      { json: { type: "done" } },
+    ]);
+    ws.close();
+  });
+
+  it("sends a follow-up with nothing to say as a null message", async () => {
+    voice.turn.mockImplementation(async (_id: string, _input: unknown, events: VoiceTurnEvents) => {
+      events.followUp({ ...tutor, kind: "reply", message: "" } as never);
+      return null;
+    });
+    const { ws, until } = await connect();
+
+    ws.send(wav());
+    const frames = await until("done");
+
+    expect(frames[0]).toEqual({ json: { type: "followup", ...tutor, kind: "reply", message: null } });
+    ws.close();
+  });
+
   it("takes a typed turn", async () => {
     voice.turn.mockResolvedValue(null);
     const { ws, until } = await connect();

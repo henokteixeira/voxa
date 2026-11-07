@@ -17,7 +17,7 @@ import type { SessionTiming } from "../domain/conversation/fluency.js";
 import type { ConfidenceMoment, SessionRepository } from "../domain/ports/session.repository.js";
 import type { TutorContext, TutorPort, TutorRequest } from "../domain/ports/tutor.port.js";
 import { NEW_WORD_CATEGORY } from "../domain/conversation/types.js";
-import { ConversationService, SessionEndedError, SessionNotFoundError } from "./conversation.service.js";
+import { ConversationService, SessionEndedError, SessionNotFoundError, type TurnResult } from "./conversation.service.js";
 
 class FakeTutor implements TutorPort {
   verdicts: TutorVerdict[] = [];
@@ -27,10 +27,13 @@ class FakeTutor implements TutorPort {
     this.opened.push(context);
     return "Tell me about your project.";
   }
-  async evaluate(request: TutorRequest) {
+  /** False: behave like a tutor that cannot hand over its reply before the whole verdict. */
+  speaksEarly = true;
+  async evaluate(request: TutorRequest, onReply?: (reply: string) => void) {
     this.requests.push(request);
     const next = this.verdicts.shift();
     if (!next) throw new Error("No verdict queued");
+    if (this.speaksEarly) onReply?.(next.reply);
     return next;
   }
 }
@@ -473,6 +476,90 @@ describe("ConversationService.respond", () => {
     const { session } = await service.start("daily", "en");
     await service.end(session.id);
     await expect(service.respond(session.id, "hi")).rejects.toBeInstanceOf(SessionEndedError);
+  });
+});
+
+describe("ConversationService.respond: the reply first, the analysis after", () => {
+  const early = () => {
+    const lines: TurnResult[] = [];
+    return { lines, onReply: (line: TurnResult) => lines.push(line) };
+  };
+
+  it("hands over the reply before the verdict, then has nothing more to say", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [article], support: "PR = pull request.", coveredGoals: ["yesterday"] }));
+    const { lines, onReply } = early();
+
+    const result = await service.respond(session.id, "I opened PR", onReply);
+
+    expect(lines).toEqual([
+      { kind: "reply", message: "Nice. What happened next?", selfCorrected: false, support: null, checkIn: false, coveredGoals: [] },
+    ]);
+    expect(result).toEqual({
+      kind: "reply",
+      message: "",
+      selfCorrected: false,
+      support: "PR = pull request.",
+      checkIn: false,
+      coveredGoals: ["yesterday"],
+    });
+    expect((await sessions.history(session.id)).at(-1)?.content).toBe("Nice. What happened next?");
+  });
+
+  it("says the hint after the reply on a serious mistake, and keeps both in the conversation", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    const { lines, onReply } = early();
+
+    const result = await service.respond(session.id, "I goed to the meeting", onReply);
+
+    expect(lines.map((l) => l.message)).toEqual(["Nice. What happened next?"]);
+    expect(result).toMatchObject({ kind: "hint", message: "Check the past tense of 'go'." });
+    expect((await sessions.history(session.id)).at(-1)?.content).toBe(
+      "Nice. What happened next? Check the past tense of 'go'.",
+    );
+    expect((await sessions.get(session.id))?.pending).toMatchObject({ original: goed.original, hintsGiven: 1 });
+  });
+
+  it("asks whether to stop after the reply", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ reply: "Thanks.", coveredGoals: ["yesterday", "today", "blockers"] }));
+    const { onReply } = early();
+
+    const result = await service.respond(session.id, "Yesterday tests, today deploy, no blockers.", onReply);
+
+    expect(result).toMatchObject({
+      checkIn: true,
+      message: "We've covered everything for this meeting. Do you want to stop here or keep going?",
+    });
+    expect((await sessions.history(session.id)).at(-1)?.content).toBe(
+      "Thanks. We've covered everything for this meeting. Do you want to stop here or keep going?",
+    );
+  });
+
+  it("waits for the whole verdict while a hint is pending: the reply may not be said", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ nextHint: "Think of 'went'." }));
+    await service.respond(session.id, "I goed to the meeting");
+    const { lines, onReply } = early();
+
+    const result = await service.respond(session.id, "I goed there", onReply);
+
+    expect(lines).toEqual([]);
+    expect(result).toMatchObject({ kind: "hint", message: "Think of 'went'." });
+  });
+
+  it("answers in one piece when the tutor did not hand over the reply", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.speaksEarly = false;
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    const { lines, onReply } = early();
+
+    const result = await service.respond(session.id, "I goed to the meeting", onReply);
+
+    expect(lines).toEqual([]);
+    expect(result.message).toBe("Check the past tense of 'go'.");
+    expect((await sessions.history(session.id)).at(-1)?.content).toBe("Check the past tense of 'go'.");
   });
 });
 

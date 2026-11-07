@@ -19,6 +19,10 @@ import { VoiceRequestError, VoiceUnavailableError } from "../domain/ports/voice.
  * the speech as a binary WAV frame, then `{type:"done"}`. A failure sends `{type:"error", code, message}`
  * before "done". Any part may be missing (no speech heard → only "done").
  *
+ * When the tutor's reply comes before its analysis of the turn: "tutor", the reply's speech, then
+ * `{type:"followup", kind, message, selfCorrected, support, checkIn, coveredGoals}` (message null when
+ * nothing is said after the reply), the follow-up's speech when there is one, then "done".
+ *
  * Out of band, never followed by "done": `{type:"error", code:"busy"}` answers a message sent while a
  * request is running (the message is dropped). Close codes: 1009 frame too large, 4409 the session
  * already has a live socket.
@@ -160,6 +164,8 @@ export class VoiceSocketServer implements OnApplicationBootstrap, OnApplicationS
       ? await this.voice.turn(sessionId, input, {
           transcript: (text) => send({ type: "transcript", text }),
           tutor: (result) => send({ ...result, type: "tutor" }),
+          speech: (wav) => send(wav),
+          followUp: (result) => send({ ...result, message: result.message || null, type: "followup" }),
           cancelled,
           timing: ({ sttMs, tutorMs, ttsMs, totalMs }) =>
             this.logger.log(`turn timing stt=${sttMs ?? "-"}ms tutor=${tutorMs}ms tts=${ttsMs}ms total=${totalMs}ms`),

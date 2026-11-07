@@ -120,7 +120,8 @@ export async function openMicrophone(
       recorder.discard();
     },
     resume: () => {
-      if (stopped) return;
+      // Already listening: keep the turn in progress.
+      if (stopped || !paused) return;
       recorder.discard();
       paused = false;
       context.resume().catch(() => {});

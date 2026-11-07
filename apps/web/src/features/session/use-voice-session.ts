@@ -67,15 +67,54 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
     paused.current = state.phase === "paused";
   }, [state.phase]);
 
+  /** The tutor's clips waiting to play, in order (a reply, then a hint about the learner's turn). */
+  const speechQueue = useRef<ArrayBuffer[]>([]);
+  const playing = useRef(false);
+  /** The learner stopped the tutor: the rest of this turn's speech (e.g. a hint still on its way) stays silent. */
+  const muted = useRef(false);
+  /** Plays the next clip; when none is left, the tutor's turn to speak is over. */
+  const playNext = useCallback(function next() {
+    const wav = speechQueue.current.shift();
+    if (!wav) {
+      playing.current = false;
+      dispatch({ type: "playback_end" });
+      return;
+    }
+    playing.current = true;
+    dispatch({ type: "speech" });
+    // Captions already show the line; if the browser blocks audio, ask for a tap.
+    clock.current.tutorStarted(performance.now());
+    void (speaker.current?.play(wav) ?? Promise.resolve())
+      .catch((error: unknown) => {
+        if (error instanceof AudioBlockedError) dispatch({ type: "audio_blocked" });
+      })
+      .finally(() => {
+        clock.current.tutorStopped(performance.now());
+        // Stopped by the pause sheet: the wait until resume is not a pause before answering.
+        if (paused.current) {
+          clock.current.interrupt();
+          speechQueue.current = [];
+        }
+        next();
+      });
+  }, []);
+  /** Stops the tutor's voice, including the clips still waiting. */
+  const stopSpeech = useCallback(() => {
+    speechQueue.current = [];
+    speaker.current?.stop();
+  }, []);
+
   const connect = useCallback(
     function connectSocket(id: string, onOpen: OnOpen) {
       socket.current?.close();
       const ws = deps.openVoiceSocket(api.voiceUrl(id), {
         onOpen: () => {
           if (onOpen.kind === "speak") {
+            muted.current = false;
             dispatch({ type: "sent", request: "speak" });
             ws.speakLast();
           } else if (onOpen.kind === "text") {
+            muted.current = false;
             dispatch({ type: "sent", request: "text", text: onOpen.text });
             ws.sendText(onOpen.text);
           } else if (onOpen.kind === "listen") {
@@ -87,26 +126,18 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
           dispatch({ type: "transcript", text });
         },
         onTutor: (result) => dispatch({ type: "tutor", result }),
+        onFollowUp: (result) => dispatch({ type: "followup", result }),
         onSpeech: (wav) => {
           filler.current.cancel();
-          dispatch({ type: "speech" });
           if (paused.current) {
+            dispatch({ type: "speech" });
             missedSpeech.current = true;
             return;
           }
-          // Captions already show the line; if the browser blocks audio, ask for a tap.
-          clock.current.tutorStarted(performance.now());
-          void speaker.current
-            ?.play(wav)
-            .catch((error: unknown) => {
-              if (error instanceof AudioBlockedError) dispatch({ type: "audio_blocked" });
-            })
-            .finally(() => {
-              clock.current.tutorStopped(performance.now());
-              // Stopped by the pause sheet: the wait until resume is not a pause before answering.
-              if (paused.current) clock.current.interrupt();
-              dispatch({ type: "playback_end" });
-            });
+          if (muted.current) return;
+          // A hint can follow the reply in the same turn: play them one after the other.
+          speechQueue.current.push(wav);
+          if (!playing.current) playNext();
         },
         onError: (code) => {
           // "busy" answers a message sent mid-request; that request, and its wait, go on.
@@ -132,7 +163,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
       });
       socket.current = ws;
     },
-    [api, deps],
+    [api, deps, playNext],
   );
 
   // Start: microphone first (no session is created if it is blocked), then the session, then the socket.
@@ -156,6 +187,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
             });
             sentEarly.current = false;
             mic.current?.pause();
+            muted.current = false;
             dispatch({ type: "sent", request: "audio" });
             socket.current?.sendTurn(wav);
             player.arm(speaker.current);
@@ -245,24 +277,33 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
 
   // The microphone listens only on the learner's turn (and not while typing), so it never hears the tutor.
   const listening = (state.phase === "listening" || state.phase === "hearing") && !typing;
+  // Only when `listening` flips: resuming drops what was heard, so doing it again when the learner starts
+  // talking ("listening" → "hearing") would lose their turn and leave nothing to send.
   useEffect(() => {
-    if (listening) mic.current?.resume();
-    else mic.current?.pause();
-    // Typing or pausing: the wait that follows is not a pause before speaking.
-    if (typing || state.phase === "paused") clock.current.interrupt();
-  }, [listening, typing, state.phase]);
+    if (listening) {
+      clock.current.listening(performance.now());
+      mic.current?.resume();
+    } else mic.current?.pause();
+  }, [listening]);
+  // Typing or pausing: the wait that follows is not a pause before speaking.
+  const interrupted = typing || state.phase === "paused";
+  useEffect(() => {
+    if (interrupted) clock.current.interrupt();
+  }, [interrupted, state.phase]);
 
   const sendText = useCallback((text: string) => {
     setTyping(false);
+    muted.current = false;
     dispatch({ type: "sent", request: "text", text });
     socket.current?.sendText(text);
   }, []);
 
   const repeatLast = useCallback(() => {
-    speaker.current?.stop();
+    stopSpeech();
+    muted.current = false;
     dispatch({ type: "sent", request: "speak" });
     socket.current?.speakLast();
-  }, []);
+  }, [stopSpeech]);
 
   /** Tap the ball: send early while talking, interrupt the tutor while it speaks. */
   const tapBall = useCallback(() => {
@@ -270,8 +311,11 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
       sentEarly.current = true;
       if (!mic.current?.sendNow()) sentEarly.current = false;
     }
-    else if (state.phase === "speaking") speaker.current?.stop();
-  }, [state.phase]);
+    else if (state.phase === "speaking") {
+      muted.current = true;
+      stopSpeech();
+    }
+  }, [state.phase, stopSpeech]);
 
   /** Any tap on the screen: lets the browser play and record, and replays a line it blocked. */
   const unlock = useCallback(() => {
@@ -282,9 +326,9 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
 
   const pause = useCallback(() => {
     filler.current.cancel();
-    speaker.current?.stop();
+    stopSpeech();
     dispatch({ type: "pause" });
-  }, []);
+  }, [stopSpeech]);
 
   const resume = useCallback(() => {
     dispatch({ type: "resume" });
@@ -320,7 +364,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
     filler.current.cancel();
     mic.current?.stop();
     socket.current?.close();
-    speaker.current?.stop();
+    stopSpeech();
     mic.current = socket.current = null;
     if (!id) return dispatch({ type: "ended", summary: null });
     try {
@@ -328,7 +372,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
     } catch {
       dispatch({ type: "ended", summary: null });
     }
-  }, [api, state.sessionId]);
+  }, [api, state.sessionId, stopSpeech]);
 
   /** The confidence check-out on the summary. Best effort: the summary does not wait for it. */
   const rateAfter = useCallback(

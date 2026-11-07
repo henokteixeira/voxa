@@ -64,4 +64,13 @@ describe("FluencyClock.from", () => {
     clock.learnerEnded(2300, { silenceMs: 0 });
     expect(clock.timing()).toEqual({ learnerSpeechMs: 2000, tutorSpeechMs: 3000, pausesMs: [500, 300] });
   });
+
+  it("counts the pause from when the microphone opened, not from a clip heard before a wait", () => {
+    const clock = new FluencyClock();
+    clock.tutorStarted(0);
+    clock.tutorStopped(2000);
+    clock.listening(5000);
+    clock.learnerStarted(6000);
+    expect(clock.timing().pausesMs).toEqual([1000]);
+  });
 });

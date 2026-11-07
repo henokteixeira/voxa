@@ -10,7 +10,7 @@ import { buildSystemPrompt, buildTurnMessage, OPENING_REQUEST } from "./tutor-pr
 export const ANTHROPIC_CLIENT = Symbol("ANTHROPIC_CLIENT");
 
 /** The subset of the SDK the adapter uses, so tests can pass a fake. */
-export type AnthropicMessages = Pick<Anthropic["messages"], "create" | "parse">;
+export type AnthropicMessages = Pick<Anthropic["messages"], "create" | "parse" | "stream">;
 
 /** A live conversation can't wait the SDK's default 10 minutes: fail fast and show an error state. */
 const TUTOR_TIMEOUT_MS = 30_000;
@@ -43,7 +43,32 @@ const VerdictSchema = z.object({
   coveredGoals: z.array(z.string()),
 });
 
+/** The `reply` string at the start of a partial JSON answer, once its closing quote is written; else null. */
+export function leadingReply(partialJson: string): string | null {
+  const match = /^\s*\{\s*"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(partialJson);
+  if (!match) return null;
+  try {
+    const reply = (JSON.parse(`"${match[1]}"`) as string).trim();
+    return reply || null;
+  } catch {
+    return null;
+  }
+}
+
 type Effort = "low" | "medium" | "high";
+
+/**
+ * The saved turns, with a cache breakpoint on the last one. They are sent the same way on every turn, so the
+ * next turn reads them from the cache and pays full price only for what is new. The turn message is not cached:
+ * it carries this turn's lists and the next request replays the learner's words without them.
+ */
+function cachedHistory(history: TutorRequest["history"]): Anthropic.MessageParam[] {
+  return history.map((turn, i) =>
+    i === history.length - 1
+      ? { role: turn.role, content: [{ type: "text", text: turn.content, cache_control: { type: "ephemeral" } }] }
+      : { role: turn.role, content: turn.content },
+  );
+}
 
 @Injectable()
 export class AnthropicTutorAdapter implements TutorPort {
@@ -81,24 +106,36 @@ export class AnthropicTutorAdapter implements TutorPort {
     return text;
   }
 
-  async evaluate(request: TutorRequest): Promise<TutorVerdict> {
-    const response = await this.call("evaluate", () =>
-      this.messages.parse({
-        model: this.model,
-        max_tokens: 8000,
-        output_config: { effort: this.effort, format: zodOutputFormat(VerdictSchema) },
-        system: this.system(request),
-        messages: [
-          { role: "user", content: OPENING_REQUEST },
-          ...request.history.map((t) => ({ role: t.role, content: t.content })),
-          // Cache the conversation so far: each turn only pays for the new part.
-          {
-            role: "user",
-            content: [{ type: "text", text: buildTurnMessage(request), cache_control: { type: "ephemeral" } }],
-          },
-        ],
-      }),
-    );
+  async evaluate(request: TutorRequest, onReply?: (reply: string) => void): Promise<TutorVerdict> {
+    const response = await this.call("evaluate", () => {
+      const stream = this.messages.stream(
+        {
+          model: this.model,
+          max_tokens: 8000,
+          output_config: { effort: this.effort, format: zodOutputFormat(VerdictSchema) },
+          system: this.system(request),
+          messages: [
+            { role: "user", content: OPENING_REQUEST },
+            ...cachedHistory(request.history),
+            { role: "user", content: [{ type: "text", text: buildTurnMessage(request) }] },
+          ],
+        },
+        // The client's timeout stops at the response headers; a stalled stream must fail fast too.
+        { signal: AbortSignal.timeout(TUTOR_TIMEOUT_MS) },
+      );
+      // `reply` is the schema's first field: it can be spoken while the model writes the analysis.
+      if (onReply) {
+        let handed = false;
+        stream.on("text", (_delta, snapshot) => {
+          if (handed) return;
+          const reply = leadingReply(snapshot);
+          if (reply === null) return;
+          handed = true;
+          onReply(reply);
+        });
+      }
+      return stream.finalMessage();
+    });
     if (!response.parsed_output) throw new TutorUnavailableError("The tutor's answer did not match the schema.");
     return response.parsed_output;
   }

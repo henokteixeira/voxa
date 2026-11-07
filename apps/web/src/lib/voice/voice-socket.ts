@@ -1,4 +1,4 @@
-import type { TurnResult } from "../api";
+import type { FollowUp, TurnResult } from "../api";
 
 /** Mirrors the API's voice protocol (apps/api/src/voice/voice-socket.server.ts). */
 export type VoiceErrorCode =
@@ -21,6 +21,8 @@ export interface VoiceSocketHandlers {
   onOpen(): void;
   onTranscript(text: string): void;
   onTutor(result: TurnResult): void;
+  /** After the reply: a hint, the stop-or-keep-going question, or only help and goals. Its speech follows. */
+  onFollowUp(result: FollowUp): void;
   /** The tutor's speech, as WAV. */
   onSpeech(wav: ArrayBuffer): void;
   onError(code: VoiceErrorCode, message: string): void;
@@ -31,6 +33,7 @@ export interface VoiceSocketHandlers {
 type ServerMessage =
   | { type: "transcript"; text: string }
   | ({ type: "tutor" } & TurnResult)
+  | ({ type: "followup" } & FollowUp)
   | { type: "error"; code: VoiceErrorCode; message: string }
   | { type: "done" };
 
@@ -65,10 +68,9 @@ export function openVoiceSocket(
       return;
     }
     if (message.type === "transcript") handlers.onTranscript(message.text);
-    else if (message.type === "tutor") {
-      const { kind, message: text, selfCorrected, support } = message;
-      handlers.onTutor({ kind, message: text, selfCorrected, ...(support ? { support } : {}) });
-    } else if (message.type === "error") handlers.onError(message.code, message.message);
+    else if (message.type === "tutor") handlers.onTutor({ ...turnFields(message), message: message.message });
+    else if (message.type === "followup") handlers.onFollowUp({ ...turnFields(message), message: message.message });
+    else if (message.type === "error") handlers.onError(message.code, message.message);
     else if (message.type === "done") handlers.onDone();
   };
   ws.onclose = (event: CloseEvent) => {
@@ -91,5 +93,16 @@ export function openVoiceSocket(
       closedByUs = true;
       ws.close();
     },
+  };
+}
+
+/** The fields of a tutor line the app uses; empty help and missing optional fields are left out. */
+function turnFields({ kind, selfCorrected, support, checkIn, coveredGoals }: Omit<TurnResult, "message">) {
+  return {
+    kind,
+    selfCorrected,
+    ...(support ? { support } : {}),
+    ...(checkIn !== undefined ? { checkIn } : {}),
+    ...(coveredGoals !== undefined ? { coveredGoals } : {}),
   };
 }
