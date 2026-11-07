@@ -9,6 +9,7 @@ import {
   goalsFor,
   mergeCovered,
 } from "../domain/conversation/session-goals.js";
+import { keptScaffold, sessionStep, wasAssisted } from "../domain/conversation/support.js";
 import { type ChatTurn, NEW_WORD_CATEGORY, type PracticeTarget, type Session } from "../domain/conversation/types.js";
 import { mistakeStatus } from "../domain/mistakes/mistake-status.js";
 import type { SpeakingLevel } from "../domain/level/speaking-level.js";
@@ -110,8 +111,12 @@ export class ConversationService {
   ) {}
 
   async start(mode: Mode, language: string): Promise<SessionStart> {
-    const targets = correctsMistakes(mode) ? await this.pickTargets(language) : [];
-    const session = await this.sessions.create({ mode, language, startedAt: this.clock.now(), targets });
+    const [targets, level] = await Promise.all([
+      correctsMistakes(mode) ? this.pickTargets(language) : [],
+      this.levels.current(language),
+    ]);
+    const step = sessionStep(mode, level?.level ?? null);
+    const session = await this.sessions.create({ mode, language, startedAt: this.clock.now(), targets, step });
     const message = await this.tutor.open(this.tutorContext(session, await this.learnerContext.load()));
     await this.sessions.appendTurn(session.id, { role: "assistant", content: message });
     return { session, message, goals: goalsFor(mode) };
@@ -184,6 +189,7 @@ export class ConversationService {
         knownNewWords: knownNewWords.map(toKnown),
         utterance,
         coveredGoals: session.coveredGoals,
+        scaffold: session.scaffold,
       },
       handOver,
     );
@@ -253,13 +259,17 @@ export class ConversationService {
         : [decision.message, question].filter(Boolean).join(" ");
     const said = early.reply !== null ? [early.reply, message].filter(Boolean).join(" ") : message;
 
-    await this.sessions.appendTurn(sessionId, { role: "user", content: utterance });
+    const assisted = wasAssisted({ scaffoldBefore: session.scaffold, usedFirstLanguage: verdict.newWords.length > 0 });
+    // Words to say only come with a plain reply: a hint or the correct form asks for the learner's own sentence.
+    const scaffold = decision.kind === "reply" ? keptScaffold(session.step, verdict) : null;
+    await this.sessions.appendTurn(sessionId, { role: "user", content: utterance, assisted });
     await this.sessions.appendTurn(sessionId, { role: "assistant", content: said });
     await this.sessions.setPending(sessionId, decision.nextPending);
     await this.sessions.setProgress(sessionId, {
       coveredGoals,
       lastCheckInAt: checkIn ? now : session.lastCheckInAt,
       metTargets,
+      scaffold,
     });
 
     return {
@@ -346,6 +356,7 @@ export class ConversationService {
       learnerContext,
       goals: goalsFor(session.mode).map((id) => ({ id, description: GOAL_DESCRIPTIONS[id] })),
       targets: session.targets,
+      step: session.step,
     };
   }
 

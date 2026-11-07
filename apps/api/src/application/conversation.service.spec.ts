@@ -12,13 +12,13 @@ import type {
 import type { Clock } from "../domain/ports/clock.port.js";
 import type { BankEntry } from "../domain/ports/mistake-bank.repository.js";
 import type { LearnerContextPort } from "../domain/ports/learner-context.port.js";
-import type { SpeakingLevel } from "../domain/level/speaking-level.js";
+import type { SpeakingLevel, SupportStep } from "../domain/level/speaking-level.js";
 import type { LevelAssessorPort } from "../domain/ports/level-assessor.port.js";
 import type { LevelRepository } from "../domain/ports/level.repository.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import type { Mistake, MistakeRepository, NewMistake, SessionMistake } from "../domain/ports/mistake.repository.js";
 import type { SessionTiming } from "../domain/conversation/fluency.js";
-import type { ConfidenceMoment, SessionRepository } from "../domain/ports/session.repository.js";
+import type { ConfidenceMoment, NewTurn, SessionProgress, SessionRepository } from "../domain/ports/session.repository.js";
 import type { TutorContext, TutorPort, TutorRequest } from "../domain/ports/tutor.port.js";
 import { NEW_WORD_CATEGORY } from "../domain/conversation/types.js";
 import { ConversationService, SessionEndedError, SessionNotFoundError, type TurnResult } from "./conversation.service.js";
@@ -46,7 +46,7 @@ type Row = Session & { turns: ChatTurn[]; timing: SessionTiming | null; before: 
 
 class FakeSessions implements SessionRepository {
   rows = new Map<string, Row>();
-  async create(input: { language: string; mode: Mode; startedAt?: Date; targets?: PracticeTarget[] }) {
+  async create(input: { language: string; mode: Mode; startedAt?: Date; targets?: PracticeTarget[]; step?: SupportStep | null }) {
     const id = `s${this.rows.size + 1}`;
     const session: Session = {
       id,
@@ -59,11 +59,13 @@ class FakeSessions implements SessionRepository {
       lastCheckInAt: null,
       targets: input.targets ?? [],
       metTargets: [],
+      step: input.step ?? null,
+      scaffold: null,
     };
     this.rows.set(id, { ...session, turns: [], timing: null, before: null, after: null });
     return session;
   }
-  async setProgress(id: string, progress: { coveredGoals: string[]; lastCheckInAt: Date | null; metTargets: string[] }) {
+  async setProgress(id: string, progress: SessionProgress) {
     Object.assign(this.rows.get(id)!, progress);
   }
   async get(id: string) {
@@ -72,8 +74,11 @@ class FakeSessions implements SessionRepository {
     const { turns: _t, timing: _ti, before: _b, after: _a, ...session } = row;
     return session;
   }
-  async appendTurn(id: string, turn: ChatTurn) {
+  /** Whether each learner turn was helped, in order. */
+  assisted = new Map<string, boolean[]>();
+  async appendTurn(id: string, { assisted, ...turn }: NewTurn) {
     this.rows.get(id)!.turns.push(turn);
+    if (turn.role === "user") this.assisted.set(id, [...(this.assisted.get(id) ?? []), assisted ?? false]);
   }
   async history(id: string) {
     return [...this.rows.get(id)!.turns];
@@ -198,6 +203,8 @@ const verdict = (v: Partial<TutorVerdict>): TutorVerdict => ({
   newWords: [],
   support: null,
   coveredGoals: [],
+  stuck: false,
+  scaffold: null,
   ...v,
 });
 
@@ -682,6 +689,62 @@ describe("ConversationService.respond: words in the learner's first language", (
 
     expect(summary.mistakes.map((m) => m.category)).toEqual(["grammar", NEW_WORD_CATEGORY]);
     expect(summary.signals.mistakesPer100Words).toBeCloseTo((1 / 6) * 100);
+  });
+});
+
+describe("ConversationService: help by the learner's level", () => {
+  const placed = (level: SpeakingLevel["level"]): SpeakingLevel => ({
+    language: "en",
+    level,
+    source: "placement",
+    evidence: [],
+    assessedAt: new Date(),
+  });
+  const stuckAtB1 = verdict({ reply: "No problem. You could start with: Yesterday I...", stuck: true, scaffold: "Yesterday I..." });
+
+  it("starts each session at the step of the learner's level, and as before without a level", async () => {
+    expect((await service.start("daily", "en")).session.step).toBe("conversation");
+    levels.rows.push(placed("B1"));
+    const { session } = await service.start("daily", "en");
+    expect(session.step).toBe("supported");
+    expect(tutor.opened.at(-1)?.step).toBe("supported");
+    expect((await service.start("placement", "en")).session.step).toBeNull();
+  });
+
+  it("at B1, keeps the sentence start the tutor gave and counts the learner's next turn as helped", async () => {
+    levels.rows.push(placed("B1"));
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(stuckAtB1, verdict({}));
+
+    await service.respond(session.id, "I don't know how to say it.");
+    await service.respond(session.id, "Yesterday I worked on the export.");
+
+    expect(tutor.requests[1].scaffold).toBe("Yesterday I...");
+    expect((await sessions.get(session.id))?.scaffold).toBeNull();
+    expect(sessions.assisted.get(session.id)).toEqual([false, true]);
+  });
+
+  it("gives no words to say from B2 up, even if the tutor writes some", async () => {
+    levels.rows.push(placed("B2"));
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(stuckAtB1);
+    await service.respond(session.id, "I don't know.");
+    expect((await sessions.get(session.id))?.scaffold).toBeNull();
+  });
+
+  it("drops the words to say when the turn is a hint: the learner retries their own sentence", async () => {
+    levels.rows.push(placed("B1"));
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ ...stuckAtB1, issues: [goed] }));
+    expect((await service.respond(session.id, "I goed to the meeting.")).kind).toBe("hint");
+    expect((await sessions.get(session.id))?.scaffold).toBeNull();
+  });
+
+  it("counts a turn in the first language as helped", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ newWords: [{ said: "prazo", words: "deadline" }] }));
+    await service.respond(session.id, "The prazo is Friday.");
+    expect(sessions.assisted.get(session.id)).toEqual([true]);
   });
 });
 

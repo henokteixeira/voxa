@@ -14,6 +14,8 @@ const verdict = (over: Partial<TutorVerdict> = {}): TutorVerdict => ({
   newWords: [],
   support: null,
   coveredGoals: [],
+  stuck: false,
+  scaffold: null,
   ...over,
 });
 
@@ -28,6 +30,7 @@ const bored = {
 
 const turn = (over: Partial<TurnRecord> = {}): TurnRecord => ({
   utterance: "…",
+  scaffold: null,
   pendingBefore: null,
   verdict: verdict(),
   decision: { kind: "reply", message: "Nice. What will you do today?", nextPending: null, selfCorrected: false },

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MODES } from "../../domain/conversation/mode.js";
-import { buildSystemPrompt, buildTurnMessage, PLACEMENT_RULES, SCENES } from "./tutor-prompts.js";
+import { SUPPORT_STEPS, type SupportStep } from "../../domain/level/speaking-level.js";
+import { buildSystemPrompt, buildTurnMessage, PLACEMENT_RULES, SCENES, SUPPORT_RULES } from "./tutor-prompts.js";
 
 describe("buildSystemPrompt", () => {
   it("has a scene for every mode", () => {
@@ -8,21 +9,21 @@ describe("buildSystemPrompt", () => {
   });
 
   it("includes the mode's scene, the language and the learner context", () => {
-    const prompt = buildSystemPrompt({ mode: "daily", language: "en", learnerContext: "Works on Oral Collector.", goals: [], targets: [] }, "pt-BR");
+    const prompt = buildSystemPrompt({ mode: "daily", language: "en", learnerContext: "Works on Oral Collector.", goals: [], targets: [], step: null }, "pt-BR");
     expect(prompt).toContain(SCENES.daily);
     expect(prompt).toContain("spoken en");
     expect(prompt).toContain("Works on Oral Collector.");
   });
 
   it("asks for hints that never contain the corrected words", () => {
-    const prompt = buildSystemPrompt({ mode: "review", language: "en", learnerContext: "", goals: [], targets: [] }, "pt-BR");
+    const prompt = buildSystemPrompt({ mode: "review", language: "en", learnerContext: "", goals: [], targets: [], step: null }, "pt-BR");
     expect(prompt).toMatch(/Never include the corrected words/);
     expect(prompt).toContain("No details were given");
   });
 });
 
 describe("buildSystemPrompt: placement interview", () => {
-  const context = { language: "en", learnerContext: "", goals: [], targets: [] };
+  const context = { language: "en", learnerContext: "", goals: [], targets: [], step: null };
 
   it("adds the observe-only rules after the general ones, so they win", () => {
     const prompt = buildSystemPrompt({ ...context, mode: "placement" }, "pt-BR");
@@ -37,7 +38,7 @@ describe("buildSystemPrompt: placement interview", () => {
 });
 
 describe("buildSystemPrompt: a safe place to make mistakes", () => {
-  const prompt = buildSystemPrompt({ mode: "free_talk", language: "en", learnerContext: "", goals: [], targets: [] }, "pt-BR");
+  const prompt = buildSystemPrompt({ mode: "free_talk", language: "en", learnerContext: "", goals: [], targets: [], step: null }, "pt-BR");
 
   it("welcomes mistakes and never grades the learner", () => {
     expect(prompt).toMatch(/Mistakes are welcome/);
@@ -55,7 +56,7 @@ describe("buildSystemPrompt: a safe place to make mistakes", () => {
   });
 
   it("writes support in the learner's first language, for the screen only", () => {
-    const withFirst = buildSystemPrompt({ mode: "daily", language: "en", learnerContext: "", goals: [], targets: [] }, "pt-BR");
+    const withFirst = buildSystemPrompt({ mode: "daily", language: "en", learnerContext: "", goals: [], targets: [], step: null }, "pt-BR");
     expect(withFirst).toContain("The learner's first language is pt-BR");
     expect(withFirst).toMatch(/`support`: .*written in pt-BR.*shown on screen and never read aloud/s);
   });
@@ -84,6 +85,7 @@ describe("buildSystemPrompt: goals and practice targets", () => {
         learnerContext: "",
         goals: [{ id: "blockers", description: "said whether anything blocks them" }],
         targets: [],
+        step: null,
       },
       "pt-BR",
     );
@@ -94,7 +96,7 @@ describe("buildSystemPrompt: goals and practice targets", () => {
   });
 
   it("has no goals in free talk", () => {
-    const prompt = buildSystemPrompt({ mode: "free_talk", language: "en", learnerContext: "", goals: [], targets: [] }, "pt-BR");
+    const prompt = buildSystemPrompt({ mode: "free_talk", language: "en", learnerContext: "", goals: [], targets: [], step: null }, "pt-BR");
     expect(prompt).toContain("No fixed goals");
   });
 
@@ -106,11 +108,34 @@ describe("buildSystemPrompt: goals and practice targets", () => {
         learnerContext: "",
         goals: [],
         targets: [{ original: "I goed", correction: "I went", category: "grammar" }],
+        step: null,
       },
       "pt-BR",
     );
     expect(prompt).toContain('- "I goed" → "I went" (grammar)');
     expect(prompt).toMatch(/Never say the corrected words yourself and never mention that it is a target/);
+  });
+});
+
+describe("buildSystemPrompt: help by support step", () => {
+  const prompt = (step: SupportStep | null) =>
+    buildSystemPrompt({ mode: "daily", language: "en", learnerContext: "", goals: [], targets: [], step }, "pt-BR");
+
+  it("gives the start of a sentence at B1 when the learner is stuck, never the whole answer", () => {
+    expect(prompt("supported")).toContain(SUPPORT_RULES.supported);
+    expect(SUPPORT_RULES.supported).toMatch(/only the start of a sentence/);
+    expect(SUPPORT_RULES.supported).toMatch(/Never the whole answer/);
+    expect(SUPPORT_RULES.supported).toMatch(/serious mistake .* give no sentence start/);
+  });
+
+  it("gives no words to say from B2 up, and none in the placement interview", () => {
+    expect(prompt("conversation")).toContain(SUPPORT_RULES.conversation);
+    expect(prompt("demanding")).toMatch(/harder follow-ups/);
+    expect(prompt(null)).toMatch(/Give no help with what to say/);
+  });
+
+  it("always asks whether the learner is stuck", () => {
+    for (const step of [...SUPPORT_STEPS, null]) expect(prompt(step)).toMatch(/Set `stuck` to true/);
   });
 });
 
@@ -122,7 +147,9 @@ describe("buildTurnMessage", () => {
       knownMistakes: [{ original: "more better", correction: "better", category: "grammar" }],
       knownNewWords: [{ original: "prazo", correction: "deadline", category: "new_word" }],
       coveredGoals: ["yesterday"],
+      scaffold: "Yesterday I...",
     });
+    expect(message).toContain("<words_given>\nYesterday I...\n</words_given>");
     expect(message).toContain("<covered_goals>\nyesterday\n</covered_goals>");
     expect(message).toContain('<new_words>\n- "prazo" → "deadline"\n</new_words>');
     expect(message).toContain('"more better" → "better" (grammar)');
@@ -131,7 +158,8 @@ describe("buildTurnMessage", () => {
   });
 
   it("says none when there is nothing to check against", () => {
-    const message = buildTurnMessage({ utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], coveredGoals: [] });
+    const message = buildTurnMessage({ utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], coveredGoals: [], scaffold: null });
+    expect(message).toContain("<words_given>\nnone\n</words_given>");
     expect(message).toContain("<new_words>\nnone\n</new_words>");
     expect(message).toContain("<known_mistakes>\nnone\n</known_mistakes>");
     expect(message).toContain("<pending_correction>\nnone\n</pending_correction>");

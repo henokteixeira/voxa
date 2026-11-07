@@ -2,8 +2,15 @@ import { Inject, Injectable } from "@nestjs/common";
 import { asc, eq } from "drizzle-orm";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import { isMode } from "../../domain/conversation/mode.js";
+import { isSupportStep, type SupportStep } from "../../domain/level/speaking-level.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget, Session } from "../../domain/conversation/types.js";
-import type { ConfidenceMoment, SessionOutcome, SessionProgress, SessionRepository } from "../../domain/ports/session.repository.js";
+import type {
+  ConfidenceMoment,
+  NewTurn,
+  SessionOutcome,
+  SessionProgress,
+  SessionRepository,
+} from "../../domain/ports/session.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
 import { sessions, turns } from "./schema.js";
 
@@ -11,6 +18,9 @@ type SessionRow = typeof sessions.$inferSelect;
 
 function toSession(row: SessionRow): Session {
   if (!isMode(row.mode)) throw new Error(`Unknown mode in session ${row.id}: ${row.mode}`);
+  if (row.supportStep !== null && !isSupportStep(row.supportStep)) {
+    throw new Error(`Unknown support step in session ${row.id}: ${row.supportStep}`);
+  }
   return {
     id: row.id,
     language: row.language,
@@ -22,6 +32,8 @@ function toSession(row: SessionRow): Session {
     lastCheckInAt: row.lastCheckInAt,
     targets: row.targets,
     metTargets: row.metTargets,
+    step: row.supportStep,
+    scaffold: row.scaffold,
   };
 }
 
@@ -29,8 +41,14 @@ function toSession(row: SessionRow): Session {
 export class DrizzleSessionRepository implements SessionRepository {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
-  async create(input: Pick<Session, "language" | "mode"> & { startedAt?: Date; targets?: PracticeTarget[] }): Promise<Session> {
-    const [row] = await this.db.insert(sessions).values(input).returning();
+  async create({
+    step,
+    ...input
+  }: Pick<Session, "language" | "mode"> & { startedAt?: Date; targets?: PracticeTarget[]; step?: SupportStep | null }): Promise<Session> {
+    const [row] = await this.db
+      .insert(sessions)
+      .values({ ...input, supportStep: step ?? null })
+      .returning();
     return toSession(row);
   }
 
@@ -39,8 +57,10 @@ export class DrizzleSessionRepository implements SessionRepository {
     return row ? toSession(row) : null;
   }
 
-  async appendTurn(sessionId: string, turn: ChatTurn): Promise<void> {
-    await this.db.insert(turns).values({ sessionId, role: turn.role, content: turn.content });
+  async appendTurn(sessionId: string, turn: NewTurn): Promise<void> {
+    await this.db
+      .insert(turns)
+      .values({ sessionId, role: turn.role, content: turn.content, assisted: turn.assisted ?? false });
   }
 
   async history(sessionId: string): Promise<ChatTurn[]> {

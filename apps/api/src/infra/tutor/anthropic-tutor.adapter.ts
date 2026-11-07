@@ -41,6 +41,8 @@ const VerdictSchema = z.object({
   newWords: z.array(z.object({ said: z.string(), words: z.string() })),
   support: z.string().nullable(),
   coveredGoals: z.array(z.string()),
+  stuck: z.boolean(),
+  scaffold: z.string().nullable(),
 });
 
 /** The `reply` string at the start of a partial JSON answer, once its closing quote is written; else null. */

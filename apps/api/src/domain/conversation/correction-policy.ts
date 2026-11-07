@@ -21,6 +21,10 @@ export interface TutorVerdict {
   support: string | null;
   /** Ids of the session goals this utterance covers. */
   coveredGoals: string[];
+  /** The learner could not answer: said they don't know, answered mostly in their first language, or gave up mid-sentence. */
+  stuck: boolean;
+  /** Words `reply` gives the learner to say next (a model sentence or a sentence start), as spoken; or null. */
+  scaffold: string | null;
 }
 
 export type TurnKind = "reply" | "hint" | "reveal";
