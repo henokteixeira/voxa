@@ -26,6 +26,21 @@ export const sessions = pgTable("sessions", {
   targets: jsonb("targets").$type<PracticeTarget[]>().notNull().default([]),
   /** The `original` of each target the learner said correctly in this session. */
   metTargets: jsonb("met_targets").$type<string[]>().notNull().default([]),
+  /** How much help the session gives (build_full | build_light | supported | conversation | demanding); null in placement. */
+  supportStep: varchar("support_step", { length: 16 }),
+  /** Words the tutor's last line gave the learner to say (a model sentence or a sentence start). */
+  scaffold: text("scaffold"),
+  /** The guided track (A1–A2): the stage (model | swap | extend | answer | again), null outside the track. */
+  trackStage: varchar("track_stage", { length: 16 }),
+  /** The goal the track is building (a goal id of the mode), null in free talk. */
+  trackGoal: varchar("track_goal", { length: 32 }),
+  /** Extra tries at the current stage. */
+  trackTries: smallint("track_tries").notNull().default(0),
+  /** The learner was stuck at the current goal's answer, so it was built from the model. */
+  trackHelped: boolean("track_helped").notNull().default(false),
+  /** Goals in a row answered alone, and stuck at the answer: they move the step between A1 and A2. */
+  trackUnaidedStreak: smallint("track_unaided_streak").notNull().default(0),
+  trackStuckStreak: smallint("track_stuck_streak").notNull().default(0),
 });
 
 export const turns = pgTable("turns", {
@@ -35,6 +50,8 @@ export const turns = pgTable("turns", {
   seq: bigserial("seq", { mode: "number" }).notNull(),
   role: varchar("role", { length: 16 }).notNull(), // user | assistant
   content: text("content").notNull(),
+  /** Learner turns: answered words the tutor gave, or used the first language. Always false for the tutor's turns. */
+  assisted: boolean("assisted").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

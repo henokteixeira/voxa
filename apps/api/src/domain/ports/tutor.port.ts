@@ -1,7 +1,9 @@
 import type { TutorVerdict } from "../conversation/correction-policy.js";
+import type { TrackPlan } from "../conversation/guided-track.js";
 import type { Mode } from "../conversation/mode.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget } from "../conversation/types.js";
 import { DomainError } from "../errors.js";
+import type { SupportStep } from "../level/speaking-level.js";
 
 export interface KnownMistake {
   original: string;
@@ -18,6 +20,14 @@ export interface TutorContext {
   goals: { id: string; description: string }[];
   /** Mistakes from the bank the tutor gives the learner chances to say correctly. */
   targets: PracticeTarget[];
+  /** How much help to give, from the learner's level; null in the placement interview. */
+  step: SupportStep | null;
+}
+
+export interface TutorOpening {
+  line: string;
+  /** Words the opening gives the learner to say (the guided track's first model sentence), or null. */
+  scaffold: string | null;
 }
 
 export interface TutorRequest extends TutorContext {
@@ -29,12 +39,16 @@ export interface TutorRequest extends TutorContext {
   utterance: string;
   /** Ids of the goals covered before this utterance. */
   coveredGoals: string[];
+  /** Words the tutor's last line gave the learner to say (the learner may be completing them), or null. */
+  scaffold: string | null;
+  /** In the guided track (A1–A2): what the next line does; null otherwise. */
+  plan: TrackPlan | null;
 }
 
 /** The AI tutor. Implementations live in infra/. */
 export interface TutorPort {
-  /** The tutor's first line, which opens the scene for the mode. */
-  open(context: TutorContext): Promise<string>;
+  /** The tutor's first line, which opens the scene for the mode (and, in the guided track, does its first step). */
+  open(context: TutorContext, plan?: TrackPlan | null): Promise<TutorOpening>;
   /**
    * Reads the learner's utterance: mistakes, whether a pending one is fixed, and the next line.
    * `onReply` gets the next line as soon as it is written, while the rest of the reading goes on.
@@ -52,3 +66,5 @@ export class TutorUnavailableError extends DomainError {
 }
 
 export const TUTOR_PORT = Symbol("TUTOR_PORT");
+
+export type { TrackPlan, TrackStep } from "../conversation/guided-track.js";

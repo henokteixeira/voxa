@@ -1,9 +1,17 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { asc, eq } from "drizzle-orm";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
+import { isTrackStage, type TrackState } from "../../domain/conversation/guided-track.js";
 import { isMode } from "../../domain/conversation/mode.js";
+import { isSupportStep, type SupportStep } from "../../domain/level/speaking-level.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget, Session } from "../../domain/conversation/types.js";
-import type { ConfidenceMoment, SessionOutcome, SessionProgress, SessionRepository } from "../../domain/ports/session.repository.js";
+import type {
+  ConfidenceMoment,
+  NewTurn,
+  SessionOutcome,
+  SessionProgress,
+  SessionRepository,
+} from "../../domain/ports/session.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
 import { sessions, turns } from "./schema.js";
 
@@ -11,6 +19,9 @@ type SessionRow = typeof sessions.$inferSelect;
 
 function toSession(row: SessionRow): Session {
   if (!isMode(row.mode)) throw new Error(`Unknown mode in session ${row.id}: ${row.mode}`);
+  if (row.supportStep !== null && !isSupportStep(row.supportStep)) {
+    throw new Error(`Unknown support step in session ${row.id}: ${row.supportStep}`);
+  }
   return {
     id: row.id,
     language: row.language,
@@ -22,6 +33,34 @@ function toSession(row: SessionRow): Session {
     lastCheckInAt: row.lastCheckInAt,
     targets: row.targets,
     metTargets: row.metTargets,
+    step: row.supportStep,
+    scaffold: row.scaffold,
+    track: toTrack(row),
+  };
+}
+
+function toTrack(row: SessionRow): TrackState | null {
+  if (row.trackStage === null) return null;
+  if (!isTrackStage(row.trackStage)) throw new Error(`Unknown track stage in session ${row.id}: ${row.trackStage}`);
+  return {
+    stage: row.trackStage,
+    goal: row.trackGoal,
+    tries: row.trackTries,
+    helped: row.trackHelped,
+    unaidedStreak: row.trackUnaidedStreak,
+    stuckStreak: row.trackStuckStreak,
+  };
+}
+
+/** The track's columns; all cleared (stage null) outside the track. */
+function trackColumns(track: TrackState | null) {
+  return {
+    trackStage: track?.stage ?? null,
+    trackGoal: track?.goal ?? null,
+    trackTries: track?.tries ?? 0,
+    trackHelped: track?.helped ?? false,
+    trackUnaidedStreak: track?.unaidedStreak ?? 0,
+    trackStuckStreak: track?.stuckStreak ?? 0,
   };
 }
 
@@ -29,8 +68,20 @@ function toSession(row: SessionRow): Session {
 export class DrizzleSessionRepository implements SessionRepository {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
-  async create(input: Pick<Session, "language" | "mode"> & { startedAt?: Date; targets?: PracticeTarget[] }): Promise<Session> {
-    const [row] = await this.db.insert(sessions).values(input).returning();
+  async create({
+    step,
+    track,
+    ...input
+  }: Pick<Session, "language" | "mode"> & {
+    startedAt?: Date;
+    targets?: PracticeTarget[];
+    step?: SupportStep | null;
+    track?: TrackState | null;
+  }): Promise<Session> {
+    const [row] = await this.db
+      .insert(sessions)
+      .values({ ...input, supportStep: step ?? null, ...trackColumns(track ?? null) })
+      .returning();
     return toSession(row);
   }
 
@@ -39,8 +90,10 @@ export class DrizzleSessionRepository implements SessionRepository {
     return row ? toSession(row) : null;
   }
 
-  async appendTurn(sessionId: string, turn: ChatTurn): Promise<void> {
-    await this.db.insert(turns).values({ sessionId, role: turn.role, content: turn.content });
+  async appendTurn(sessionId: string, turn: NewTurn): Promise<void> {
+    await this.db
+      .insert(turns)
+      .values({ sessionId, role: turn.role, content: turn.content, assisted: turn.assisted ?? false });
   }
 
   async history(sessionId: string): Promise<ChatTurn[]> {
@@ -56,8 +109,11 @@ export class DrizzleSessionRepository implements SessionRepository {
     await this.db.update(sessions).set({ pending }).where(eq(sessions.id, sessionId));
   }
 
-  async setProgress(sessionId: string, progress: SessionProgress): Promise<void> {
-    await this.db.update(sessions).set(progress).where(eq(sessions.id, sessionId));
+  async setProgress(sessionId: string, { step, track, ...progress }: SessionProgress): Promise<void> {
+    await this.db
+      .update(sessions)
+      .set({ ...progress, supportStep: step, ...trackColumns(track) })
+      .where(eq(sessions.id, sessionId));
   }
 
   async end(sessionId: string, timing: SessionTiming | null): Promise<void> {

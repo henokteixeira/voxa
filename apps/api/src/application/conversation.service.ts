@@ -1,14 +1,28 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { decide, isSerious, type TurnKind, verdictForMode } from "../domain/conversation/correction-policy.js";
+import { decide, isSerious, notedOnly, type TurnKind, verdictForMode } from "../domain/conversation/correction-policy.js";
+import {
+  givesWords,
+  nextGoalAfter,
+  openingPlan,
+  pausesForHints,
+  resolveTrackTurn,
+  startTrack,
+  type TrackOutcomes,
+  trackOutcomes,
+  turnPlan,
+  usesTrack,
+} from "../domain/conversation/guided-track.js";
 import { type FluencySignals, fluencySignals, type SessionTiming } from "../domain/conversation/fluency.js";
 import { correctsMistakes, type Mode } from "../domain/conversation/mode.js";
 import {
   checkInDue,
   checkInLine,
+  describeGoal,
   GOAL_DESCRIPTIONS,
   goalsFor,
   mergeCovered,
 } from "../domain/conversation/session-goals.js";
+import { keptScaffold, sessionStep, wasAssisted } from "../domain/conversation/support.js";
 import { type ChatTurn, NEW_WORD_CATEGORY, type PracticeTarget, type Session } from "../domain/conversation/types.js";
 import { DomainError } from "../domain/errors.js";
 import { mistakeStatus } from "../domain/mistakes/mistake-status.js";
@@ -124,11 +138,30 @@ export class ConversationService {
   ) {}
 
   async start(mode: Mode, language: string): Promise<SessionStart> {
-    const targets = correctsMistakes(mode) ? await this.pickTargets(language) : [];
-    const session = await this.sessions.create({ mode, language, startedAt: this.clock.now(), targets });
-    const message = await this.tutor.open(this.tutorContext(session, await this.learnerContext.load()));
-    await this.sessions.appendTurn(session.id, { role: "assistant", content: message });
-    return { session, message, goals: goalsFor(mode) };
+    const [targets, level] = await Promise.all([
+      correctsMistakes(mode) ? this.pickTargets(language) : [],
+      this.levels.current(language),
+    ]);
+    const step = sessionStep(mode, level?.level ?? null);
+    const track = startTrack(step, goalsFor(mode)[0] ?? null);
+    const created = await this.sessions.create({ mode, language, startedAt: this.clock.now(), targets, step, track });
+    const plan = track ? openingPlan(track, describeGoal) : null;
+    const opening = await this.tutor.open(this.tutorContext(created, await this.learnerContext.load()), plan);
+    await this.sessions.appendTurn(created.id, { role: "assistant", content: opening.line });
+    // In the guided track the opening already gives the first model sentence.
+    const scaffold = track && givesWords(track.stage) ? opening.scaffold : null;
+    const session = { ...created, scaffold };
+    if (scaffold) {
+      await this.sessions.setProgress(created.id, {
+        coveredGoals: [],
+        lastCheckInAt: null,
+        metTargets: [],
+        scaffold,
+        step,
+        track,
+      });
+    }
+    return { session, message: opening.line, goals: goalsFor(mode) };
   }
 
   /** The state of an open session, so the learner can go on where they left off. */
@@ -173,6 +206,7 @@ export class ConversationService {
       ...knownMistakes.map(toKnown),
       ...session.targets.filter((t) => !knownMistakes.some((m) => sameText(m.original, t.original))),
     ];
+    const outcomes = this.trackOutcomes(session, utterance);
     const early = { reply: null as string | null };
     const handOver =
       onReply && !session.pending
@@ -198,16 +232,27 @@ export class ConversationService {
         knownNewWords: knownNewWords.map(toKnown),
         utterance,
         coveredGoals: session.coveredGoals,
+        scaffold: session.scaffold,
+        plan: outcomes && session.track ? turnPlan(session.track, outcomes, describeGoal) : null,
       },
       handOver,
     );
     // The placement interview only observes: every mistake is recorded as minor, so none stops it with a hint.
-    const observed = verdictForMode(session.mode, verdict);
+    // In the guided track, saying the words given (the model, the longer sentence) never stops for a hint either.
+    const byMode = verdictForMode(session.mode, verdict);
+    const observed = session.track && !pausesForHints(session.track.stage) ? notedOnly(byMode) : byMode;
     const decision = decide(session.pending, observed);
+    // The track moves on a plain reply only: while a hint is pending, the learner retries the same answer.
+    const inTrack =
+      outcomes && session.track
+        ? resolveTrackTurn({ track: session.track, outcomes, replied: decision.kind === "reply", verdict })
+        : null;
+    const move = inTrack?.move ?? null;
 
     // Every mistake goes to the bank, except a retry of the one already pending.
     const pending = session.pending;
-    for (const issue of observed.issues) {
+    // Recorded with their real severity, also when the track did not stop for them.
+    for (const issue of byMode.issues) {
       if (pending && (sameText(issue.correction, pending.correction) || sameText(issue.original, pending.original))) {
         continue;
       }
@@ -237,7 +282,8 @@ export class ConversationService {
     }
 
     // Goals and the stop-or-keep-going question, only on a turn where the conversation goes on.
-    const coveredGoals = mergeCovered(session.mode, session.coveredGoals, verdict.coveredGoals);
+    // In the guided track a goal is covered by the learner's own answer, not by repeating the words given.
+    const coveredGoals = mergeCovered(session.mode, session.coveredGoals, inTrack?.reportedGoals ?? verdict.coveredGoals);
     // A target is met by the correct form said without a hint, even if the mistake also came up this session.
     const metTargets = session.targets
       .map((t) => t.original)
@@ -267,13 +313,19 @@ export class ConversationService {
         : [decision.message, question].filter(Boolean).join(" ");
     const said = early.reply !== null ? [early.reply, message].filter(Boolean).join(" ") : message;
 
-    await this.sessions.appendTurn(sessionId, { role: "user", content: utterance });
+    const assisted = wasAssisted({ scaffoldBefore: session.scaffold, usedFirstLanguage: verdict.newWords.length > 0 });
+    // Words to say only come with a plain reply: a hint or the correct form asks for the learner's own sentence.
+    const scaffold = inTrack ? inTrack.scaffold : decision.kind === "reply" ? keptScaffold(session.step, verdict) : null;
+    await this.sessions.appendTurn(sessionId, { role: "user", content: utterance, assisted });
     await this.sessions.appendTurn(sessionId, { role: "assistant", content: said });
     await this.sessions.setPending(sessionId, decision.nextPending);
     await this.sessions.setProgress(sessionId, {
       coveredGoals,
       lastCheckInAt: checkIn ? now : session.lastCheckInAt,
       metTargets,
+      scaffold,
+      step: move?.step ?? session.step,
+      track: move?.track ?? session.track,
     });
 
     return {
@@ -353,6 +405,14 @@ export class ConversationService {
       .map(({ original, correction, category }) => ({ original, correction, category }));
   }
 
+  /** In the guided track, the two ways this turn can move it (stuck or not), so the tutor can follow either. */
+  private trackOutcomes(session: Session, utterance: string): TrackOutcomes | null {
+    const { track, step } = session;
+    if (!track || !usesTrack(step)) return null;
+    const nextGoal = nextGoalAfter(goalsFor(session.mode), track.goal, session.coveredGoals);
+    return trackOutcomes({ track, step, model: session.scaffold, utterance, nextGoal });
+  }
+
   private tutorContext(session: Session, learnerContext: string): TutorContext {
     return {
       mode: session.mode,
@@ -360,6 +420,7 @@ export class ConversationService {
       learnerContext,
       goals: goalsFor(session.mode).map((id) => ({ id, description: GOAL_DESCRIPTIONS[id] })),
       targets: session.targets,
+      step: session.step,
     };
   }
 
@@ -370,3 +431,4 @@ export class ConversationService {
     return session;
   }
 }
+

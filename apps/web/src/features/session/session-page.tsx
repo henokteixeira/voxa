@@ -11,6 +11,9 @@ import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-co
 import { CaptionCard, HintCard, IconButton, LatestCaption, PauseIcon, QuietLink, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
 import { SummaryFlow } from "./session-summary";
 import type { FailureCode } from "./session-state";
+import { useTodayProgress } from "@/features/xp/use-today-progress";
+import { XP_COPY } from "@/features/xp/xp-copy";
+import { XpToast } from "@/features/xp/xp-toast";
 import { useSessionCues } from "./use-session-cues";
 import { useVoiceSession } from "./use-voice-session";
 
@@ -32,7 +35,11 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
   const modes = useModeInfo();
   const { stage: stageCopy, page } = useCopy(SESSION_COPY);
   const { state } = session;
-  useSessionCues(state);
+  const toast = useSessionCues(state);
+  // XP per moment, from the server; without it the session simply shows no toasts.
+  const { today } = useTodayProgress();
+  const xpCopy = useCopy(XP_COPY);
+  const toastXp: unknown = toast && today?.points[toast.reason];
   const [showTranscript, setShowTranscript] = useState(false);
   // Which caption the learner chose to read: a new tutor line starts hidden again.
   const [shownCaption, setShownCaption] = useState(-1);
@@ -120,6 +127,19 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
       </header>
       {/* The placement interview's tasks are not goals to tick off: showing them would feel like a test. */}
       {mode !== "placement" && <GoalsStrip goals={state.goals} covered={state.coveredGoals} />}
+      {/* Always mounted, so screen readers announce each toast; it floats over the ball or the transcript. */}
+      <div aria-live="polite" className="pointer-events-none relative z-10 h-0">
+        {toast && typeof toastXp === "number" && (
+          <div className="absolute inset-x-0 top-2 flex justify-center">
+            <XpToast
+              key={toast.id}
+              xp={toastXp}
+              label={toast.reason === "self_corrected" ? xpCopy.fixedIt : xpCopy.goalCovered}
+              tone={toast.tone}
+            />
+          </div>
+        )}
+      </div>
 
       {showTranscript ? (
         <ol aria-label={page.transcript} inert={state.phase === "paused"} className="m-0 flex min-h-0 flex-1 list-none flex-col gap-3 overflow-y-auto p-0">
@@ -130,7 +150,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
           ))}
         </ol>
       ) : (
-        <div inert={state.phase === "paused"} className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+        <div inert={state.phase === "paused"} className="relative flex flex-1 flex-col items-center justify-center gap-4 text-center">
           {ballAction ? (
             <VoiceBall state={stage.ball} size={200} label={ballAction} onPress={session.tapBall} />
           ) : (

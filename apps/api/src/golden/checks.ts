@@ -61,6 +61,17 @@ export function checkTurn(turn: TurnRecord, expect: TurnExpectation): string[] {
   if (expect.correctUse && !verdict.correctUses.some((u) => sameText(u, expect.correctUse ?? ""))) {
     failures.push(`"${expect.correctUse}" is not listed as a correct use`);
   }
+  if (expect.stuck !== undefined && verdict.stuck !== expect.stuck) {
+    failures.push(`stuck: expected ${expect.stuck}, got ${verdict.stuck}`);
+  }
+  if (expect.scaffold === true) {
+    if (!turn.scaffold) failures.push("no words given to say");
+    else if (!contains(decision.message, turn.scaffold.replace(/[.…]+$/, ""))) {
+      failures.push(`the words to say are not in the spoken line: "${turn.scaffold}"`);
+    }
+  }
+  if (expect.scaffold === false && turn.scaffold) failures.push(`words given to say: "${turn.scaffold}"`);
+  if (expect.stage && turn.stage !== expect.stage) failures.push(`stage: expected ${expect.stage}, got ${turn.stage}`);
   if (expect.message && !expect.message.test(decision.message)) {
     failures.push(`spoken line does not match ${expect.message}: "${decision.message}"`);
   }

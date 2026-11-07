@@ -16,6 +16,9 @@ const session: Session = {
   lastCheckInAt: null,
   targets: [],
   metTargets: [],
+  step: "conversation",
+  scaffold: null,
+  track: null,
 };
 const reply = { kind: "hint" as const, message: "When did it happen?", selfCorrected: false };
 

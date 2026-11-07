@@ -23,6 +23,7 @@ describe("golden sessions", () => {
     const transcript = await runScenario(tutor, scenario, GOLDEN_LEARNER_CONTEXT);
     const failures = [
       ...checkSpoken("opening line", transcript.opening),
+      ...(scenario.openingGivesWords && !transcript.openingScaffold ? ["the opening gives no model sentence"] : []),
       ...transcript.turns.flatMap((turn, i) =>
         checkTurn(turn, scenario.turns[i].expect).map((f) => `turn ${i + 1}: ${f}`),
       ),

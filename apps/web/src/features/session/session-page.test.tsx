@@ -27,8 +27,9 @@ const api = {
   rateConfidence: vi.fn(),
   fillerSpeech: vi.fn(),
   level: () => Promise.resolve({ current: null, placementDue: false }),
+  todayProgress: vi.fn(),
   voiceUrl: (id: string) => `ws://api/api/sessions/${id}/voice`,
-} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "resumeSession" | "rateConfidence" | "fillerSpeech"]: ReturnType<typeof vi.fn> };
+} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "resumeSession" | "rateConfidence" | "fillerSpeech" | "todayProgress"]: ReturnType<typeof vi.fn> };
 
 const deps: VoiceDeps = {
   openMicrophone: vi.fn(async (handlers: MicrophoneHandlers) => {
@@ -41,6 +42,18 @@ const deps: VoiceDeps = {
   }),
   createSpeaker: () => speaker,
 };
+
+function todayWith(earnedXp: number) {
+  return {
+    day: "2026-11-07",
+    minutesPerDay: 30,
+    goalXp: 40,
+    earnedXp,
+    goalMet: earnedXp >= 40,
+    streakDays: 2,
+    points: { practice_minute: 1, goal_covered: 5, self_corrected: 5, personal_record: 5 },
+  };
+}
 
 let cleanupApp: () => void = () => {};
 
@@ -99,6 +112,7 @@ beforeEach(() => {
   api.endSession.mockResolvedValue(summaryWith([]));
   api.rateConfidence.mockResolvedValue(undefined);
   api.fillerSpeech.mockResolvedValue([]);
+  api.todayProgress.mockResolvedValue(todayWith(20));
   api.startSession.mockResolvedValue({
     sessionId: "s1",
     mode: "daily",
@@ -483,6 +497,38 @@ async function endFromPause() {
   await userEvent.click(screen.getByRole("button", { name: "Pause" }));
   await userEvent.click(screen.getByRole("button", { name: "End session" }));
 }
+
+describe("XP", () => {
+  it("shows the XP of a self-correction the moment it happens", async () => {
+    await startAndListen();
+    act(() => socketHandlers.onTutor({ kind: "hint", message: "Almost. Think about the past.", selfCorrected: false, mistake: "I finish" }));
+    act(() => socketHandlers.onTutor({ kind: "reply", message: "Right! And then?", selfCorrected: true }));
+    expect((await screen.findByText("Fixed it yourself")).closest("[aria-live]")).toHaveTextContent("+5 XPFixed it yourself");
+  });
+
+  it("counts the session's XP on the summary and says when it met the daily goal", async () => {
+    api.endSession.mockResolvedValue(
+      summaryWith([], {
+        xp: {
+          awards: [
+            { reason: "practice_minute", count: 12, points: 12 },
+            { reason: "self_corrected", count: 1, points: 5 },
+          ],
+          total: 17,
+        },
+      }),
+    );
+    await startAndListen();
+    api.todayProgress.mockResolvedValue(todayWith(42));
+    await endFromPause();
+
+    const xp = await screen.findByRole("region", { name: "XP this session" });
+    expect(xp).toHaveTextContent("12 minutes talking+12");
+    expect(xp).toHaveTextContent("Fixed 1 mistake yourself+5");
+    expect(await within(xp).findByText("Daily goal met")).toBeInTheDocument();
+    expect(within(xp).getByRole("img", { name: "42 of 40 XP today" })).toBeInTheDocument();
+  });
+});
 
 describe("confidence check-in", () => {
   it("asks before the session and stores the answer once the session exists", async () => {
