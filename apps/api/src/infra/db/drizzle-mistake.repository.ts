@@ -1,9 +1,16 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, count, desc, eq, inArray, isNull, max, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max, ne, sql } from "drizzle-orm";
 import type { Severity } from "../../domain/conversation/types.js";
 import type { KnownPattern, MistakePattern } from "../../domain/mistakes/pattern.js";
 import type { BankEntry, DismissReason, MistakeBankRepository } from "../../domain/ports/mistake-bank.repository.js";
-import type { Mistake, MistakeRepository, NewMistake, SessionMistake } from "../../domain/ports/mistake.repository.js";
+import type {
+  Mistake,
+  MistakeRepository,
+  NewMistake,
+  Occurrence,
+  SessionMistake,
+  SessionPattern,
+} from "../../domain/ports/mistake.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
 import { mistakeCorrectUses, mistakeOccurrences, mistakes, patterns } from "./schema.js";
 
@@ -13,7 +20,7 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankRepository {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
-  async record(m: NewMistake, occurrence: { sessionId: string; severity: Severity }): Promise<Mistake | null> {
+  async record(m: NewMistake, occurrence: Occurrence): Promise<Mistake | null> {
     return this.db.transaction(async (tx) => {
       const [existing] = await tx
         .select()
@@ -149,6 +156,17 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
       .innerJoin(mistakes, eq(mistakeOccurrences.mistakeId, mistakes.id))
       .where(and(inArray(mistakes.patternId, ids), ne(mistakeOccurrences.sessionId, sessionId)));
     return new Set(rows.flatMap((r) => (r.patternId ? [r.patternId] : [])));
+  }
+
+  async sessionPatterns(sessionId: string): Promise<SessionPattern[]> {
+    const rows = await this.db
+      .select({ key: patterns.key, name: patterns.name, lastTurn: max(mistakeOccurrences.learnerTurn) })
+      .from(mistakeOccurrences)
+      .innerJoin(mistakes, eq(mistakeOccurrences.mistakeId, mistakes.id))
+      .innerJoin(patterns, eq(mistakes.patternId, patterns.id))
+      .where(and(eq(mistakeOccurrences.sessionId, sessionId), isNull(mistakes.dismissedAt), isNotNull(mistakeOccurrences.learnerTurn)))
+      .groupBy(patterns.id);
+    return rows.flatMap(({ key, name, lastTurn }) => (lastTurn === null ? [] : [{ key, name, lastTurn }]));
   }
 
   async patterns(language: string, limit: number): Promise<KnownPattern[]> {

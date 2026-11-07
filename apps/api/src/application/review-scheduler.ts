@@ -13,7 +13,13 @@ export function reviewSubject(mistake: Pick<Mistake, "id" | "category" | "patter
 /** Moves review schedules as the learner speaks: in sessions and in reviews. */
 @Injectable()
 export class ReviewScheduler {
-  constructor(@Inject(REVIEW_REPOSITORY) private readonly reviews: Pick<ReviewRepository, "state" | "save">) {}
+  constructor(@Inject(REVIEW_REPOSITORY) private readonly reviews: Pick<ReviewRepository, "state" | "save" | "schedules">) {}
+
+  /** The patterns due for review now: a conversation practices them first. */
+  async duePatterns(language: string, now: Date): Promise<Set<string>> {
+    const schedules = await this.reviews.schedules(language);
+    return new Set(schedules.filter((s) => s.subject.kind === "pattern" && s.dueAt <= now).map((s) => s.subject.id));
+  }
 
   /** The mistake was made (or the word said in the first language): first review tomorrow, or one step back. */
   async made(language: string, subject: ReviewSubject, now: Date): Promise<void> {

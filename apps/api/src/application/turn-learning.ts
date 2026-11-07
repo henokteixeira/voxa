@@ -18,6 +18,8 @@ export interface TurnLearning {
   watched: readonly Pick<PracticeTarget, "original">[];
   /** The learner fixed the pending mistake alone. */
   selfCorrected: boolean;
+  /** This turn's number among the learner's turns in the session (1 = first answer). */
+  learnerTurn: number;
   now: Date;
 }
 
@@ -27,7 +29,7 @@ export async function recordTurnLearning(
   reviews: ReviewScheduler,
   turn: TurnLearning,
 ): Promise<void> {
-  const { sessionId, language, pending, verdict, now } = turn;
+  const { sessionId, language, pending, verdict, now, learnerTurn } = turn;
   const isPending = (text: string) => pending !== null && sameText(text, pending.original);
   // Two mistakes of one pattern in a turn are one miss, so the schedule moves once per subject.
   const made = new Map<string, ReviewSubject>();
@@ -47,7 +49,7 @@ export async function recordTurnLearning(
         category: issue.category,
         pattern: cleanPattern(issue.pattern),
       },
-      { sessionId, severity: isSerious(issue) ? "serious" : "minor" },
+      { sessionId, severity: isSerious(issue) ? "serious" : "minor", learnerTurn },
     );
     noteMade(saved);
   }
@@ -66,7 +68,7 @@ export async function recordTurnLearning(
     taken.push(word.said);
     const saved = await mistakes.record(
       { language, original: word.said, correction: word.words, category: NEW_WORD_CATEGORY, pattern: null },
-      { sessionId, severity: "minor" },
+      { sessionId, severity: "minor", learnerTurn },
     );
     noteMade(saved);
   }

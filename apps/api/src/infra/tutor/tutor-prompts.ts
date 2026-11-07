@@ -149,7 +149,8 @@ export function buildSystemPrompt(
       "- `matchesKnownMistake`: true when it is the same kind of mistake as one in the known mistakes list.",
       "- `hint`: a short, friendly clue that helps the learner find the fix alone: one sentence, at most 15 words, " +
         "about this one mistake only. Name the problem area or ask a guiding question, without judging. " +
-        "Never include the corrected words.",
+        "Never include the corrected words. When the mistake breaks a rule in the known patterns list, the hint " +
+        "may point back to it (\"Like before: this already happened.\").",
       "- `pattern`: the rule the mistake breaks, so mistakes with the same rule are reviewed together. `key`: a " +
         "short snake_case id in English (e.g. `past_simple_finished_action`); when the rule is one in the known " +
         "patterns list, copy its key exactly. `name`: a label of two to six words, in plain " +
@@ -171,7 +172,11 @@ export function buildSystemPrompt(
     "## Your reply\n`reply` is your next line in the scene, as if the mistakes were not there. It is spoken " +
       "first; when a mistake needs a hint, the app says the hint right after it, so do not correct the learner in it. Never end the meeting or ask whether to " +
       "stop: the app asks that. " +
-      "Helping with words the learner said in their first language is not a correction.",
+      "Helping with words the learner said in their first language is not a correction.\n" +
+      "When `bring_back` lists a rule the learner broke a few turns ago, make your reply's question one whose " +
+      "natural answer needs that rule, in a new situation from the conversation (not the same sentence). Bring " +
+      "back at most one rule per reply and never say it is practice or a test. Ignore `bring_back` when the " +
+      "utterance needs a hint.",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -227,7 +232,15 @@ export function buildTrackInstruction(plan: TrackPlan): string {
 export function buildTurnMessage(
   request: Pick<
     TutorRequest,
-    "utterance" | "pending" | "knownMistakes" | "knownNewWords" | "knownPatterns" | "coveredGoals" | "scaffold" | "plan"
+    | "utterance"
+    | "pending"
+    | "knownMistakes"
+    | "knownNewWords"
+    | "knownPatterns"
+    | "bringBack"
+    | "coveredGoals"
+    | "scaffold"
+    | "plan"
   >,
 ): string {
   const known = request.knownMistakes.length
@@ -248,6 +261,7 @@ export function buildTurnMessage(
     `<known_mistakes>\n${known}\n</known_mistakes>`,
     `<new_words>\n${newWords}\n</new_words>`,
     `<known_patterns>\n${patterns}\n</known_patterns>`,
+    `<bring_back>\n${request.bringBack.length ? request.bringBack.map((p) => `- ${p.key}: ${p.name}`).join("\n") : "none"}\n</bring_back>`,
     `<pending_correction>\n${pending}\n</pending_correction>`,
     `<covered_goals>\n${request.coveredGoals.length ? request.coveredGoals.join(", ") : "none"}\n</covered_goals>`,
     // The learner may be finishing these words: that is not stuck, and not a mistake in itself.

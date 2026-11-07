@@ -37,10 +37,23 @@ export interface SessionMistake {
   patternSeenBefore: boolean;
 }
 
+/** One time a mistake came up. */
+export interface Occurrence {
+  sessionId: string;
+  severity: Severity;
+  /** The learner's turn in the session (1 = first answer), when known. */
+  learnerTurn?: number;
+}
+
+/** A pattern broken in a session, and the learner's last turn that broke it. */
+export interface SessionPattern extends KnownPattern {
+  lastTurn: number;
+}
+
 /** Bank of mistakes and expressions. The concrete implementation lives in infra/. */
 export interface MistakeRepository {
   /** Saves the mistake and this occurrence. Null when the learner dismissed it: it left the bank for good. */
-  record(mistake: NewMistake, occurrence: { sessionId: string; severity: Severity }): Promise<Mistake | null>;
+  record(mistake: NewMistake, occurrence: Occurrence): Promise<Mistake | null>;
   /**
    * Notes that the learner used the correct form of a mistake in this session. Ignored for a mistake
    * that is not in the bank or was made in this same session. Making the mistake again clears these.
@@ -51,6 +64,8 @@ export interface MistakeRepository {
   markSelfCorrected(sessionId: string, mistake: { language: string; original: string }): Promise<void>;
   mostFrequent(language: string, limit: number): Promise<Mistake[]>;
   forSession(sessionId: string): Promise<SessionMistake[]>;
+  /** The patterns broken in this session (not dismissed), with the last learner turn that broke each. */
+  sessionPatterns(sessionId: string): Promise<SessionPattern[]>;
   /** The patterns in this language's bank, most recently seen first, so the tutor reuses their keys. */
   patterns(language: string, limit: number): Promise<KnownPattern[]>;
 }

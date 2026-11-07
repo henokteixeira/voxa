@@ -152,6 +152,8 @@ export const mistakeOccurrences = pgTable("mistake_occurrences", {
   seq: bigserial("seq", { mode: "number" }).notNull(),
   severity: varchar("severity", { length: 16 }).notNull(), // serious | minor
   selfCorrected: boolean("self_corrected").notNull().default(false),
+  /** The learner's turn in the session (1 = first answer); null for rows saved before it was kept. */
+  learnerTurn: integer("learner_turn"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

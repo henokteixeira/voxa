@@ -39,6 +39,11 @@ export interface TutorRequest extends TutorContext {
   knownNewWords: KnownMistake[];
   /** Patterns already in the bank: a mistake that breaks one of them reuses its key. */
   knownPatterns: KnownPattern[];
+  /**
+   * Patterns broken a few turns ago in this session: the next line may ask something whose answer needs one
+   * of them, so the learner uses it again (decided with the user on 2026-11-07).
+   */
+  bringBack: KnownPattern[];
   utterance: string;
   /** Ids of the goals covered before this utterance. */
   coveredGoals: string[];

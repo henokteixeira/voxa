@@ -44,6 +44,7 @@ import {
 import { type TutorContext, TUTOR_PORT, type TutorPort } from "../domain/ports/tutor.port.js";
 import { ReviewScheduler } from "./review-scheduler.js";
 import { recordTurnLearning } from "./turn-learning.js";
+import { patternsToBringBack } from "../domain/mistakes/bring-back.js";
 import { chooseTakeaways, type Takeaway } from "../domain/mistakes/takeaways.js";
 
 /** How many of the learner's most frequent mistakes the tutor watches for. */
@@ -139,7 +140,11 @@ export class ConversationService {
 
   async start(mode: Mode, language: string): Promise<SessionStart> {
     const [targets, level] = await Promise.all([
-      correctsMistakes(mode) ? this.bank.list(language).then(choosePracticeTargets) : [],
+      correctsMistakes(mode)
+        ? Promise.all([this.bank.list(language), this.reviews.duePatterns(language, this.clock.now())]).then(([bank, due]) =>
+            choosePracticeTargets(bank, due),
+          )
+        : [],
       this.levels.current(language),
     ]);
     const step = sessionStep(mode, level?.level ?? null);
@@ -193,13 +198,15 @@ export class ConversationService {
    */
   async respond(sessionId: string, utterance: string, onReply?: (reply: TurnResult) => void): Promise<TurnResult> {
     const session = await this.openSession(sessionId);
-    const [history, known, knownPatterns, learnerContext] = await Promise.all([
+    const [history, known, knownPatterns, sessionPatterns, learnerContext] = await Promise.all([
       this.sessions.history(sessionId),
       // Twice the limit, so new words don't push real mistakes out of the list.
       this.mistakes.mostFrequent(session.language, KNOWN_MISTAKES_LIMIT * 2),
       this.mistakes.patterns(session.language, KNOWN_PATTERNS_LIMIT),
+      correctsMistakes(session.mode) ? this.mistakes.sessionPatterns(sessionId) : [],
       this.learnerContext.load(),
     ]);
+    const learnerTurn = history.filter((t) => t.role === "user").length + 1;
 
     const toKnown = ({ original, correction, category }: PracticeTarget) => ({ original, correction, category });
     const knownMistakes = known.filter((m) => m.category !== NEW_WORD_CATEGORY).slice(0, KNOWN_MISTAKES_LIMIT);
@@ -237,6 +244,9 @@ export class ConversationService {
         knownMistakes: watched,
         knownNewWords: knownNewWords.map(toKnown),
         knownPatterns,
+        // The reply asks for the learner's next turn. Not while a hint is pending or the guided track gives the
+        // next line: the reply has another job then.
+        bringBack: session.pending || session.track ? [] : patternsToBringBack(sessionPatterns, learnerTurn + 1),
         utterance,
         coveredGoals: session.coveredGoals,
         scaffold: session.scaffold,
@@ -265,6 +275,7 @@ export class ConversationService {
       verdict,
       watched: [...known, ...session.targets],
       selfCorrected: decision.selfCorrected,
+      learnerTurn,
       now: this.clock.now(),
     });
 
