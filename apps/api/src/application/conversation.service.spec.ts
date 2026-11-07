@@ -19,6 +19,9 @@ import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import type { Mistake, MistakeRepository, NewMistake, SessionMistake } from "../domain/ports/mistake.repository.js";
 import type { SessionTiming } from "../domain/conversation/fluency.js";
 import type { KnownPattern, MistakePattern } from "../domain/mistakes/pattern.js";
+import type { DueReview, ReviewRepository, ReviewSubject } from "../domain/ports/review.repository.js";
+import type { ReviewState } from "../domain/review/review-schedule.js";
+import { ReviewScheduler } from "./review-scheduler.js";
 import type { NewTurn, SessionProgress, SessionRepository } from "../domain/ports/session.repository.js";
 import type { TrackPlan, TutorContext, TutorPort, TutorRequest } from "../domain/ports/tutor.port.js";
 import { NEW_WORD_CATEGORY } from "../domain/conversation/types.js";
@@ -106,6 +109,23 @@ class FakeSessions implements SessionRepository {
   }
 }
 
+class FakeReviews implements ReviewRepository {
+  items = new Map<string, ReviewState & { language: string }>();
+  async state(subject: ReviewSubject) {
+    const item = this.items.get(`${subject.kind}:${subject.id}`);
+    return item ? { step: item.step, dueAt: item.dueAt } : null;
+  }
+  async save(language: string, subject: ReviewSubject, state: ReviewState) {
+    this.items.set(`${subject.kind}:${subject.id}`, { language, ...state });
+  }
+  async due(): Promise<DueReview[]> {
+    return [];
+  }
+  async nextDueAt() {
+    return null;
+  }
+}
+
 class FakeMistakes implements MistakeRepository {
   bank: (Mistake & { pattern: MistakePattern | null })[] = [];
   events: { sessionId: string; original: string; severity: Severity; selfCorrected: boolean }[] = [];
@@ -113,7 +133,8 @@ class FakeMistakes implements MistakeRepository {
     let saved = this.bank.find((b) => b.language === m.language && b.original === m.original);
     if (saved) saved.occurrences += 1;
     else {
-      saved = { id: `m${this.bank.length + 1}`, ...m, occurrences: 1, lastSeenAt: new Date() };
+      const patternId = m.pattern ? `p-${m.pattern.key}` : null;
+      saved = { id: `m${this.bank.length + 1}`, ...m, occurrences: 1, lastSeenAt: new Date(), patternId };
       this.bank.push(saved);
     }
     this.events.push({ sessionId: o.sessionId, original: m.original, severity: o.severity, selfCorrected: false });
@@ -122,6 +143,7 @@ class FakeMistakes implements MistakeRepository {
   correctUses: { sessionId: string; language: string; original: string }[] = [];
   async recordCorrectUse(sessionId: string, mistake: { language: string; original: string }) {
     this.correctUses.push({ sessionId, ...mistake });
+    return this.bank.find((b) => b.language === mistake.language && b.original === mistake.original) ?? null;
   }
   async markSelfCorrected(sessionId: string, mistake: { language: string; original: string }) {
     const latest = this.events.findLast((e) => e.sessionId === sessionId && e.original === mistake.original);
@@ -243,10 +265,12 @@ const entry = (over: Partial<BankEntry>): BankEntry => ({
   lastSeenAt: new Date(),
   sessionsCorrect: 0,
   pattern: null,
+  patternId: null,
   ...over,
 });
 
 let tutor: FakeTutor;
+let reviews: FakeReviews;
 let sessions: FakeSessions;
 let mistakes: FakeMistakes;
 let service: ConversationService;
@@ -264,7 +288,8 @@ beforeEach(() => {
   const bank = { list: async (language: string) => bankEntries.filter((e) => e.language === language) };
   levels = new FakeLevels();
   assessor = new FakeAssessor();
-  service = new ConversationService(tutor, sessions, mistakes, learnerContext, bank, clock, assessor, levels);
+  reviews = new FakeReviews();
+  service = new ConversationService(tutor, sessions, mistakes, learnerContext, bank, clock, assessor, levels, new ReviewScheduler(reviews));
 });
 
 describe("ConversationService.start", () => {
@@ -370,7 +395,7 @@ describe("Session goals", () => {
 
   it("watches a target outside the known mistakes list once, by its exact text", async () => {
     bankEntries = [entry({ original: "I goed", occurrences: 3 })];
-    mistakes.bank.push({ id: "m1", language: "en", original: "I goed", correction: "I went", category: "grammar", occurrences: 3, lastSeenAt: new Date(), pattern: null });
+    mistakes.bank.push({ id: "m1", language: "en", original: "I goed", correction: "I went", category: "grammar", occurrences: 3, lastSeenAt: new Date(), pattern: null, patternId: null });
     const { session } = await service.start("daily", "en");
     tutor.verdicts.push(verdict({}));
     await service.respond(session.id, "Hi");
@@ -1003,6 +1028,34 @@ describe("ConversationService.resume", () => {
     const { session } = await service.start("daily", "en");
     await service.end(session.id);
     await expect(service.resume(session.id)).rejects.toBeInstanceOf(SessionEndedError);
+  });
+});
+
+describe("review schedule", () => {
+  const pattern = { key: "articles", name: "A before a singular noun", rule: "Use a antes de substantivo singular." };
+  const tomorrow = () => new Date(clock.now().getTime() + 86_400_000);
+
+  it("brings a pattern back tomorrow when the mistake is made, and a new word too", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [{ ...article, pattern }], newWords: [{ said: "prazo", words: "deadline" }] }));
+
+    await service.respond(session.id, "I opened PR before the prazo");
+
+    expect(reviews.items.get("pattern:p-articles")).toEqual({ language: "en", step: 0, dueAt: tomorrow() });
+    expect(reviews.items.get("new_word:m2")).toEqual({ language: "en", step: 0, dueAt: tomorrow() });
+  });
+
+  it("moves a due pattern forward when the learner says it right in a later session", async () => {
+    const { session: old } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [{ ...article, pattern }] }));
+    await service.respond(old.id, "I opened PR");
+    clock.advanceMinutes(2 * 24 * 60);
+
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ correctUses: [article.original] }));
+    await service.respond(session.id, "I opened a PR");
+
+    expect(reviews.items.get("pattern:p-articles")).toMatchObject({ step: 1 });
   });
 });
 

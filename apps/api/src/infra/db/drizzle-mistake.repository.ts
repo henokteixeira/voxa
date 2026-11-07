@@ -60,27 +60,28 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
     return row.id;
   }
 
-  async recordCorrectUse(sessionId: string, mistake: { language: string; original: string }): Promise<void> {
-    await this.db.transaction(async (tx) => {
+  async recordCorrectUse(sessionId: string, mistake: { language: string; original: string }): Promise<Mistake | null> {
+    return this.db.transaction(async (tx) => {
     const [found] = await tx
-      .select({ id: mistakes.id })
+      .select()
       .from(mistakes)
       .where(
         and(eq(mistakes.language, mistake.language), eq(mistakes.original, mistake.original), isNull(mistakes.dismissedAt)),
       )
       .limit(1);
-    if (!found) return;
+    if (!found) return null;
     // Only a session after the mistake counts.
     const [madeHere] = await tx
       .select({ id: mistakeOccurrences.id })
       .from(mistakeOccurrences)
       .where(and(eq(mistakeOccurrences.mistakeId, found.id), eq(mistakeOccurrences.sessionId, sessionId)))
       .limit(1);
-    if (madeHere) return;
+    if (madeHere) return null;
     await tx
       .insert(mistakeCorrectUses)
       .values({ mistakeId: found.id, sessionId, language: mistake.language })
       .onConflictDoNothing();
+    return toMistake(found);
     });
   }
 
@@ -191,6 +192,6 @@ function toPattern(key: string | null, name: string | null, rule: string | null)
 }
 
 function toMistake(row: typeof mistakes.$inferSelect): Mistake {
-  const { id, language, original, correction, category, occurrences, lastSeenAt } = row;
-  return { id, language, original, correction, category, occurrences, lastSeenAt };
+  const { id, language, original, correction, category, occurrences, lastSeenAt, patternId } = row;
+  return { id, language, original, correction, category, occurrences, lastSeenAt, patternId };
 }
