@@ -45,6 +45,19 @@ const VerdictSchema = z.object({
 
 type Effort = "low" | "medium" | "high";
 
+/**
+ * The saved turns, with a cache breakpoint on the last one. They are sent the same way on every turn, so the
+ * next turn reads them from the cache and pays full price only for what is new. The turn message is not cached:
+ * it carries this turn's lists and the next request replays the learner's words without them.
+ */
+function cachedHistory(history: TutorRequest["history"]): Anthropic.MessageParam[] {
+  return history.map((turn, i) =>
+    i === history.length - 1
+      ? { role: turn.role, content: [{ type: "text", text: turn.content, cache_control: { type: "ephemeral" } }] }
+      : { role: turn.role, content: turn.content },
+  );
+}
+
 @Injectable()
 export class AnthropicTutorAdapter implements TutorPort {
   private readonly logger = new Logger(AnthropicTutorAdapter.name);
@@ -90,12 +103,8 @@ export class AnthropicTutorAdapter implements TutorPort {
         system: this.system(request),
         messages: [
           { role: "user", content: OPENING_REQUEST },
-          ...request.history.map((t) => ({ role: t.role, content: t.content })),
-          // Cache the conversation so far: each turn only pays for the new part.
-          {
-            role: "user",
-            content: [{ type: "text", text: buildTurnMessage(request), cache_control: { type: "ephemeral" } }],
-          },
+          ...cachedHistory(request.history),
+          { role: "user", content: [{ type: "text", text: buildTurnMessage(request) }] },
         ],
       }),
     );
