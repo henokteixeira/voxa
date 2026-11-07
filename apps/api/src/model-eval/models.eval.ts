@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { scriptConfig } from "../config/env.js";
 import { afterAll, describe, test } from "vitest";
 import { AnthropicTutorAdapter, anthropicClientProvider } from "../infra/tutor/anthropic-tutor.adapter.js";
 import { runScenario } from "../golden/run-scenario.js";
@@ -29,7 +29,7 @@ const models = (process.env.EVAL_MODELS || DEFAULT_MODELS)
   .filter(Boolean)
   .map((spec) => {
     const [model, asked = defaultEffort] = spec.split("@");
-    // The adapter runs anything other than medium or high at low effort; label the row with what really ran.
+    // The config accepts only low, medium or high: anything else runs (and is labelled) as low.
     const effort = asked === "medium" || asked === "high" ? asked : "low";
     return { model, effort };
   });
@@ -62,7 +62,7 @@ async function evaluateModel(model: string, effort: string): Promise<ModelResult
       turnCost = turnCost === null || cost === null ? null : turnCost + cost;
     }
   });
-  const config = new ConfigService({ ...process.env, ANTHROPIC_MODEL: model, ANTHROPIC_EFFORT: effort });
+  const config = scriptConfig({ ...process.env, ANTHROPIC_MODEL: model, ANTHROPIC_EFFORT: effort });
   const timings: TurnTiming[] = [];
   const tutor = timedTutor(new AnthropicTutorAdapter(messages, config), (t) => timings.push(t));
 

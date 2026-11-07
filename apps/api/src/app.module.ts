@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { validateEnv } from "./config/env.js";
 import { ConversationService } from "./application/conversation.service.js";
 import { FillerSpeechService } from "./application/filler-speech.service.js";
 import { LevelService } from "./application/level.service.js";
@@ -39,7 +40,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
 // The only place that binds ports to concrete implementations.
 // Swapping the database, AI or voice provider = changing useClass/useExisting below.
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ["../../.env"] }), DbModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ["../../.env"], validate: validateEnv }), DbModule],
   controllers: [HealthController, SessionsController, MistakesController, FillersController, LevelsController, ProgressController],
   providers: [
     ConversationService,

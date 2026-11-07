@@ -1,11 +1,11 @@
 import { Logger } from "@nestjs/common";
-import type { ConfigService } from "@nestjs/config";
 import { describe, expect, it, vi } from "vitest";
+import { testConfig } from "../../config/testing.js";
 import { type TutorRequest, TutorUnavailableError } from "../../domain/ports/tutor.port.js";
 import { type AnthropicMessages, AnthropicTutorAdapter, leadingReply } from "./anthropic-tutor.adapter.js";
 import { OPENING_REQUEST } from "./tutor-prompts.js";
 
-const config = (values: Record<string, string> = {}) => ({ get: (key: string) => values[key] }) as unknown as ConfigService;
+const config = testConfig;
 
 /** A stream that writes the answer's JSON in small pieces, then resolves to the final message. */
 function fakeStream(response: { parsed_output?: unknown } & object, failure?: Error) {
