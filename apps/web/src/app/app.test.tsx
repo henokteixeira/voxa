@@ -19,7 +19,7 @@ const placedB1 = {
 function renderApp(
   path: string,
   health: ApiClient["health"],
-  { withLocale = false, level = vi.fn().mockResolvedValue(placedB1) }: { withLocale?: boolean; level?: ApiClient["level"] } = {},
+  { withLocale = false, level = vi.fn().mockResolvedValue(placedB1) }: { withLocale?: boolean; level?: ReturnType<typeof vi.fn> } = {},
 ) {
   const api = { health, endSession, level, listMistakes: vi.fn().mockResolvedValue([]) } as unknown as ApiClient;
   const router = createMemoryRouter(routes, { initialEntries: [path] });
