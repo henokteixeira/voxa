@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -127,6 +127,37 @@ describe("live session", () => {
     await userEvent.click(screen.getByRole("button", { name: "Show transcript" }));
     await userEvent.click(screen.getByRole("button", { name: "Hide transcript" }));
     expect(screen.getByText("Nice. What's next?")).toBeInTheDocument();
+  });
+
+  it("puts the help inside the correction card instead of stacking another card", async () => {
+    await startAndListen();
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("I will reveal the suggestions"));
+    act(() =>
+      socketHandlers.onTutor({
+        kind: "reveal",
+        message: "Here is one way to say it: review the suggestions.",
+        selfCorrected: false,
+        support: "“Reveal” quer dizer “revelar”.",
+      }),
+    );
+    const card = screen.getByRole("region", { name: "The correct form" });
+    expect(card).toHaveTextContent("Here is one way to say it: review the suggestions.");
+    expect(card).toHaveTextContent("Saved to your mistake bank");
+    expect(within(card).getByRole("note", { name: "Help" })).toHaveTextContent("“Reveal” quer dizer “revelar”.");
+    expect(screen.getAllByRole("note")).toHaveLength(1);
+  });
+
+  it("puts the help inside the hint card too", async () => {
+    await startAndListen();
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("Yesterday I finish it"));
+    act(() =>
+      socketHandlers.onTutor({ kind: "hint", message: "When did it happen?", selfCorrected: false, support: "Pense no passado." }),
+    );
+    const card = screen.getByRole("region", { name: "Hint 1 of 2" });
+    expect(within(card).getByRole("note", { name: "Help" })).toHaveTextContent("Pense no passado.");
+    expect(screen.getAllByRole("note")).toHaveLength(1);
   });
 
   it("still shows the correct form on its own after two hints", async () => {

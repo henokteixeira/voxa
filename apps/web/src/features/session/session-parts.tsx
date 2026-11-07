@@ -89,7 +89,7 @@ const TextIcon = () => (
   </svg>
 );
 
-export function HintCard({ step, said, tip }: { step: number; said: string | null; tip: string }) {
+export function HintCard({ step, said, tip, help }: { step: number; said: string | null; tip: string; help?: string | null }) {
   const { parts } = useCopy(SESSION_COPY);
   return (
     <>
@@ -109,21 +109,32 @@ export function HintCard({ step, said, tip }: { step: number; said: string | nul
           </span>
         )}
         <p lang="en" className="m-0 text-body">{tip}</p>
+        {help && <HelpLine text={help} divider="border-honey/30" />}
       </section>
     </>
   );
 }
 
-export function RevealCard({ message }: { message: string }) {
+export function RevealCard({ message, help }: { message: string; help?: string | null }) {
   const { parts } = useCopy(SESSION_COPY);
   return (
-    <>
-      <section aria-label={parts.correctForm} className="flex flex-col gap-2 rounded-md bg-sage-soft p-4">
-        <span className="text-label text-sage-ink">{parts.correctForm}</span>
-        <p lang="en" className="m-0 text-phrase">{message}</p>
-      </section>
-      <span className="text-center text-caption text-taupe">{parts.savedToBank}</span>
-    </>
+    <section aria-label={parts.correctForm} className="flex flex-col gap-2 rounded-md bg-sage-soft p-4">
+      <span className="text-label text-sage-ink">{parts.correctForm}</span>
+      <p lang="en" className="m-0 text-phrase">{message}</p>
+      {help && <HelpLine text={help} divider="border-sage/40" />}
+      <span className="text-caption text-taupe">{parts.savedToBank}</span>
+    </section>
+  );
+}
+
+/** The written help (first language) as a quiet line inside a correction card: one card, not two. */
+function HelpLine({ text, divider }: { text: string; divider: string }) {
+  const { parts } = useCopy(SESSION_COPY);
+  return (
+    <div role="note" aria-label={parts.help} className={`flex flex-col gap-0.5 border-t pt-2 ${divider}`}>
+      <span className="text-caption text-taupe">{parts.help}</span>
+      <p lang="pt-BR" className="m-0 text-small text-ink-soft">{text}</p>
+    </div>
   );
 }
 
