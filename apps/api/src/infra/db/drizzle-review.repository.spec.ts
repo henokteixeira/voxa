@@ -102,6 +102,18 @@ describe("DrizzleReviewRepository", () => {
     expect((await reviews.card(card.id))?.recalled).toBe(true);
   });
 
+  it("lists every schedule in a language", async () => {
+    const { goed, word } = await bank();
+    await reviews.save("en", { kind: "pattern", id: goed.patternId! }, { step: 1, dueAt: day(3) }, null);
+    await reviews.save("en", { kind: "new_word", id: word.id }, { step: 0, dueAt: day(1) }, null);
+
+    expect((await reviews.schedules("en")).toSorted((a, b) => a.step - b.step)).toEqual([
+      { subject: { kind: "new_word", id: word.id }, step: 0, dueAt: day(1) },
+      { subject: { kind: "pattern", id: goed.patternId }, step: 1, dueAt: day(3) },
+    ]);
+    expect(await reviews.schedules("es")).toEqual([]);
+  });
+
   it("says when the next item comes back", async () => {
     const { goed, fix, word } = await bank();
     expect(await reviews.nextDueAt("en", now)).toBeNull();

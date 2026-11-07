@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { and, asc, desc, eq, gt, inArray, isNull, lte, min, or, type SQL, sql } from "drizzle-orm";
 import { NEW_WORD_CATEGORY } from "../../domain/conversation/types.js";
-import type { ReviewItem, ReviewRepository, ReviewSubject, StoredReviewCard } from "../../domain/ports/review.repository.js";
+import type { ReviewItem, ReviewRepository, ReviewSchedule, ReviewSubject, StoredReviewCard } from "../../domain/ports/review.repository.js";
 import type { ReviewState } from "../../domain/review/review-schedule.js";
 import { DATABASE, type Database } from "./db.module.js";
 import { mistakes, patterns, reviewCards, reviewItems } from "./schema.js";
@@ -113,6 +113,18 @@ export class DrizzleReviewRepository implements ReviewRepository {
       .where(and(eq(reviewCards.id, id), isNull(reviewCards.answeredAt)))
       .returning({ id: reviewCards.id });
     return updated.length > 0;
+  }
+
+  async schedules(language: string): Promise<ReviewSchedule[]> {
+    const rows = await this.db
+      .select({ patternId: reviewItems.patternId, newWordId: reviewItems.newWordId, step: reviewItems.step, dueAt: reviewItems.dueAt })
+      .from(reviewItems)
+      .where(eq(reviewItems.language, language));
+    return rows.flatMap(({ patternId, newWordId, step, dueAt }): ReviewSchedule[] => {
+      // The table's check keeps exactly one of the two set.
+      if (patternId) return [{ subject: { kind: "pattern", id: patternId }, step, dueAt }];
+      return newWordId ? [{ subject: { kind: "new_word", id: newWordId }, step, dueAt }] : [];
+    });
   }
 
   async nextDueAt(language: string, now: Date): Promise<Date | null> {

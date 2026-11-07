@@ -41,6 +41,9 @@ class FakeReviews implements ReviewRepository {
     card.recalled = recalled;
     return true;
   }
+  async schedules() {
+    return [];
+  }
   async nextDueAt() {
     return null;
   }
