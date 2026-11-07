@@ -11,6 +11,7 @@ import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-co
 import { CaptionCard, HintCard, IconButton, LatestCaption, PauseIcon, QuietLink, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
 import { SummaryFlow } from "./session-summary";
 import type { FailureCode } from "./session-state";
+import { useSessionCues } from "./use-session-cues";
 import { useVoiceSession } from "./use-voice-session";
 
 /** What the confidence check-in hands to the live session (router state). */
@@ -31,6 +32,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
   const modes = useModeInfo();
   const { stage: stageCopy, page } = useCopy(SESSION_COPY);
   const { state } = session;
+  useSessionCues(state);
   const [showTranscript, setShowTranscript] = useState(false);
   // Which caption the learner chose to read: a new tutor line starts hidden again.
   const [shownCaption, setShownCaption] = useState(-1);
@@ -116,7 +118,8 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
           <TranscriptIcon />
         </IconButton>
       </header>
-      <GoalsStrip goals={state.goals} covered={state.coveredGoals} />
+      {/* The placement interview's tasks are not goals to tick off: showing them would feel like a test. */}
+      {mode !== "placement" && <GoalsStrip goals={state.goals} covered={state.coveredGoals} />}
 
       {showTranscript ? (
         <ol aria-label={page.transcript} inert={state.phase === "paused"} className="m-0 flex min-h-0 flex-1 list-none flex-col gap-3 overflow-y-auto p-0">

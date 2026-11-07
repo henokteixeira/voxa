@@ -1,6 +1,7 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import type { ComponentProps } from "react";
+import type { ComponentProps, MouseEvent } from "react";
+import { useSounds } from "@/lib/sound/sounds";
 import { cn } from "@/lib/utils";
 
 /** One primary button per screen. Secondary and ghost for everything else. */
@@ -24,12 +25,19 @@ export interface ButtonProps extends ComponentProps<"button">, VariantProps<type
   asChild?: boolean;
 }
 
-export function Button({ className, variant, block, asChild = false, type = "button", ...props }: ButtonProps) {
+export function Button({ className, variant, block, asChild = false, type = "button", onClick, ...props }: ButtonProps) {
   const Comp = asChild ? Slot : "button";
+  const { play } = useSounds();
+  // The screen's main action answers with a soft tap.
+  const primary = (variant ?? "primary") === "primary";
   return (
     <Comp
       className={cn(buttonVariants({ variant, block }), className)}
       {...(asChild ? {} : { type })}
+      onClick={(event: MouseEvent<HTMLButtonElement>) => {
+        onClick?.(event);
+        if (primary) play("tap");
+      }}
       {...props}
     />
   );

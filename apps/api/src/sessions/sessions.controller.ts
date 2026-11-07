@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
 import { z } from "zod";
 import { ConversationService } from "../application/conversation.service.js";
+import { ProgressService } from "../application/progress.service.js";
 import { Language, parse } from "../common/http.js";
 import { MODES } from "../domain/conversation/mode.js";
 
@@ -29,7 +30,10 @@ const SessionId = z.uuid();
 
 @Controller("sessions")
 export class SessionsController {
-  constructor(private readonly conversation: ConversationService) {}
+  constructor(
+    private readonly conversation: ConversationService,
+    private readonly progress: ProgressService,
+  ) {}
 
   @Post()
   async start(@Body() body: unknown) {
@@ -58,7 +62,14 @@ export class SessionsController {
   async end(@Param("id") id: string, @Body() body: unknown) {
     const sessionId = parse(SessionId, id);
     const { timing } = parse(EndBody, body);
-    return this.conversation.end(sessionId, timing ?? null);
+    const summary = await this.conversation.end(sessionId, timing ?? null);
+    const xp = await this.progress.awardSession({
+      sessionId,
+      goalsCovered: summary.goals.filter((goal) => goal.covered).length,
+      selfCorrections: summary.selfCorrections,
+      wordsPerMinute: summary.signals.wordsPerMinute,
+    });
+    return { ...summary, xp };
   }
 
   @Post(":id/confidence")

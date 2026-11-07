@@ -1,0 +1,39 @@
+import { useCallback, useEffect, useState } from "react";
+import { useApi } from "@/hooks/use-api";
+import type { CefrLevel, LevelView } from "@/lib/api";
+
+/**
+ * The learner's speaking level. `view` is undefined while loading and null when it could not be read
+ * (Today then goes on as if there were a level; Progress offers `reload`). `set` corrects it by hand.
+ */
+export function useLevel() {
+  const api = useApi();
+  const [view, setView] = useState<LevelView | null | undefined>(undefined);
+
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .level()
+      .then((v) => !cancelled && setView(v))
+      .catch(() => !cancelled && setView(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [api, attempt]);
+
+  const reload = useCallback(() => {
+    setView(undefined);
+    setAttempt((n) => n + 1);
+  }, []);
+
+  const set = useCallback(
+    async (level: CefrLevel) => {
+      setView(await api.setLevel(level));
+    },
+    [api],
+  );
+
+  return { view, set, reload };
+}

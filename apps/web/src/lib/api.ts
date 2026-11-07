@@ -1,7 +1,31 @@
 /** Typed client for the Voxa API. Every call fails with ApiError, never a raw fetch error. */
 
-export const MODES = ["presentation", "free_talk", "daily", "review"] as const;
+/** Every session mode: the four meetings, plus the placement interview that estimates the speaking level. */
+export const MODES = ["presentation", "free_talk", "daily", "review", "placement"] as const;
 export type Mode = (typeof MODES)[number];
+
+/** The meetings the learner picks to practice (the placement interview is offered on its own). */
+export const MEETING_MODES = ["presentation", "free_talk", "daily", "review"] as const satisfies readonly Mode[];
+
+export const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
+export type CefrLevel = (typeof CEFR_LEVELS)[number];
+
+/** The learner's speaking level, an estimate that picks how much help sessions give. */
+export interface SpeakingLevel {
+  language: string;
+  level: CefrLevel;
+  source: "placement" | "manual" | "step_change";
+  /** The learner's own lines that back the estimate. */
+  evidence: string[];
+  /** ISO 8601 date-time. */
+  assessedAt: string;
+}
+
+export interface LevelView {
+  current: (SpeakingLevel & { step: string }) | null;
+  /** Suggest a placement interview: never done, or the last one is 4 weeks old. */
+  placementDue: boolean;
+}
 
 export interface StartedSession {
   sessionId: string;
@@ -95,6 +119,47 @@ export interface SessionSummary {
   goals: { id: string; covered: boolean }[];
   /** Mistakes from the bank practiced in this session; `met` when the learner said the correct form. */
   targets: { original: string; correction: string; category: string; met: boolean }[];
+  /** After a placement interview: the level it gave (null when nothing was said). Missing or null otherwise. */
+  level?: SpeakingLevel | null;
+  /** XP the session earned; missing from servers older than XP. */
+  xp?: SessionXp;
+}
+
+/** What earns XP. A mistake never takes XP away. */
+export type XpReason = "practice_minute" | "goal_covered" | "self_corrected" | "personal_record";
+
+export interface XpAward {
+  reason: XpReason;
+  /** How many times it happened: minutes, goals, self-corrections, records. */
+  count: number;
+  points: number;
+}
+
+export interface SessionXp {
+  awards: XpAward[];
+  total: number;
+}
+
+/** How long the learner wants to practice a day; the XP goal follows from it. */
+export const DAILY_MINUTES = [15, 30, 45, 60] as const;
+export type DailyMinutes = (typeof DAILY_MINUTES)[number];
+
+/** Today's XP, goal and streak, in the learner's time zone. */
+export interface TodayProgress {
+  /** YYYY-MM-DD. */
+  day: string;
+  minutesPerDay: DailyMinutes;
+  goalXp: number;
+  earnedXp: number;
+  goalMet: boolean;
+  streakDays: number;
+  /** XP for each reason, to show XP as it is earned. */
+  points: Record<XpReason, number>;
+}
+
+/** The device's IANA time zone: days, the goal and the streak follow the learner's clock. */
+export function deviceTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
 export type MistakeStatus = "open" | "improving" | "mastered";
@@ -190,6 +255,10 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
         method: "POST",
         body: { moment, value },
       }),
+    level: (language = "en") => request<LevelView>(`/level?language=${encodeURIComponent(language)}`),
+    /** The learner corrects the estimated level by hand. */
+    setLevel: (level: CefrLevel, language = "en") =>
+      request<LevelView>("/level", { method: "PUT", body: { language, level } }),
     /** WebSocket address of the live voice session (see lib/voice/voice-socket.ts). */
     voiceUrl: (sessionId: string) =>
       `${baseUrl.replace(/^http/, "ws")}/api/sessions/${encodeURIComponent(sessionId)}/voice`,
@@ -206,6 +275,12 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
       (await request<{ mistakes: BankMistake[] }>(`/mistakes?language=${encodeURIComponent(language)}`)).mistakes,
     dismissMistake: (id: string, reason: DismissReason) =>
       request<void>(`/mistakes/${encodeURIComponent(id)}/dismiss`, { method: "POST", body: { reason } }),
+    todayProgress: (language = "en", timeZone = deviceTimeZone()) =>
+      request<TodayProgress>(
+        `/progress/today?language=${encodeURIComponent(language)}&timeZone=${encodeURIComponent(timeZone)}`,
+      ),
+    setDailyMinutes: (minutesPerDay: DailyMinutes, language = "en", timeZone = deviceTimeZone()) =>
+      request<TodayProgress>("/progress/daily-goal", { method: "PUT", body: { language, timeZone, minutesPerDay } }),
   };
 }
 

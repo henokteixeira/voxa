@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import { routes } from "./app/router";
 import { LocaleProvider } from "./lib/i18n/locale-provider";
+import { SoundProvider } from "./lib/sound/sound-provider";
 import "./styles/index.css";
 
 // A production build (served on the same port) may have left a service worker that would keep serving
@@ -14,7 +15,9 @@ if (import.meta.env.DEV && "serviceWorker" in navigator) {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <LocaleProvider>
-      <RouterProvider router={createBrowserRouter(routes)} />
+      <SoundProvider>
+        <RouterProvider router={createBrowserRouter(routes)} />
+      </SoundProvider>
     </LocaleProvider>
   </StrictMode>,
 );
