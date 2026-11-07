@@ -8,7 +8,7 @@ import { categoryLabel } from "@/features/mistakes/format";
 import { MistakeSheet } from "@/features/mistakes/mistake-sheet";
 import { reviewDay } from "./format";
 import { PRACTICE_COPY } from "./practice-copy";
-import { PRACTICE_PATH, reviewPath } from "./paths";
+import { reviewPath, typePath } from "./paths";
 
 const STATUS_CHIP = {
   new: "bg-honey-soft text-honey-ink",
@@ -32,7 +32,7 @@ export function PatternDetail(props: { pattern: PracticePattern; now: Date; onDi
     <>
       <div className="flex items-center justify-between pt-2">
         <Link
-          to={PRACTICE_PATH}
+          to={typePath(pattern.category)}
           className="inline-flex size-11 items-center justify-center rounded-full bg-paper text-ink shadow-card"
           aria-label={copy.back}
         >
