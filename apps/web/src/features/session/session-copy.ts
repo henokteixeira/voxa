@@ -47,6 +47,9 @@ export interface SessionCopy {
     paused: string;
     resume: string;
     repeatLast: string;
+    /** On the failure card when the learner's answer is kept for the retry. */
+    keptAnswer: string;
+    retrying: (attempt: number, of: number) => string;
   };
   parts: {
     tutor: string;
@@ -207,6 +210,8 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       paused: "Paused",
       resume: "Resume",
       repeatLast: "Repeat the last question",
+      keptAnswer: "Your answer is kept: no need to say it again.",
+      retrying: (attempt, of) => `Trying again by itself (${attempt} of ${of})…`,
     },
     parts: {
       tutor: "Tutor",
@@ -255,6 +260,8 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       paused: "Sessão pausada",
       resume: "Continuar",
       repeatLast: "Repetir a última pergunta",
+      keptAnswer: "Sua resposta está guardada: não precisa falar de novo.",
+      retrying: (attempt, of) => `Tentando de novo sozinho (${attempt} de ${of})…`,
     },
     parts: {
       tutor: "Tutor",

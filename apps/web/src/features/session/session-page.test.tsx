@@ -401,6 +401,50 @@ describe("live session", () => {
     expect(socket.sendText).not.toHaveBeenCalled();
   });
 
+  it("keeps a turn whose speech recognition timed out and sends the same recording again", async () => {
+    await startAndListen();
+    const wav = new ArrayBuffer(16);
+    act(() => micHandlers.onTurn(wav));
+    act(() => socketHandlers.onError("voice_unavailable", "STT timed out after 30000 ms"));
+    act(() => socketHandlers.onDone());
+
+    expect(screen.getByText("Your answer is kept: no need to say it again.")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Trying again by itself (1 of 3)");
+    socket.sendTurn.mockClear();
+    await userEvent.click(screen.getByRole("button", { name: "Check again" }));
+    expect(socket.sendTurn).toHaveBeenCalledWith(wav);
+  });
+
+  it("retries a failed turn by itself, waiting longer each time, then leaves it to the learner", async () => {
+    await startAndListen();
+    const wav = new ArrayBuffer(16);
+    act(() => micHandlers.onTurn(wav));
+    vi.useFakeTimers();
+    try {
+      socket.sendTurn.mockClear();
+      const fail = () => act(() => socketHandlers.onError("voice_unavailable", "STT timed out"));
+      fail();
+      act(() => vi.advanceTimersByTime(1_999));
+      expect(socket.sendTurn).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(1));
+      expect(socket.sendTurn).toHaveBeenCalledTimes(1);
+      fail();
+      act(() => vi.advanceTimersByTime(5_000));
+      fail();
+      act(() => vi.advanceTimersByTime(10_000));
+      expect(socket.sendTurn).toHaveBeenCalledTimes(3);
+      expect(socket.sendTurn).toHaveBeenLastCalledWith(wav);
+
+      fail();
+      act(() => vi.advanceTimersByTime(60_000));
+      expect(socket.sendTurn).toHaveBeenCalledTimes(3);
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("resends the transcript when the tutor didn't answer", async () => {
     await startAndListen();
     act(() => micHandlers.onTurn(new ArrayBuffer(16)));

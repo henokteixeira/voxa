@@ -19,6 +19,8 @@ export const EnvSchema = z.object({
   TUTOR_CONTEXT_FILE: optional(z.string().default("../../tutor-context.md")),
   VOICE_SERVICE_URL: optional(z.url().default("http://localhost:8001")),
   VOICE_TIMEOUT_MS: optional(z.coerce.number().int().positive().default(30_000)),
+  /** Extra STT wait per second of recorded speech: Whisper on CPU can take longer than the speech itself. */
+  VOICE_STT_MS_PER_AUDIO_SECOND: optional(z.coerce.number().int().nonnegative().default(2_000)),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
