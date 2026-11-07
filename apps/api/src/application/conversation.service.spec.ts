@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TutorVerdict } from "../domain/conversation/correction-policy.js";
 import type { Mode } from "../domain/conversation/mode.js";
 import type {
@@ -21,6 +21,7 @@ import type { SessionTiming } from "../domain/conversation/fluency.js";
 import type { KnownPattern, MistakePattern } from "../domain/mistakes/pattern.js";
 import type { ReviewRepository, ReviewSubject } from "../domain/ports/review.repository.js";
 import type { ReviewState } from "../domain/review/review-schedule.js";
+import type { LearnerMemoryService } from "./learner-memory.service.js";
 import { ReviewScheduler } from "./review-scheduler.js";
 import type { NewTurn, SessionProgress, SessionRepository } from "../domain/ports/session.repository.js";
 import type { TrackPlan, TutorContext, TutorPort, TutorRequest } from "../domain/ports/tutor.port.js";
@@ -300,6 +301,7 @@ let clock: FakeClock;
 let bankEntries: BankEntry[];
 let levels: FakeLevels;
 let assessor: FakeAssessor;
+let memory: { rememberLater: ReturnType<typeof vi.fn> };
 
 beforeEach(() => {
   tutor = new FakeTutor();
@@ -311,7 +313,8 @@ beforeEach(() => {
   levels = new FakeLevels();
   assessor = new FakeAssessor();
   reviews = new FakeReviews();
-  service = new ConversationService(tutor, sessions, mistakes, learnerContext, bank, clock, assessor, levels, new ReviewScheduler(reviews));
+  memory = { rememberLater: vi.fn() };
+  service = new ConversationService(tutor, sessions, mistakes, learnerContext, bank, clock, assessor, levels, new ReviewScheduler(reviews), memory as unknown as LearnerMemoryService);
 });
 
 describe("ConversationService.start", () => {
@@ -998,6 +1001,12 @@ describe("ConversationService: the guided track (A1–A2)", () => {
 });
 
 describe("ConversationService.end", () => {
+  it("asks for the ended session to be remembered", async () => {
+    const { session } = await service.start("free_talk", "en");
+    await service.end(session.id);
+    expect(memory.rememberLater).toHaveBeenCalledWith(session.id);
+  });
+
   it("ends the session and summarizes its mistakes and self-corrections", async () => {
     const { session } = await service.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true, issues: [article] }));

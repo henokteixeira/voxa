@@ -42,6 +42,7 @@ import {
   type SessionRepository,
 } from "../domain/ports/session.repository.js";
 import { type TutorContext, TUTOR_PORT, type TutorPort } from "../domain/ports/tutor.port.js";
+import { LearnerMemoryService } from "./learner-memory.service.js";
 import { ReviewScheduler } from "./review-scheduler.js";
 import { recordTurnLearning } from "./turn-learning.js";
 import { patternsToBringBack } from "../domain/mistakes/bring-back.js";
@@ -147,6 +148,7 @@ export class ConversationService {
     @Inject(LEVEL_ASSESSOR_PORT) private readonly assessor: LevelAssessorPort,
     @Inject(LEVEL_REPOSITORY) private readonly levels: LevelRepository,
     private readonly reviews: ReviewScheduler,
+    private readonly memory: LearnerMemoryService,
   ) {}
 
   async start(mode: Mode, language: string): Promise<SessionStart> {
@@ -371,6 +373,8 @@ export class ConversationService {
       level = (await this.levels.forSession(sessionId)) ?? (session.endedAt ? null : await this.assessPlacement(session, history));
     }
     if (!session.endedAt) await this.sessions.end(sessionId, timing);
+    // Off the summary's path; it saves once, so ending again only retries a failed run.
+    this.memory.rememberLater(sessionId);
     const [mistakes, outcome] = await Promise.all([
       this.mistakes.forSession(sessionId),
       this.sessions.outcome(sessionId),

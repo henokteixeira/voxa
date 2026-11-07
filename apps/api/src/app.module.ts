@@ -6,6 +6,7 @@ import { FillerSpeechService } from "./application/filler-speech.service.js";
 import { PracticeService } from "./application/practice.service.js";
 import { PracticeController } from "./practice/practice.controller.js";
 import { TranscriptionService } from "./application/transcription.service.js";
+import { LearnerMemoryService } from "./application/learner-memory.service.js";
 import { LevelService } from "./application/level.service.js";
 import { MistakeBankService } from "./application/mistake-bank.service.js";
 import { ProgressService } from "./application/progress.service.js";
@@ -13,6 +14,8 @@ import { SignalsService } from "./application/signals.service.js";
 import { VoiceConversationService } from "./application/voice-conversation.service.js";
 import { CLOCK, systemClock } from "./domain/ports/clock.port.js";
 import { LEARNER_CONTEXT_PORT } from "./domain/ports/learner-context.port.js";
+import { LEARNER_MEMORY_REPOSITORY } from "./domain/ports/learner-memory.repository.js";
+import { MEMORY_EXTRACTOR_PORT } from "./domain/ports/memory-extractor.port.js";
 import { LEVEL_ASSESSOR_PORT } from "./domain/ports/level-assessor.port.js";
 import { LEVEL_REPOSITORY } from "./domain/ports/level.repository.js";
 import { MISTAKE_BANK_REPOSITORY } from "./domain/ports/mistake-bank.repository.js";
@@ -24,11 +27,13 @@ import { TUTOR_PORT } from "./domain/ports/tutor.port.js";
 import { STT_PORT, TTS_PORT } from "./domain/ports/voice.port.js";
 import { HealthController } from "./health/health.controller.js";
 import { DbModule } from "./infra/db/db.module.js";
+import { DrizzleLearnerMemoryRepository } from "./infra/db/drizzle-learner-memory.repository.js";
 import { DrizzleLevelRepository } from "./infra/db/drizzle-level.repository.js";
 import { DrizzleMistakeRepository } from "./infra/db/drizzle-mistake.repository.js";
 import { DrizzleProgressRepository } from "./infra/db/drizzle-progress.repository.js";
 import { DrizzleSessionRepository } from "./infra/db/drizzle-session.repository.js";
 import { DrizzleSignalsRepository } from "./infra/db/drizzle-signals.repository.js";
+import { AnthropicMemoryExtractor } from "./infra/tutor/anthropic-memory-extractor.js";
 import { AnthropicLevelAssessor } from "./infra/tutor/anthropic-level-assessor.js";
 import { AnthropicTutorAdapter, anthropicClientProvider } from "./infra/tutor/anthropic-tutor.adapter.js";
 import { FileLearnerContext } from "./infra/tutor/file-learner-context.js";
@@ -62,6 +67,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
     FillerSpeechService,
     PracticeService,
     TranscriptionService,
+    LearnerMemoryService,
     LevelService,
     ProgressService,
     SignalsService,
@@ -72,6 +78,8 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
     { provide: LEVEL_ASSESSOR_PORT, useClass: AnthropicLevelAssessor },
     { provide: REVIEW_COACH_PORT, useClass: AnthropicReviewCoach },
     { provide: LEARNER_CONTEXT_PORT, useClass: FileLearnerContext },
+    { provide: MEMORY_EXTRACTOR_PORT, useClass: AnthropicMemoryExtractor },
+    { provide: LEARNER_MEMORY_REPOSITORY, useClass: DrizzleLearnerMemoryRepository },
     { provide: SESSION_REPOSITORY, useClass: DrizzleSessionRepository },
     { provide: LEVEL_REPOSITORY, useClass: DrizzleLevelRepository },
     { provide: PROGRESS_REPOSITORY, useClass: DrizzleProgressRepository },
