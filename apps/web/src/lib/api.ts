@@ -84,7 +84,7 @@ export interface ResumedSession extends Guidance {
   goals: string[];
   coveredGoals: string[];
   /** The pending correction's hint step, without the correction. */
-  hint: { hintsGiven: number; revealed: boolean; mistake?: string } | null;
+  hint: { hintsGiven: number; revealed: boolean; mistake?: string; mistakeType?: string; rule?: { name: string; rule: string } | null } | null;
 }
 
 export interface TurnResult extends Guidance {

@@ -95,7 +95,7 @@ export type SessionAction =
       captions: Caption[];
       goals: string[];
       coveredGoals: string[];
-      hint: { hintsGiven: number; revealed: boolean; mistake?: string } | null;
+      hint: { hintsGiven: number; revealed: boolean; mistake?: string; mistakeType?: string; rule?: { name: string; rule: string } | null } | null;
     } & Guidance)
   | { type: "keep_going" }
   | { type: "sent"; request: "audio"; audio: ArrayBuffer }
@@ -184,6 +184,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         hintStep: hint && !hint.revealed ? Math.min(2, hint.hintsGiven) : 0,
         hintFor: hint?.mistake ?? null,
         revealed: hint?.revealed ?? false,
+        mistakeType: hint?.mistakeType ?? null,
+        rule: hint?.revealed ? (hint.rule ?? null) : null,
         turn: freshTurn("speak"),
         ...guidance(state, action),
       };

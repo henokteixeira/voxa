@@ -309,6 +309,19 @@ describe("sessionReducer", () => {
     expect(sessionReducer(state, { type: "resume" }).phase).toBe("thinking");
   });
 
+  it("comes back on the correct form with the mistake's type and rule", () => {
+    const rule = { name: "Past for finished actions", rule: "Passado." };
+    const state = run({
+      type: "resumed",
+      sessionId: "s1",
+      captions: [],
+      goals: [],
+      coveredGoals: [],
+      hint: { hintsGiven: 2, revealed: true, mistake: "I goed", mistakeType: "verb_tense", rule },
+    });
+    expect(state).toMatchObject({ revealed: true, mistakeType: "verb_tense", rule });
+  });
+
   it("only resumes a session that is still starting", () => {
     const state = run(started, { type: "resumed", sessionId: "s2", captions: [], goals: [], coveredGoals: [], hint: null });
     expect(state.sessionId).toBe("s1");

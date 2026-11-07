@@ -613,6 +613,19 @@ describe("ConversationService.respond", () => {
       ["hint", goed.category, null],
     ]);
     expect(reveal).toMatchObject({ kind: "reveal", mistakeType: goed.category, rule: { name: pattern.name, rule: pattern.rule } });
+    // After a reload, the screen gets the type and the rule back.
+    expect((await service.resume(session.id)).hint).toMatchObject({ mistakeType: goed.category, rule: { name: pattern.name, rule: pattern.rule } });
+  });
+
+  it("gives the correct form without a rule for a hint saved before patterns", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    await service.respond(session.id, "I goed to the meeting");
+    const { pattern: _unused, ...old } = (await sessions.get(session.id))!.pending!;
+    await sessions.setPending(session.id, { ...old, hintsGiven: 2 });
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+
+    expect(await service.respond(session.id, "I goed to the meeting")).toMatchObject({ kind: "reveal", mistakeType: goed.category, rule: null });
   });
 
   it("saves the learner's line and the tutor's answer", async () => {
@@ -1065,7 +1078,8 @@ describe("ConversationService.resume", () => {
       ],
       goals: ["yesterday", "today", "blockers"],
       coveredGoals: ["yesterday"],
-      hint: { hintsGiven: 1, revealed: false, mistake: goed.original },
+      // Before the correct form, the type but never the rule.
+      hint: { hintsGiven: 1, revealed: false, mistake: goed.original, mistakeType: goed.category, rule: null },
       track: null,
       scaffold: null,
     });

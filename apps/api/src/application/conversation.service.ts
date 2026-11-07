@@ -107,7 +107,14 @@ export interface SessionResume {
   goals: readonly string[];
   coveredGoals: string[];
   /** The serious mistake the conversation is paused on, without its correction (the hints must not give it away). */
-  hint: { hintsGiven: number; revealed: boolean; mistake: string } | null;
+  hint: {
+    hintsGiven: number;
+    revealed: boolean;
+    mistake: string;
+    mistakeType: string;
+    /** Only once the correct form was given: the rule it breaks. */
+    rule: { name: string; rule: string } | null;
+  } | null;
   track: TrackView | null;
   scaffold: string | null;
 }
@@ -186,7 +193,15 @@ export class ConversationService {
       turns,
       goals: goalsFor(session.mode),
       coveredGoals: session.coveredGoals,
-      hint: pending ? { hintsGiven: pending.hintsGiven, revealed: pending.revealed, mistake: pending.original } : null,
+      hint: pending
+        ? {
+            hintsGiven: pending.hintsGiven,
+            revealed: pending.revealed,
+            mistake: pending.original,
+            mistakeType: pending.category,
+            rule: pending.revealed ? (pending.pattern ?? null) : null,
+          }
+        : null,
       track: trackView(session.track),
       scaffold: session.scaffold,
     };

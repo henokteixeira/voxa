@@ -104,6 +104,16 @@ describe("openVoiceSocket", () => {
     expect(handlers.onFollowUp).toHaveBeenNthCalledWith(2, { kind: "reply", message: null, selfCorrected: false, checkIn: false, coveredGoals: ["today"] });
   });
 
+  it("keeps the mistake's type on a hint, and its rule on the correct form", () => {
+    const { fake } = open();
+    fake.open();
+    const rule = { name: "Past for finished actions", rule: "Passado." };
+    fake.receive({ type: "tutor", kind: "hint", message: "Check the verb.", selfCorrected: false, mistake: "I goed", mistakeType: "verb_tense", rule: null });
+    fake.receive({ type: "tutor", kind: "reveal", message: "I went.", selfCorrected: false, mistakeType: "verb_tense", rule });
+    expect(handlers.onTutor).toHaveBeenNthCalledWith(1, { kind: "hint", message: "Check the verb.", selfCorrected: false, mistake: "I goed", mistakeType: "verb_tense" });
+    expect(handlers.onTutor).toHaveBeenNthCalledWith(2, { kind: "reveal", message: "I went.", selfCorrected: false, mistakeType: "verb_tense", rule });
+  });
+
   it("keeps the guided track and the words to say, null included", () => {
     const { fake } = open();
     fake.open();
