@@ -43,6 +43,19 @@ docker compose run --rm voice python -m eval.mixed_language --models small mediu
 
 Recording yourself (`eval.record`) needs the microphone, which Docker on macOS cannot reach.
 
+Golden sessions: scripted conversations against the real tutor (Claude) that check the correction rules
+(hints, at most two, then the correct form), first-language words treated as new words, and a tutor that
+never judges and admits what it does not know. Run them before changing the tutor prompt, the model or the
+effort. They use `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` and `ANTHROPIC_EFFORT` from `.env` and cost API credits
+(about 20 Claude calls), so they are not part of `pnpm test` or CI:
+
+```bash
+docker compose run --rm --no-deps --build api pnpm golden
+```
+
+The scenarios live in `apps/api/src/golden/scenarios.ts`; a failure prints the rule, what failed and the
+whole transcript.
+
 ## Running without Docker
 
 Requirements: Node 22+, pnpm 10+, Python 3.10–3.12 (Kokoro does not support 3.13 yet), Docker (for Postgres).
