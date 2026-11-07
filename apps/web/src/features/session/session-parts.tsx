@@ -1,4 +1,4 @@
-import { type ReactNode, type Ref, useEffect, useState } from "react";
+import { type ReactNode, type Ref, useEffect, useEffectEvent, useState } from "react";
 import { useCopy } from "@/lib/i18n/locale";
 import { captionHoldMs } from "./caption-hold";
 import { SESSION_COPY } from "./session-copy";
@@ -53,19 +53,21 @@ const FADE_MS = 300;
  * The learner's last words, shown so they can check the transcription, then faded away
  * so the screen stays calm. The transcript keeps them. Key it by the caption, so a new line starts over.
  */
-export function FadingCaption({ caption }: { caption: Caption }) {
-  const [stage, setStage] = useState<"shown" | "fading" | "gone">("shown");
+export function FadingCaption({ caption, onGone }: { caption: Caption; onGone: () => void }) {
+  const [fading, setFading] = useState(false);
+  // The parent remembers the faded line, so it stays gone when the screen comes back to it.
+  const gone = useEffectEvent(onGone);
   useEffect(() => {
-    const fade = setTimeout(() => setStage("fading"), captionHoldMs(caption.text));
-    const gone = setTimeout(() => setStage("gone"), captionHoldMs(caption.text) + FADE_MS);
+    const hold = captionHoldMs(caption.text);
+    const fade = setTimeout(() => setFading(true), hold);
+    const done = setTimeout(() => gone(), hold + FADE_MS);
     return () => {
       clearTimeout(fade);
-      clearTimeout(gone);
+      clearTimeout(done);
     };
   }, [caption.text]);
-  if (stage === "gone") return null;
   return (
-    <div className={`transition-opacity duration-300 ${stage === "fading" ? "opacity-0" : "opacity-100"}`}>
+    <div className={`transition-opacity duration-300 ${fading ? "opacity-0" : "opacity-100"}`}>
       <CaptionCard caption={caption} />
     </div>
   );

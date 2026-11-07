@@ -40,6 +40,8 @@ function LiveSession({ mode }: { mode: Mode }) {
   // Which caption the learner chose to read: a new tutor line starts hidden again.
   const [shownCaption, setShownCaption] = useState(-1);
   const tutorText = useRef<HTMLParagraphElement>(null);
+  // The learner's last line that has already faded from the main screen.
+  const [fadedCaption, setFadedCaption] = useState(-1);
   const { elapsed } = session;
   const stage = stageFor(state, stageCopy);
   const lastCaption = state.captions.at(-1);
@@ -81,7 +83,9 @@ function LiveSession({ mode }: { mode: Mode }) {
   const yoursIndex = state.captions.findLastIndex((c) => c.who === "you");
   const yoursCaption = state.captions[yoursIndex];
   const yours =
-    yoursCaption && yoursIndex >= state.captions.length - 2 ? <FadingCaption key={yoursIndex} caption={yoursCaption} /> : null;
+    yoursCaption && yoursIndex >= state.captions.length - 2 && yoursIndex > fadedCaption ? (
+      <FadingCaption key={yoursIndex} caption={yoursCaption} onGone={() => setFadedCaption(yoursIndex)} />
+    ) : null;
   let tutorLine = -1;
   // A correction card carries the help itself, so the screen shows one card, not two.
   let helpInCard = false;

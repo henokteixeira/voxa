@@ -169,6 +169,9 @@ describe("live session", () => {
     }
     await userEvent.click(screen.getByRole("button", { name: "Show transcript" }));
     expect(screen.getByRole("list", { name: "Transcript" })).toHaveTextContent("I fixed the login bug");
+    // Closing the transcript does not bring the faded line back.
+    await userEvent.click(screen.getByRole("button", { name: "Hide transcript" }));
+    expect(screen.queryByText("I fixed the login bug")).not.toBeInTheDocument();
   });
 
   it("puts the help inside the correction card instead of stacking another card", async () => {
