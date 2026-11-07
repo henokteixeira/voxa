@@ -61,8 +61,9 @@ class WhisperStt:
 
     def __init__(self, model: str, initial_prompt: str | None = None, cpu_threads: int | None = None):
         self.model_name = model
-        # faster-whisper uses 4 threads unless told otherwise; use every core the container gets.
-        self.cpu_threads = cpu_threads or os.cpu_count() or 0
+        # faster-whisper uses 4 threads unless told otherwise. Take the container's cores but leave two free,
+        # so the voice, the API and the browser (on a Mac, Docker's CPUs are the host's) stay responsive.
+        self.cpu_threads = cpu_threads or max(4, (os.cpu_count() or 0) - 2)
         self.initial_prompt = (initial_prompt or "").strip() or None
         self._model = None
         self._lock = threading.Lock()
