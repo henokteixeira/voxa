@@ -11,7 +11,7 @@ export const LEVEL_SOURCES = ["placement", "manual", "step_change"] as const;
 export type LevelSource = (typeof LEVEL_SOURCES)[number];
 
 /**
- * How much help a session gives (design doc "Voxa: nivelamento e trilha guiada", 2026-11-07):
+ * How much help a session gives (leveling and guided track design, approved by the learner on 2026-11-07):
  * build_full (A1) = the guided track in full; build_light (A2) = the track, with the model only when he can't answer;
  * supported (B1) = free conversation, the start of a sentence when he gets stuck; conversation (B2) = as before;
  * demanding (C1, C2) = as before, with harder questions.

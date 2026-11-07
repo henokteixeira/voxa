@@ -38,6 +38,19 @@ describe("LevelService", () => {
     });
   });
 
+  it("keeps the last placement's date when the level is then set by hand", async () => {
+    const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+    await levels.add({ language: "en", level: "A2", source: "placement", evidence: [], assessedAt: tenDaysAgo });
+    const view = await service.setByHand("en", "B1");
+    expect(view).toMatchObject({ current: { level: "B1", source: "manual" }, placementDue: false });
+  });
+
+  it("suggests a new placement 4 weeks after the last one", async () => {
+    const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+    await levels.add({ language: "en", level: "A2", source: "placement", evidence: [], assessedAt: fourWeeksAgo });
+    expect((await service.view("en")).placementDue).toBe(true);
+  });
+
   it("lets the learner set the level by hand, without counting it as a placement", async () => {
     const view = await service.setByHand("en", "B1");
     expect(view.current).toMatchObject({ level: "B1", source: "manual", evidence: [], assessedAt: now, step: "supported" });
