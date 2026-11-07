@@ -1,6 +1,7 @@
 import type { TutorVerdict } from "../conversation/correction-policy.js";
 import type { Mode } from "../conversation/mode.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget } from "../conversation/types.js";
+import type { SupportStep } from "../level/speaking-level.js";
 
 export interface KnownMistake {
   original: string;
@@ -17,6 +18,8 @@ export interface TutorContext {
   goals: { id: string; description: string }[];
   /** Mistakes from the bank the tutor gives the learner chances to say correctly. */
   targets: PracticeTarget[];
+  /** How much help to give, from the learner's level; null in the placement interview. */
+  step: SupportStep | null;
 }
 
 export interface TutorRequest extends TutorContext {
@@ -28,6 +31,8 @@ export interface TutorRequest extends TutorContext {
   utterance: string;
   /** Ids of the goals covered before this utterance. */
   coveredGoals: string[];
+  /** Words the tutor's last line gave the learner to say (the learner may be completing them), or null. */
+  scaffold: string | null;
 }
 
 /** The AI tutor. Implementations live in infra/. */

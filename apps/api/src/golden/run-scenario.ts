@@ -6,6 +6,7 @@ import {
   verdictForMode,
 } from "../domain/conversation/correction-policy.js";
 import { GOAL_DESCRIPTIONS, goalsFor, mergeCovered } from "../domain/conversation/session-goals.js";
+import { keptScaffold, sessionStep } from "../domain/conversation/support.js";
 import type { ChatTurn, PendingCorrection } from "../domain/conversation/types.js";
 import type { TutorPort } from "../domain/ports/tutor.port.js";
 import type { Scenario } from "./scenarios.js";
@@ -17,6 +18,8 @@ export interface TurnRecord {
   decision: PolicyDecision;
   /** The on-screen help the learner sees, after the same filter the service applies. */
   support: string | null;
+  /** The words given to say next, after the same filter the service applies. */
+  scaffold: string | null;
 }
 
 export interface Transcript {
@@ -35,11 +38,13 @@ export async function runScenario(tutor: TutorPort, scenario: Scenario, learnerC
     learnerContext,
     goals: goalsFor(scenario.mode).map((id) => ({ id, description: GOAL_DESCRIPTIONS[id] })),
     targets: [],
+    step: scenario.step ?? sessionStep(scenario.mode, null),
   };
   const opening = await tutor.open(context);
   const history: ChatTurn[] = [{ role: "assistant", content: opening }];
   let pending: PendingCorrection | null = null;
   let coveredGoals: string[] = [];
+  let scaffold: string | null = null;
   const turns: TurnRecord[] = [];
 
   for (const { utterance } of scenario.turns) {
@@ -51,10 +56,13 @@ export async function runScenario(tutor: TutorPort, scenario: Scenario, learnerC
       knownNewWords: scenario.knownNewWords ?? [],
       utterance,
       coveredGoals,
+      scaffold,
     });
     const decision = decide(pending, verdictForMode(scenario.mode, verdict));
     const support = safeSupport(verdict.support, decision.nextPending?.correction);
-    turns.push({ utterance, pendingBefore: pending, verdict, decision, support });
+    const given = decision.kind === "reply" ? keptScaffold(context.step, verdict.scaffold) : null;
+    turns.push({ utterance, pendingBefore: pending, verdict, decision, support, scaffold: given });
+    scaffold = given;
     history.push({ role: "user", content: utterance }, { role: "assistant", content: decision.message });
     pending = decision.nextPending;
     coveredGoals = mergeCovered(scenario.mode, coveredGoals, verdict.coveredGoals);

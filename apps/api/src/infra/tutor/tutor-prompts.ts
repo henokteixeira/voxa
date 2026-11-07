@@ -1,4 +1,5 @@
 import type { Mode } from "../../domain/conversation/mode.js";
+import type { SupportStep } from "../../domain/level/speaking-level.js";
 import type { TutorContext, TutorRequest } from "../../domain/ports/tutor.port.js";
 
 /** The scene the tutor plays in each mode. */
@@ -26,19 +27,55 @@ export const SCENES: Record<Mode, string> = {
     "listen and keep the talk going; the app tells the learner the result later.",
 };
 
+const STUCK =
+  "The learner is stuck when they say they don't know, answer mostly in their first language, or stop after a few " +
+  "words without answering.";
+
+const SENTENCE_START =
+  "When the learner is stuck, reassure them in a few words and, in `reply`, give only the start of a sentence they " +
+  "can finish with their own information (for example: \"You could start with: Yesterday I worked on...\"). " +
+  "Never the whole answer. Put that start in `scaffold`, exactly as you said it.";
+
+/**
+ * How much help the tutor gives at each support step (the learner's level picks it). The guided track for
+ * A1–A2 builds on the sentence start for now; its steps come with the track itself.
+ */
+export const SUPPORT_RULES: Record<SupportStep, string> = {
+  build_full:
+    "The learner is a beginner (about CEFR A1). Use very short, simple sentences and speak slowly. " + SENTENCE_START,
+  build_light: "The learner speaks at about CEFR A2. Use short, simple sentences. " + SENTENCE_START,
+  supported: "The learner speaks at about CEFR B1. Talk freely. " + SENTENCE_START,
+  conversation:
+    "The learner speaks at about CEFR B2. Talk naturally. Do not give sentences to say: help only with hints and " +
+    "first-language words, as above. Set `scaffold` to null.",
+  demanding:
+    "The learner is advanced (CEFR C1 or above). Talk naturally and ask harder follow-ups: the reasons behind a " +
+    "decision, trade-offs, an unexpected question a sponsor might ask. Do not give sentences to say. Set `scaffold` to null.",
+};
+
+/** The help section of the system prompt; the placement interview gives no help. */
+function supportSection(step: SupportStep | null): string {
+  const rule = step ? SUPPORT_RULES[step] : "Give no help with what to say. Set `scaffold` to null.";
+  return [
+    "## How much help to give",
+    `${STUCK} Set \`stuck\` to true on such a turn, and to false otherwise.`,
+    rule,
+  ].join("\n");
+}
+
 /** For the placement interview, these win over every other rule above: it measures, it does not teach. */
 export const PLACEMENT_RULES = [
   "## Placement interview: these rules win over the ones above",
   "- Never teach: when the learner uses their first language, do not give the words or invite them to use " +
     "them; acknowledge what they meant in a few simple words and go on with the next question.",
   "- Still list mistakes in `issues` and first-language words in `newWords`, for the record, but never write " +
-    "a hint: set every `hint` to an empty string, `nextHint` to null and `support` to null.",
+    "a hint: set every `hint` to an empty string, `nextHint` to null, `support` to null and `scaffold` to null.",
   "- Keep your own sentences simple and slow at the easy tasks, and natural at the harder ones.",
 ].join("\n");
 
 /** Stable per session, so it can be cached. */
 export function buildSystemPrompt(
-  { mode, language, learnerContext, goals, targets }: TutorContext,
+  { mode, language, learnerContext, goals, targets, step }: TutorContext,
   firstLanguage: string,
 ): string {
   return [
@@ -84,6 +121,7 @@ export function buildSystemPrompt(
           ...targets.map((t) => `- "${t.original}" → "${t.correction}" (${t.category})`),
         ].join("\n")
       : "",
+    supportSection(step),
     learnerContext.trim()
       ? `## About the learner\nUse these facts to make the scene realistic. Do not recite them.\n\n${learnerContext.trim()}`
       : "## About the learner\nNo details were given. Ask about their work when it helps the scene.",
@@ -125,7 +163,7 @@ export const OPENING_REQUEST = "Start the scene with your first line. Keep it sh
 
 /** The per-turn message: the utterance plus what the tutor must check it against. */
 export function buildTurnMessage(
-  request: Pick<TutorRequest, "utterance" | "pending" | "knownMistakes" | "knownNewWords" | "coveredGoals">,
+  request: Pick<TutorRequest, "utterance" | "pending" | "knownMistakes" | "knownNewWords" | "coveredGoals" | "scaffold">,
 ): string {
   const known = request.knownMistakes.length
     ? request.knownMistakes.map((m) => `- "${m.original}" → "${m.correction}" (${m.category})`).join("\n")
@@ -143,6 +181,8 @@ export function buildTurnMessage(
     `<new_words>\n${newWords}\n</new_words>`,
     `<pending_correction>\n${pending}\n</pending_correction>`,
     `<covered_goals>\n${request.coveredGoals.length ? request.coveredGoals.join(", ") : "none"}\n</covered_goals>`,
+    // The learner may be finishing these words: that is not stuck, and not a mistake in itself.
+    `<words_given>\n${request.scaffold ?? "none"}\n</words_given>`,
     `<utterance>\n${request.utterance}\n</utterance>`,
   ].join("\n");
 }

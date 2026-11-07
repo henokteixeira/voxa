@@ -25,6 +25,10 @@ export const sessions = pgTable("sessions", {
   targets: jsonb("targets").$type<PracticeTarget[]>().notNull().default([]),
   /** The `original` of each target the learner said correctly in this session. */
   metTargets: jsonb("met_targets").$type<string[]>().notNull().default([]),
+  /** How much help the session gives (build_full | build_light | supported | conversation | demanding); null in placement. */
+  supportStep: varchar("support_step", { length: 16 }),
+  /** Words the tutor's last line gave the learner to say (a model sentence or a sentence start). */
+  scaffold: text("scaffold"),
 });
 
 export const turns = pgTable("turns", {
@@ -34,6 +38,8 @@ export const turns = pgTable("turns", {
   seq: bigserial("seq", { mode: "number" }).notNull(),
   role: varchar("role", { length: 16 }).notNull(), // user | assistant
   content: text("content").notNull(),
+  /** Learner turns: answered words the tutor gave, or used the first language. Always false for the tutor's turns. */
+  assisted: boolean("assisted").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

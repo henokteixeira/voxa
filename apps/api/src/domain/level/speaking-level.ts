@@ -28,6 +28,10 @@ const STEP_BY_LEVEL: Record<CefrLevel, SupportStep> = {
   C2: "demanding",
 };
 
+export function isSupportStep(value: unknown): value is SupportStep {
+  return typeof value === "string" && (SUPPORT_STEPS as readonly string[]).includes(value);
+}
+
 export function supportStepFor(level: CefrLevel): SupportStep {
   return STEP_BY_LEVEL[level];
 }

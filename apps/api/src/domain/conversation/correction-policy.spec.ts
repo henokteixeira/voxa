@@ -21,6 +21,8 @@ const verdict = (over: Partial<TutorVerdict> = {}): TutorVerdict => ({
   newWords: [],
   support: null,
   coveredGoals: [],
+  stuck: false,
+  scaffold: null,
   ...over,
 });
 
@@ -146,7 +148,7 @@ describe("verdictForMode", () => {
     hint: "Past tense?",
     matchesKnownMistake: true,
   };
-  const v = { reply: "Go on.", issues: [serious], pendingResolved: false, nextHint: null, correctUses: [], newWords: [], support: null, coveredGoals: [] };
+  const v = { reply: "Go on.", issues: [serious], pendingResolved: false, nextHint: null, correctUses: [], newWords: [], support: null, coveredGoals: [], stuck: false, scaffold: null };
 
   it("keeps the verdict in the meeting modes", () => {
     expect(verdictForMode("daily", v)).toBe(v);

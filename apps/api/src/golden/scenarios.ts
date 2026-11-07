@@ -1,5 +1,6 @@
 import type { TurnKind } from "../domain/conversation/correction-policy.js";
 import type { Mode } from "../domain/conversation/mode.js";
+import type { SupportStep } from "../domain/level/speaking-level.js";
 import type { KnownMistake } from "../domain/ports/tutor.port.js";
 
 /** What one learner turn must produce. Unset fields are not checked. */
@@ -18,6 +19,10 @@ export interface TurnExpectation {
   correctUse?: string;
   /** The tutor's spoken line must match. */
   message?: RegExp;
+  /** Whether the tutor must see the learner as stuck. */
+  stuck?: boolean;
+  /** true: the tutor gives words to say next, and says them. false: it gives none. */
+  scaffold?: boolean;
 }
 
 export interface ScriptedTurn {
@@ -30,6 +35,8 @@ export interface Scenario {
   /** The rule from the product this scenario guards, in plain words. */
   rule: string;
   mode: Mode;
+  /** The session's support step; defaults to the step of a learner without a level. */
+  step?: SupportStep;
   knownMistakes?: KnownMistake[];
   knownNewWords?: KnownMistake[];
   turns: ScriptedTurn[];
@@ -187,6 +194,23 @@ export const ALL_SCENARIOS: Scenario[] = [
       { utterance: "Yesterday I pretend to finish the export, but I no can.", expect: { kind: "reply" } },
     ],
   },
+  {
+    name: "B1 support: the start of a sentence when the learner is stuck",
+    rule: "At B1, when the learner is stuck, the tutor gives only the start of a sentence to finish, never the whole answer.",
+    mode: "daily",
+    step: "supported",
+    turns: [
+      { utterance: "Hmm, yesterday I... I don't know how to say it.", expect: { kind: "reply", stuck: true, scaffold: true } },
+      { utterance: "Yesterday I worked on the export of reports.", expect: { stuck: false } },
+    ],
+  },
+  {
+    name: "B2 conversation: no words to say, even when stuck",
+    rule: "From B2 up, the tutor helps only with hints and first-language words; it never gives sentences to say.",
+    mode: "daily",
+    step: "conversation",
+    turns: [{ utterance: "I don't know what to say.", expect: { kind: "reply", stuck: true, scaffold: false } }],
+  },
 ];
 
 /** The golden sessions: a quick check that the tutor works (hint and self-correction, new word, no false alarm). */
@@ -196,5 +220,6 @@ export const SCENARIOS: Scenario[] = ALL_SCENARIOS.filter((s) =>
     "first-language word: a new word, not a mistake",
     "fluent utterance: nothing to correct",
     "placement: the interviewer only observes, never corrects",
+    "B1 support: the start of a sentence when the learner is stuck",
   ].includes(s.name),
 );
