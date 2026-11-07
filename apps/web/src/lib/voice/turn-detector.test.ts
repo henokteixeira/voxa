@@ -51,6 +51,16 @@ describe("TurnDetector", () => {
     expect(detector.isSpeaking).toBe(false);
   });
 
+  it("by default waits 2.5 s of silence, so a thinking pause does not end the turn", () => {
+    const detector = new TurnDetector();
+    feed(detector, QUIET, 500);
+    feed(detector, LOUD, 1000);
+    expect(feed(detector, QUIET, 2480)).toEqual([]);
+    expect(feed(detector, LOUD, 500)).toEqual([]);
+    expect(feed(detector, QUIET, 2480)).toEqual([]);
+    expect(feed(detector, QUIET, 20)).toEqual(["end"]);
+  });
+
   it("cuts a turn that runs too long", () => {
     const detector = new TurnDetector({ maxTurnMs: 2000 });
     feed(detector, QUIET, 500);

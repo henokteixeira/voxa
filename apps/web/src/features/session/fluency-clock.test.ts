@@ -7,7 +7,7 @@ describe("FluencyClock", () => {
     clock.tutorStarted(0);
     clock.tutorStopped(4000);
     clock.learnerStarted(5500);
-    // The turn ends after 1.2 s of silence: that silence is not speech.
+    // The turn ends after a silence: that silence is not speech.
     clock.learnerEnded(9700, { silenceMs: 1200 });
 
     expect(clock.timing()).toEqual({ tutorSpeechMs: 4000, pausesMs: [1500], learnerSpeechMs: 3000 });
