@@ -8,6 +8,7 @@ import { BackIcon, IconButton } from "@/features/session/session-parts";
 import { useCopy } from "@/lib/i18n/locale";
 import { cn } from "@/lib/utils";
 import { ONBOARDING_COPY } from "./onboarding-copy";
+import { markOnboardingSeen } from "./onboarding-seen";
 import { type MicCheck, useMicCheck } from "./use-mic-check";
 
 /** First run: the welcome and microphone check that lead to the level chat. */
@@ -74,10 +75,23 @@ export function OnboardingPage() {
         ))}
       </ul>
       <div className="mt-auto flex flex-col gap-2">
-        <Button block onClick={() => navigate(PLACEMENT_PATH)}>
+        <Button
+          block
+          onClick={() => {
+            markOnboardingSeen();
+            navigate(PLACEMENT_PATH);
+          }}
+        >
           {copy.chat.action}
         </Button>
-        <Button variant="ghost" block onClick={() => navigate("/")}>
+        <Button
+          variant="ghost"
+          block
+          onClick={() => {
+            markOnboardingSeen();
+            navigate("/");
+          }}
+        >
           {copy.chat.later}
         </Button>
       </div>
@@ -117,8 +131,8 @@ function MicStep({ header, onDone }: { header: ReactNode; onDone: () => void }) 
   }
 
   return (
-    <Screen title={copy.title} header={header} onPointerDown={unlock}>
-      <p lang="en" className="m-0 -mt-4 font-serif text-[22px] leading-snug [font-variation-settings:'SOFT'_60]">
+    <Screen title={copy.title} header={header} centered onPointerDown={unlock}>
+      <p lang="en" className="m-0 -mt-4 text-center font-serif text-[22px] leading-snug [font-variation-settings:'SOFT'_60]">
         {copy.phrase}
       </p>
       <MicStage check={check} notHearing={notHearing} />
@@ -191,6 +205,8 @@ function Screen(props: {
   title: string;
   header?: ReactNode;
   display?: boolean;
+  /** Title and text centered (the display style is always centered). */
+  centered?: boolean;
   onPointerDown?: () => void;
   children: ReactNode;
 }) {
@@ -205,7 +221,11 @@ function Screen(props: {
       )}
     >
       {props.header}
-      <h1 ref={title} tabIndex={-1} className={cn("m-0 outline-none", props.display ? "text-display" : "text-title")}>
+      <h1
+        ref={title}
+        tabIndex={-1}
+        className={cn("m-0 outline-none", props.display ? "text-display" : "text-title", props.centered && "text-center")}
+      >
         {props.title}
       </h1>
       {props.children}

@@ -110,7 +110,13 @@ describe("Today", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Good (morning|afternoon|evening)$/);
   });
 
-  it("starts with the onboarding, which leads to the placement interview, before there is a level", async () => {
+  it("opens the onboarding on the first run, before there is a level", async () => {
+    const router = renderApp("/", up(), { level: vi.fn().mockResolvedValue({ current: null, placementDue: true }) });
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/onboarding"));
+  });
+
+  it("after Do it later, stays on Today and offers the onboarding from Start", async () => {
+    localStorage.setItem("voxa.onboardingSeen", "1");
     const router = renderApp("/", up(), { level: vi.fn().mockResolvedValue({ current: null, placementDue: true }) });
     expect(await screen.findByRole("heading", { name: "Let's start by finding your level" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("link", { name: "Start" }));
