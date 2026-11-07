@@ -13,6 +13,8 @@ export interface TodayCopy {
   problem: Record<Problem, { title: string; detail: ReactNode }>;
   checkAgain: string;
   readyTitle: string;
+  placementTitle: string;
+  placementBody: string;
   readyBody: (mode: string) => string;
   start: string;
   pausedTitle: string;
@@ -54,6 +56,9 @@ export const TODAY_COPY: Copy<TodayCopy> = {
     },
     checkAgain: "Check again",
     readyTitle: "Your first session is ready",
+    placementTitle: "Let's start by finding your level",
+    placementBody:
+      "A relaxed 7-minute conversation about your work. No corrections: it only shows how much help your sessions should give.",
     readyBody: (mode) => `${mode} · about 6 min. Your mistake bank and progress start filling from here.`,
     start: "Start",
     pausedTitle: "Your session is paused",
@@ -91,6 +96,9 @@ export const TODAY_COPY: Copy<TodayCopy> = {
     },
     checkAgain: "Verificar de novo",
     readyTitle: "Sua primeira sessão está pronta",
+    placementTitle: "Vamos começar descobrindo seu nível",
+    placementBody:
+      "Uma conversa tranquila de 7 minutos sobre o seu trabalho. Sem correções: serve só para saber quanta ajuda as sessões devem dar.",
     readyBody: (mode) => `${mode} · cerca de 6 min. Seu banco de erros e seu progresso começam a ser preenchidos a partir daqui.`,
     start: "Começar",
     pausedTitle: "Sua sessão está pausada",

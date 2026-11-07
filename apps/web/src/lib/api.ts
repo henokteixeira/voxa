@@ -1,7 +1,31 @@
 /** Typed client for the Voxa API. Every call fails with ApiError, never a raw fetch error. */
 
-export const MODES = ["presentation", "free_talk", "daily", "review"] as const;
+/** Every session mode: the four meetings, plus the placement interview that estimates the speaking level. */
+export const MODES = ["presentation", "free_talk", "daily", "review", "placement"] as const;
 export type Mode = (typeof MODES)[number];
+
+/** The meetings the learner picks to practice (the placement interview is offered on its own). */
+export const MEETING_MODES = ["presentation", "free_talk", "daily", "review"] as const satisfies readonly Mode[];
+
+export const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
+export type CefrLevel = (typeof CEFR_LEVELS)[number];
+
+/** The learner's speaking level, an estimate that picks how much help sessions give. */
+export interface SpeakingLevel {
+  language: string;
+  level: CefrLevel;
+  source: "placement" | "manual" | "step_change";
+  /** The learner's own lines that back the estimate. */
+  evidence: string[];
+  /** ISO 8601 date-time. */
+  assessedAt: string;
+}
+
+export interface LevelView {
+  current: (SpeakingLevel & { step: string }) | null;
+  /** Suggest a placement interview: never done, or the last one is 4 weeks old. */
+  placementDue: boolean;
+}
 
 export interface StartedSession {
   sessionId: string;
@@ -95,6 +119,8 @@ export interface SessionSummary {
   goals: { id: string; covered: boolean }[];
   /** Mistakes from the bank practiced in this session; `met` when the learner said the correct form. */
   targets: { original: string; correction: string; category: string; met: boolean }[];
+  /** After a placement interview: the level it gave (null when nothing was said). Missing or null otherwise. */
+  level?: SpeakingLevel | null;
 }
 
 export type MistakeStatus = "open" | "improving" | "mastered";
@@ -190,6 +216,10 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
         method: "POST",
         body: { moment, value },
       }),
+    level: (language = "en") => request<LevelView>(`/level?language=${encodeURIComponent(language)}`),
+    /** The learner corrects the estimated level by hand. */
+    setLevel: (level: CefrLevel, language = "en") =>
+      request<LevelView>("/level", { method: "PUT", body: { language, level } }),
     /** WebSocket address of the live voice session (see lib/voice/voice-socket.ts). */
     voiceUrl: (sessionId: string) =>
       `${baseUrl.replace(/^http/, "ws")}/api/sessions/${encodeURIComponent(sessionId)}/voice`,

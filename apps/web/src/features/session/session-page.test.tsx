@@ -26,6 +26,7 @@ const api = {
   resumeSession: vi.fn(),
   rateConfidence: vi.fn(),
   fillerSpeech: vi.fn(),
+  level: () => Promise.resolve({ current: null, placementDue: false }),
   voiceUrl: (id: string) => `ws://api/api/sessions/${id}/voice`,
 } as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "resumeSession" | "rateConfidence" | "fillerSpeech"]: ReturnType<typeof vi.fn> };
 
@@ -884,3 +885,31 @@ describe("after a reload", () => {
   });
 });
 
+
+describe("placement interview", () => {
+  it("ends with the estimated level and the learner's lines, without the confidence question", async () => {
+    api.startSession.mockResolvedValue({ sessionId: "s1", mode: "placement", language: "en", message: "Hi! What do you do?", goals: ["warm_up"] });
+    api.endSession.mockResolvedValue(
+      summaryWith([], {
+        mode: "placement",
+        level: { language: "en", level: "A2", source: "placement", evidence: ["I work in app for translate"], assessedAt: "2026-11-07T10:00:00Z" },
+      }),
+    );
+    renderSession("/session/placement");
+    await opened();
+    act(() => socketHandlers.onOpen());
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
+    act(() => socketHandlers.onDone());
+    await act(async () => finishPlayback());
+    // The interview's tasks are not shown as goals to tick off.
+    expect(screen.queryByText("Warm up")).not.toBeInTheDocument();
+
+    await endFromPause();
+    expect(await screen.findByRole("heading", { name: "Thanks for the conversation" })).toBeInTheDocument();
+    expect(screen.getByText("Level A2")).toBeInTheDocument();
+    expect(screen.getByText("“I work in app for translate”")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByRole("heading", { name: "Session saved" })).toBeInTheDocument();
+    expect(api.rateConfidence).not.toHaveBeenCalled();
+  });
+});
