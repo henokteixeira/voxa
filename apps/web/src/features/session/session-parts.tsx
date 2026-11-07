@@ -9,7 +9,7 @@ export function IconButton({ label, onClick, children }: { label: string; onClic
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-none bg-paper text-ink shadow-card transition-[transform,background-color] duration-150 hover:bg-sand-soft active:scale-[0.92]"
+      className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-none bg-paper text-ink shadow-card transition-[transform,background-color] duration-150 hover:bg-sand-soft motion-safe:active:scale-[0.92]"
     >
       {children}
     </button>

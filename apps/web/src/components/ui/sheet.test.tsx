@@ -45,6 +45,33 @@ describe("Sheet", () => {
     expect(screen.getByRole("button", { name: "Open" })).toHaveFocus();
   });
 
+  it("gives focus back to the opener even when a child autofocuses", async () => {
+    function AutoFocusOpener() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Pause
+          </button>
+          {open && (
+            <Sheet label="Paused" onClose={() => setOpen(false)}>
+              {(close) => (
+                <button type="button" autoFocus onClick={close}>
+                  Resume
+                </button>
+              )}
+            </Sheet>
+          )}
+        </>
+      );
+    }
+    render(<AutoFocusOpener />);
+    await userEvent.click(screen.getByRole("button", { name: "Pause" }));
+    expect(screen.getByRole("button", { name: "Resume" })).toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: "Resume" }));
+    expect(screen.getByRole("button", { name: "Pause" })).toHaveFocus();
+  });
+
   it("makes the app behind it inert while open", () => {
     const root = document.createElement("div");
     root.id = "root";

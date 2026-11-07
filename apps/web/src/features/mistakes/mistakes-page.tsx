@@ -39,9 +39,10 @@ export function MistakesPage(props: { now?: Date }) {
       <>
         {heading}
         <div role="status" aria-label={copy.loading} className="flex flex-col gap-3">
-          <div className="vx-skeleton h-12 rounded-pill" />
+          <span className="sr-only">{copy.loading}</span>
+          <div aria-hidden="true" className="vx-skeleton h-12 rounded-pill" />
           {[0, 1, 2].map((i) => (
-            <div key={i} className="vx-skeleton h-[118px] rounded-md" />
+            <div key={i} aria-hidden="true" className="vx-skeleton h-[118px] rounded-md" />
           ))}
         </div>
       </>
@@ -106,7 +107,7 @@ export function MistakesPage(props: { now?: Date }) {
             <button
               type="button"
               onClick={() => setSelected(m)}
-              className="flex w-full cursor-pointer flex-col gap-2 rounded-md border-none bg-paper p-[18px] text-left font-sans text-ink shadow-card transition-[transform,box-shadow] duration-150 hover:shadow-[0_1px_0_var(--color-sand),0_6px_16px_-10px_rgba(46,37,32,0.25)] active:scale-[0.98]"
+              className="flex w-full cursor-pointer flex-col gap-2 rounded-md border-none bg-paper p-[18px] text-left font-sans text-ink shadow-card transition-[transform,box-shadow] duration-150 hover:shadow-[0_1px_0_var(--color-sand),0_6px_16px_-10px_rgba(46,37,32,0.25)] motion-safe:active:scale-[0.98]"
             >
               <span className="flex justify-between gap-2">
                 <span className="text-label text-honey-ink">{categoryLabel(m.category, locale)}</span>

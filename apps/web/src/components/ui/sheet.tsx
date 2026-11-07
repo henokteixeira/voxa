@@ -34,6 +34,8 @@ export function Sheet({
 }) {
   const [closing, setClosing] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
+  // Read at first render, before a child's autoFocus moves focus into the sheet.
+  const [opener] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null));
   // Closing twice is a no-op; with reduced motion the sheet closes at once.
   const close = useCallback(() => {
     if (skipExit()) onClose();
@@ -49,7 +51,6 @@ export function Sheet({
 
   // Focus moves in and the app behind goes inert; both come back on unmount.
   useEffect(() => {
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const app = document.getElementById("root");
     const wasInert = app?.inert ?? false;
     if (app) app.inert = true;
@@ -58,7 +59,7 @@ export function Sheet({
       if (app) app.inert = wasInert;
       if (opener?.isConnected) opener.focus();
     };
-  }, []);
+  }, [opener]);
 
   useEffect(() => {
     if (!dismissible) return;
