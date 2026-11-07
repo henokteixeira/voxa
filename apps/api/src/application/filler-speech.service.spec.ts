@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { VoiceUnavailableError } from "../domain/ports/voice.port.js";
+import { DomainError } from "../domain/errors.js";
+import { VoiceRequestError, VoiceUnavailableError } from "../domain/ports/voice.port.js";
 import { FillerNotFoundError, FillerSpeechService } from "./filler-speech.service.js";
 
 const tts = { synthesize: vi.fn() };
@@ -29,6 +30,13 @@ describe("FillerSpeechService", () => {
     await expect(service.speech("en", 1)).rejects.toThrow(VoiceUnavailableError);
     expect(await service.speech("en", 1)).toEqual(Buffer.from("wav"));
     expect(tts.synthesize).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats the engine rejecting one of its lines as a bug, not bad input", async () => {
+    tts.synthesize.mockRejectedValueOnce(new VoiceRequestError("rejected (413): too long", 413));
+    const error = await service.speech("en", 1).catch((e: unknown) => e);
+    expect(error).not.toBeInstanceOf(DomainError);
+    expect((error as Error).message).toContain("rejected (413)");
   });
 
   it("keeps the cache bounded when many language tags are asked for", async () => {

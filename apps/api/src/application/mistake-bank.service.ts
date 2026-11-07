@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { DomainError } from "../domain/errors.js";
 import { mistakeStatus, type MistakeStatus } from "../domain/mistakes/mistake-status.js";
 import {
   MISTAKE_BANK_REPOSITORY,
@@ -6,7 +7,13 @@ import {
   type MistakeBankRepository,
 } from "../domain/ports/mistake-bank.repository.js";
 
-export class MistakeNotFoundError extends Error {}
+export class MistakeNotFoundError extends DomainError {
+  readonly code = "not_found";
+
+  constructor(mistakeId: string) {
+    super(`Mistake ${mistakeId} not found.`, "Mistake not found.");
+  }
+}
 
 /** One mistake as the Mistakes screen shows it. */
 export interface MistakeView {

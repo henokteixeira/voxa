@@ -24,6 +24,7 @@ import {
 } from "../domain/conversation/session-goals.js";
 import { keptScaffold, sessionStep, wasAssisted } from "../domain/conversation/support.js";
 import { type ChatTurn, NEW_WORD_CATEGORY, type PracticeTarget, type Session } from "../domain/conversation/types.js";
+import { DomainError } from "../domain/errors.js";
 import { mistakeStatus } from "../domain/mistakes/mistake-status.js";
 import type { SpeakingLevel } from "../domain/level/speaking-level.js";
 import { type SessionSignals, unaidedShare } from "../domain/progress/signal-trend.js";
@@ -60,8 +61,21 @@ export function safeSupport(support: string | null, correction: string | undefin
   return text;
 }
 
-export class SessionNotFoundError extends Error {}
-export class SessionEndedError extends Error {}
+export class SessionNotFoundError extends DomainError {
+  readonly code = "not_found";
+
+  constructor(sessionId: string) {
+    super(`Session ${sessionId} not found.`, "Session not found.");
+  }
+}
+
+export class SessionEndedError extends DomainError {
+  readonly code = "ended";
+
+  constructor(sessionId: string) {
+    super(`Session ${sessionId} has ended.`, "This session has ended.");
+  }
+}
 
 export interface TurnResult {
   kind: TurnKind;

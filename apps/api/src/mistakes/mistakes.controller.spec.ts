@@ -2,6 +2,7 @@ import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { applyHttpConventions } from "../common/http-app.js";
 import { MistakeBankService, MistakeNotFoundError } from "../application/mistake-bank.service.js";
 import { MistakesController } from "./mistakes.controller.js";
 
@@ -15,7 +16,7 @@ beforeEach(async () => {
     controllers: [MistakesController],
     providers: [{ provide: MistakeBankService, useValue: service }],
   }).compile();
-  app = mod.createNestApplication();
+  app = applyHttpConventions(mod.createNestApplication());
   await app.init();
 });
 afterEach(() => app.close());

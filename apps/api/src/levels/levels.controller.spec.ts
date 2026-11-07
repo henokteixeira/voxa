@@ -2,6 +2,7 @@ import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { applyHttpConventions } from "../common/http-app.js";
 import { LevelService } from "../application/level.service.js";
 import { LevelsController } from "./levels.controller.js";
 
@@ -14,7 +15,7 @@ beforeEach(async () => {
     controllers: [LevelsController],
     providers: [{ provide: LevelService, useValue: service }],
   }).compile();
-  app = mod.createNestApplication();
+  app = applyHttpConventions(mod.createNestApplication());
   await app.init();
 });
 afterEach(() => app.close());
