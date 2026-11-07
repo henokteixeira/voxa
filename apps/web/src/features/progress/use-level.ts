@@ -4,7 +4,8 @@ import type { CefrLevel, LevelView } from "@/lib/api";
 
 /**
  * The learner's speaking level. `view` is undefined while loading and null when it could not be read
- * (Today then goes on as if there were a level; Progress offers `reload`). `set` corrects it by hand.
+ * (Today then goes on as if there were a level; Progress offers `reload`). `set` corrects it by hand;
+ * `confirm` accepts the proposed step change.
  */
 export function useLevel() {
   const api = useApi();
@@ -35,5 +36,12 @@ export function useLevel() {
     [api],
   );
 
-  return { view, set, reload };
+  const confirm = useCallback(
+    async (to: CefrLevel) => {
+      setView(await api.confirmStepChange(to));
+    },
+    [api],
+  );
+
+  return { view, set, confirm, reload };
 }

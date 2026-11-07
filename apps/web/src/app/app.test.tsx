@@ -27,6 +27,7 @@ function renderApp(
     level,
     listMistakes: vi.fn().mockResolvedValue([]),
     todayProgress: vi.fn().mockResolvedValue(today(30)),
+    signalsHistory: vi.fn().mockResolvedValue({ sessions: [] }),
     setDailyMinutes: vi.fn().mockImplementation(async (minutes: number) => today(minutes)),
   } as unknown as ApiClient;
   const router = createMemoryRouter(routes, { initialEntries: [path] });

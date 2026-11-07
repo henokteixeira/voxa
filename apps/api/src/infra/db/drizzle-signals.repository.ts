@@ -56,4 +56,14 @@ export class DrizzleSignalsRepository implements SignalsRepository {
       .limit(limit);
     return rows.map(toRecord);
   }
+
+  async recent(language: string, limit: number): Promise<SessionSignalsRecord[]> {
+    const rows = await this.db
+      .select()
+      .from(sessionSignals)
+      .where(eq(sessionSignals.language, language))
+      .orderBy(desc(sessionSignals.seq))
+      .limit(limit);
+    return rows.map(toRecord);
+  }
 }

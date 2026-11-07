@@ -6,7 +6,7 @@ import { applyHttpConventions } from "../common/http-app.js";
 import { LevelService } from "../application/level.service.js";
 import { LevelsController } from "./levels.controller.js";
 
-const service = { view: vi.fn(), setByHand: vi.fn() };
+const service = { view: vi.fn(), setByHand: vi.fn(), confirmStepChange: vi.fn() };
 let app: INestApplication;
 
 beforeEach(async () => {
@@ -51,5 +51,21 @@ describe("PUT /level", () => {
     const res = await request(app.getHttpServer()).put("/level").send(body);
     expect(res.status).toBe(400);
     expect(service.setByHand).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /level/step-change", () => {
+  it("confirms the proposed step change", async () => {
+    const view = { current: { language: "en", level: "B1", source: "step_change", step: "supported" }, placementDue: false, proposal: null };
+    service.confirmStepChange.mockResolvedValue(view);
+    const res = await request(app.getHttpServer()).post("/level/step-change").send({ language: "en", to: "B1" });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(view);
+    expect(service.confirmStepChange).toHaveBeenCalledWith("en", "B1");
+  });
+
+  it("rejects a level that is not on the scale", async () => {
+    expect((await request(app.getHttpServer()).post("/level/step-change").send({ to: "B3" })).status).toBe(400);
+    expect(service.confirmStepChange).not.toHaveBeenCalled();
   });
 });

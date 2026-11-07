@@ -19,6 +19,8 @@ export interface SignalsRepository {
   recordOnce(record: SessionSignalsRecord): Promise<SessionSignalsRecord>;
   /** The records of the same language stored before this session's record, newest first, at most `limit`. */
   earlierThan(sessionId: string, limit: number): Promise<SessionSignalsRecord[]>;
+  /** The newest records of the language, newest first, at most `limit`. */
+  recent(language: string, limit: number): Promise<SessionSignalsRecord[]>;
 }
 
 export const SIGNALS_REPOSITORY = Symbol("SIGNALS_REPOSITORY");

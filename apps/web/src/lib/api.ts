@@ -27,6 +27,24 @@ export interface LevelView {
   current: (SpeakingLevel & { step: string }) | null;
   /** Suggest a placement interview: never done, or the last one is 4 weeks old. */
   placementDue: boolean;
+  /** A different support step the last sessions point to; the learner confirms it. Missing from older servers. */
+  proposal?: StepChangeProposal | null;
+}
+
+export interface StepChangeProposal {
+  direction: "up" | "down";
+  to: CefrLevel;
+  /** The newest session the proposal rests on: a later session makes it a new proposal. */
+  basedOn: string;
+}
+
+/** One practice session's signals, for the Progress tab. */
+export interface SignalsHistoryEntry {
+  sessionId: string;
+  mode: Mode;
+  /** ISO 8601 date-time. */
+  recordedAt: string;
+  signals: Required<FluencySignals>;
 }
 
 export interface StartedSession {
@@ -286,6 +304,12 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     /** The learner corrects the estimated level by hand. */
     setLevel: (level: CefrLevel, language = "en") =>
       request<LevelView>("/level", { method: "PUT", body: { language, level } }),
+    /** The learner confirms the proposed step change (`to` is the proposed level). */
+    confirmStepChange: (to: CefrLevel, language = "en") =>
+      request<LevelView>("/level/step-change", { method: "POST", body: { language, to } }),
+    /** The signals of the last practice sessions, oldest first. */
+    signalsHistory: (language = "en") =>
+      request<{ sessions: SignalsHistoryEntry[] }>(`/progress/signals?language=${encodeURIComponent(language)}`),
     /** WebSocket address of the live voice session (see lib/voice/voice-socket.ts). */
     voiceUrl: (sessionId: string) =>
       `${baseUrl.replace(/^http/, "ws")}/api/sessions/${encodeURIComponent(sessionId)}/voice`,
