@@ -89,4 +89,8 @@ export const speakingLevels = pgTable("speaking_levels", {
   /** The learner's own sentences that back the estimate. */
   evidence: jsonb("evidence").$type<string[]>().notNull().default([]),
   assessedAt: timestamp("assessed_at", { withTimezone: true }).notNull(),
+  /** The placement session that gave this level (at most one level per session); null otherwise. */
+  sessionId: uuid("session_id")
+    .unique()
+    .references(() => sessions.id, { onDelete: "set null" }),
 });

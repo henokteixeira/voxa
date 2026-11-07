@@ -139,6 +139,17 @@ class FakeMistakes implements MistakeRepository {
 
 class FakeLevels implements LevelRepository {
   rows: SpeakingLevel[] = [];
+  readonly bySession = new Map<string, SpeakingLevel>();
+  async addForSession(sessionId: string, level: SpeakingLevel) {
+    const existing = this.bySession.get(sessionId);
+    if (existing) return existing;
+    this.bySession.set(sessionId, level);
+    this.rows.push(level);
+    return level;
+  }
+  async forSession(sessionId: string) {
+    return this.bySession.get(sessionId) ?? null;
+  }
   async add(level: SpeakingLevel) {
     this.rows.push(level);
   }
@@ -884,6 +895,32 @@ describe("ConversationService, placement interview", () => {
 
     assessor.failure = null;
     expect((await service.end(session.id)).level?.level).toBe("A2");
+  });
+
+  it("stores one level per session, so a second end at the same time keeps the first", async () => {
+    const { session } = await service.start("placement", "en");
+    tutor.verdicts.push(verdict({}));
+    await service.respond(session.id, "Yesterday I fix the upload");
+    const [first, second] = await Promise.all([service.end(session.id), service.end(session.id)]);
+    expect(first.level).toEqual(second.level);
+    expect(levels.rows).toHaveLength(1);
+  });
+
+  it("shows the session's own level later, even after a level set by hand", async () => {
+    const { session } = await service.start("placement", "en");
+    tutor.verdicts.push(verdict({}));
+    await service.respond(session.id, "Yesterday I fix the upload");
+    const placed = (await service.end(session.id)).level;
+    await levels.add({ language: "en", level: "B1", source: "manual", evidence: [], assessedAt: clock.now() });
+    expect((await service.end(session.id)).level).toEqual(placed);
+  });
+
+  it("asks to stop with its own line when the interview is over", async () => {
+    const { session } = await service.start("placement", "en");
+    tutor.verdicts.push(verdict({ reply: "Thanks, that was great.", coveredGoals: ["warm_up", "routine", "past_work", "project", "opinion"] }));
+    const result = await service.respond(session.id, "I think it depends");
+    expect(result.checkIn).toBe(true);
+    expect(result.message).toContain("see your level");
   });
 
   it("has no level in the meeting modes", async () => {

@@ -39,18 +39,28 @@ describe("AnthropicLevelAssessor", () => {
     expect(params.messages[0].content).toContain("Learner: I am developer");
   });
 
-  it("drops evidence the learner never said and keeps at most three lines", async () => {
+  it("keeps only runs of the learner's whole words, at least three, and at most three lines", async () => {
     const { assessor } = assessorReturning({
       stop_reason: "end_turn",
       parsed_output: {
         level: "A2",
-        evidence: ["i am developer", "I have worked on many projects.", "upload because", "I work in app", "Yesterday"],
+        evidence: [
+          "i am developer",
+          "I have worked on many projects.", // never said
+          "upload because", // too short
+          "Yesterday", // a fragment
+          "...", // nothing
+          "am develop", // not whole words
+          "I work in app",
+          "in the upload, because the file is big",
+          "Yesterday I fix one bug",
+        ],
       },
     });
     expect((await assessor.assess({ language: "en", turns })).evidence).toEqual([
       "i am developer",
-      "upload because",
       "I work in app",
+      "in the upload, because the file is big",
     ]);
   });
 

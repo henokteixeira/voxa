@@ -45,7 +45,7 @@ export const PLACEMENT_TIME_LIMIT_MIN = 10;
 export const FREE_TALK_CHECK_IN_MIN = 8;
 export const CHECK_IN_EVERY_MIN = 5;
 
-export type CheckInReason = "goals_met" | "time";
+export type CheckInReason = "goals_met" | "time" | "placement_done";
 
 /**
  * The question the tutor adds to its reply, by the primary subtag of the language being practiced (it is
@@ -55,6 +55,7 @@ const CHECK_IN_LINES: Record<string, Record<CheckInReason, string>> = {
   en: {
     goals_met: "We've covered everything for this meeting. Do you want to stop here or keep going?",
     time: "We've been talking for a while. Do you want to stop here or keep going?",
+    placement_done: "That's all I wanted to ask. Shall we stop here so you can see your level?",
   },
 };
 
@@ -93,7 +94,9 @@ export function checkInDue(input: {
   const all = (list: readonly string[]) => goals.length > 0 && goals.every((goal) => list.includes(goal));
   // Asks once the goals are all covered: on the turn that covers the last one (even after an earlier
   // question about time), or on the next turn that can ask when that one could not (it gave a hint).
-  if (all(covered) && (!all(coveredBefore) || lastCheckInMs === null)) return "goals_met";
+  // In the placement interview "covered" also means skipped as too hard: the interview is over, not a meeting.
+  const done = mode === "placement" ? "placement_done" : "goals_met";
+  if (all(covered) && (!all(coveredBefore) || lastCheckInMs === null)) return done;
   if (lastCheckInMs !== null) return elapsedMs - lastCheckInMs >= CHECK_IN_EVERY_MIN * MINUTE ? "time" : null;
   const limit =
     mode === "placement" ? PLACEMENT_TIME_LIMIT_MIN : goals.length === 0 ? FREE_TALK_CHECK_IN_MIN : GOAL_TIME_LIMIT_MIN;

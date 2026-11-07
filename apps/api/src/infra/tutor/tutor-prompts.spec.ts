@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MODES } from "../../domain/conversation/mode.js";
-import { buildSystemPrompt, buildTurnMessage, SCENES } from "./tutor-prompts.js";
+import { buildSystemPrompt, buildTurnMessage, PLACEMENT_RULES, SCENES } from "./tutor-prompts.js";
 
 describe("buildSystemPrompt", () => {
   it("has a scene for every mode", () => {
@@ -18,6 +18,21 @@ describe("buildSystemPrompt", () => {
     const prompt = buildSystemPrompt({ mode: "review", language: "en", learnerContext: "", goals: [], targets: [] }, "pt-BR");
     expect(prompt).toMatch(/Never include the corrected words/);
     expect(prompt).toContain("No details were given");
+  });
+});
+
+describe("buildSystemPrompt: placement interview", () => {
+  const context = { language: "en", learnerContext: "", goals: [], targets: [] };
+
+  it("adds the observe-only rules after the general ones, so they win", () => {
+    const prompt = buildSystemPrompt({ ...context, mode: "placement" }, "pt-BR");
+    expect(prompt).toContain(PLACEMENT_RULES);
+    expect(prompt.indexOf(PLACEMENT_RULES)).toBeGreaterThan(prompt.indexOf("## A safe place to make mistakes"));
+    expect(PLACEMENT_RULES).toMatch(/Never teach/);
+  });
+
+  it("keeps them out of the meeting modes", () => {
+    expect(buildSystemPrompt({ ...context, mode: "daily" }, "pt-BR")).not.toContain(PLACEMENT_RULES);
   });
 });
 

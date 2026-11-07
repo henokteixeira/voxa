@@ -13,6 +13,21 @@ export class DrizzleLevelRepository implements LevelRepository {
     await this.db.insert(speakingLevels).values(level);
   }
 
+  async addForSession(sessionId: string, level: SpeakingLevel): Promise<SpeakingLevel> {
+    await this.db
+      .insert(speakingLevels)
+      .values({ ...level, sessionId })
+      .onConflictDoNothing({ target: speakingLevels.sessionId });
+    const stored = await this.forSession(sessionId);
+    if (!stored) throw new Error(`The level of session ${sessionId} was not stored.`);
+    return stored;
+  }
+
+  async forSession(sessionId: string): Promise<SpeakingLevel | null> {
+    const [row] = await this.db.select().from(speakingLevels).where(eq(speakingLevels.sessionId, sessionId)).limit(1);
+    return row ? toLevel(row) : null;
+  }
+
   async current(language: string): Promise<SpeakingLevel | null> {
     const [row] = await this.db
       .select()
@@ -20,14 +35,7 @@ export class DrizzleLevelRepository implements LevelRepository {
       .where(eq(speakingLevels.language, language))
       .orderBy(desc(speakingLevels.seq))
       .limit(1);
-    if (!row) return null;
-    return {
-      language: row.language,
-      level: row.level as CefrLevel,
-      source: row.source as LevelSource,
-      evidence: row.evidence,
-      assessedAt: row.assessedAt,
-    };
+    return row ? toLevel(row) : null;
   }
 
   async lastPlacementAt(language: string): Promise<Date | null> {
@@ -39,4 +47,14 @@ export class DrizzleLevelRepository implements LevelRepository {
       .limit(1);
     return row?.assessedAt ?? null;
   }
+}
+
+function toLevel(row: typeof speakingLevels.$inferSelect): SpeakingLevel {
+  return {
+    language: row.language,
+    level: row.level as CefrLevel,
+    source: row.source as LevelSource,
+    evidence: row.evidence,
+    assessedAt: row.assessedAt,
+  };
 }

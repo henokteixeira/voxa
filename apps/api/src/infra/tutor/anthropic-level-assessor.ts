@@ -18,7 +18,17 @@ const AssessmentSchema = z.object({
 const MAX_EVIDENCE = 3;
 
 /** Speech-to-text output varies in case and spacing; compare loosely so a quote still counts as the learner's. */
-const loose = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+const loose = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}']+/gu, " ").trim();
+
+/** Evidence shorter than this is a fragment, not a line that shows a level. */
+const MIN_EVIDENCE_WORDS = 3;
+
+/** True when `quote` is a run of whole words from one of the learner's lines. */
+function saidByLearner(quote: string, lines: string[]): boolean {
+  const q = loose(quote);
+  if (q.split(" ").length < MIN_EVIDENCE_WORDS) return false;
+  return lines.some((line) => ` ${line} `.includes(` ${q} `));
+}
 
 @Injectable()
 export class AnthropicLevelAssessor implements LevelAssessorPort {
@@ -56,7 +66,7 @@ export class AnthropicLevelAssessor implements LevelAssessorPort {
     const said = turns.filter((t) => t.role === "user").map((t) => loose(t.content));
     const evidence = response.parsed_output.evidence
       .map((e) => e.trim())
-      .filter((e) => e && said.some((line) => line.includes(loose(e))))
+      .filter((e) => saidByLearner(e, said))
       .slice(0, MAX_EVIDENCE);
     return { level: response.parsed_output.level, evidence };
   }

@@ -34,7 +34,7 @@ export function buildAssessmentPrompt(language: string): string {
       "- `level`: the highest level whose descriptor the learner sustained across the interview, not one good " +
         "sentence. When unsure between two levels, choose the lower one: the level only picks how much help " +
         "the next sessions give, and too little help is worse than too much.",
-      "- `evidence`: two or three of the learner's own lines that show the level best, copied exactly from " +
+      "- `evidence`: two or three of the learner's own sentences (at least three words each) that show the level best, copied exactly from " +
         "the transcript. Never write sentences of your own.",
     ].join("\n"),
   ].join("\n\n");

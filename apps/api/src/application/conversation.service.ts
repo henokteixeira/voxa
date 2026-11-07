@@ -281,7 +281,7 @@ export class ConversationService {
     let level: SpeakingLevel | null = null;
     if (session.mode === "placement") {
       // Assessed before the session is marked ended: if the tutor is down, ending again retries it.
-      level = session.endedAt ? await this.placementLevel(session) : await this.assessPlacement(session, history);
+      level = (await this.levels.forSession(sessionId)) ?? (session.endedAt ? null : await this.assessPlacement(session, history));
     }
     if (!session.endedAt) await this.sessions.end(sessionId, timing);
     const [mistakes, outcome] = await Promise.all([
@@ -317,14 +317,8 @@ export class ConversationService {
       evidence,
       assessedAt: this.clock.now(),
     };
-    await this.levels.add(placed);
-    return placed;
-  }
-
-  /** The level an ended placement gave: the newest placement, if it came after the interview started. */
-  private async placementLevel(session: Session): Promise<SpeakingLevel | null> {
-    const current = await this.levels.current(session.language);
-    return current?.source === "placement" && current.assessedAt >= session.startedAt ? current : null;
+    // Two ends at once can both assess; the session still keeps one level.
+    return this.levels.addForSession(session.id, placed);
   }
 
   /** How ready the learner feels for this meeting type, 1–5. Allowed after the end: "after" is asked then. */
