@@ -131,32 +131,3 @@ export function MistakeSheet({
     </Sheet>
   );
 }
-
-/** Wide screens: the mistake beside the list (key it by id so each mistake starts fresh). */
-export function MistakePanel({
-  mistake,
-  onDismissed,
-  takeFocus = false,
-}: {
-  mistake: BankMistake;
-  onDismissed: (id: string) => void;
-  /** Focus the panel when it appears (after the previous mistake was removed). */
-  takeFocus?: boolean;
-}) {
-  const { label, content } = useMistakeDetail(mistake, onDismissed);
-  const panel = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (takeFocus) panel.current?.focus();
-  }, [takeFocus]);
-  return (
-    <section
-      ref={panel}
-      id="mistake-detail"
-      tabIndex={-1}
-      aria-label={label}
-      className="vx-page-in flex flex-col gap-3 rounded-lg bg-paper p-6 shadow-card outline-none"
-    >
-      {content}
-    </section>
-  );
-}
