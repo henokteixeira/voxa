@@ -1,4 +1,5 @@
 import type { SupportStep } from "../level/speaking-level.js";
+import type { MistakePattern } from "../mistakes/pattern.js";
 import type { TrackState } from "./guided-track.js";
 import type { Mode } from "./mode.js";
 
@@ -28,6 +29,8 @@ export interface Issue {
   hint: string;
   /** True when the tutor matched it to a mistake already in the learner's bank. */
   matchesKnownMistake: boolean;
+  /** The rule it breaks; null when the tutor gave none. */
+  pattern: MistakePattern | null;
 }
 
 /** A serious mistake the conversation is paused on until the learner fixes it. */

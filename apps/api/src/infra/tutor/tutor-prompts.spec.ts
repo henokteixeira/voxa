@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MODES } from "../../domain/conversation/mode.js";
+import { MISTAKE_TYPES } from "../../domain/mistakes/mistake-type.js";
 import { SUPPORT_STEPS, type SupportStep } from "../../domain/level/speaking-level.js";
 import {
   buildSystemPrompt,
@@ -26,6 +27,12 @@ describe("buildSystemPrompt", () => {
     const prompt = buildSystemPrompt({ mode: "review", language: "en", learnerContext: "", goals: [], targets: [], step: null }, "pt-BR");
     expect(prompt).toMatch(/Never include the corrected words/);
     expect(prompt).toContain("No details were given");
+  });
+
+  it("names every mistake type and asks for the rule in the learner's first language", () => {
+    const prompt = buildSystemPrompt({ mode: "daily", language: "en", learnerContext: "", goals: [], targets: [], step: null }, "pt-BR");
+    for (const type of MISTAKE_TYPES) expect(prompt).toContain(`\`${type}\``);
+    expect(prompt).toContain("the rule in one short line, in pt-BR");
   });
 });
 
@@ -178,7 +185,7 @@ describe("buildTrackInstruction", () => {
 
   it("goes into the turn message only in the track", () => {
     const step = { stage: "answer" as const, retry: false, goal: null };
-    const base = { utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], coveredGoals: [], scaffold: null };
+    const base = { utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], knownPatterns: [], coveredGoals: [], scaffold: null };
     expect(buildTurnMessage({ ...base, plan: { otherwise: step, ifStuck: step, hintsPause: false } })).toMatch(
       /<guided_track>\nAsk the meeting's question for the goal, with no model sentence\. Goal: a short topic/,
     );
@@ -193,11 +200,13 @@ describe("buildTurnMessage", () => {
       pending: { original: "I goed", correction: "I went", category: "grammar", hintsGiven: 1, revealed: false },
       knownMistakes: [{ original: "more better", correction: "better", category: "grammar" }],
       knownNewWords: [{ original: "prazo", correction: "deadline", category: "new_word" }],
+      knownPatterns: [{ key: "past_simple_finished_action", name: "Past for finished actions" }],
       coveredGoals: ["yesterday"],
       scaffold: "Yesterday I...",
       plan: null,
     });
     expect(message).toContain("<words_given>\nYesterday I...\n</words_given>");
+    expect(message).toContain("<known_patterns>\n- past_simple_finished_action: Past for finished actions\n</known_patterns>");
     expect(message).toContain("<covered_goals>\nyesterday\n</covered_goals>");
     expect(message).toContain('<new_words>\n- "prazo" → "deadline"\n</new_words>');
     expect(message).toContain('"more better" → "better" (grammar)');
@@ -206,7 +215,7 @@ describe("buildTurnMessage", () => {
   });
 
   it("says none when there is nothing to check against", () => {
-    const message = buildTurnMessage({ utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], coveredGoals: [], scaffold: null, plan: null });
+    const message = buildTurnMessage({ utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], knownPatterns: [], coveredGoals: [], scaffold: null, plan: null });
     expect(message).toContain("<words_given>\nnone\n</words_given>");
     expect(message).toContain("<new_words>\nnone\n</new_words>");
     expect(message).toContain("<known_mistakes>\nnone\n</known_mistakes>");

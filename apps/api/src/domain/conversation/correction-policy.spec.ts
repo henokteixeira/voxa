@@ -9,6 +9,7 @@ const issue = (over: Partial<Issue> = {}): Issue => ({
   severity: "serious",
   hint: "Yesterday is in the past. Check your verb.",
   matchesKnownMistake: false,
+  pattern: null,
   ...over,
 });
 
@@ -147,6 +148,7 @@ describe("verdictForMode", () => {
     severity: "serious" as const,
     hint: "Past tense?",
     matchesKnownMistake: true,
+    pattern: null,
   };
   const v = { reply: "Go on.", issues: [serious], pendingResolved: false, nextHint: null, correctUses: [], newWords: [], support: null, coveredGoals: [], stuck: false, scaffold: null };
 

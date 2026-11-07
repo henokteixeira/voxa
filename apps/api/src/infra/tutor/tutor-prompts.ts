@@ -140,12 +140,21 @@ export function buildSystemPrompt(
       "List each language mistake in `issues`:",
       "- `original`: the learner's words that contain the mistake, copied exactly.",
       "- `correction`: the same words, corrected, changing as little as possible.",
-      "- `category`: grammar, vocabulary, word_choice or pronunciation.",
+      "- `category`, one of: `verb_tense` (the tense or verb form: \"I go yesterday\"), `agreement` (subject and " +
+        "verb or number: \"he go\", \"people is\"), `sentence_structure` (word order, questions, negatives: " +
+        "\"what you did?\"), `articles_prepositions` (a, the, in, on, for: \"depend of\"), `word_choice` (a real word, " +
+        "but not the right one), `expression` (correct but not how people say it: \"make a question\"), " +
+        "`pronunciation` (only when the transcript clearly shows it).",
       "- `severity`: serious when it would confuse a listener or change the meaning; minor otherwise.",
       "- `matchesKnownMistake`: true when it is the same kind of mistake as one in the known mistakes list.",
       "- `hint`: a short, friendly clue that helps the learner find the fix alone: one sentence, at most 15 words, " +
         "about this one mistake only. Name the problem area or ask a guiding question, without judging. " +
         "Never include the corrected words.",
+      "- `pattern`: the rule the mistake breaks, so mistakes with the same rule are reviewed together. `key`: a " +
+        "short snake_case id in English (e.g. `past_simple_finished_action`); when the rule is one in the known " +
+        "patterns list, copy its key exactly. `name`: a label of two to six words, in plain " +
+        `${language} (e.g. \"Past for finished actions\"). \`rule\`: the rule in one short line, in ${firstLanguage}, ` +
+        "with one tiny example; it is shown only after the learner tries, so it may hold the correct form.",
       "Do not report style preferences or correct language that a fluent speaker would accept.",
       "List in `correctUses` each known mistake the learner avoided (the utterance says the same thing correctly), " +
         `and each new word they now said in ${language}. Copy its \`original\` text from the known mistakes or new ` +
@@ -218,7 +227,7 @@ export function buildTrackInstruction(plan: TrackPlan): string {
 export function buildTurnMessage(
   request: Pick<
     TutorRequest,
-    "utterance" | "pending" | "knownMistakes" | "knownNewWords" | "coveredGoals" | "scaffold" | "plan"
+    "utterance" | "pending" | "knownMistakes" | "knownNewWords" | "knownPatterns" | "coveredGoals" | "scaffold" | "plan"
   >,
 ): string {
   const known = request.knownMistakes.length
@@ -226,6 +235,9 @@ export function buildTurnMessage(
     : "none";
   const newWords = request.knownNewWords.length
     ? request.knownNewWords.map((w) => `- "${w.original}" → "${w.correction}"`).join("\n")
+    : "none";
+  const patterns = request.knownPatterns.length
+    ? request.knownPatterns.map((p) => `- ${p.key}: ${p.name}`).join("\n")
     : "none";
   const pending = request.pending
     ? `"${request.pending.original}" should be "${request.pending.correction}" (${request.pending.category}). ` +
@@ -235,6 +247,7 @@ export function buildTurnMessage(
   return [
     `<known_mistakes>\n${known}\n</known_mistakes>`,
     `<new_words>\n${newWords}\n</new_words>`,
+    `<known_patterns>\n${patterns}\n</known_patterns>`,
     `<pending_correction>\n${pending}\n</pending_correction>`,
     `<covered_goals>\n${request.coveredGoals.length ? request.coveredGoals.join(", ") : "none"}\n</covered_goals>`,
     // The learner may be finishing these words: that is not stuck, and not a mistake in itself.

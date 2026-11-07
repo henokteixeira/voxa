@@ -12,6 +12,7 @@ const entry = (id: string, sessionsCorrect: number): BankEntry => ({
   occurrences: 1,
   lastSeenAt: seen,
   sessionsCorrect,
+  pattern: null,
 });
 
 class FakeBank implements MistakeBankRepository {
@@ -33,9 +34,9 @@ describe("MistakeBankService", () => {
       new FakeBank([entry("a", 0), entry("b", 1), entry("c", 3)]),
     );
     expect(await service.list("en")).toEqual([
-      { id: "a", language: "en", original: "said a", correction: "right a", category: "grammar", occurrences: 1, lastSeenAt: seen, status: "open" },
-      { id: "b", language: "en", original: "said b", correction: "right b", category: "grammar", occurrences: 1, lastSeenAt: seen, status: "improving" },
-      { id: "c", language: "en", original: "said c", correction: "right c", category: "grammar", occurrences: 1, lastSeenAt: seen, status: "mastered" },
+      { id: "a", language: "en", original: "said a", correction: "right a", category: "grammar", occurrences: 1, lastSeenAt: seen, status: "open", pattern: null },
+      { id: "b", language: "en", original: "said b", correction: "right b", category: "grammar", occurrences: 1, lastSeenAt: seen, status: "improving", pattern: null },
+      { id: "c", language: "en", original: "said c", correction: "right c", category: "grammar", occurrences: 1, lastSeenAt: seen, status: "mastered", pattern: null },
     ]);
   });
 

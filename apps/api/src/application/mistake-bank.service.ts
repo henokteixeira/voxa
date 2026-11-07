@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DomainError } from "../domain/errors.js";
 import { mistakeStatus, type MistakeStatus } from "../domain/mistakes/mistake-status.js";
+import type { MistakePattern } from "../domain/mistakes/pattern.js";
 import {
   MISTAKE_BANK_REPOSITORY,
   type DismissReason,
@@ -25,6 +26,7 @@ export interface MistakeView {
   occurrences: number;
   lastSeenAt: Date;
   status: MistakeStatus;
+  pattern: MistakePattern | null;
 }
 
 @Injectable()
@@ -33,7 +35,7 @@ export class MistakeBankService {
 
   async list(language: string): Promise<MistakeView[]> {
     const entries = await this.bank.list(language);
-    return entries.map(({ id, language, original, correction, category, occurrences, lastSeenAt, sessionsCorrect }) => ({
+    return entries.map(({ id, language, original, correction, category, occurrences, lastSeenAt, sessionsCorrect, pattern }) => ({
       id,
       language,
       original,
@@ -42,6 +44,7 @@ export class MistakeBankService {
       occurrences,
       lastSeenAt,
       status: mistakeStatus(sessionsCorrect),
+      pattern,
     }));
   }
 

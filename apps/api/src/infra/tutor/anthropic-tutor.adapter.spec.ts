@@ -46,6 +46,7 @@ const request: TutorRequest = {
   pending: null,
   knownMistakes: [],
   knownNewWords: [],
+  knownPatterns: [],
   utterance: "I fixed the upload.",
   goals: [],
   targets: [],

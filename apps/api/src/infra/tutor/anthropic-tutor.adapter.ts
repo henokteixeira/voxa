@@ -5,6 +5,7 @@ import { ConfigService } from "@nestjs/config";
 import type { Env } from "../../config/env.js";
 import { z } from "zod";
 import type { TutorVerdict } from "../../domain/conversation/correction-policy.js";
+import { MISTAKE_TYPES } from "../../domain/mistakes/mistake-type.js";
 import {
   type TrackPlan,
   type TutorContext,
@@ -37,10 +38,11 @@ const VerdictSchema = z.object({
     z.object({
       original: z.string(),
       correction: z.string(),
-      category: z.string(),
+      category: z.enum(MISTAKE_TYPES),
       severity: z.enum(["serious", "minor"]),
       hint: z.string(),
       matchesKnownMistake: z.boolean(),
+      pattern: z.object({ key: z.string(), name: z.string(), rule: z.string() }),
     }),
   ),
   pendingResolved: z.boolean(),

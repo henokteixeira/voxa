@@ -18,7 +18,7 @@ beforeEach(async () => {
 });
 afterEach(() => close());
 
-const goed = { language: "en", original: "I goed", correction: "I went", category: "grammar" };
+const goed = { language: "en", original: "I goed", correction: "I went", category: "grammar", pattern: null };
 
 describe("DrizzleSessionRepository", () => {
   it("creates a session with its language and mode, and no pending correction", async () => {
@@ -149,8 +149,35 @@ describe("DrizzleMistakeRepository", () => {
         severity: "serious",
         selfCorrected: false,
         occurrences: 2,
+        pattern: null,
       },
     ]);
+  });
+
+  it("groups mistakes under one pattern per key and keeps the first wording of it", async () => {
+    const s = await sessions.create({ language: "en", mode: "daily" });
+    const past = { key: "past_simple", name: "Past for finished actions", rule: "Ação terminada: passado." };
+    await mistakes.record({ ...goed, category: "verb_tense", pattern: past }, { sessionId: s.id, severity: "serious" });
+    await mistakes.record(
+      { ...goed, original: "I fix it yesterday", correction: "I fixed it yesterday", category: "verb_tense", pattern: { ...past, name: "Other words" } },
+      { sessionId: s.id, severity: "minor" },
+    );
+    await mistakes.record({ ...goed, language: "es", pattern: past }, { sessionId: s.id, severity: "minor" });
+
+    expect((await mistakes.forSession(s.id)).map((m) => m.pattern)).toEqual([past, past, past]);
+    expect((await mistakes.list("en")).map((m) => m.pattern)).toEqual([past, past]);
+    expect(await mistakes.patterns("en", 10)).toEqual([{ key: "past_simple", name: "Past for finished actions" }]);
+  });
+
+  it("gives a pattern to a mistake saved without one, and lists only patterns still in the bank", async () => {
+    const s = await sessions.create({ language: "en", mode: "daily" });
+    const saved = await mistakes.record(goed, { sessionId: s.id, severity: "minor" });
+    const past = { key: "past_simple", name: "Past", rule: "Passado." };
+    await mistakes.record({ ...goed, pattern: past }, { sessionId: s.id, severity: "minor" });
+    expect((await mistakes.list("en"))[0].pattern).toEqual(past);
+
+    await mistakes.dismiss(saved.id, "both_correct");
+    expect(await mistakes.patterns("en", 10)).toEqual([]);
   });
 
   it("keeps the same text in different languages apart", async () => {

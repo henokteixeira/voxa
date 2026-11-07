@@ -20,17 +20,35 @@ export function seenAgo(iso: string, now: Date, locale: Locale = "en"): string {
   return new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(-days, "day");
 }
 
-const CATEGORY_PT: Record<string, string> = {
-  grammar: "Gramática",
-  vocabulary: "Vocabulário",
-  word_choice: "Escolha de palavra",
-  pronunciation: "Pronúncia",
-  [NEW_WORD_CATEGORY]: "Palavra nova",
+const CATEGORY_LABELS: Record<Locale, Record<string, string>> = {
+  en: {
+    verb_tense: "Verb tense",
+    agreement: "Agreement",
+    sentence_structure: "Sentence structure",
+    articles_prepositions: "Articles and prepositions",
+    word_choice: "Word choice",
+    expression: "Natural expression",
+    pronunciation: "Pronunciation",
+    [NEW_WORD_CATEGORY]: "New word",
+  },
+  "pt-BR": {
+    verb_tense: "Tempo verbal",
+    agreement: "Concordância",
+    sentence_structure: "Estrutura da frase",
+    articles_prepositions: "Artigos e preposições",
+    word_choice: "Escolha de palavra",
+    expression: "Expressão natural",
+    pronunciation: "Pronúncia",
+    grammar: "Gramática",
+    vocabulary: "Vocabulário",
+    [NEW_WORD_CATEGORY]: "Palavra nova",
+  },
 };
 
-/** "grammar" → "Grammar" ("Gramática" in Portuguese). Unknown categories stay as the tutor named them. */
+/** "verb_tense" → "Verb tense" ("Tempo verbal" in Portuguese). Other categories stay as the tutor named them. */
 export function categoryLabel(category: string, locale: Locale = "en"): string {
-  if (locale === "pt-BR" && CATEGORY_PT[category]) return CATEGORY_PT[category];
+  const known = CATEGORY_LABELS[locale][category];
+  if (known) return known;
   return category.charAt(0).toUpperCase() + category.slice(1).replaceAll("_", " ");
 }
 

@@ -1,6 +1,7 @@
 import { isSerious, type TutorVerdict } from "../domain/conversation/correction-policy.js";
 import { sameText } from "../domain/conversation/text.js";
 import { NEW_WORD_CATEGORY, type PendingCorrection, type PracticeTarget } from "../domain/conversation/types.js";
+import { cleanPattern } from "../domain/mistakes/pattern.js";
 import type { MistakeRepository } from "../domain/ports/mistake.repository.js";
 
 export interface TurnLearning {
@@ -26,7 +27,13 @@ export async function recordTurnLearning(mistakes: MistakeRepository, turn: Turn
   for (const issue of turn.issues) {
     if (pending && (sameText(issue.correction, pending.correction) || isPending(issue.original))) continue;
     await mistakes.record(
-      { language, original: issue.original, correction: issue.correction, category: issue.category },
+      {
+        language,
+        original: issue.original,
+        correction: issue.correction,
+        category: issue.category,
+        pattern: cleanPattern(issue.pattern),
+      },
       { sessionId, severity: isSerious(issue) ? "serious" : "minor" },
     );
   }
@@ -42,7 +49,7 @@ export async function recordTurnLearning(mistakes: MistakeRepository, turn: Turn
     if (taken.some((t) => sameText(t, word.said))) continue;
     taken.push(word.said);
     await mistakes.record(
-      { language, original: word.said, correction: word.words, category: NEW_WORD_CATEGORY },
+      { language, original: word.said, correction: word.words, category: NEW_WORD_CATEGORY, pattern: null },
       { sessionId, severity: "minor" },
     );
   }

@@ -12,6 +12,7 @@ import {
   smallint,
   text,
   timestamp,
+  unique,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -67,12 +68,33 @@ export const turns = pgTable("turns", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** The rules mistakes break. Many mistakes share one pattern; the learner reviews the pattern. */
+export const patterns = pgTable(
+  "patterns",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    language: varchar("language", { length: 16 }).notNull(),
+    /** Stable id within the language, in snake_case English. */
+    key: varchar("key", { length: 64 }).notNull(),
+    /** The mistake type (verb_tense, agreement, ...): the group the pattern is shown in. */
+    category: varchar("category", { length: 32 }).notNull(),
+    /** A short label in the language being learned. */
+    name: text("name").notNull(),
+    /** The rule in one line, in the learner's first language. */
+    rule: text("rule").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("patterns_language_key").on(t.language, t.key)],
+);
+
 export const mistakes = pgTable("mistakes", {
   id: uuid("id").primaryKey().defaultRandom(),
   language: varchar("language", { length: 16 }).notNull(),
   original: text("original").notNull(),
   correction: text("correction").notNull(),
-  category: varchar("category", { length: 32 }).notNull(), // grammar | vocabulary | pronunciation | ...
+  category: varchar("category", { length: 32 }).notNull(), // a MistakeType, new_word, or an older category (grammar, vocabulary)
+  /** The rule it breaks; null for new words and for mistakes saved before patterns. */
+  patternId: uuid("pattern_id").references(() => patterns.id, { onDelete: "set null" }),
   occurrences: integer("occurrences").notNull().default(1),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
   /** Set when the learner says "This isn't a mistake": the record then leaves the bank for good. */

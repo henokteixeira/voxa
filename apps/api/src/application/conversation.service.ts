@@ -46,6 +46,8 @@ import { recordTurnLearning } from "./turn-learning.js";
 
 /** How many of the learner's most frequent mistakes the tutor watches for. */
 export const KNOWN_MISTAKES_LIMIT = 20;
+/** How many of the bank's patterns the tutor sees, so a mistake that breaks one of them reuses its key. */
+export const KNOWN_PATTERNS_LIMIT = 30;
 
 export class SessionNotFoundError extends DomainError {
   readonly code = "not_found";
@@ -186,10 +188,11 @@ export class ConversationService {
    */
   async respond(sessionId: string, utterance: string, onReply?: (reply: TurnResult) => void): Promise<TurnResult> {
     const session = await this.openSession(sessionId);
-    const [history, known, learnerContext] = await Promise.all([
+    const [history, known, knownPatterns, learnerContext] = await Promise.all([
       this.sessions.history(sessionId),
       // Twice the limit, so new words don't push real mistakes out of the list.
       this.mistakes.mostFrequent(session.language, KNOWN_MISTAKES_LIMIT * 2),
+      this.mistakes.patterns(session.language, KNOWN_PATTERNS_LIMIT),
       this.learnerContext.load(),
     ]);
 
@@ -228,6 +231,7 @@ export class ConversationService {
         pending: session.pending,
         knownMistakes: watched,
         knownNewWords: knownNewWords.map(toKnown),
+        knownPatterns,
         utterance,
         coveredGoals: session.coveredGoals,
         scaffold: session.scaffold,
