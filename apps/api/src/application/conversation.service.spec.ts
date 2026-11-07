@@ -563,6 +563,8 @@ describe("ConversationService.respond: the reply first, the analysis after", () 
         mistake: null,
         checkIn: false,
         coveredGoals: [],
+        track: null,
+        scaffold: null,
       },
     ]);
     expect(result).toEqual({
@@ -573,6 +575,8 @@ describe("ConversationService.respond: the reply first, the analysis after", () 
       mistake: null,
       checkIn: false,
       coveredGoals: ["yesterday"],
+      track: null,
+      scaffold: null,
     });
     expect((await sessions.history(session.id)).at(-1)?.content).toBe("Nice. What happened next?");
   });
@@ -732,6 +736,16 @@ describe("ConversationService: help by the learner's level", () => {
     expect((await service.end(session.id)).signals.unaidedShare).toBe(0.5);
   });
 
+  it("at B1, sends the sentence start to the screen, outside any track", async () => {
+    levels.rows.push(placed("B1"));
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(stuckAtB1);
+    expect(await service.respond(session.id, "I don't know how to say it.")).toMatchObject({
+      track: null,
+      scaffold: "Yesterday I...",
+    });
+  });
+
   it("gives no words to say from B2 up, even if the tutor writes some", async () => {
     levels.rows.push(placed("B2"));
     const { session } = await service.start("daily", "en");
@@ -780,6 +794,18 @@ describe("ConversationService: the guided track (A1–A2)", () => {
       goal: { id: "yesterday", description: "said what they did yesterday" },
     });
     expect((await sessions.get(session.id))?.scaffold).toBe(model);
+  });
+
+  it("tells the screen the step and the words to say, on start, on each turn and on resume", async () => {
+    const session = await startA1();
+    expect(await service.resume(session.id)).toMatchObject({ track: { stage: "model", number: 1, total: 5 }, scaffold: model });
+
+    tutor.verdicts.push(verdict({ scaffold: "Yesterday I worked on the audio upload." }));
+    const turn = await service.respond(session.id, model);
+    expect(turn).toMatchObject({
+      track: { stage: "swap", number: 2, total: 5 },
+      scaffold: "Yesterday I worked on the audio upload.",
+    });
   });
 
   it("moves on once the learner repeats the model, and asks the tutor for the next step", async () => {
@@ -939,6 +965,8 @@ describe("ConversationService.resume", () => {
       goals: ["yesterday", "today", "blockers"],
       coveredGoals: ["yesterday"],
       hint: { hintsGiven: 1, revealed: false, mistake: goed.original },
+      track: null,
+      scaffold: null,
     });
     // The hints must not give the correction away.
     expect(JSON.stringify(resumed)).not.toContain(goed.correction);

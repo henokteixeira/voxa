@@ -218,6 +218,8 @@ export function useVoiceSession(mode: Mode) {
             goals: resumed.goals,
             coveredGoals: resumed.coveredGoals,
             hint: resumed.hint,
+            track: resumed.track,
+            scaffold: resumed.scaffold,
           });
           return;
         } catch (error) {
@@ -237,7 +239,14 @@ export function useVoiceSession(mode: Mode) {
         speaker.current = deps.createSpeaker();
         fillerLanguage.current = started.language;
         saveSession({ sessionId: started.sessionId, mode, elapsedSeconds: 0, timing: clock.current.timing() });
-        dispatch({ type: "started", sessionId: started.sessionId, message: started.message, goals: started.goals });
+        dispatch({
+          type: "started",
+          sessionId: started.sessionId,
+          message: started.message,
+          goals: started.goals,
+          track: started.track,
+          scaffold: started.scaffold,
+        });
         connect(started.sessionId, { kind: "speak" });
       } catch {
         if (!cancelled) dispatch({ type: "failed", code: "start_failed" });

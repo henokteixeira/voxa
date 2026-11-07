@@ -34,6 +34,18 @@ export interface TrackState {
   stuckStreak: number;
 }
 
+/** What the screen shows of the track: the stage the learner is at, as "step 2 of 5". */
+export interface TrackView {
+  stage: TrackStage;
+  /** 1-based position of the stage in the track. */
+  number: number;
+  total: number;
+}
+
+export function trackView(track: TrackState | null): TrackView | null {
+  return track ? { stage: track.stage, number: TRACK_STAGES.indexOf(track.stage) + 1, total: TRACK_STAGES.length } : null;
+}
+
 /** A stage the learner is stuck at is tried once more, then the track moves on. */
 export const MAX_EXTRA_TRIES = 1;
 /** Goals in a row that move the session one step (A1 skips the model; A2 brings it back). */

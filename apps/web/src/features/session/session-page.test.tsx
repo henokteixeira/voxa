@@ -455,6 +455,60 @@ describe("live session", () => {
     expect(screen.getByText("Next time")).toBeInTheDocument();
   });
 
+  it("shows the guided step and hides the model sentence until a tap, with the card at the bottom", async () => {
+    const model = "Yesterday I worked on the login screen.";
+    api.startSession.mockResolvedValueOnce({
+      sessionId: "s1",
+      mode: "daily",
+      language: "en",
+      message: `Say it after me: ${model}`,
+      goals: ["yesterday", "today", "blockers"],
+      track: { stage: "model", number: 1, total: 5 },
+      scaffold: model,
+    });
+    renderSession();
+    // The words to say replace the tutor's line on the main screen.
+    await screen.findByRole("button", { name: "Show the sentence" });
+    act(() => socketHandlers.onOpen());
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
+    act(() => socketHandlers.onDone());
+    await act(async () => finishPlayback());
+    expect(screen.getByText("Say it after me")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Step 1 of 5" })).toBeInTheDocument();
+    expect(screen.queryByText(model)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show the sentence" }));
+    expect(screen.getByText(model)).toHaveFocus();
+
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript(model));
+    act(() =>
+      socketHandlers.onTutor({
+        kind: "reply",
+        message: "Great. Now say it with what you did.",
+        selfCorrected: false,
+        track: { stage: "swap", number: 2, total: 5 },
+        scaffold: "Yesterday I worked on the audio upload.",
+      }),
+    );
+    expect(screen.getByRole("img", { name: "Step 2 of 5" })).toBeInTheDocument();
+    // Past the model, the words show at once, under the learner's own last words.
+    expect(screen.getByText("Swap in what you did")).toBeInTheDocument();
+    expect(screen.getByText(model)).toBeInTheDocument();
+    expect(screen.getByText("Yesterday I worked on the audio upload.")).toBeInTheDocument();
+  });
+
+  it("shows a sentence start outside the track when the learner is stuck (B1)", async () => {
+    await startAndListen();
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("I don't know."));
+    act(() =>
+      socketHandlers.onTutor({ kind: "reply", message: "No problem. Try: Today I'm going to...", selfCorrected: false, track: null, scaffold: "Today I'm going to…" }),
+    );
+    expect(screen.getByText("Finish the sentence")).toBeInTheDocument();
+    expect(screen.getByText("Today I'm going to…")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /Step \d of 5/ })).not.toBeInTheDocument();
+  });
+
   it("keeps the microphone off while the learner types", async () => {
     await startAndListen();
     mic.pause.mockClear();

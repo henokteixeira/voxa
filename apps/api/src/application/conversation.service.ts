@@ -9,6 +9,8 @@ import {
   startTrack,
   type TrackOutcomes,
   trackOutcomes,
+  type TrackView,
+  trackView,
   turnPlan,
   usesTrack,
 } from "../domain/conversation/guided-track.js";
@@ -73,6 +75,10 @@ export interface TurnResult {
   checkIn: boolean;
   /** Goals of the mode the learner has covered so far. */
   coveredGoals: string[];
+  /** Where the learner is in the guided track (A1–A2), or null. */
+  track: TrackView | null;
+  /** Words the tutor gave for the next turn (a model sentence, or a sentence start when stuck), or null. */
+  scaffold: string | null;
 }
 
 export interface SessionStart {
@@ -93,6 +99,8 @@ export interface SessionResume {
   coveredGoals: string[];
   /** The serious mistake the conversation is paused on, without its correction (the hints must not give it away). */
   hint: { hintsGiven: number; revealed: boolean; mistake: string } | null;
+  track: TrackView | null;
+  scaffold: string | null;
 }
 
 export interface SessionSummary {
@@ -163,6 +171,8 @@ export class ConversationService {
       goals: goalsFor(session.mode),
       coveredGoals: session.coveredGoals,
       hint: pending ? { hintsGiven: pending.hintsGiven, revealed: pending.revealed, mistake: pending.original } : null,
+      track: trackView(session.track),
+      scaffold: session.scaffold,
     };
   }
 
@@ -205,6 +215,9 @@ export class ConversationService {
               mistake: null,
               checkIn: false,
               coveredGoals: session.coveredGoals,
+              // The track moves once the turn is analysed; the follow-up carries where it went.
+              track: trackView(session.track),
+              scaffold: session.scaffold,
             });
           }
         : undefined;
@@ -298,6 +311,8 @@ export class ConversationService {
       mistake: decision.kind === "hint" ? (decision.nextPending?.original ?? null) : null,
       checkIn: checkIn !== null,
       coveredGoals,
+      track: trackView(move?.track ?? session.track),
+      scaffold,
     };
   }
 

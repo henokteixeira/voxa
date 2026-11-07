@@ -47,7 +47,25 @@ export interface SignalsHistoryEntry {
   signals: Required<FluencySignals>;
 }
 
-export interface StartedSession {
+/** The stages of the guided track (A1–A2), in order. */
+export type TrackStage = "model" | "swap" | "extend" | "answer" | "again";
+
+/** Where the learner is in the guided track: the stage, as "step 2 of 5". */
+export interface TrackView {
+  stage: TrackStage;
+  number: number;
+  total: number;
+}
+
+/** The guided track and the words the tutor gave for the next turn. Missing from servers older than them. */
+export interface Guidance {
+  /** Null outside the guided track. */
+  track?: TrackView | null;
+  /** A model sentence, or a sentence start when stuck; null when there are no words to say. */
+  scaffold?: string | null;
+}
+
+export interface StartedSession extends Guidance {
   sessionId: string;
   mode: Mode;
   language: string;
@@ -57,7 +75,7 @@ export interface StartedSession {
 }
 
 /** An open session as the server keeps it, to pick it up again after a reload. */
-export interface ResumedSession {
+export interface ResumedSession extends Guidance {
   sessionId: string;
   mode: Mode;
   language: string;
@@ -69,7 +87,7 @@ export interface ResumedSession {
   hint: { hintsGiven: number; revealed: boolean; mistake?: string } | null;
 }
 
-export interface TurnResult {
+export interface TurnResult extends Guidance {
   kind: "reply" | "hint" | "reveal";
   message: string;
   selfCorrected: boolean;
