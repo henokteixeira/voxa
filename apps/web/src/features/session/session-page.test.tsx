@@ -413,18 +413,19 @@ describe("live session", () => {
     expect(socket.sendText).not.toHaveBeenCalled();
   });
 
-  it("shows how long the learner has talked, and calmly what happens at the longest turn", async () => {
+  it("shows a ring around the ball only in the last 15 s of a turn, with no numbers", async () => {
     await startAndListen();
     vi.useFakeTimers();
     try {
       act(() => micHandlers.onSpeechStart());
-      expect(screen.getByRole("timer")).toHaveTextContent("0:00 of 1:00");
+      expect(screen.getByTestId("turn-ring")).toHaveAttribute("data-shown", "false");
+      expect(screen.queryByRole("timer")).not.toBeInTheDocument();
       expect(screen.queryByText(/Voxa sends what you said so far/)).not.toBeInTheDocument();
       act(() => vi.advanceTimersByTime(46_000));
-      expect(screen.getByRole("timer")).toHaveTextContent("0:46 of 1:00");
-      expect(screen.getByText("At 1:00 Voxa sends what you said so far. Then you can go on.")).toBeInTheDocument();
+      expect(screen.getByTestId("turn-ring")).toHaveAttribute("data-shown", "true");
+      expect(screen.getByText("At 1:00 Voxa sends what you said so far. Then you can go on.")).toHaveClass("sr-only");
       act(() => micHandlers.onTurn(new ArrayBuffer(16)));
-      expect(screen.queryByRole("timer")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("turn-ring")).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
