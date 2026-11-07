@@ -81,4 +81,16 @@ describe("DrizzleLearnerMemoryRepository", () => {
     // Only sessions started before the one asking: the tutor's prompt stays the same all session.
     expect(await memory.recentSessions(3, new Date("2026-11-07T10:00:00Z"))).toEqual([expect.objectContaining({ recap: "Planned the release." })]);
   });
+
+  it("lets the learner rewrite and delete a fact", async () => {
+    const session = await sessions.create({ language: "en", mode: "daily" });
+    await memory.save(session.id, "en", { recap: null, added: [{ topic: "work", statement: "Works at Joqum." }], updated: [] }, at);
+    const [fact] = await memory.facts();
+
+    expect(await memory.editFact(fact.id, "Works at JOCUM.", later)).toEqual({ ...fact, statement: "Works at JOCUM.", updatedAt: later });
+    expect(await memory.deleteFact(fact.id)).toBe(true);
+    expect(await memory.facts()).toEqual([]);
+    expect(await memory.editFact(fact.id, "Gone.", later)).toBeNull();
+    expect(await memory.deleteFact(fact.id)).toBe(false);
+  });
 });

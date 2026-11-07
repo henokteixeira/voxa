@@ -39,6 +39,7 @@ import { AnthropicTutorAdapter, anthropicClientProvider } from "./infra/tutor/an
 import { FileLearnerContext } from "./infra/tutor/file-learner-context.js";
 import { LocalVoiceAdapter } from "./infra/voice/local-voice.adapter.js";
 import { LevelsController } from "./levels/levels.controller.js";
+import { MemoryController } from "./memory/memory.controller.js";
 import { MistakesController } from "./mistakes/mistakes.controller.js";
 import { ReviewsController } from "./reviews/reviews.controller.js";
 import { ReviewScheduler } from "./application/review-scheduler.js";
@@ -57,7 +58,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
 // Swapping the database, AI or voice provider = changing useClass/useExisting below.
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ["../../.env"], validate: validateEnv }), DbModule],
-  controllers: [HealthController, SessionsController, MistakesController, FillersController, LevelsController, ProgressController, ReviewsController, TranscriptionsController, PracticeController],
+  controllers: [HealthController, SessionsController, MistakesController, FillersController, LevelsController, ProgressController, ReviewsController, TranscriptionsController, PracticeController, MemoryController],
   providers: [
     ConversationService,
     MistakeBankService,

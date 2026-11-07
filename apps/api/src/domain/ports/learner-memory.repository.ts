@@ -13,6 +13,10 @@ export interface LearnerMemoryRepository {
    * Facts and the session's recap are saved together.
    */
   save(sessionId: string, language: string, memory: SessionMemory, at: Date): Promise<boolean>;
+  /** The learner rewrites a fact; null when there is no such fact. */
+  editFact(id: string, statement: string, at: Date): Promise<LearnerFact | null>;
+  /** The learner deletes a fact; false when there was no such fact. */
+  deleteFact(id: string): Promise<boolean>;
   /** The newest sessions started before `before` that have a recap, newest first. */
   recentSessions(limit: number, before: Date): Promise<RecalledSession[]>;
 }
