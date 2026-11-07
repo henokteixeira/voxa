@@ -132,7 +132,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
         // The learner left or ended before the session existed: close it on the server too.
         if (cancelled || ended.current) return void api.endSession(started.sessionId).catch(() => {});
         speaker.current = deps.createSpeaker();
-        dispatch({ type: "started", sessionId: started.sessionId, message: started.message });
+        dispatch({ type: "started", sessionId: started.sessionId, message: started.message, goals: started.goals });
         if (confidenceBefore) void rateConfidence(api, started.sessionId, "before", confidenceBefore);
         connect(started.sessionId, { kind: "speak" });
       } catch {
@@ -241,5 +241,8 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
     [api, state.sessionId],
   );
 
-  return { state, typing, setTyping, tapBall, unlock, pause, resume, repeatLast, sendText, retry, end, rateAfter };
+  /** "Keep going" on the tutor's stop-or-keep-going question: the conversation just goes on. */
+  const keepGoing = useCallback(() => dispatch({ type: "keep_going" }), []);
+
+  return { state, typing, setTyping, tapBall, unlock, pause, resume, repeatLast, sendText, retry, end, rateAfter, keepGoing };
 }

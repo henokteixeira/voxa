@@ -64,12 +64,18 @@ export interface SessionState {
   turn: Turn;
   /** What the server returned when the session ended; null if it could not be reached. */
   summary: SessionSummary | null;
+  /** Goals of the meeting, in order; empty in free talk. */
+  goals: string[];
+  coveredGoals: string[];
+  /** The tutor asked whether to stop or keep going, and the learner has not answered yet. */
+  checkIn: boolean;
 }
 
 export type Retry = { kind: "text"; text: string } | { kind: "speak" } | { kind: "listen" };
 
 export type SessionAction =
-  | { type: "started"; sessionId: string; message: string }
+  | { type: "started"; sessionId: string; message: string; goals?: string[] }
+  | { type: "keep_going" }
   | { type: "sent"; request: "audio" | "speak" }
   | { type: "sent"; request: "text"; text: string }
   | { type: "speech_start" }
@@ -111,6 +117,9 @@ export const initialSessionState: SessionState = {
   retry: null,
   turn: freshTurn("speak"),
   summary: null,
+  goals: [],
+  coveredGoals: [],
+  checkIn: false,
 };
 
 /** Failures that do not stop the session: say "didn't catch that" and listen again. */
@@ -124,7 +133,15 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
   switch (action.type) {
     case "started":
       if (state.phase !== "starting") return state;
-      return { ...state, phase: "thinking", sessionId: action.sessionId, captions: [{ who: "tutor", text: action.message }] };
+      return {
+        ...state,
+        phase: "thinking",
+        sessionId: action.sessionId,
+        captions: [{ who: "tutor", text: action.message }],
+        goals: action.goals ?? [],
+      };
+    case "keep_going":
+      return { ...state, checkIn: false };
     case "sent":
       return {
         ...state,
@@ -132,6 +149,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         missed: false,
         fixed: false,
         support: null,
+        checkIn: false,
         failure: null,
         retry: null,
         turn: freshTurn(action.request, action.request === "text" ? action.text : null),
@@ -152,6 +170,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       return {
         ...withTutor(state, action.result),
         support: action.result.support ?? null,
+        checkIn: action.result.checkIn ?? false,
+        coveredGoals: action.result.coveredGoals ?? state.coveredGoals,
         turn: { ...state.turn, tutor: true },
       };
     case "speech":

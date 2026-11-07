@@ -69,6 +69,21 @@ describe("sessionReducer", () => {
     expect(state.support).toBeNull();
   });
 
+  it("keeps the goals and the stop-or-keep-going question until the learner answers", () => {
+    const asked: SessionAction = {
+      type: "tutor",
+      result: { kind: "reply", message: "Stop here?", selfCorrected: false, checkIn: true, coveredGoals: ["today"] },
+    };
+    let state = run({ ...started, goals: ["yesterday", "today"] } as SessionAction, asked);
+    expect(state.goals).toEqual(["yesterday", "today"]);
+    expect(state.coveredGoals).toEqual(["today"]);
+    expect(state.checkIn).toBe(true);
+    expect(sessionReducer(state, { type: "keep_going" }).checkIn).toBe(false);
+    state = sessionReducer(state, { type: "sent", request: "audio" });
+    expect(state.checkIn).toBe(false);
+    expect(state.coveredGoals).toEqual(["today"]);
+  });
+
   it("celebrates a fix after a hint and closes the ladder", () => {
     const state = run(
       started,

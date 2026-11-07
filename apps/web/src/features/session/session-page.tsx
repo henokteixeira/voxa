@@ -5,6 +5,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { VoiceBall } from "@/components/voice-ball";
 import type { Mode } from "@/lib/api";
 import { useCopy } from "@/lib/i18n/locale";
+import { CheckInCard, GoalsStrip } from "./goals";
 import { isMode, useModeInfo } from "./modes";
 import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-copy";
 import { CaptionCard, HintCard, IconButton, PauseIcon, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
@@ -79,6 +80,8 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
   let bottom: ReactNode = null;
   if (state.phase === "failed" && state.failure) {
     bottom = <FailureCard code={state.failure} onRetry={session.retry} onEnd={state.sessionId ? session.end : undefined} />;
+  } else if (state.checkIn && yourTurn) {
+    bottom = <CheckInCard onStop={session.end} onKeepGoing={session.keepGoing} />;
   } else if (state.revealed && lastTutor) {
     bottom = <RevealCard message={lastTutor.text} />;
   } else if (state.hintStep > 0 && lastTutor) {
@@ -104,6 +107,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
           <TranscriptIcon />
         </IconButton>
       </header>
+      <GoalsStrip goals={state.goals} covered={state.coveredGoals} />
 
       {showTranscript ? (
         <ol aria-label={page.transcript} inert={state.phase === "paused"} className="m-0 flex min-h-0 flex-1 list-none flex-col gap-3 overflow-y-auto p-0">

@@ -208,6 +208,57 @@ describe("live session", () => {
     expect(socket.close).toHaveBeenCalled();
   });
 
+  it("shows the meeting's goals, ticks covered ones and asks whether to stop", async () => {
+    api.startSession.mockResolvedValueOnce({
+      sessionId: "s1",
+      mode: "daily",
+      language: "en",
+      message: "Morning! What did you work on yesterday?",
+      goals: ["yesterday", "today", "blockers"],
+    });
+    api.endSession.mockResolvedValueOnce(
+      summaryWith([], {
+        goals: [
+          { id: "yesterday", covered: true },
+          { id: "today", covered: true },
+          { id: "blockers", covered: true },
+        ],
+        targets: [
+          { original: "I goed", correction: "I went", category: "grammar", met: true },
+          { original: "more better", correction: "better", category: "grammar", met: false },
+        ],
+      }),
+    );
+    await startAndListen();
+    const goals = screen.getByRole("list", { name: "Meeting goals" });
+    expect(goals).toHaveTextContent("Yesterday");
+    expect(goals).not.toHaveTextContent("✓");
+
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("All done, no blockers."));
+    act(() =>
+      socketHandlers.onTutor({
+        kind: "reply",
+        message: "Thanks. Do you want to stop here or keep going?",
+        selfCorrected: false,
+        checkIn: true,
+        coveredGoals: ["yesterday", "today", "blockers"],
+      }),
+    );
+    act(() => socketHandlers.onDone());
+
+    expect(screen.getByRole("list", { name: "Meeting goals" })).toHaveTextContent("✓ Blockers");
+    await userEvent.click(screen.getByRole("button", { name: "Keep going" }));
+    expect(screen.queryByRole("region", { name: "Stop here?" })).not.toBeInTheDocument();
+
+    act(() => socketHandlers.onTutor({ kind: "reply", message: "Anything else?", selfCorrected: false, checkIn: true }));
+    await userEvent.click(screen.getByRole("button", { name: "Stop and see the summary" }));
+    expect(await screen.findByRole("heading", { name: "Session done" })).toBeInTheDocument();
+    expect(screen.getByText("Goals: 3 of 3")).toBeInTheDocument();
+    expect(screen.getByText(/You got 1 of 2 right/)).toBeInTheDocument();
+    expect(screen.getByText("Next time")).toBeInTheDocument();
+  });
+
   it("keeps the microphone off while the learner types", async () => {
     await startAndListen();
     mic.pause.mockClear();
