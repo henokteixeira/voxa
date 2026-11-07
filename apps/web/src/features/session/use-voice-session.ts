@@ -2,8 +2,8 @@ import { useCallback, useContext, useEffect, useReducer, useRef, useState } from
 import { useApi } from "@/hooks/use-api";
 import { ApiError, type ApiClient, type ApiErrorKind, type ConfidenceMoment, type Mode } from "@/lib/api";
 import { type Microphone, MicrophoneUnavailableError } from "@/lib/voice/microphone";
-import { DEFAULT_TURN_OPTIONS } from "@/lib/voice/turn-detector";
 import { createFillerPlayer } from "@/lib/voice/filler-player";
+import { readPauseMs } from "@/lib/voice/pause-setting";
 import { AudioBlockedError, type Speaker } from "@/lib/voice/speaker";
 import type { VoiceSocket } from "@/lib/voice/voice-socket";
 import { FluencyClock } from "./fluency-clock";
@@ -143,6 +143,8 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
     ended.current = false;
     clock.current = new FluencyClock();
     const player = filler.current;
+    // The silence that ends a turn, as chosen in Settings; read once per session.
+    const endSilenceMs = readPauseMs();
     void (async () => {
       try {
         const opened = await deps.openMicrophone({
@@ -152,7 +154,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
           },
           onTurn: (wav) => {
             clock.current.learnerEnded(performance.now(), {
-              silenceMs: sentEarly.current ? 0 : DEFAULT_TURN_OPTIONS.endSilenceMs,
+              silenceMs: sentEarly.current ? 0 : endSilenceMs,
             });
             sentEarly.current = false;
             mic.current?.pause();
@@ -160,7 +162,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
             socket.current?.sendTurn(wav);
             player.arm(speaker.current);
           },
-        });
+        }, { endSilenceMs });
         if (cancelled) return opened.stop();
         opened.pause();
         mic.current = opened;

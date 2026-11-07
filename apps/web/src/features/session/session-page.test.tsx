@@ -6,6 +6,7 @@ import { ApiProvider } from "@/app/api-context";
 import { routes } from "@/app/router";
 import { ApiError, type ApiClient } from "@/lib/api";
 import { type MicrophoneHandlers, MicrophoneUnavailableError } from "@/lib/voice/microphone";
+import { savePauseMs } from "@/lib/voice/pause-setting";
 import type { VoiceSocketHandlers } from "@/lib/voice/voice-socket";
 import { LocaleProvider } from "@/lib/i18n/locale-provider";
 import { type VoiceDeps, VoiceDepsContext } from "./voice-deps";
@@ -461,6 +462,49 @@ describe("session summary", () => {
 });
 
 describe("fluency timing", () => {
+  it("ends turns after the pause the learner chose, and does not count that pause as speech", async () => {
+    savePauseMs(4000);
+    const now = vi.spyOn(performance, "now");
+    now.mockReturnValue(0);
+    renderSession();
+    await screen.findByText("Morning! What did you work on yesterday?");
+    expect(deps.openMicrophone).toHaveBeenCalledWith(expect.anything(), { endSilenceMs: 4000 });
+    act(() => socketHandlers.onOpen());
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
+    act(() => socketHandlers.onDone());
+    now.mockReturnValue(3000);
+    await act(async () => finishPlayback());
+
+    now.mockReturnValue(4500);
+    act(() => micHandlers.onSpeechStart());
+    // 4 s of speech plus the chosen 4 s of silence.
+    now.mockReturnValue(12_500);
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+
+    await endFromPause();
+    await screen.findByRole("heading", { name: "Session done" });
+    expect(api.endSession).toHaveBeenCalledWith("s1", { tutorSpeechMs: 3000, pausesMs: [1500], learnerSpeechMs: 4000 });
+    now.mockRestore();
+  });
+
+  it("counts all the time as speech when the learner taps to send", async () => {
+    savePauseMs(4000);
+    const now = vi.spyOn(performance, "now");
+    now.mockReturnValue(0);
+    await startAndListen();
+    now.mockReturnValue(1000);
+    act(() => micHandlers.onSpeechStart());
+    mic.sendNow.mockReturnValueOnce(true);
+    now.mockReturnValue(4000);
+    await userEvent.click(screen.getByRole("button", { name: "Send now" }));
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+
+    await endFromPause();
+    await screen.findByRole("heading", { name: "Session done" });
+    expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ learnerSpeechMs: 3000 }));
+    now.mockRestore();
+  });
+
   it("sends the pause before answering and the speaking time it measured", async () => {
     const now = vi.spyOn(performance, "now");
     now.mockReturnValue(0);

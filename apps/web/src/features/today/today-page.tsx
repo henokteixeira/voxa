@@ -9,6 +9,7 @@ import { useApiStatus } from "@/hooks/use-api-status";
 import { useOnline } from "@/hooks/use-online";
 import { MODES } from "@/lib/api";
 import { LOCALES, useCopy, useLocale } from "@/lib/i18n/locale";
+import { PAUSE_CHOICES_MS, readPauseMs, savePauseMs } from "@/lib/voice/pause-setting";
 import { cn } from "@/lib/utils";
 import { LANGUAGE_NAMES, TODAY_COPY } from "./today-copy";
 
@@ -38,6 +39,43 @@ function LanguageSwitch({ label }: { label: string }) {
   );
 }
 
+/** How long the learner can stay quiet before their turn is sent. */
+function PauseSetting({ title, hint, seconds }: { title: string; hint: string; seconds: (ms: number) => string }) {
+  const [pauseMs, setPauseMs] = useState(readPauseMs);
+  const titleId = useId();
+  const hintId = useId();
+  const choose = (ms: number) => {
+    setPauseMs(ms);
+    savePauseMs(ms);
+  };
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 id={titleId} className="m-0 text-body-strong">
+        {title}
+      </h3>
+      <p id={hintId} className="m-0 text-caption text-taupe">
+        {hint}
+      </p>
+      <div role="group" aria-labelledby={titleId} aria-describedby={hintId} className="flex rounded-pill bg-sand-soft p-1">
+        {PAUSE_CHOICES_MS.map((ms) => (
+          <button
+            key={ms}
+            type="button"
+            aria-pressed={ms === pauseMs}
+            onClick={() => choose(ms)}
+            className={cn(
+              "min-h-11 flex-1 cursor-pointer rounded-pill border-none bg-transparent px-3 text-sm font-bold text-taupe",
+              ms === pauseMs && "bg-paper text-ink shadow-tab",
+            )}
+          >
+            {seconds(ms)}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /** The app's promise, always in view: mistakes are part of learning, and nobody is grading. */
 function Welcome({ title, body }: { title: string; body: string }) {
   const id = useId();
@@ -55,6 +93,7 @@ function Welcome({ title, body }: { title: string; body: string }) {
 export function TodayPage() {
   const [now] = useState(() => new Date());
   const [choosing, setChoosing] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { status, retry } = useApiStatus();
   const online = useOnline();
   const copy = useCopy(TODAY_COPY);
@@ -66,7 +105,22 @@ export function TodayPage() {
     <>
       <div className="flex min-h-11 items-center justify-between gap-3">
         <span className="text-label text-taupe">{date}</span>
-        <LanguageSwitch label={copy.language} />
+        <div className="flex items-center gap-2">
+          <LanguageSwitch label={copy.language} />
+          <button
+            type="button"
+            aria-label={copy.settings}
+            aria-haspopup="dialog"
+            onClick={() => setSettingsOpen(true)}
+            className="flex size-11 cursor-pointer items-center justify-center rounded-pill border-none bg-sand-soft text-taupe hover:text-ink"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+              <circle cx="16" cy="7" r="2" />
+              <circle cx="10" cy="17" r="2" />
+            </svg>
+          </button>
+        </div>
       </div>
       <h1 className="m-0 text-display">{copy.greeting(now.getHours())}</h1>
       <Welcome title={copy.welcomeTitle} body={copy.welcomeBody} />
@@ -100,6 +154,13 @@ export function TodayPage() {
         <Button variant="ghost" block aria-haspopup="dialog" onClick={() => setChoosing(true)}>
           {copy.otherPractice}
         </Button>
+      )}
+
+      {settingsOpen && (
+        <Sheet label={copy.settings} closeLabel={copy.close} onClose={() => setSettingsOpen(false)}>
+          <h2 className="m-0 text-heading">{copy.settings}</h2>
+          <PauseSetting title={copy.pauseTitle} hint={copy.pauseHint} seconds={copy.seconds} />
+        </Sheet>
       )}
 
       {choosing && online && status === "ok" && (

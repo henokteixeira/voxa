@@ -1,10 +1,11 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { LocaleProvider } from "@/lib/i18n/locale-provider";
+import { readPauseMs } from "@/lib/voice/pause-setting";
 import { ApiProvider } from "./api-context";
 import { routes } from "./router";
 
@@ -127,6 +128,20 @@ describe("Today", () => {
     expect(screen.getByRole("link", { name: "Start" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "English" })).toHaveAttribute("aria-pressed", "true");
     expect(document.documentElement.lang).toBe("en");
+  });
+
+  it("lets you choose how long a pause can be before your turn is sent", async () => {
+    renderApp("/", up());
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const pause = within(screen.getByRole("dialog", { name: "Settings" })).getByRole("group", {
+      name: "Pause before Voxa answers",
+    });
+    expect(within(pause).getByRole("button", { name: "2.5 s" })).toHaveAttribute("aria-pressed", "true");
+
+    await userEvent.click(within(pause).getByRole("button", { name: "4 s" }));
+    expect(within(pause).getByRole("button", { name: "4 s" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(pause).getByRole("button", { name: "2.5 s" })).toHaveAttribute("aria-pressed", "false");
+    expect(readPauseMs()).toBe(4000);
   });
 
   it("says the server isn't running and lets you check again", async () => {

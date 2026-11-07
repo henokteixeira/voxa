@@ -18,6 +18,10 @@ export interface TodayCopy {
   otherPractice: string;
   close: string;
   language: string;
+  settings: string;
+  pauseTitle: string;
+  pauseHint: string;
+  seconds: (ms: number) => string;
 }
 
 export const LANGUAGE_NAMES: Record<Locale, string> = { "pt-BR": "Português", en: "English" };
@@ -52,6 +56,10 @@ export const TODAY_COPY: Copy<TodayCopy> = {
     otherPractice: "Other practice",
     close: "Close",
     language: "Language",
+    settings: "Settings",
+    pauseTitle: "Pause before Voxa answers",
+    pauseHint: "How long you can stay quiet before your turn is sent. Tap the ball to send sooner.",
+    seconds: (ms) => `${(ms / 1000).toLocaleString("en")} s`,
   },
   "pt-BR": {
     greeting: (h) => (h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"),
@@ -82,5 +90,9 @@ export const TODAY_COPY: Copy<TodayCopy> = {
     otherPractice: "Outros treinos",
     close: "Fechar",
     language: "Idioma",
+    settings: "Configurações",
+    pauseTitle: "Pausa antes do Voxa responder",
+    pauseHint: "Quanto tempo você pode ficar em silêncio antes da sua fala ser enviada. Toque na bolinha para enviar antes.",
+    seconds: (ms) => `${(ms / 1000).toLocaleString("pt-BR")} s`,
   },
 };
