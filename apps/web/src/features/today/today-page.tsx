@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Sheet } from "@/components/ui/sheet";
 import { VoiceBall } from "@/components/voice-ball";
 import { useModeInfo } from "@/features/session/modes";
+import { takeSavedSession } from "@/features/session/saved-session";
+import { useApi } from "@/hooks/use-api";
 import { useApiStatus } from "@/hooks/use-api-status";
 import { useOnline } from "@/hooks/use-online";
 import { MODES } from "@/lib/api";
@@ -89,6 +91,8 @@ function Welcome({ title, body }: { title: string; body: string }) {
   );
 }
 
+const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+
 /** Today: one suggested session, everything else secondary. */
 export function TodayPage() {
   const [now] = useState(() => new Date());
@@ -99,6 +103,9 @@ export function TodayPage() {
   const copy = useCopy(TODAY_COPY);
   const { locale } = useLocale();
   const modes = useModeInfo();
+  const api = useApi();
+  // A session left mid-way (closed tab): continue it, unless it is too old (then it is ended with its summary).
+  const [paused] = useState(() => takeSavedSession(api));
   const date = now.toLocaleDateString(locale, { weekday: "long", month: "short", day: "numeric" });
 
   return (
@@ -137,6 +144,15 @@ export function TodayPage() {
           <p className="m-0 text-caption text-taupe">{copy.problem[status].detail}</p>
           <Button block onClick={retry}>
             {copy.checkAgain}
+          </Button>
+        </Card>
+      ) : paused ? (
+        <Card className="items-center gap-3 px-5 py-6 text-center">
+          <VoiceBall state="idle" size={104} />
+          <h2 className="m-0 text-heading">{copy.pausedTitle}</h2>
+          <p className="m-0 text-caption text-taupe">{copy.pausedBody(modes[paused.mode].title, clock(paused.elapsedSeconds))}</p>
+          <Button block asChild>
+            <Link to={`/session/${paused.mode}`}>{copy.continueSession}</Link>
           </Button>
         </Card>
       ) : (

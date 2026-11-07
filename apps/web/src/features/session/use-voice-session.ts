@@ -1,20 +1,18 @@
 import { useCallback, useContext, useEffect, useReducer, useRef, useState } from "react";
 import { useApi } from "@/hooks/use-api";
-import { ApiError, type ApiClient, type ApiErrorKind, type ConfidenceMoment, type Mode } from "@/lib/api";
+import { ApiError, type ApiClient, type ConfidenceMoment, type Mode } from "@/lib/api";
 import { type Microphone, MicrophoneUnavailableError } from "@/lib/voice/microphone";
 import { createFillerPlayer } from "@/lib/voice/filler-player";
 import { readPauseMs } from "@/lib/voice/pause-setting";
 import { AudioBlockedError, type Speaker } from "@/lib/voice/speaker";
 import type { VoiceSocket } from "@/lib/voice/voice-socket";
 import { FluencyClock } from "./fluency-clock";
-import { clearSavedSession, loadSavedSession, saveSession } from "./saved-session";
+import { clearSavedSession, saveSession, takeSavedSession, TRANSIENT_ERRORS } from "./saved-session";
 import { type FailureCode, initialSessionState, type Retry, sessionReducer } from "./session-state";
 import { VoiceDepsContext } from "./voice-deps";
 
 /** Failures that need the whole start again (no session was created yet). */
 const START_FAILURES: FailureCode[] = ["mic_blocked", "mic_missing", "mic_busy", "mic_unsupported", "start_failed"];
-/** API errors that may pass: a saved session is kept to pick up on "Try again". */
-const TRANSIENT: ApiErrorKind[] = ["offline", "server", "tutor_unavailable"];
 /** Failures that need a new socket on the same session. */
 const SOCKET_FAILURES: FailureCode[] = ["disconnected", "in_use"];
 
@@ -171,7 +169,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
         if (!cancelled) dispatch({ type: "failed", code: `mic_${reason}` });
         return;
       }
-      const saved = loadSavedSession();
+      const saved = takeSavedSession(api);
       if (saved && saved.mode !== mode) {
         // Another meeting type was asked for: close the old session, best effort.
         clearSavedSession();
@@ -197,7 +195,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
           return;
         } catch (error) {
           // Offline or the server is down: try again later. Anything else (gone, ended, unreadable): start a new one.
-          if (error instanceof ApiError && TRANSIENT.includes(error.kind)) {
+          if (error instanceof ApiError && TRANSIENT_ERRORS.includes(error.kind)) {
             if (!cancelled) dispatch({ type: "failed", code: "start_failed" });
             return;
           }
