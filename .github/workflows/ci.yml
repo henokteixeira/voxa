@@ -39,4 +39,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # Builds every image `docker compose up` needs (the voice image is too heavy to build anywhere else in CI).
+      # Dev mode (docker-compose.override.yml is loaded by default): dev targets for api and web.
       - run: docker compose build
+      # Production images too.
+      - run: docker compose -f docker-compose.yml build api web
+      # The dev web server starts with the source mounted and answers (dev images have their own names).
+      - run: docker compose up -d --no-deps web
+      - run: |
+          for i in $(seq 1 30); do curl -fsS http://localhost:5173/ | grep -q '<div id="root">' && exit 0; sleep 2; done
+          docker compose logs web; exit 1

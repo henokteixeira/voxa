@@ -1,0 +1,30 @@
+# Development mode, loaded automatically by `docker compose up`.
+# The source is mounted into the containers: web changes hot-reload in the browser (Vite),
+# API changes restart the server (nest --watch), and new migrations apply on the next start.
+# Dependency or config changes (package.json, tsconfig, vite/nest config): `docker compose up --build -V`.
+# Production build instead (nginx, compiled API): `docker compose -f docker-compose.yml up --build`.
+# Dev images have their own names, so switching modes never runs the other mode's image.
+# Needs Docker Compose 2.24.4 or later (`!override`).
+services:
+  migrate:
+    volumes:
+      - ./apps/api/drizzle:/repo/apps/api/drizzle
+
+  api:
+    image: voxa-api-dev
+    build: { target: dev }
+    volumes:
+      - ./apps/api/src:/repo/apps/api/src
+      - ./apps/api/drizzle:/repo/apps/api/drizzle
+
+  web:
+    image: voxa-web-dev
+    build: { target: dev }
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+    ports: !override
+      - "5173:5173"
+    volumes:
+      - ./apps/web:/repo/apps/web
+      # Keep the container's installed packages; the host folder may have none (or Mac builds).
+      - /repo/apps/web/node_modules

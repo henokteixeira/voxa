@@ -29,6 +29,12 @@ once `docker compose ps` shows `voice` as healthy. The microphone stays in your 
 only receive the audio the web app sends. Inside Docker the API reaches Postgres and the voice service by
 service name, so `DATABASE_URL` and `VOICE_SERVICE_URL` in `.env` are ignored there.
 
+By default this is development mode (`docker-compose.override.yml`): the source is mounted into the
+containers, so web changes hot-reload in the browser, API changes restart the server and new migrations
+apply on the next start. After a `git pull`, nothing to rebuild unless dependencies or config files changed;
+then run `docker compose up --build -V` (`-V` refreshes the installed packages).
+The production build (nginx, compiled API) runs with `docker compose -f docker-compose.yml up --build`.
+
 Voice evaluation (reads `services/voice/eval/recordings`, writes `services/voice/eval/results`):
 
 ```bash

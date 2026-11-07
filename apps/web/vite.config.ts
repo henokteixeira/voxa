@@ -1,15 +1,43 @@
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 import { VitePWA } from "vite-plugin-pwa";
 
 const linen = "#F6F1EA";
 
+/**
+ * Dev server only: answers the browser's service-worker update check with a worker that removes itself
+ * and reloads its pages, so a production build used before on the same port stops serving its cache.
+ */
+function retireServiceWorker(): Plugin {
+  const worker = `self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    self.registration.unregister()
+      .then(() => self.clients.matchAll({ type: "window" }))
+      .then((clients) => clients.forEach((client) => client.navigate(client.url))),
+  );
+});`;
+  return {
+    name: "voxa:retire-service-worker",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use("/sw.js", (_req, res) => {
+        res.setHeader("content-type", "text/javascript");
+        res.setHeader("cache-control", "no-store");
+        res.end(worker);
+      });
+    },
+  };
+}
+
 export default defineConfig({
   envDir: "../..",
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   plugins: [
+    retireServiceWorker(),
     react(),
     tailwindcss(),
     VitePWA({
