@@ -36,6 +36,8 @@ import { ReviewsController } from "./reviews/reviews.controller.js";
 import { ReviewScheduler } from "./application/review-scheduler.js";
 import { ReviewService } from "./application/review.service.js";
 import { REVIEW_REPOSITORY } from "./domain/ports/review.repository.js";
+import { REVIEW_COACH_PORT } from "./domain/ports/review-coach.port.js";
+import { AnthropicReviewCoach } from "./infra/tutor/anthropic-review-coach.js";
 import { DrizzleReviewRepository } from "./infra/db/drizzle-review.repository.js";
 import { ProgressController } from "./progress/progress.controller.js";
 import { SessionsController } from "./sessions/sessions.controller.js";
@@ -62,6 +64,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
     { provide: CLOCK, useValue: systemClock },
     { provide: TUTOR_PORT, useClass: AnthropicTutorAdapter },
     { provide: LEVEL_ASSESSOR_PORT, useClass: AnthropicLevelAssessor },
+    { provide: REVIEW_COACH_PORT, useClass: AnthropicReviewCoach },
     { provide: LEARNER_CONTEXT_PORT, useClass: FileLearnerContext },
     { provide: SESSION_REPOSITORY, useClass: DrizzleSessionRepository },
     { provide: LEVEL_REPOSITORY, useClass: DrizzleLevelRepository },

@@ -1,10 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, gt, inArray, isNull, lte, min, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lte, min, or, type SQL, sql } from "drizzle-orm";
 import { NEW_WORD_CATEGORY } from "../../domain/conversation/types.js";
-import type { DueReview, ReviewRepository, ReviewSubject } from "../../domain/ports/review.repository.js";
+import type { ReviewItem, ReviewRepository, ReviewSubject, StoredReviewCard } from "../../domain/ports/review.repository.js";
 import type { ReviewState } from "../../domain/review/review-schedule.js";
 import { DATABASE, type Database } from "./db.module.js";
-import { mistakes, patterns, reviewItems } from "./schema.js";
+import { mistakes, patterns, reviewCards, reviewItems } from "./schema.js";
 
 /** How many of a pattern's sentences a review shows. */
 const EXAMPLES_PER_PATTERN = 3;
@@ -30,13 +30,24 @@ export class DrizzleReviewRepository implements ReviewRepository {
       .onConflictDoUpdate({ target: subject.kind === "pattern" ? reviewItems.patternId : reviewItems.newWordId, set: values });
   }
 
-  async due(language: string, now: Date, limit: number): Promise<DueReview[]> {
+  async due(language: string, now: Date, limit: number): Promise<ReviewItem[]> {
+    const items = await this.items(and(eq(reviewItems.language, language), lte(reviewItems.dueAt, now)));
+    return items.slice(0, limit);
+  }
+
+  async item(subject: ReviewSubject): Promise<ReviewItem | null> {
+    const [item] = await this.items(subjectIs(subject));
+    return item ?? null;
+  }
+
+  /** The matching items, the longest overdue first, without dismissed words and patterns left with no mistakes. */
+  private async items(where: SQL | undefined): Promise<ReviewItem[]> {
     const rows = await this.db
       .select({ item: reviewItems, pattern: patterns, word: mistakes })
       .from(reviewItems)
       .leftJoin(patterns, eq(reviewItems.patternId, patterns.id))
       .leftJoin(mistakes, eq(reviewItems.newWordId, mistakes.id))
-      .where(and(eq(reviewItems.language, language), lte(reviewItems.dueAt, now), isNull(mistakes.dismissedAt)))
+      .where(and(where, isNull(mistakes.dismissedAt)))
       .orderBy(asc(reviewItems.dueAt), asc(reviewItems.id));
 
     const patternIds = rows.flatMap((r) => (r.pattern ? [r.pattern.id] : []));
@@ -48,9 +59,8 @@ export class DrizzleReviewRepository implements ReviewRepository {
           .orderBy(desc(mistakes.lastSeenAt), desc(mistakes.id))
       : [];
 
-    const due: DueReview[] = [];
+    const items: ReviewItem[] = [];
     for (const { item, pattern, word } of rows) {
-      if (due.length === limit) break;
       const base = { language: item.language, step: item.step, dueAt: item.dueAt };
       if (pattern) {
         const examples = sentences
@@ -59,13 +69,50 @@ export class DrizzleReviewRepository implements ReviewRepository {
           .map(({ original, correction }) => ({ original, correction }));
         // A pattern whose every mistake was dismissed is not reviewed.
         if (examples.length === 0) continue;
-        due.push({ ...base, subject: { kind: "pattern", id: pattern.id }, category: pattern.category, name: pattern.name, rule: pattern.rule, examples });
+        items.push({ ...base, subject: { kind: "pattern", id: pattern.id }, category: pattern.category, name: pattern.name, rule: pattern.rule, examples });
       } else if (word) {
         const examples = [{ original: word.original, correction: word.correction }];
-        due.push({ ...base, subject: { kind: "new_word", id: word.id }, category: NEW_WORD_CATEGORY, name: word.correction, rule: word.original, examples });
+        items.push({ ...base, subject: { kind: "new_word", id: word.id }, category: NEW_WORD_CATEGORY, name: word.correction, rule: word.original, examples });
       }
     }
-    return due;
+    return items;
+  }
+
+  async addCard(subject: ReviewSubject, cue: { cue: string; answer: string }): Promise<StoredReviewCard> {
+    const [item] = await this.db
+      .select({ id: reviewItems.id, language: reviewItems.language })
+      .from(reviewItems)
+      .where(subjectIs(subject))
+      .limit(1);
+    if (!item) throw new Error(`No review item for ${subject.kind} ${subject.id}.`);
+    const [row] = await this.db
+      .insert(reviewCards)
+      .values({ language: item.language, reviewItemId: item.id, cue: cue.cue, answer: cue.answer })
+      .returning();
+    return { id: row.id, subject, cue: row.cue, answer: row.answer, recalled: null };
+  }
+
+  async card(id: string): Promise<StoredReviewCard | null> {
+    const [row] = await this.db
+      .select({ card: reviewCards, patternId: reviewItems.patternId, newWordId: reviewItems.newWordId })
+      .from(reviewCards)
+      .innerJoin(reviewItems, eq(reviewCards.reviewItemId, reviewItems.id))
+      .where(eq(reviewCards.id, id))
+      .limit(1);
+    if (!row) return null;
+    const subject: ReviewSubject = row.patternId
+      ? { kind: "pattern", id: row.patternId }
+      : { kind: "new_word", id: row.newWordId! };
+    return { id: row.card.id, subject, cue: row.card.cue, answer: row.card.answer, recalled: row.card.recalled };
+  }
+
+  async answerCard(id: string, recalled: boolean, at: Date): Promise<boolean> {
+    const updated = await this.db
+      .update(reviewCards)
+      .set({ recalled, answeredAt: at })
+      .where(and(eq(reviewCards.id, id), isNull(reviewCards.answeredAt)))
+      .returning({ id: reviewCards.id });
+    return updated.length > 0;
   }
 
   async nextDueAt(language: string, now: Date): Promise<Date | null> {

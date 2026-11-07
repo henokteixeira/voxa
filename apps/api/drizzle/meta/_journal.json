@@ -127,6 +127,13 @@
       "when": 1794063277509,
       "tag": "0017_review_items",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794064219058,
+      "tag": "0018_review_cards",
+      "breakpoints": true
     }
   ]
 }
