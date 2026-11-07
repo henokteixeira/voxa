@@ -7,7 +7,7 @@ COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile --filter @voxa/web...
 COPY apps/web apps/web
 
-# Development: Vite with hot reload. compose.override.yml mounts the source over apps/web.
+# Development: Vite with hot reload. docker-compose.override.yml mounts the source over apps/web.
 FROM build-deps AS dev
 WORKDIR /repo/apps/web
 EXPOSE 5173

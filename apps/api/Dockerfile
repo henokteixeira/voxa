@@ -7,7 +7,7 @@ COPY apps/api/package.json apps/api/
 RUN pnpm install --frozen-lockfile --filter @voxa/api...
 COPY apps/api apps/api
 
-# Development: `nest start --watch`. compose.override.yml mounts the source over apps/api/src.
+# Development: `nest start --watch`. docker-compose.override.yml mounts the source over apps/api/src.
 FROM build-deps AS dev
 WORKDIR /repo/apps/api
 EXPOSE 3000
