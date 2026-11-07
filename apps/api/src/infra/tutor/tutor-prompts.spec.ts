@@ -56,7 +56,7 @@ describe("buildSystemPrompt: a safe place to make mistakes", () => {
     expect(prompt).toMatch(/may say a word or a sentence in their first language/);
     expect(prompt).toMatch(/This is not a mistake: do not list it in `issues`/);
     expect(prompt).toMatch(/In `reply`, give the en words for it/);
-    expect(prompt).toMatch(/When you also give a `hint` or `nextHint`, start it with those words too/);
+    expect(prompt).toMatch(/When you also give a `hint` or `nextHint`, keep those words out of it and put them in `support`/);
     expect(prompt).toMatch(/List each one in `newWords`/);
     expect(prompt).toMatch(/A new word is never a mistake/);
     expect(prompt).toMatch(/`reply`, `hint` and `nextHint` are spoken: write them only in en/);
