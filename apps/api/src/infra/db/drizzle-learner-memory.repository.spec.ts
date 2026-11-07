@@ -73,10 +73,12 @@ describe("DrizzleLearnerMemoryRepository", () => {
     await make("2026-11-06T10:00:00Z", null);
     await make("2026-11-07T10:00:00Z", "Talked about a bug in sync.");
 
-    expect(await memory.recentSessions(3)).toEqual([
+    expect(await memory.recentSessions(3, later)).toEqual([
       { mode: "daily", language: "en", startedAt: new Date("2026-11-07T10:00:00Z"), recap: "Talked about a bug in sync." },
       { mode: "daily", language: "en", startedAt: new Date("2026-11-05T10:00:00Z"), recap: "Planned the release." },
     ]);
-    expect(await memory.recentSessions(1)).toHaveLength(1);
+    expect(await memory.recentSessions(1, later)).toHaveLength(1);
+    // Only sessions started before the one asking: the tutor's prompt stays the same all session.
+    expect(await memory.recentSessions(3, new Date("2026-11-07T10:00:00Z"))).toEqual([expect.objectContaining({ recap: "Planned the release." })]);
   });
 });

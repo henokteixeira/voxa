@@ -30,6 +30,7 @@ import { choosePracticeTargets, metTargetsAfter } from "../domain/conversation/p
 import { sameText, safeSupport } from "../domain/conversation/text.js";
 import { DomainError } from "../domain/errors.js";
 import type { SpeakingLevel } from "../domain/level/speaking-level.js";
+import type { TutorMemory } from "../domain/memory/learner-fact.js";
 import { type SessionSignals, unaidedShare } from "../domain/progress/signal-trend.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { MISTAKE_BANK_REPOSITORY, type MistakeBankRepository } from "../domain/ports/mistake-bank.repository.js";
@@ -166,7 +167,8 @@ export class ConversationService {
     const track = startTrack(step, goalsFor(mode)[0] ?? null);
     const created = await this.sessions.create({ mode, language, startedAt: this.clock.now(), targets, step, track });
     const plan = track ? openingPlan(track, describeGoal) : null;
-    const opening = await this.tutor.open(this.tutorContext(created, await this.learnerContext.load()), plan);
+    const [learnerContext, memory] = await Promise.all([this.learnerContext.load(), this.memory.recall(created)]);
+    const opening = await this.tutor.open(this.tutorContext(created, learnerContext, memory), plan);
     await this.sessions.appendTurn(created.id, { role: "assistant", content: opening.line });
     // In the guided track the opening already gives the first model sentence.
     const scaffold = track && givesWords(track.stage) ? opening.scaffold : null;
@@ -221,13 +223,14 @@ export class ConversationService {
    */
   async respond(sessionId: string, utterance: string, onReply?: (reply: TurnResult) => void): Promise<TurnResult> {
     const session = await this.openSession(sessionId);
-    const [history, known, knownPatterns, sessionPatterns, learnerContext] = await Promise.all([
+    const [history, known, knownPatterns, sessionPatterns, learnerContext, memory] = await Promise.all([
       this.sessions.history(sessionId),
       // Twice the limit, so new words don't push real mistakes out of the list.
       this.mistakes.mostFrequent(session.language, KNOWN_MISTAKES_LIMIT * 2),
       this.mistakes.patterns(session.language, KNOWN_PATTERNS_LIMIT),
       correctsMistakes(session.mode) ? this.mistakes.sessionPatterns(sessionId) : [],
       this.learnerContext.load(),
+      this.memory.recall(session),
     ]);
     const learnerTurn = history.filter((t) => t.role === "user").length + 1;
 
@@ -263,7 +266,7 @@ export class ConversationService {
         : undefined;
     const verdict = await this.tutor.evaluate(
       {
-        ...this.tutorContext(session, learnerContext),
+        ...this.tutorContext(session, learnerContext, memory),
         history,
         pending: session.pending,
         knownMistakes: watched,
@@ -427,11 +430,12 @@ export class ConversationService {
     return trackOutcomes({ track, step, model: session.scaffold, utterance, nextGoal });
   }
 
-  private tutorContext(session: Session, learnerContext: string): TutorContext {
+  private tutorContext(session: Session, learnerContext: string, memory: TutorMemory): TutorContext {
     return {
       mode: session.mode,
       language: session.language,
       learnerContext,
+      memory,
       goals: goalsFor(session.mode).map((id) => ({ id, description: GOAL_DESCRIPTIONS[id] })),
       targets: session.targets,
       step: session.step,

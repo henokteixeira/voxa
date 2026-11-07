@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lt } from "drizzle-orm";
 import { isMode } from "../../domain/conversation/mode.js";
 import { isFactTopic, type LearnerFact, type RecalledSession, type SessionMemory } from "../../domain/memory/learner-fact.js";
 import type { LearnerMemoryRepository } from "../../domain/ports/learner-memory.repository.js";
@@ -58,11 +58,11 @@ export class DrizzleLearnerMemoryRepository implements LearnerMemoryRepository {
     });
   }
 
-  async recentSessions(limit: number): Promise<RecalledSession[]> {
+  async recentSessions(limit: number, before: Date): Promise<RecalledSession[]> {
     const rows = await this.db
       .select({ mode: sessions.mode, language: sessions.language, startedAt: sessions.startedAt, recap: sessions.recap })
       .from(sessions)
-      .where(isNotNull(sessions.recap))
+      .where(and(isNotNull(sessions.recap), lt(sessions.startedAt, before)))
       .orderBy(desc(sessions.startedAt))
       .limit(limit);
     return rows.flatMap((r) => (isMode(r.mode) && r.recap ? [{ ...r, mode: r.mode, recap: r.recap }] : []));

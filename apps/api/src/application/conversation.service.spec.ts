@@ -292,6 +292,11 @@ const entry = (over: Partial<BankEntry>): BankEntry => ({
   ...over,
 });
 
+const remembered = {
+  facts: [{ topic: "work", statement: "Works as a developer." }],
+  recentSessions: [{ mode: "daily", daysAgo: 1, recap: "Fixed the upload bug." }],
+};
+
 let tutor: FakeTutor;
 let reviews: FakeReviews;
 let sessions: FakeSessions;
@@ -301,7 +306,7 @@ let clock: FakeClock;
 let bankEntries: BankEntry[];
 let levels: FakeLevels;
 let assessor: FakeAssessor;
-let memory: { rememberLater: ReturnType<typeof vi.fn>; sweep: ReturnType<typeof vi.fn> };
+let memory: { rememberLater: ReturnType<typeof vi.fn>; sweep: ReturnType<typeof vi.fn>; recall: ReturnType<typeof vi.fn> };
 
 beforeEach(() => {
   tutor = new FakeTutor();
@@ -313,7 +318,11 @@ beforeEach(() => {
   levels = new FakeLevels();
   assessor = new FakeAssessor();
   reviews = new FakeReviews();
-  memory = { rememberLater: vi.fn().mockResolvedValue(undefined), sweep: vi.fn().mockResolvedValue(undefined) };
+  memory = {
+    rememberLater: vi.fn().mockResolvedValue(undefined),
+    sweep: vi.fn().mockResolvedValue(undefined),
+    recall: vi.fn().mockResolvedValue(remembered),
+  };
   service = new ConversationService(tutor, sessions, mistakes, learnerContext, bank, clock, assessor, levels, new ReviewScheduler(reviews), memory as unknown as LearnerMemoryService);
 });
 
@@ -440,6 +449,7 @@ describe("Session goals", () => {
     bankEntries = [entry({ original: "I goed", occurrences: 3 })];
     mistakes.bank.push({ id: "m1", language: "en", original: "I goed", correction: "I went", category: "grammar", occurrences: 3, lastSeenAt: new Date(), pattern: null, patternId: null });
     const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({}));
     tutor.verdicts.push(verdict({}));
     await service.respond(session.id, "Hi");
     expect(tutor.requests[0].knownMistakes.filter((m) => m.original === "I goed")).toHaveLength(1);
@@ -1006,6 +1016,17 @@ describe("ConversationService: the guided track (A1–A2)", () => {
 });
 
 describe("ConversationService.end", () => {
+  it("gives the tutor what it remembers from the sessions before this one", async () => {
+    const { session } = await service.start("free_talk", "en");
+    tutor.verdicts.push(verdict({}));
+    await service.respond(session.id, "Hi");
+
+    const stored = await sessions.get(session.id);
+    expect(memory.recall).toHaveBeenCalledWith(expect.objectContaining({ startedAt: stored?.startedAt }));
+    expect(tutor.opened[0]).toEqual(expect.objectContaining({ memory: remembered }));
+    expect(tutor.requests[0]).toEqual(expect.objectContaining({ memory: remembered }));
+  });
+
   it("asks for the ended session to be remembered, placement included", async () => {
     const { session } = await service.start("free_talk", "en");
     await service.end(session.id);

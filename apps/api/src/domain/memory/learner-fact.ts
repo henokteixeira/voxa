@@ -70,3 +70,18 @@ export function cleanMemory(memory: SessionMemory, knownIds: ReadonlySet<string>
     updated: [...updated].map(([id, statement]) => ({ id, statement })),
   };
 }
+
+/** What the tutor remembers when a session starts. */
+export interface TutorMemory {
+  facts: { topic: FactTopic; statement: string }[];
+  /** The last sessions before this one, newest first. */
+  recentSessions: { mode: Mode; daysAgo: number; recap: string }[];
+}
+
+export const NOTHING_REMEMBERED: TutorMemory = { facts: [], recentSessions: [] };
+
+/** Whole calendar days (UTC) between two dates: 0 the same day, 1 the day before. */
+export function daysBetween(earlier: Date, later: Date): number {
+  const day = (d: Date) => Math.floor(d.getTime() / 86_400_000);
+  return Math.max(0, day(later) - day(earlier));
+}

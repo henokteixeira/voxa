@@ -46,7 +46,7 @@ describe("LearnerMemoryService", () => {
     expect(extract).toHaveBeenCalledTimes(1);
     expect(extract).toHaveBeenCalledWith(expect.objectContaining({ language: "en", mode: "free_talk", known: [] }));
     expect((await memory.facts()).map((f) => f.statement)).toEqual(["Works as a developer."]);
-    expect(await memory.recentSessions(3)).toEqual([expect.objectContaining({ recap: "Talked about work." })]);
+    expect(await memory.recentSessions(3, new Date("2100-01-01"))).toEqual([expect.objectContaining({ recap: "Talked about work." })]);
   });
 
   it("does not call Claude when the learner said nothing, and does not try again", async () => {
@@ -84,5 +84,25 @@ describe("LearnerMemoryService", () => {
 
     expect(extract).toHaveBeenCalledTimes(2);
     expect(extract.mock.calls[1][0].known.map((f) => f.statement)).toEqual(["Works as a developer."]);
+  });
+
+  it("recalls every fact and the last three sessions before this one, with how many days ago", async () => {
+    for (const [day, said] of [["05", "a"], ["06", "b"], ["07", "c"], ["08", "d"]]) {
+      const s = await sessions.create({ language: "en", mode: "daily", startedAt: new Date(`2026-11-${day}T10:00:00Z`) });
+      await sessions.appendTurn(s.id, { role: "user", content: said });
+      await sessions.end(s.id, null);
+      extract.mockResolvedValueOnce({ recap: `Day ${day}.`, added: [{ topic: "work", statement: `Fact ${said}.` }], updated: [] });
+      await service.remember(s.id);
+    }
+
+    const memoryNow = await service.recall({ startedAt: new Date("2026-11-08T09:00:00Z") });
+
+    expect(memoryNow.facts.map((f) => f.statement)).toEqual(["Fact a.", "Fact b.", "Fact c.", "Fact d."]);
+    // The session of the 8th started later than this one: left out.
+    expect(memoryNow.recentSessions).toEqual([
+      { mode: "daily", daysAgo: 1, recap: "Day 07." },
+      { mode: "daily", daysAgo: 2, recap: "Day 06." },
+      { mode: "daily", daysAgo: 3, recap: "Day 05." },
+    ]);
   });
 });

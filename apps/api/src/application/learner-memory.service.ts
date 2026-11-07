@@ -1,4 +1,6 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
+import type { Session } from "../domain/conversation/types.js";
+import { daysBetween, type TutorMemory } from "../domain/memory/learner-fact.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { LEARNER_MEMORY_REPOSITORY, type LearnerMemoryRepository } from "../domain/ports/learner-memory.repository.js";
 import { MEMORY_EXTRACTOR_PORT, type MemoryExtractorPort } from "../domain/ports/memory-extractor.port.js";
@@ -6,6 +8,9 @@ import { SESSION_REPOSITORY, type SessionRepository } from "../domain/ports/sess
 
 /** How many unremembered sessions one sweep picks up. */
 const SWEEP_LIMIT = 5;
+
+/** How many earlier sessions the tutor recalls (decided with the user on 2026-11-07). */
+export const RECALLED_SESSIONS = 3;
 
 /** Remembers what the learner says about themselves, so later sessions can bring it up. */
 @Injectable()
@@ -61,5 +66,20 @@ export class LearnerMemoryService {
       return;
     }
     await Promise.all(ids.map((id) => this.rememberLater(id)));
+  }
+
+  /**
+   * What the tutor knows when `session` runs: every fact, and the last sessions started before it.
+   * Fixed by the session's start, so the tutor's prompt stays the same (and cached) all session.
+   */
+  async recall(session: Pick<Session, "startedAt">): Promise<TutorMemory> {
+    const [facts, recent] = await Promise.all([
+      this.memory.facts(),
+      this.memory.recentSessions(RECALLED_SESSIONS, session.startedAt),
+    ]);
+    return {
+      facts: facts.map(({ topic, statement }) => ({ topic, statement })),
+      recentSessions: recent.map((s) => ({ mode: s.mode, daysAgo: daysBetween(s.startedAt, session.startedAt), recap: s.recap })),
+    };
   }
 }
