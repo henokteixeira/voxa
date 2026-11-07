@@ -90,6 +90,18 @@ describe("DrizzleReviewRepository", () => {
     expect(await reviews.item(subject)).toBeNull();
   });
 
+  it("keeps a card and records its answer only once", async () => {
+    const { word } = await bank();
+    const subject = { kind: "new_word" as const, id: word.id };
+    await reviews.save("en", subject, { step: 0, dueAt: day(-1) }, null);
+
+    const card = await reviews.addCard(subject, { cue: "Qual é o prazo?", answer: "What is the deadline?" });
+    expect(await reviews.card(card.id)).toEqual({ ...card, recalled: null });
+    expect(await reviews.answerCard(card.id, true, now)).toBe(true);
+    expect(await reviews.answerCard(card.id, false, now)).toBe(false);
+    expect((await reviews.card(card.id))?.recalled).toBe(true);
+  });
+
   it("says when the next item comes back", async () => {
     const { goed, fix, word } = await bank();
     expect(await reviews.nextDueAt("en", now)).toBeNull();

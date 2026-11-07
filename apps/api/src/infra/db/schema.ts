@@ -126,6 +126,22 @@ export const reviewItems = pgTable(
   ],
 );
 
+/** Each cue a review gave, so its answer is checked against what was asked, once. */
+export const reviewCards = pgTable("review_cards", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  language: varchar("language", { length: 16 }).notNull(),
+  reviewItemId: uuid("review_item_id")
+    .notNull()
+    .references(() => reviewItems.id, { onDelete: "cascade" }),
+  /** The sentence asked for, in the learner's first language. */
+  cue: text("cue").notNull(),
+  /** One way to say it in the language being learned. */
+  answer: text("answer").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  answeredAt: timestamp("answered_at", { withTimezone: true }),
+  recalled: boolean("recalled"),
+});
+
 /** Each time a mistake shows up in a session. */
 export const mistakeOccurrences = pgTable("mistake_occurrences", {
   id: uuid("id").primaryKey().defaultRandom(),

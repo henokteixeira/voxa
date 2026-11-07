@@ -8,7 +8,6 @@ import { ReviewsController } from "./reviews.controller.js";
 
 const service = { overview: vi.fn(), card: vi.fn(), answer: vi.fn() };
 const subject = { kind: "pattern", id: "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b" };
-const cue = { cue: "Eu terminei ontem.", answer: "I finished it yesterday." };
 let app: INestApplication;
 
 beforeEach(async () => {
@@ -39,7 +38,7 @@ describe("GET /reviews", () => {
 
 describe("POST /reviews/cards", () => {
   it("asks for a cue for one item", async () => {
-    service.card.mockResolvedValue({ cue });
+    service.card.mockResolvedValue({ cardId: subject.id, cue: "Eu terminei ontem." });
     const res = await request(app.getHttpServer()).post("/reviews/cards").send({ subject });
     expect(res.status).toBe(200);
     expect(service.card).toHaveBeenCalledWith(subject);
@@ -52,13 +51,18 @@ describe("POST /reviews/cards", () => {
 });
 
 describe("POST /reviews/answers", () => {
-  it("checks a spoken answer, or none when the learner doesn't know", async () => {
+  it("checks a spoken answer to a card, or none when the learner doesn't know", async () => {
     service.answer.mockResolvedValue({ recalled: false });
-    await request(app.getHttpServer()).post("/reviews/answers").send({ subject, cue, utterance: "I finish it" }).expect(200);
-    await request(app.getHttpServer()).post("/reviews/answers").send({ subject, cue, utterance: null }).expect(200);
+    const cardId = subject.id;
+    await request(app.getHttpServer()).post("/reviews/answers").send({ cardId, utterance: "I finish it" }).expect(200);
+    await request(app.getHttpServer()).post("/reviews/answers").send({ cardId, utterance: null }).expect(200);
     expect(service.answer.mock.calls).toEqual([
-      [subject, cue, "I finish it"],
-      [subject, cue, null],
+      [cardId, "I finish it"],
+      [cardId, null],
     ]);
+  });
+
+  it("rejects an answer without a card", async () => {
+    await request(app.getHttpServer()).post("/reviews/answers").send({ utterance: "hi" }).expect(400);
   });
 });

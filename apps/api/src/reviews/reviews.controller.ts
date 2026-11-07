@@ -7,8 +7,7 @@ const OverviewQuery = z.object({ language: Language });
 const Subject = z.object({ kind: z.enum(["pattern", "new_word"]), id: z.uuid() });
 const CardBody = z.object({ subject: Subject });
 const AnswerBody = z.object({
-  subject: Subject,
-  cue: z.object({ cue: z.string().trim().min(1).max(500), answer: z.string().trim().min(1).max(500) }),
+  cardId: z.uuid(),
   /** What the learner said; null when they chose "I don't know". */
   utterance: z.string().max(2000).nullable(),
 });
@@ -32,11 +31,11 @@ export class ReviewsController {
     return this.reviews.card(subject);
   }
 
-  /** Checks an answer and moves the item's schedule. */
+  /** Checks the answer to a card and moves the item's schedule; answering the same card again repeats the result. */
   @Post("answers")
   @HttpCode(200)
   async answer(@Body() body: unknown) {
-    const { subject, cue, utterance } = parse(AnswerBody, body);
-    return this.reviews.answer(subject, cue, utterance);
+    const { cardId, utterance } = parse(AnswerBody, body);
+    return this.reviews.answer(cardId, utterance);
   }
 }

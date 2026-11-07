@@ -13,7 +13,7 @@ export function reviewSubject(mistake: Pick<Mistake, "id" | "category" | "patter
 /** Moves review schedules as the learner speaks: in sessions and in reviews. */
 @Injectable()
 export class ReviewScheduler {
-  constructor(@Inject(REVIEW_REPOSITORY) private readonly reviews: ReviewRepository) {}
+  constructor(@Inject(REVIEW_REPOSITORY) private readonly reviews: Pick<ReviewRepository, "state" | "save">) {}
 
   /** The mistake was made (or the word said in the first language): first review tomorrow, or one step back. */
   async made(language: string, subject: ReviewSubject, now: Date): Promise<void> {
@@ -33,8 +33,7 @@ export class ReviewScheduler {
    * Extra practice said right leaves the schedule as it is, so practicing early never skips a step.
    */
   async answered(language: string, subject: ReviewSubject, outcome: ReviewOutcome, now: Date): Promise<ReviewState> {
-    // An item reviewed before its schedule existed starts from the first step.
-    const state = (await this.reviews.state(subject)) ?? { step: 0, dueAt: now };
+    const state = (await this.reviews.state(subject)) ?? firstReview(now);
     if (outcome === "recalled" && !countsAsReview(state, now)) return state;
     const next = nextReview(state, outcome, now);
     await this.reviews.save(language, subject, next, now);

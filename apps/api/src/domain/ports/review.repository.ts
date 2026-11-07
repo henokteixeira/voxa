@@ -19,6 +19,16 @@ export interface ReviewItem {
   dueAt: Date;
 }
 
+/** A cue a review gave, and how it was answered. */
+export interface StoredReviewCard {
+  id: string;
+  subject: ReviewSubject;
+  cue: string;
+  answer: string;
+  /** Null until answered. */
+  recalled: boolean | null;
+}
+
 /** The review schedule of each pattern and new word. The concrete implementation lives in infra/. */
 export interface ReviewRepository {
   state(subject: ReviewSubject): Promise<ReviewState | null>;
@@ -28,6 +38,11 @@ export interface ReviewRepository {
   due(language: string, now: Date, limit: number): Promise<ReviewItem[]>;
   /** One item, due or not; null when it has no schedule, or its mistakes were all dismissed. */
   item(subject: ReviewSubject): Promise<ReviewItem | null>;
+  /** Keeps a cue given for the subject's item. */
+  addCard(subject: ReviewSubject, cue: { cue: string; answer: string }): Promise<StoredReviewCard>;
+  card(id: string): Promise<StoredReviewCard | null>;
+  /** Records the answer once: false when the card was already answered (e.g. a retried request). */
+  answerCard(id: string, recalled: boolean, at: Date): Promise<boolean>;
   /** When the next item not yet due comes back, or null when there is none. */
   nextDueAt(language: string, now: Date): Promise<Date | null>;
 }

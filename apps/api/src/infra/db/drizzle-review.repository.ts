@@ -1,10 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { and, asc, desc, eq, gt, inArray, isNull, lte, min, or, type SQL, sql } from "drizzle-orm";
 import { NEW_WORD_CATEGORY } from "../../domain/conversation/types.js";
-import type { ReviewItem, ReviewRepository, ReviewSubject } from "../../domain/ports/review.repository.js";
+import type { ReviewItem, ReviewRepository, ReviewSubject, StoredReviewCard } from "../../domain/ports/review.repository.js";
 import type { ReviewState } from "../../domain/review/review-schedule.js";
 import { DATABASE, type Database } from "./db.module.js";
-import { mistakes, patterns, reviewItems } from "./schema.js";
+import { mistakes, patterns, reviewCards, reviewItems } from "./schema.js";
 
 /** How many of a pattern's sentences a review shows. */
 const EXAMPLES_PER_PATTERN = 3;
@@ -76,6 +76,43 @@ export class DrizzleReviewRepository implements ReviewRepository {
       }
     }
     return items;
+  }
+
+  async addCard(subject: ReviewSubject, cue: { cue: string; answer: string }): Promise<StoredReviewCard> {
+    const [item] = await this.db
+      .select({ id: reviewItems.id, language: reviewItems.language })
+      .from(reviewItems)
+      .where(subjectIs(subject))
+      .limit(1);
+    if (!item) throw new Error(`No review item for ${subject.kind} ${subject.id}.`);
+    const [row] = await this.db
+      .insert(reviewCards)
+      .values({ language: item.language, reviewItemId: item.id, cue: cue.cue, answer: cue.answer })
+      .returning();
+    return { id: row.id, subject, cue: row.cue, answer: row.answer, recalled: null };
+  }
+
+  async card(id: string): Promise<StoredReviewCard | null> {
+    const [row] = await this.db
+      .select({ card: reviewCards, patternId: reviewItems.patternId, newWordId: reviewItems.newWordId })
+      .from(reviewCards)
+      .innerJoin(reviewItems, eq(reviewCards.reviewItemId, reviewItems.id))
+      .where(eq(reviewCards.id, id))
+      .limit(1);
+    if (!row) return null;
+    const subject: ReviewSubject = row.patternId
+      ? { kind: "pattern", id: row.patternId }
+      : { kind: "new_word", id: row.newWordId! };
+    return { id: row.card.id, subject, cue: row.card.cue, answer: row.card.answer, recalled: row.card.recalled };
+  }
+
+  async answerCard(id: string, recalled: boolean, at: Date): Promise<boolean> {
+    const updated = await this.db
+      .update(reviewCards)
+      .set({ recalled, answeredAt: at })
+      .where(and(eq(reviewCards.id, id), isNull(reviewCards.answeredAt)))
+      .returning({ id: reviewCards.id });
+    return updated.length > 0;
   }
 
   async nextDueAt(language: string, now: Date): Promise<Date | null> {
