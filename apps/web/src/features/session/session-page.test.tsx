@@ -486,6 +486,24 @@ describe("fluency timing", () => {
     now.mockRestore();
   });
 
+  it("counts all the time as speech when the learner taps to send", async () => {
+    savePauseMs(4000);
+    const now = vi.spyOn(performance, "now");
+    now.mockReturnValue(0);
+    await startAndListen();
+    now.mockReturnValue(1000);
+    act(() => micHandlers.onSpeechStart());
+    mic.sendNow.mockReturnValueOnce(true);
+    now.mockReturnValue(4000);
+    await userEvent.click(screen.getByRole("button", { name: "Send now" }));
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+
+    await endFromPause();
+    await screen.findByRole("heading", { name: "Session done" });
+    expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ learnerSpeechMs: 3000 }));
+    now.mockRestore();
+  });
+
   it("sends the pause before answering and the speaking time it measured", async () => {
     const now = vi.spyOn(performance, "now");
     now.mockReturnValue(0);
