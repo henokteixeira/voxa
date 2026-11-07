@@ -42,6 +42,7 @@ import {
   type SessionRepository,
 } from "../domain/ports/session.repository.js";
 import { type TutorContext, TUTOR_PORT, type TutorPort } from "../domain/ports/tutor.port.js";
+import { LearnerMemoryService } from "./learner-memory.service.js";
 import { ReviewScheduler } from "./review-scheduler.js";
 import { recordTurnLearning } from "./turn-learning.js";
 import { patternsToBringBack } from "../domain/mistakes/bring-back.js";
@@ -147,9 +148,12 @@ export class ConversationService {
     @Inject(LEVEL_ASSESSOR_PORT) private readonly assessor: LevelAssessorPort,
     @Inject(LEVEL_REPOSITORY) private readonly levels: LevelRepository,
     private readonly reviews: ReviewScheduler,
+    private readonly memory: LearnerMemoryService,
   ) {}
 
   async start(mode: Mode, language: string): Promise<SessionStart> {
+    // Picks up sessions a failed or interrupted run left unremembered, in the background.
+    void this.memory.sweep();
     const [targets, level] = await Promise.all([
       correctsMistakes(mode)
         ? Promise.all([this.bank.list(language), this.reviews.duePatterns(language, this.clock.now())]).then(([bank, due]) =>
@@ -160,9 +164,11 @@ export class ConversationService {
     ]);
     const step = sessionStep(mode, level?.level ?? null);
     const track = startTrack(step, goalsFor(mode)[0] ?? null);
-    const created = await this.sessions.create({ mode, language, startedAt: this.clock.now(), targets, step, track });
+    const startedAt = this.clock.now();
+    const [learnerContext, memory] = await Promise.all([this.learnerContext.load(), this.memory.recall({ startedAt })]);
+    const created = await this.sessions.create({ mode, language, startedAt, targets, step, track, memory });
     const plan = track ? openingPlan(track, describeGoal) : null;
-    const opening = await this.tutor.open(this.tutorContext(created, await this.learnerContext.load()), plan);
+    const opening = await this.tutor.open(this.tutorContext(created, learnerContext), plan);
     await this.sessions.appendTurn(created.id, { role: "assistant", content: opening.line });
     // In the guided track the opening already gives the first model sentence.
     const scaffold = track && givesWords(track.stage) ? opening.scaffold : null;
@@ -371,6 +377,8 @@ export class ConversationService {
       level = (await this.levels.forSession(sessionId)) ?? (session.endedAt ? null : await this.assessPlacement(session, history));
     }
     if (!session.endedAt) await this.sessions.end(sessionId, timing);
+    // Off the summary's path. It saves once, so ending again does not add anything twice.
+    void this.memory.rememberLater(sessionId);
     const [mistakes, outcome] = await Promise.all([
       this.mistakes.forSession(sessionId),
       this.sessions.outcome(sessionId),
@@ -426,6 +434,7 @@ export class ConversationService {
       mode: session.mode,
       language: session.language,
       learnerContext,
+      memory: session.memory,
       goals: goalsFor(session.mode).map((id) => ({ id, description: GOAL_DESCRIPTIONS[id] })),
       targets: session.targets,
       step: session.step,

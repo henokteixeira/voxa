@@ -1,29 +1,31 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useApi } from "@/hooks/use-api";
-import type { PracticePattern, PracticeView, ReviewOverview, ReviewStatus } from "@/lib/api";
+import type { PracticeView, ReviewOverview } from "@/lib/api";
 import { useCopy, useLocale } from "@/lib/i18n/locale";
-import { cn } from "@/lib/utils";
 import { categoryLabel } from "@/features/mistakes/format";
 import { reviewDay } from "./format";
 import { PatternDetail } from "./pattern-detail";
+import { EARLIER_TYPE, NEW_WORDS_TYPE, REVIEW_PATH, typePath } from "./paths";
 import { PRACTICE_COPY } from "./practice-copy";
-import { patternPath, REVIEW_PATH } from "./paths";
-
-/** Status dots: honey new, mist improving, sage mastered. */
-const STATUS_DOT: Record<ReviewStatus, string> = {
-  new: "bg-honey",
-  improving: "bg-mist",
-  mastered: "bg-sage-strong",
-};
+import { type PracticeType, practiceTypes } from "./practice-types";
+import { StatusBar } from "./status-bar";
+import { TypePage } from "./type-page";
 
 type Loaded = { practice: PracticeView; reviews: ReviewOverview };
 
+const CHEVRON = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className="shrink-0 text-taupe">
+    <path d="M9 6l6 6-6 6" />
+  </svg>
+);
+
 /**
- * The Practice tab: a review card when something is due, then the bank as patterns grouped by type (or the
- * new words), each with when it comes back. A pattern opens its rule and the learner's own sentences.
+ * The Practice tab: a review card when something is due, then one row per mistake type (plus the new words)
+ * with how it is going. The first screen never grows past the types; a type opens its patterns in groups,
+ * and a pattern opens its rule and the learner's own sentences.
  */
 export function PracticePage(props: { now?: Date }) {
   const api = useApi();
@@ -31,10 +33,8 @@ export function PracticePage(props: { now?: Date }) {
   const [now] = useState(() => props.now ?? new Date());
   const [data, setData] = useState<Loaded | "loading" | "failed">("loading");
   const [attempt, setAttempt] = useState(0);
-  const [segment, setSegment] = useState<"patterns" | "words">("patterns");
-  // A pattern's page has its own address, so Back returns to the list.
-  const open = useParams().patternId ?? null;
-  const navigate = useNavigate();
+  // A type's and a pattern's pages have their own addresses, so Back returns one level up.
+  const { typeId = null, patternId = null } = useParams();
 
   useEffect(() => {
     let active = true;
@@ -81,15 +81,12 @@ export function PracticePage(props: { now?: Date }) {
   }
 
   const { practice, reviews } = data;
-  const pattern = practice.patterns.find((p) => p.id === open);
+  const pattern = practice.patterns.find((p) => p.id === patternId);
   if (pattern) {
-    return (
-      <PatternDetail
-        pattern={pattern}
-        now={now}
-        onDismissed={() => setAttempt((n) => n + 1)}
-      />
-    );
+    return <PatternDetail pattern={pattern} now={now} onDismissed={() => setAttempt((n) => n + 1)} />;
+  }
+  if (typeId) {
+    return <TypePage type={typeId} practice={practice} now={now} />;
   }
   if (practice.patterns.length + practice.newWords.length + practice.earlier.length === 0) {
     return (
@@ -103,45 +100,92 @@ export function PracticePage(props: { now?: Date }) {
     );
   }
 
+  const types = practiceTypes(practice, now);
   return (
     <>
       {heading}
       <ReviewCard reviews={reviews} now={now} />
-      <div role="group" aria-label={copy.view} className="grid grid-cols-2 gap-1 rounded-pill bg-sand-soft p-1 lg:max-w-[400px]">
-        {(["patterns", "words"] as const).map((s) => (
-          <button
-            key={s}
-            type="button"
-            aria-pressed={s === segment}
-            onClick={() => setSegment(s)}
-            className="min-h-10 cursor-pointer rounded-pill border-none bg-transparent font-sans text-[13px] font-bold text-taupe transition-[background-color,color,box-shadow] duration-200 hover:text-ink aria-pressed:bg-paper aria-pressed:text-ink aria-pressed:shadow-tab"
-          >
-            {s === "patterns" ? copy.patterns(practice.patterns.length) : copy.newWords(practice.newWords.length)}
-          </button>
-        ))}
-      </div>
-      {segment === "patterns" ? (
-        <Patterns practice={practice} now={now} onOpen={(id) => navigate(patternPath(id))} />
-      ) : (
-        <ul aria-label={copy.newWords(practice.newWords.length)} className="m-0 flex list-none flex-col gap-2.5 p-0">
-          {practice.newWords.map((w) => (
-            <li key={w.id} className="flex items-center gap-3 rounded-md bg-paper px-4 py-3.5 shadow-card">
-              <span aria-hidden="true" className={cn("size-2.5 shrink-0 rounded-full", STATUS_DOT[w.status])} />
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span lang="en" className="font-serif text-[19px]">
-                  {w.word}
-                </span>
-                <span lang="pt-BR" className="text-caption text-taupe">
-                  {w.said}
-                </span>
-              </span>
-              <When status={w.status} dueAt={w.dueAt} now={now} />
-            </li>
-          ))}
-        </ul>
+      {types.length > 0 && (
+        <section aria-label={copy.byType} className="flex flex-col gap-2">
+          <h2 className="m-0 flex items-baseline justify-between gap-3 text-label text-taupe">
+            <span>{copy.byType}</span>
+            <Legend />
+          </h2>
+          <ul className="m-0 flex list-none flex-col rounded-lg bg-paper p-0 shadow-card">
+            {types.map((t) => (
+              <TypeRow key={t.id} type={t} now={now} />
+            ))}
+          </ul>
+        </section>
+      )}
+      {practice.earlier.length > 0 && (
+        <Link
+          to={typePath(EARLIER_TYPE)}
+          className="flex min-h-12 items-center gap-3 rounded-lg bg-paper px-5 py-3 text-ink no-underline shadow-card"
+        >
+          <span className="flex flex-1 items-baseline gap-2 text-[14px] font-medium text-taupe">
+            {copy.earlier}
+            <span className="text-caption tabular-nums">{practice.earlier.length}</span>
+          </span>
+          {CHEVRON}
+        </Link>
       )}
     </>
   );
+}
+
+/** What the bar's colors mean, once, above the list. */
+function Legend() {
+  const copy = useCopy(PRACTICE_COPY);
+  return (
+    <span aria-label={copy.statusLegend} className="flex gap-2.5 text-[11px] font-medium tracking-normal normal-case">
+      {(["new", "improving", "mastered"] as const).map((s) => (
+        <span key={s} className="flex items-center gap-1">
+          <span aria-hidden="true" className={`size-2 rounded-full ${s === "new" ? "bg-honey" : s === "improving" ? "bg-mist" : "bg-sage-strong"}`} />
+          {copy.status[s].toLowerCase()}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** One type: its name, how many items it has, their status as a bar, and what is next for it. */
+function TypeRow({ type, now }: { type: PracticeType; now: Date }) {
+  const copy = useCopy(PRACTICE_COPY);
+  const { locale } = useLocale();
+  const label = type.id === NEW_WORDS_TYPE ? copy.newWordsTitle : categoryLabel(type.id, locale);
+  const count = type.id === NEW_WORDS_TYPE ? copy.wordCount(type.count) : copy.patternCount(type.count);
+  return (
+    <li className="border-t border-sand-soft first:border-t-0">
+      <Link
+        to={typePath(type.id)}
+        className="flex min-h-[58px] items-center gap-3.5 py-3 pr-4 pl-5 text-ink no-underline motion-safe:active:scale-[0.99]"
+      >
+        <span className="flex min-w-0 flex-1 flex-col gap-2">
+          <span className="flex items-baseline gap-2 text-body font-semibold">
+            {label}
+            <span className="text-caption font-semibold text-taupe tabular-nums">
+              <span className="sr-only">{count}</span>
+              <span aria-hidden="true">{type.count}</span>
+            </span>
+          </span>
+          <StatusBar counts={type.counts} />
+        </span>
+        <Next type={type} now={now} />
+        {CHEVRON}
+      </Link>
+    </li>
+  );
+}
+
+/** "2 today" in honey, the next review's day, or "Mastered" when the whole type is. */
+function Next({ type, now }: { type: PracticeType; now: Date }) {
+  const copy = useCopy(PRACTICE_COPY);
+  const { locale } = useLocale();
+  if (type.due > 0) return <span className="shrink-0 text-caption font-bold text-honey-ink">{copy.dueCount(type.due)}</span>;
+  if (type.nextDueAt) return <span className="shrink-0 text-caption text-taupe">{reviewDay(type.nextDueAt, now, locale)}</span>;
+  if (type.counts.mastered === type.count) return <span className="shrink-0 text-caption text-sage-ink">{copy.status.mastered}</span>;
+  return <span className="shrink-0 text-caption text-taupe">{copy.notScheduled}</span>;
 }
 
 /** Due items: a card to start the voice review. Nothing due: when the next review is. */
@@ -170,71 +214,5 @@ function ReviewCard({ reviews, now }: { reviews: ReviewOverview; now: Date }) {
       </span>
       <span className="text-caption text-taupe">{copy.stillPractice}</span>
     </section>
-  );
-}
-
-function Patterns({ practice, now, onOpen }: { practice: PracticeView; now: Date; onOpen: (id: string) => void }) {
-  const copy = useCopy(PRACTICE_COPY);
-  const { locale } = useLocale();
-  // The API sends them by type already: keep that order.
-  const groups = new Map<string, PracticePattern[]>();
-  for (const p of practice.patterns) groups.set(p.category, [...(groups.get(p.category) ?? []), p]);
-  return (
-    <div className="flex flex-col gap-5">
-      {[...groups].map(([category, patterns]) => (
-        <section key={category} aria-label={categoryLabel(category, locale)} className="flex flex-col gap-2">
-          <h2 className="m-0 flex justify-between text-label text-taupe">
-            <span>{categoryLabel(category, locale)}</span>
-            <span className="tabular-nums">{patterns.length}</span>
-          </h2>
-          <ul className="m-0 flex list-none flex-col gap-2 p-0">
-            {patterns.map((p) => (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  onClick={() => onOpen(p.id)}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-md border-none bg-paper px-4 py-3.5 text-left font-sans text-ink shadow-card motion-safe:active:scale-[0.98]"
-                >
-                  <span aria-hidden="true" className={cn("size-2.5 shrink-0 rounded-full", STATUS_DOT[p.status])} />
-                  <span className="min-w-0 flex-1 text-body">{p.name}</span>
-                  <When status={p.status} dueAt={p.dueAt} now={now} />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-      {practice.earlier.length > 0 && (
-        <section aria-label={copy.earlier} className="flex flex-col gap-2">
-          <h2 className="m-0 text-label text-taupe">{copy.earlier}</h2>
-          <p className="m-0 text-caption text-taupe">{copy.earlierNote}</p>
-          <ul className="m-0 flex list-none flex-col gap-2 p-0">
-            {practice.earlier.map((m) => (
-              <li key={m.id} className="flex flex-col gap-1 rounded-md bg-paper px-4 py-3 shadow-card">
-                <span lang="en" className="text-small text-taupe line-through">
-                  {m.original}
-                </span>
-                <span lang="en" className="text-body">
-                  {m.correction}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-    </div>
-  );
-}
-
-/** "Review today", "Review Tue", "Mastered": the status a learner can act on, with the status for screen readers. */
-export function When({ status, dueAt, now }: { status: ReviewStatus; dueAt: string | null; now: Date }) {
-  const copy = useCopy(PRACTICE_COPY);
-  const { locale } = useLocale();
-  const text = status === "mastered" ? copy.status.mastered : dueAt ? copy.reviewOn(reviewDay(dueAt, now, locale)) : copy.notScheduled;
-  return (
-    <span className="shrink-0 text-caption text-taupe">
-      {status !== "mastered" && <span className="sr-only">{copy.status[status]} · </span>}
-      {text}
-    </span>
   );
 }

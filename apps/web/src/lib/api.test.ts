@@ -111,6 +111,26 @@ describe("createApiClient", () => {
     expect(init).toMatchObject({ method: "POST", headers: { "content-type": "audio/wav" }, body: wav });
   });
 
+  it("lists, rewrites and deletes what Voxa knows about the learner", async () => {
+    const fact = { id: "f1", topic: "work", statement: "Works at JOCUM.", learnedAt: "x", updatedAt: "y" };
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ facts: [fact] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(fact), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const api = createApiClient("http://api", fetchImpl);
+
+    await expect(api.learnerFacts()).resolves.toEqual([fact]);
+    await expect(api.editLearnerFact("f1", "Works at JOCUM.")).resolves.toEqual(fact);
+    await expect(api.deleteLearnerFact("f1")).resolves.toBeUndefined();
+    expect(fetchImpl.mock.calls.map(([url, init]) => [url, init.method])).toEqual([
+      ["http://api/api/memory/facts", "GET"],
+      ["http://api/api/memory/facts/f1", "PATCH"],
+      ["http://api/api/memory/facts/f1", "DELETE"],
+    ]);
+    expect(JSON.parse(fetchImpl.mock.calls[1][1].body)).toEqual({ statement: "Works at JOCUM." });
+  });
+
   it("dismisses a mistake with a reason and accepts an empty answer", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     const api = createApiClient("http://api", fetchImpl);

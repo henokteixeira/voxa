@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TutorVerdict } from "../domain/conversation/correction-policy.js";
 import type { Mode } from "../domain/conversation/mode.js";
 import type {
@@ -21,6 +21,8 @@ import type { SessionTiming } from "../domain/conversation/fluency.js";
 import type { KnownPattern, MistakePattern } from "../domain/mistakes/pattern.js";
 import type { ReviewRepository, ReviewSubject } from "../domain/ports/review.repository.js";
 import type { ReviewState } from "../domain/review/review-schedule.js";
+import { NOTHING_REMEMBERED, type TutorMemory } from "../domain/memory/learner-fact.js";
+import type { LearnerMemoryService } from "./learner-memory.service.js";
 import { ReviewScheduler } from "./review-scheduler.js";
 import type { NewTurn, SessionProgress, SessionRepository } from "../domain/ports/session.repository.js";
 import type { TrackPlan, TutorContext, TutorPort, TutorRequest } from "../domain/ports/tutor.port.js";
@@ -54,7 +56,7 @@ type Row = Session & { turns: ChatTurn[]; timing: SessionTiming | null };
 
 class FakeSessions implements SessionRepository {
   rows = new Map<string, Row>();
-  async create(input: { language: string; mode: Mode; startedAt?: Date; targets?: PracticeTarget[]; step?: SupportStep | null; track?: TrackState | null }) {
+  async create(input: { language: string; mode: Mode; startedAt?: Date; targets?: PracticeTarget[]; step?: SupportStep | null; track?: TrackState | null; memory?: TutorMemory }) {
     const id = `s${this.rows.size + 1}`;
     const session: Session = {
       id,
@@ -70,6 +72,7 @@ class FakeSessions implements SessionRepository {
       step: input.step ?? null,
       scaffold: null,
       track: input.track ?? null,
+      memory: input.memory ?? NOTHING_REMEMBERED,
     };
     this.rows.set(id, { ...session, turns: [], timing: null });
     return session;
@@ -291,6 +294,11 @@ const entry = (over: Partial<BankEntry>): BankEntry => ({
   ...over,
 });
 
+const remembered = {
+  facts: [{ topic: "work", statement: "Works as a developer." }],
+  recentSessions: [{ mode: "daily", daysAgo: 1, recap: "Fixed the upload bug." }],
+};
+
 let tutor: FakeTutor;
 let reviews: FakeReviews;
 let sessions: FakeSessions;
@@ -300,6 +308,7 @@ let clock: FakeClock;
 let bankEntries: BankEntry[];
 let levels: FakeLevels;
 let assessor: FakeAssessor;
+let memory: { rememberLater: ReturnType<typeof vi.fn>; sweep: ReturnType<typeof vi.fn>; recall: ReturnType<typeof vi.fn> };
 
 beforeEach(() => {
   tutor = new FakeTutor();
@@ -311,10 +320,34 @@ beforeEach(() => {
   levels = new FakeLevels();
   assessor = new FakeAssessor();
   reviews = new FakeReviews();
-  service = new ConversationService(tutor, sessions, mistakes, learnerContext, bank, clock, assessor, levels, new ReviewScheduler(reviews));
+  memory = {
+    rememberLater: vi.fn().mockResolvedValue(undefined),
+    sweep: vi.fn().mockResolvedValue(undefined),
+    recall: vi.fn().mockResolvedValue(remembered),
+  };
+  service = new ConversationService(tutor, sessions, mistakes, learnerContext, bank, clock, assessor, levels, new ReviewScheduler(reviews), memory as unknown as LearnerMemoryService);
 });
 
 describe("ConversationService.start", () => {
+  it("gives the tutor what it remembered at the start, all session long", async () => {
+    const { session } = await service.start("free_talk", "en");
+    // A memory saved mid-session (another session's background run) does not change this one's prompt.
+    memory.recall.mockResolvedValue({ facts: [], recentSessions: [] });
+    tutor.verdicts.push(verdict({}));
+    await service.respond(session.id, "Hi");
+
+    const stored = await sessions.get(session.id);
+    expect(memory.recall).toHaveBeenCalledTimes(1);
+    expect(memory.recall).toHaveBeenCalledWith({ startedAt: stored?.startedAt });
+    expect(tutor.opened[0]).toEqual(expect.objectContaining({ memory: remembered }));
+    expect(tutor.requests[0]).toEqual(expect.objectContaining({ memory: remembered }));
+  });
+
+  it("picks up sessions left unremembered", async () => {
+    await service.start("daily", "en");
+    expect(memory.sweep).toHaveBeenCalledTimes(1);
+  });
+
   it("opens the scene for the mode with the learner's context and saves the first line", async () => {
     const { session, message } = await service.start("presentation", "en");
 
@@ -432,6 +465,7 @@ describe("Session goals", () => {
     bankEntries = [entry({ original: "I goed", occurrences: 3 })];
     mistakes.bank.push({ id: "m1", language: "en", original: "I goed", correction: "I went", category: "grammar", occurrences: 3, lastSeenAt: new Date(), pattern: null, patternId: null });
     const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({}));
     tutor.verdicts.push(verdict({}));
     await service.respond(session.id, "Hi");
     expect(tutor.requests[0].knownMistakes.filter((m) => m.original === "I goed")).toHaveLength(1);
@@ -998,6 +1032,22 @@ describe("ConversationService: the guided track (A1–A2)", () => {
 });
 
 describe("ConversationService.end", () => {
+  it("asks for the ended session to be remembered, placement included", async () => {
+    const { session } = await service.start("free_talk", "en");
+    await service.end(session.id);
+    expect(memory.rememberLater).toHaveBeenCalledWith(session.id);
+
+    const { session: placement } = await service.start("placement", "en");
+    await service.end(placement.id);
+    expect(memory.rememberLater).toHaveBeenCalledWith(placement.id);
+  });
+
+  it("does not wait for the memory to be saved", async () => {
+    memory.rememberLater.mockReturnValue(new Promise(() => {}));
+    const { session } = await service.start("free_talk", "en");
+    await expect(service.end(session.id)).resolves.toEqual(expect.objectContaining({ sessionId: session.id }));
+  });
+
   it("ends the session and summarizes its mistakes and self-corrections", async () => {
     const { session } = await service.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true, issues: [article] }));

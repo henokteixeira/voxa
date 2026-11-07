@@ -1,4 +1,5 @@
 import type { SupportStep } from "../level/speaking-level.js";
+import type { TutorMemory } from "../memory/learner-fact.js";
 import type { MistakePattern } from "../mistakes/pattern.js";
 import type { TrackState } from "./guided-track.js";
 import type { Mode } from "./mode.js";
@@ -72,4 +73,6 @@ export interface Session {
   scaffold: string | null;
   /** Where the learner is in the guided track (A1–A2 steps only), or null. */
   track: TrackState | null;
+  /** What the tutor remembered when the session started; kept all session, so its prompt stays the same. */
+  memory: TutorMemory;
 }

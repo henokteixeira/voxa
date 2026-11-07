@@ -4,6 +4,7 @@ import type { Mode } from "../conversation/mode.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget } from "../conversation/types.js";
 import { DomainError } from "../errors.js";
 import type { SupportStep } from "../level/speaking-level.js";
+import type { TutorMemory } from "../memory/learner-fact.js";
 import type { KnownPattern } from "../mistakes/pattern.js";
 
 export interface KnownMistake {
@@ -17,6 +18,8 @@ export interface TutorContext {
   language: string;
   /** Free-text facts about the learner (role, projects, vocabulary). */
   learnerContext: string;
+  /** What the learner told the tutor in earlier sessions. Absent: nothing remembered. */
+  memory?: TutorMemory;
   /** What the learner should cover in this session; empty in free talk. */
   goals: { id: string; description: string }[];
   /** Mistakes from the bank the tutor gives the learner chances to say correctly. */

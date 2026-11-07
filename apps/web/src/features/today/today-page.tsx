@@ -6,6 +6,7 @@ import { SegmentedSetting } from "@/components/ui/segmented";
 import { Sheet } from "@/components/ui/sheet";
 import { VoiceBall } from "@/components/voice-ball";
 import { useModeInfo } from "@/features/session/modes";
+import { MemoryLink } from "@/features/memory/memory-link";
 import { DailyGoalSetting, SoundSetting } from "@/features/settings/practice-settings";
 import { TodayGoalCard } from "@/features/xp/today-goal-card";
 import { TodayReviewCard } from "@/features/practice/today-review-card";
@@ -222,6 +223,7 @@ export function TodayPage() {
           <DailyGoalSetting onSaved={progress.set} />
           <PauseSetting title={copy.pauseTitle} hint={copy.pauseHint} seconds={copy.seconds} />
           <SoundSetting />
+          <MemoryLink />
         </Sheet>
       )}
     </>
