@@ -22,7 +22,7 @@ export function CheckInPage() {
   const question = copy.checkInQuestion(modes[mode].meeting);
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col gap-4 px-5 pt-7 pb-8">
+    <main className="vx-page-in mx-auto flex h-dvh w-full max-w-[480px] flex-col gap-4 overflow-y-auto overscroll-contain px-5 pt-7 pb-[max(32px,env(safe-area-inset-bottom))]">
       <div className="flex min-h-11 items-center">
         <IconButton label={copy.back} onClick={() => navigate("/")}>
           <BackIcon />

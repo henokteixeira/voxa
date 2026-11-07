@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { Link, Navigate, useLocation, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
+import { Sheet } from "@/components/ui/sheet";
 import { VoiceBall } from "@/components/voice-ball";
 import type { Mode } from "@/lib/api";
 import { useCopy } from "@/lib/i18n/locale";
@@ -105,7 +106,7 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
       </header>
 
       {showTranscript ? (
-        <ol aria-label={page.transcript} inert={state.phase === "paused"} className="m-0 flex flex-1 list-none flex-col gap-3 overflow-y-auto p-0">
+        <ol aria-label={page.transcript} inert={state.phase === "paused"} className="m-0 flex min-h-0 flex-1 list-none flex-col gap-3 overflow-y-auto p-0">
           {state.captions.map((caption, i) => (
             <li key={i}>
               <CaptionCard caption={caption} />
@@ -168,7 +169,7 @@ function Screen({ children, onPointerDown }: { children: ReactNode; onPointerDow
   return (
     <main
       onPointerDown={onPointerDown}
-      className="relative mx-auto flex min-h-dvh w-full max-w-[480px] flex-col gap-4 px-5 pt-7 pb-8"
+      className="relative mx-auto flex h-dvh w-full max-w-[480px] flex-col gap-4 overflow-y-auto overscroll-contain px-5 pt-7 pb-[max(32px,env(safe-area-inset-bottom))]"
     >
       {children}
     </main>
@@ -212,45 +213,34 @@ function FailureCard({ code, onRetry, onEnd }: { code: FailureCode; onRetry: () 
 }
 
 function PausedSheet(props: { elapsed: string; onResume: () => void; onRepeat: () => void; onEnd: () => void }) {
-  const { onResume } = props;
   const { page } = useCopy(SESSION_COPY);
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onResume();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onResume]);
+  // Escape and the backdrop resume: pausing is never a dead end.
   return (
-    <div className="fixed inset-0 z-10 flex flex-col justify-end bg-[rgba(46,37,32,0.32)]">
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-label={page.paused}
-        className="mx-auto flex w-full max-w-[480px] flex-col gap-3 rounded-t-[28px] bg-linen px-5 pt-3 pb-8"
-      >
-        <span className="h-[5px] w-10 self-center rounded-[3px] bg-sand" aria-hidden="true" />
-        <div className="flex items-baseline justify-between">
-          <h2 className="m-0 text-heading">{page.paused}</h2>
-          <span className="text-caption text-taupe tabular-nums">{props.elapsed}</span>
-        </div>
-        <Button block onClick={props.onResume} autoFocus>
-          {page.resume}
-        </Button>
-        <Button
-          variant="secondary"
-          block
-          onClick={() => {
-            props.onResume();
-            props.onRepeat();
-          }}
-        >
-          {page.repeatLast}
-        </Button>
-        <Button variant="ghost" block onClick={props.onEnd}>
-          {page.endSession}
-        </Button>
-      </section>
-    </div>
+    <Sheet label={page.paused} onClose={props.onResume}>
+      {(close) => (
+        <>
+          <div className="flex items-baseline justify-between">
+            <h2 className="m-0 text-heading">{page.paused}</h2>
+            <span className="text-caption text-taupe tabular-nums">{props.elapsed}</span>
+          </div>
+          <Button block onClick={close} autoFocus>
+            {page.resume}
+          </Button>
+          <Button
+            variant="secondary"
+            block
+            onClick={() => {
+              props.onResume();
+              props.onRepeat();
+            }}
+          >
+            {page.repeatLast}
+          </Button>
+          <Button variant="ghost" block onClick={props.onEnd}>
+            {page.endSession}
+          </Button>
+        </>
+      )}
+    </Sheet>
   );
 }

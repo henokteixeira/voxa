@@ -191,7 +191,9 @@
   .vx-sheet { animation-name: vx-pop-in; animation-duration: 220ms; }
   [data-state="closed"] .vx-sheet { animation-name: vx-pop-out; }
 }
+@keyframes vx-pulse { 50% { opacity: 0.55; } }
+.vx-skeleton { background: var(--color-sand-soft); animation: vx-pulse 1.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .vx-page-in, .vx-fade, .vx-sheet { animation: none !important; }
+  .vx-page-in, .vx-fade, .vx-sheet, .vx-skeleton { animation: none !important; }
   .vx-spring { transition: none; }
 }
