@@ -6,6 +6,7 @@ import { ApiProvider } from "@/app/api-context";
 import { routes } from "@/app/router";
 import { ApiError, type ApiClient } from "@/lib/api";
 import { type MicrophoneHandlers, MicrophoneUnavailableError } from "@/lib/voice/microphone";
+import { savePauseMs } from "@/lib/voice/pause-setting";
 import type { VoiceSocketHandlers } from "@/lib/voice/voice-socket";
 import { LocaleProvider } from "@/lib/i18n/locale-provider";
 import { type VoiceDeps, VoiceDepsContext } from "./voice-deps";
@@ -76,10 +77,14 @@ function renderSession(path = "/session/daily", { withLocale = false } = {}) {
   return router;
 }
 
+const SHOW_TUTOR = /^(Show what the tutor said|Ver o que o tutor disse)$/;
+/** Waits for the session to open: the tutor's opening line arrives, hidden behind a tap. */
+const opened = () => screen.findByRole("button", { name: SHOW_TUTOR });
+
 /** Starts a session and plays the opening line through to the learner's turn. */
 async function startAndListen(options: { withLocale?: boolean } = {}) {
   renderSession("/session/daily", options);
-  await screen.findByText("Morning! What did you work on yesterday?");
+  await opened();
   act(() => socketHandlers.onOpen());
   act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
   act(() => socketHandlers.onDone());
@@ -103,6 +108,42 @@ beforeEach(() => {
 });
 
 describe("live session", () => {
+  it("hides the tutor's line until the learner taps, so they listen first", async () => {
+    await startAndListen();
+    expect(screen.queryByText("Morning! What did you work on yesterday?")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show what the tutor said" }));
+    expect(screen.getByText("Morning! What did you work on yesterday?")).toBeInTheDocument();
+
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("I fixed the login bug"));
+    expect(screen.getByText("I fixed the login bug")).toBeInTheDocument();
+
+    act(() => socketHandlers.onTutor({ kind: "reply", message: "Nice. What's next?", selfCorrected: false }));
+    expect(screen.queryByText("Nice. What's next?")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show what the tutor said" }));
+    expect(screen.getByText("Nice. What's next?")).toHaveFocus();
+
+    // Opening the transcript and closing it again keeps the line revealed.
+    await userEvent.click(screen.getByRole("button", { name: "Show transcript" }));
+    await userEvent.click(screen.getByRole("button", { name: "Hide transcript" }));
+    expect(screen.getByText("Nice. What's next?")).toBeInTheDocument();
+  });
+
+  it("still shows the correct form on its own after two hints", async () => {
+    await startAndListen();
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("I finish it"));
+    act(() => socketHandlers.onTutor({ kind: "reveal", message: "I finished it yesterday.", selfCorrected: false }));
+    expect(screen.getByRole("region", { name: "The correct form" })).toHaveTextContent("I finished it yesterday.");
+    expect(screen.queryByRole("button", { name: "Show what the tutor said" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the whole conversation readable from the transcript button", async () => {
+    await startAndListen();
+    await userEvent.click(screen.getByRole("button", { name: "Show transcript" }));
+    expect(screen.getByRole("list", { name: "Transcript" })).toHaveTextContent("Morning! What did you work on yesterday?");
+  });
+
   it("starts the session, speaks the opening line, then listens", async () => {
     await startAndListen();
     expect(api.startSession).toHaveBeenCalledWith("daily");
@@ -115,7 +156,7 @@ describe("live session", () => {
 
   it("keeps the microphone off while the tutor speaks", async () => {
     renderSession();
-    await screen.findByText("Morning! What did you work on yesterday?");
+    await opened();
     act(() => socketHandlers.onOpen());
     act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
     expect(screen.getByText("Speaking")).toBeInTheDocument();
@@ -142,6 +183,7 @@ describe("live session", () => {
     const card = screen.getByRole("region", { name: "Hint 1 of 2" });
     expect(card).toHaveTextContent("“Yesterday I finish the upload screen”");
     expect(card).toHaveTextContent("When did this happen?");
+    expect(screen.queryByRole("button", { name: "Show what the tutor said" })).not.toBeInTheDocument();
     expect(screen.getByText("Hint · say it again")).toBeInTheDocument();
   });
 
@@ -228,7 +270,7 @@ describe("live session", () => {
     expect(api.startSession).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
-    await screen.findByText("Morning! What did you work on yesterday?");
+    await opened();
     expect(api.startSession).toHaveBeenCalledTimes(1);
   });
 
@@ -351,7 +393,7 @@ describe("confidence check-in", () => {
     await userEvent.click(screen.getByRole("radio", { name: "2" }));
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    await screen.findByText("Morning! What did you work on yesterday?");
+    await opened();
     expect(api.startSession).toHaveBeenCalledWith("presentation");
     expect(api.rateConfidence).toHaveBeenCalledWith("s1", "before", 2);
   });
@@ -368,7 +410,7 @@ describe("confidence check-in", () => {
   it("can be skipped", async () => {
     renderSession("/session/daily/check-in");
     await userEvent.click(screen.getByRole("button", { name: "Skip" }));
-    await screen.findByText("Morning! What did you work on yesterday?");
+    await opened();
     expect(api.rateConfidence).not.toHaveBeenCalled();
   });
 });
@@ -461,11 +503,54 @@ describe("session summary", () => {
 });
 
 describe("fluency timing", () => {
+  it("ends turns after the pause the learner chose, and does not count that pause as speech", async () => {
+    savePauseMs(4000);
+    const now = vi.spyOn(performance, "now");
+    now.mockReturnValue(0);
+    renderSession();
+    await opened();
+    expect(deps.openMicrophone).toHaveBeenCalledWith(expect.anything(), { endSilenceMs: 4000 });
+    act(() => socketHandlers.onOpen());
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
+    act(() => socketHandlers.onDone());
+    now.mockReturnValue(3000);
+    await act(async () => finishPlayback());
+
+    now.mockReturnValue(4500);
+    act(() => micHandlers.onSpeechStart());
+    // 4 s of speech plus the chosen 4 s of silence.
+    now.mockReturnValue(12_500);
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+
+    await endFromPause();
+    await screen.findByRole("heading", { name: "Session done" });
+    expect(api.endSession).toHaveBeenCalledWith("s1", { tutorSpeechMs: 3000, pausesMs: [1500], learnerSpeechMs: 4000 });
+    now.mockRestore();
+  });
+
+  it("counts all the time as speech when the learner taps to send", async () => {
+    savePauseMs(4000);
+    const now = vi.spyOn(performance, "now");
+    now.mockReturnValue(0);
+    await startAndListen();
+    now.mockReturnValue(1000);
+    act(() => micHandlers.onSpeechStart());
+    mic.sendNow.mockReturnValueOnce(true);
+    now.mockReturnValue(4000);
+    await userEvent.click(screen.getByRole("button", { name: "Send now" }));
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+
+    await endFromPause();
+    await screen.findByRole("heading", { name: "Session done" });
+    expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ learnerSpeechMs: 3000 }));
+    now.mockRestore();
+  });
+
   it("sends the pause before answering and the speaking time it measured", async () => {
     const now = vi.spyOn(performance, "now");
     now.mockReturnValue(0);
     renderSession();
-    await screen.findByText("Morning! What did you work on yesterday?");
+    await opened();
     act(() => socketHandlers.onOpen());
     act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
     act(() => socketHandlers.onDone());
@@ -488,7 +573,7 @@ describe("fluency timing", () => {
     const now = vi.spyOn(performance, "now");
     now.mockReturnValue(0);
     renderSession();
-    await screen.findByText("Morning! What did you work on yesterday?");
+    await opened();
     act(() => socketHandlers.onOpen());
     act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
     act(() => socketHandlers.onDone());
@@ -519,7 +604,7 @@ describe("fluency timing", () => {
         </VoiceDepsContext.Provider>
       </ApiProvider>,
     ).unmount;
-    await screen.findByText("Morning! What did you work on yesterday?");
+    await opened();
     expect(api.rateConfidence).toHaveBeenCalledWith("s1", "before", 2);
   });
 });
@@ -538,6 +623,7 @@ describe("a safe place to speak", () => {
       }),
     );
     expect(screen.getByRole("note", { name: "Help" })).toHaveTextContent("“Prazo” em inglês é “deadline”.");
+    expect(screen.queryByText("In English we say deadline. When is it?")).not.toBeInTheDocument();
   });
 
   it("reminds the learner that Portuguese is fine when they are stuck", async () => {
@@ -559,6 +645,7 @@ describe("a safe place to speak", () => {
 
   it("marks the conversation text as English for screen readers", async () => {
     await startAndListen({ withLocale: true });
+    await userEvent.click(screen.getByRole("button", { name: "Ver o que o tutor disse" }));
     expect(screen.getByText("Morning! What did you work on yesterday?")).toHaveAttribute("lang", "en");
   });
 });

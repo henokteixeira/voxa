@@ -8,7 +8,7 @@ import { useCopy } from "@/lib/i18n/locale";
 import { CheckInCard, GoalsStrip } from "./goals";
 import { isMode, useModeInfo } from "./modes";
 import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-copy";
-import { CaptionCard, HintCard, IconButton, PauseIcon, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
+import { CaptionCard, HintCard, IconButton, LatestCaption, PauseIcon, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
 import { SummaryFlow } from "./session-summary";
 import type { FailureCode } from "./session-state";
 import { useVoiceSession } from "./use-voice-session";
@@ -32,6 +32,8 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
   const { stage: stageCopy, page } = useCopy(SESSION_COPY);
   const { state } = session;
   const [showTranscript, setShowTranscript] = useState(false);
+  // Which caption the learner chose to read: a new tutor line starts hidden again.
+  const [shownCaption, setShownCaption] = useState(-1);
   const { elapsed } = session;
   const stage = stageFor(state, stageCopy);
   const lastCaption = state.captions.at(-1);
@@ -77,7 +79,15 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
   } else if (state.hintStep > 0 && lastTutor) {
     bottom = <HintCard step={state.hintStep} said={state.hintFor} tip={lastTutor.text} />;
   } else if (lastCaption && !showTranscript) {
-    bottom = <CaptionCard caption={lastCaption} />;
+    const index = state.captions.length - 1;
+    bottom = (
+      <LatestCaption
+        key={index}
+        caption={lastCaption}
+        shown={shownCaption === index}
+        onShow={() => setShownCaption(index)}
+      />
+    );
   }
 
   return (

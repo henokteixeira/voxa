@@ -51,6 +51,7 @@ export interface SessionCopy {
   parts: {
     tutor: string;
     you: string;
+    showTutorLine: string;
     hint: string;
     hintOf: (step: number) => string;
     correctForm: string;
@@ -180,7 +181,7 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       hintFirst: "Hint · say it again",
       hintSecond: "Hint · one more try",
       listening: "Listening",
-      listeningHint: "Pause for a second to send · tap to send now",
+      listeningHint: "Pause to send · tap to send now",
       yourTurn: "Your turn",
       missed: "Didn't catch that. Too quiet, or too much noise around you.",
       justTalk: "Just talk. Stuck on a word? Say it in Portuguese.",
@@ -208,6 +209,7 @@ export const SESSION_COPY: Copy<SessionCopy> = {
     parts: {
       tutor: "Tutor",
       you: "You",
+      showTutorLine: "Show what the tutor said",
       hint: "Hint",
       hintOf: (step) => `Hint ${step} of 2`,
       correctForm: "The correct form",
@@ -225,7 +227,7 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       hintFirst: "Dica · diga de novo",
       hintSecond: "Dica · mais uma tentativa",
       listening: "Ouvindo",
-      listeningHint: "Pare um instante para enviar · toque para enviar agora",
+      listeningHint: "Faça uma pausa para enviar · toque para enviar agora",
       yourTurn: "Sua vez",
       missed: "Não deu para ouvir. Pode ter ficado baixo ou com barulho em volta.",
       justTalk: "É só falar. Travou numa palavra? Diga em português.",
@@ -253,6 +255,7 @@ export const SESSION_COPY: Copy<SessionCopy> = {
     parts: {
       tutor: "Tutor",
       you: "Você",
+      showTutorLine: "Ver o que o tutor disse",
       hint: "Dica",
       hintOf: (step) => `Dica ${step} de 2`,
       correctForm: "A forma correta",

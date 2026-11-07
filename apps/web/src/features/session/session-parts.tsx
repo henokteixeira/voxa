@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useCopy } from "@/lib/i18n/locale";
 import { SESSION_COPY } from "./session-copy";
 import type { Caption } from "./session-state";
@@ -40,6 +40,42 @@ export function CaptionCard({ caption }: { caption: Caption }) {
     <div className="flex flex-col gap-1 rounded-md bg-paper px-[18px] py-4 shadow-card">
       <span className="text-label text-taupe">{caption.who === "tutor" ? parts.tutor : parts.you}</span>
       <p lang="en" className="m-0 text-body">{caption.text}</p>
+    </div>
+  );
+}
+
+/**
+ * The latest line on the main screen. The tutor's words stay hidden until a tap,
+ * so the learner listens first; their own words show so they can check the transcription.
+ */
+export function LatestCaption({ caption, shown, onShow }: { caption: Caption; shown: boolean; onShow: () => void }) {
+  const { parts } = useCopy(SESSION_COPY);
+  const text = useRef<HTMLParagraphElement>(null);
+  const [tapped, setTapped] = useState(false);
+  // The tapped button goes away: hand focus to the words it revealed.
+  useEffect(() => {
+    if (tapped && shown) text.current?.focus();
+  }, [tapped, shown]);
+  if (caption.who !== "tutor") return <CaptionCard caption={caption} />;
+  return (
+    <div className="flex flex-col gap-1 rounded-md bg-paper px-[18px] py-4 shadow-card">
+      <span className="text-label text-taupe">{parts.tutor}</span>
+      {shown ? (
+        <p ref={text} tabIndex={-1} lang="en" className="m-0 text-body outline-none">
+          {caption.text}
+        </p>
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            setTapped(true);
+            onShow();
+          }}
+          className="-mx-2 min-h-11 cursor-pointer self-start rounded-md border-none bg-transparent px-2 text-left text-body text-ink-soft underline decoration-sand underline-offset-4 hover:text-ink"
+        >
+          {parts.showTutorLine}
+        </button>
+      )}
     </div>
   );
 }

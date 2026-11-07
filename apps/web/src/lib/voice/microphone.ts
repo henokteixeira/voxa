@@ -1,4 +1,4 @@
-import { TurnDetector } from "./turn-detector";
+import { TurnDetector, type TurnDetectorOptions } from "./turn-detector";
 import { TurnRecorder } from "./turn-recorder";
 
 /**
@@ -60,7 +60,10 @@ function reasonFor(error: unknown): MicrophoneError {
   return "blocked";
 }
 
-export async function openMicrophone(handlers: MicrophoneHandlers): Promise<Microphone> {
+export async function openMicrophone(
+  handlers: MicrophoneHandlers,
+  options: Partial<TurnDetectorOptions> = {},
+): Promise<Microphone> {
   if (!navigator.mediaDevices?.getUserMedia || typeof AudioWorkletNode === "undefined") {
     throw new MicrophoneUnavailableError("unsupported");
   }
@@ -98,7 +101,7 @@ export async function openMicrophone(handlers: MicrophoneHandlers): Promise<Micr
     throw new MicrophoneUnavailableError("unsupported");
   }
 
-  const recorder = new TurnRecorder(new TurnDetector(), context.sampleRate);
+  const recorder = new TurnRecorder(new TurnDetector(options), context.sampleRate);
   let paused = false;
   let stopped = false;
   tap.port.onmessage = (event: MessageEvent<Float32Array>) => {
