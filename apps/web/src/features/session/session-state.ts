@@ -33,6 +33,8 @@ export interface Turn {
   request: Request;
   /** The typed text, kept so a failed send can be retried. */
   text: string | null;
+  /** The recorded speech (WAV), kept until its transcript comes back so a failed send can be retried. */
+  audio: ArrayBuffer | null;
   transcript: string | null;
   tutor: boolean;
   speech: boolean;
@@ -75,7 +77,11 @@ export interface SessionState {
   scaffold: string | null;
 }
 
-export type Retry = { kind: "text"; text: string } | { kind: "speak" } | { kind: "listen" };
+export type Retry =
+  | { kind: "text"; text: string }
+  | { kind: "audio"; audio: ArrayBuffer }
+  | { kind: "speak" }
+  | { kind: "listen" };
 
 export type SessionAction =
   | ({ type: "started"; sessionId: string; message: string; goals?: string[] } & Guidance)
@@ -88,7 +94,8 @@ export type SessionAction =
       hint: { hintsGiven: number; revealed: boolean; mistake?: string } | null;
     } & Guidance)
   | { type: "keep_going" }
-  | { type: "sent"; request: "audio" | "speak" }
+  | { type: "sent"; request: "audio"; audio: ArrayBuffer }
+  | { type: "sent"; request: "speak" }
   | { type: "sent"; request: "text"; text: string }
   | { type: "speech_start" }
   | { type: "transcript"; text: string }
@@ -106,9 +113,10 @@ export type SessionAction =
   | { type: "ending" }
   | { type: "ended"; summary: SessionSummary | null };
 
-const freshTurn = (request: Request, text: string | null = null): Turn => ({
+const freshTurn = (request: Request, text: string | null = null, audio: ArrayBuffer | null = null): Turn => ({
   request,
   text,
+  audio,
   transcript: null,
   tutor: false,
   speech: false,
@@ -186,7 +194,11 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         checkIn: false,
         failure: null,
         retry: null,
-        turn: freshTurn(action.request, action.request === "text" ? action.text : null),
+        turn: freshTurn(
+          action.request,
+          action.request === "text" ? action.text : null,
+          action.request === "audio" ? action.audio : null,
+        ),
       };
     case "speech_start":
       return state.phase === "listening" ? { ...state, phase: "hearing", missed: false } : state;
@@ -197,7 +209,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       return {
         ...state,
         captions: repeat ? state.captions : [...state.captions, { who: "you", text: action.text }],
-        turn: { ...state.turn, transcript: action.text },
+        // The server has the words now: a retry sends them, not the recording.
+        turn: { ...state.turn, transcript: action.text, audio: null },
         // The words to say have done their job once the learner answers: they leave the screen.
         scaffold: null,
       };
@@ -234,7 +247,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case "audio_blocked":
       return { ...state, audioBlocked: true };
     case "done": {
-      const turn = { ...state.turn, done: true };
+      // A finished turn has nothing left to resend.
+      const turn = { ...state.turn, done: true, audio: null };
       if (state.phase !== "thinking") return { ...state, turn };
       // A spoken turn that came back without a transcript held no speech.
       return { ...state, turn, phase: "listening", missed: turn.request === "audio" && turn.transcript === null };
@@ -244,7 +258,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       if (action.code === "busy") return state;
       const turn = { ...state.turn, done: true };
       if (SOFT_FAILURES.includes(action.code)) {
-        return { ...state, turn, phase: state.phase === "paused" ? "paused" : "listening", missed: true };
+        // A recording the server could not use is not worth sending again.
+        return { ...state, turn: { ...turn, audio: null }, phase: state.phase === "paused" ? "paused" : "listening", missed: true };
       }
       return { ...state, turn, phase: "failed", failure: action.code, retry: retryFor(state) };
     }
@@ -297,5 +312,7 @@ function retryFor(state: SessionState): Retry {
   if (turn.tutor || turn.request === "speak") return { kind: "speak" };
   const text = turn.transcript ?? turn.text;
   if (text) return { kind: "text", text };
+  // The speech never became text (e.g. speech recognition timed out): send the same recording again.
+  if (turn.audio) return { kind: "audio", audio: turn.audio };
   return { kind: "listen" };
 }
