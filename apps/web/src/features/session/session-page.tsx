@@ -1,4 +1,5 @@
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, type ReactNode, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { Link, Navigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -9,7 +10,7 @@ import { CheckInCard, GoalsStrip, PartsBar } from "./goals";
 import { ScaffoldCard, TrackBar } from "./guided-track";
 import { isMode, useModeInfo } from "./modes";
 import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-copy";
-import { CaptionCard, HintCard, IconButton, LatestCaption, PauseIcon, QuietLink, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
+import { CaptionCard, FadingCaption, HintCard, IconButton, PauseIcon, QuietLink, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
 import { SummaryFlow } from "./session-summary";
 import type { FailureCode } from "./session-state";
 import { useTodayProgress } from "@/features/xp/use-today-progress";
@@ -28,7 +29,7 @@ export function SessionPage() {
 function LiveSession({ mode }: { mode: Mode }) {
   const session = useVoiceSession(mode);
   const modes = useModeInfo();
-  const { stage: stageCopy, page } = useCopy(SESSION_COPY);
+  const { stage: stageCopy, page, parts } = useCopy(SESSION_COPY);
   const { state } = session;
   const toast = useSessionCues(state);
   // XP per moment, from the server; without it the session simply shows no toasts.
@@ -38,6 +39,7 @@ function LiveSession({ mode }: { mode: Mode }) {
   const [showTranscript, setShowTranscript] = useState(false);
   // Which caption the learner chose to read: a new tutor line starts hidden again.
   const [shownCaption, setShownCaption] = useState(-1);
+  const tutorText = useRef<HTMLParagraphElement>(null);
   const { elapsed } = session;
   const stage = stageFor(state, stageCopy);
   const lastCaption = state.captions.at(-1);
@@ -74,6 +76,13 @@ function LiveSession({ mode }: { mode: Mode }) {
   };
 
   let bottom: ReactNode = null;
+  // The learner's last words, until they fade: long enough to check the transcription.
+  // Keyed by the caption, so it keeps its timer while the tutor answers.
+  const yoursIndex = state.captions.findLastIndex((c) => c.who === "you");
+  const yoursCaption = state.captions[yoursIndex];
+  const yours =
+    yoursCaption && yoursIndex >= state.captions.length - 2 ? <FadingCaption key={yoursIndex} caption={yoursCaption} /> : null;
+  let tutorLine = -1;
   // A correction card carries the help itself, so the screen shows one card, not two.
   let helpInCard = false;
   if (state.phase === "failed" && state.failure) {
@@ -88,30 +97,32 @@ function LiveSession({ mode }: { mode: Mode }) {
     helpInCard = true;
   } else if (state.scaffold && !showTranscript) {
     // Words to say: one card with them replaces the tutor's line, which is in the transcript.
-    // The learner's own last words stay, so there is time to check the transcription.
-    const yours = lastCaption?.who === "you" ? lastCaption : state.captions.at(-2);
     bottom = (
       <>
-        {yours?.who === "you" && <CaptionCard caption={yours} />}
+        {yours}
         <ScaffoldCard key={state.scaffold} text={state.scaffold} track={state.track} />
       </>
     );
   } else if (lastCaption && !showTranscript) {
-    const index = state.captions.length - 1;
-    // The learner's own words stay until they speak again, so there is time to check the transcription.
-    const yours = lastCaption.who === "tutor" ? state.captions.at(-2) : undefined;
+    tutorLine = lastCaption.who === "tutor" ? state.captions.length - 1 : -1;
     bottom = (
       <>
-        {yours?.who === "you" && <CaptionCard caption={yours} />}
-        <LatestCaption
-          key={index}
-          caption={lastCaption}
-          shown={shownCaption === index}
-          onShow={() => setShownCaption(index)}
-        />
+        {yours}
+        {tutorLine >= 0 && shownCaption === tutorLine && <CaptionCard caption={lastCaption} textRef={tutorText} />}
       </>
     );
   }
+
+  // The tutor's words stay hidden until a tap, so the learner listens first; another tap hides them again.
+  const toggleTutorLine = () => {
+    if (shownCaption === tutorLine) {
+      setShownCaption(-1);
+      return;
+    }
+    flushSync(() => setShownCaption(tutorLine));
+    tutorText.current?.focus();
+  };
+  const canType = yourTurn && !typing;
 
   return (
     <Screen onPointerDown={session.unlock}>
@@ -181,25 +192,37 @@ function LiveSession({ mode }: { mode: Mode }) {
           {bottom}
           {state.support && !helpInCard && state.phase !== "failed" && <SupportNote text={state.support} />}
         </div>
-        {yourTurn &&
-          (typing ? (
-            <form onSubmit={submit} className="flex gap-2">
-              <label htmlFor="typed-turn" className="sr-only">
-                {page.yourAnswer}
-              </label>
-              <input
-                id="typed-turn"
-                name="text"
-                autoFocus
-                autoComplete="off"
-                maxLength={2000}
-                className="min-h-[52px] min-w-0 flex-1 rounded-md border-none bg-paper px-4 text-body shadow-[inset_0_0_0_1.5px_var(--color-sand)]"
-              />
-              <Button type="submit">{page.send}</Button>
-            </form>
-          ) : (
-            <QuietLink onClick={() => setTyping(true)}>{page.typeInstead}</QuietLink>
-          ))}
+        {(tutorLine >= 0 || canType) && (
+          <div className="flex flex-wrap items-center justify-center">
+            {tutorLine >= 0 && (
+              <QuietLink onClick={toggleTutorLine}>
+                {shownCaption === tutorLine ? parts.hideTutorLine : parts.showTutorLine}
+              </QuietLink>
+            )}
+            {tutorLine >= 0 && canType && (
+              <span aria-hidden="true" className="text-caption text-sand">
+                ·
+              </span>
+            )}
+            {canType && <QuietLink onClick={() => setTyping(true)}>{page.typeInstead}</QuietLink>}
+          </div>
+        )}
+        {yourTurn && typing && (
+          <form onSubmit={submit} className="flex gap-2">
+            <label htmlFor="typed-turn" className="sr-only">
+              {page.yourAnswer}
+            </label>
+            <input
+              id="typed-turn"
+              name="text"
+              autoFocus
+              autoComplete="off"
+              maxLength={2000}
+              className="min-h-[52px] min-w-0 flex-1 rounded-md border-none bg-paper px-4 text-body shadow-[inset_0_0_0_1.5px_var(--color-sand)]"
+            />
+            <Button type="submit">{page.send}</Button>
+          </form>
+        )}
       </div>
 
       {state.phase === "paused" && (

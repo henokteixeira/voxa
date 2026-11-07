@@ -1,5 +1,6 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, type Ref, useEffect, useState } from "react";
 import { useCopy } from "@/lib/i18n/locale";
+import { captionHoldMs } from "./caption-hold";
 import { SESSION_COPY } from "./session-copy";
 import type { Caption } from "./session-state";
 
@@ -34,50 +35,39 @@ export const TranscriptIcon = () => (
   </svg>
 );
 
-export function CaptionCard({ caption }: { caption: Caption }) {
+export function CaptionCard({ caption, textRef }: { caption: Caption; textRef?: Ref<HTMLParagraphElement> }) {
   const { parts } = useCopy(SESSION_COPY);
   return (
     <div className="flex flex-col gap-1 rounded-md bg-paper px-[18px] py-4 shadow-card">
       <span className="text-label text-taupe">{caption.who === "tutor" ? parts.tutor : parts.you}</span>
-      <p lang="en" className="m-0 text-body">{caption.text}</p>
+      <p ref={textRef} tabIndex={textRef ? -1 : undefined} lang="en" className="m-0 text-body outline-none">
+        {caption.text}
+      </p>
     </div>
   );
 }
 
+const FADE_MS = 300;
+
 /**
- * The latest line on the main screen. The tutor's words stay hidden until a tap,
- * so the learner listens first; their own words show so they can check the transcription.
+ * The learner's last words, shown so they can check the transcription, then faded away
+ * so the screen stays calm. The transcript keeps them. Key it by the caption, so a new line starts over.
  */
-export function LatestCaption({ caption, shown, onShow }: { caption: Caption; shown: boolean; onShow: () => void }) {
-  const { parts } = useCopy(SESSION_COPY);
-  const text = useRef<HTMLParagraphElement>(null);
-  const [tapped, setTapped] = useState(false);
-  // The tapped button goes away: hand focus to the words it revealed.
+export function FadingCaption({ caption }: { caption: Caption }) {
+  const [stage, setStage] = useState<"shown" | "fading" | "gone">("shown");
   useEffect(() => {
-    if (tapped && shown) text.current?.focus();
-  }, [tapped, shown]);
-  if (caption.who !== "tutor") return <CaptionCard caption={caption} />;
-  if (shown) {
-    return (
-      <div className="flex flex-col gap-1 rounded-md bg-paper px-[18px] py-4 shadow-card">
-        <span className="text-label text-taupe">{parts.tutor}</span>
-        <p ref={text} tabIndex={-1} lang="en" className="m-0 text-body outline-none">
-          {caption.text}
-        </p>
-      </div>
-    );
-  }
-  // Hidden: a quiet link, not a card, so listening stays the focus.
+    const fade = setTimeout(() => setStage("fading"), captionHoldMs(caption.text));
+    const gone = setTimeout(() => setStage("gone"), captionHoldMs(caption.text) + FADE_MS);
+    return () => {
+      clearTimeout(fade);
+      clearTimeout(gone);
+    };
+  }, [caption.text]);
+  if (stage === "gone") return null;
   return (
-    <QuietLink
-      onClick={() => {
-        setTapped(true);
-        onShow();
-      }}
-    >
-      <TextIcon />
-      {parts.showTutorLine}
-    </QuietLink>
+    <div className={`transition-opacity duration-300 ${stage === "fading" ? "opacity-0" : "opacity-100"}`}>
+      <CaptionCard caption={caption} />
+    </div>
   );
 }
 
@@ -93,12 +83,6 @@ export function QuietLink({ onClick, children }: { onClick: () => void; children
     </button>
   );
 }
-
-const TextIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-    <path d="M5 8h14M5 12h14M5 16h9" />
-  </svg>
-);
 
 export function HintCard({ step, said, tip, help }: { step: number; said: string | null; tip: string; help?: string | null }) {
   const { parts } = useCopy(SESSION_COPY);

@@ -137,15 +137,38 @@ describe("live session", () => {
 
     act(() => socketHandlers.onTutor({ kind: "reply", message: "Nice. What's next?", selfCorrected: false }));
     expect(screen.queryByText("Nice. What's next?")).not.toBeInTheDocument();
-    // The learner's words stay on screen until they speak again, so they can check them.
+    // The learner's words stay on screen for a moment, so they can check them.
     expect(screen.getByText("I fixed the login bug")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Show what the tutor said" }));
     expect(screen.getByText("Nice. What's next?")).toHaveFocus();
+
+    // The same link hides the line again.
+    await userEvent.click(screen.getByRole("button", { name: "Hide what the tutor said" }));
+    expect(screen.queryByText("Nice. What's next?")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show what the tutor said" }));
 
     // Opening the transcript and closing it again keeps the line revealed.
     await userEvent.click(screen.getByRole("button", { name: "Show transcript" }));
     await userEvent.click(screen.getByRole("button", { name: "Hide transcript" }));
     expect(screen.getByText("Nice. What's next?")).toBeInTheDocument();
+  });
+
+  it("fades the learner's words after a time that grows with them, keeping them in the transcript", async () => {
+    await startAndListen();
+    vi.useFakeTimers();
+    try {
+      act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+      act(() => socketHandlers.onTranscript("I fixed the login bug"));
+      act(() => socketHandlers.onTutor({ kind: "reply", message: "Nice. What's next?", selfCorrected: false }));
+      act(() => vi.advanceTimersByTime(2900));
+      expect(screen.getByText("I fixed the login bug")).toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(1500));
+      expect(screen.queryByText("I fixed the login bug")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+    await userEvent.click(screen.getByRole("button", { name: "Show transcript" }));
+    expect(screen.getByRole("list", { name: "Transcript" })).toHaveTextContent("I fixed the login bug");
   });
 
   it("puts the help inside the correction card instead of stacking another card", async () => {
