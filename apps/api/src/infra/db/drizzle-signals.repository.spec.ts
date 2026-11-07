@@ -56,5 +56,6 @@ describe("DrizzleSignalsRepository", () => {
     expect(earlier.map((r) => r.sessionId)).toEqual([two.sessionId, one.sessionId]);
     expect(await signals.earlierThan(three.sessionId, 1)).toEqual([two]);
     expect(await signals.earlierThan(one.sessionId, 3)).toEqual([]);
+    expect((await signals.recent("en", 2)).map((r) => r.sessionId)).toEqual([three.sessionId, two.sessionId]);
   });
 });

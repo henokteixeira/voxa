@@ -4,6 +4,17 @@ import { COMPARED_SESSIONS, compareSignals, type SessionSignals, type SignalComp
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { SIGNALS_REPOSITORY, type SignalsRepository } from "../domain/ports/signals.repository.js";
 
+/** How many sessions the Progress tab shows the signals of. */
+export const SIGNAL_HISTORY = 12;
+
+/** One session's signals as the Progress tab shows them. */
+export interface SignalsHistoryEntry {
+  sessionId: string;
+  mode: Mode;
+  recordedAt: Date;
+  signals: SessionSignals;
+}
+
 /** What the session summary already knows about an ended session's signals. */
 export interface EndedSessionSignals {
   sessionId: string;
@@ -36,5 +47,11 @@ export class SignalsService {
       stored.signals,
       earlier.map((record) => record.signals),
     );
+  }
+
+  /** The signals of the last practice sessions, oldest first, for the Progress tab. */
+  async history(language: string): Promise<SignalsHistoryEntry[]> {
+    const recent = await this.signals.recent(language, SIGNAL_HISTORY);
+    return recent.reverse().map(({ sessionId, mode, recordedAt, signals }) => ({ sessionId, mode, recordedAt, signals }));
   }
 }

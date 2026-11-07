@@ -2,14 +2,22 @@ import { useId, useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { CEFR_LEVELS, type CefrLevel, type LevelView } from "@/lib/api";
+import { CEFR_LEVELS, type CefrLevel, type LevelView, type StepChangeProposal } from "@/lib/api";
 import { useCopy, useLocale } from "@/lib/i18n/locale";
 import { LEVEL_COPY } from "./level-copy";
 
 export const PLACEMENT_PATH = "/session/placement";
 
 /** The speaking level on the Progress tab: the estimate, the learner's own lines behind it, and ways to change it. */
-export function LevelCard({ view, onSet }: { view: LevelView; onSet: (level: CefrLevel) => Promise<void> }) {
+export function LevelCard({
+  view,
+  onSet,
+  onConfirm,
+}: {
+  view: LevelView;
+  onSet: (level: CefrLevel) => Promise<void>;
+  onConfirm: (to: CefrLevel) => Promise<void>;
+}) {
   const copy = useCopy(LEVEL_COPY);
   const { locale } = useLocale();
   const titleId = useId();
@@ -51,12 +59,85 @@ export function LevelCard({ view, onSet }: { view: LevelView; onSet: (level: Cef
         </section>
       )}
       <p className="m-0 text-caption text-taupe">{copy.notAGrade}</p>
+      {view.proposal && (
+        <StepChange key={proposalKey(view.proposal)} proposal={view.proposal} onConfirm={onConfirm} />
+      )}
       {placementDue && <p className="m-0 text-caption text-honey-ink">{copy.placementDue}</p>}
       <AdjustLevel current={current.level} onSet={onSet} />
       <Button variant="ghost" block asChild>
         <Link to={PLACEMENT_PATH}>{copy.redoPlacement}</Link>
       </Button>
     </Card>
+  );
+}
+
+const DISMISSED_KEY = "voxa.stepChangeDismissed";
+
+/** "Not now" hides one proposal: after another session that still points the same way, it comes back. */
+const proposalKey = (proposal: StepChangeProposal) => `${proposal.basedOn}:${proposal.direction}:${proposal.to}`;
+
+function wasDismissed(key: string): boolean {
+  try {
+    return localStorage.getItem(DISMISSED_KEY) === key;
+  } catch {
+    return false;
+  }
+}
+
+/** The step change the last sessions point to. The learner decides; "Not now" hides it until the next session. */
+function StepChange({
+  proposal,
+  onConfirm,
+}: {
+  proposal: StepChangeProposal;
+  onConfirm: (to: CefrLevel) => Promise<void>;
+}) {
+  const copy = useCopy(LEVEL_COPY);
+  const key = proposalKey(proposal);
+  const [hidden, setHidden] = useState(() => wasDismissed(key));
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const titleId = useId();
+  if (hidden) return null;
+
+  const dismiss = () => {
+    try {
+      localStorage.setItem(DISMISSED_KEY, key);
+    } catch {
+      // Without storage the proposal simply comes back next time.
+    }
+    setHidden(true);
+  };
+  const confirm = async () => {
+    setFailed(false);
+    setSaving(true);
+    try {
+      await onConfirm(proposal.to);
+    } catch {
+      setFailed(true);
+      setSaving(false);
+    }
+  };
+  return (
+    <section aria-labelledby={titleId} className="flex flex-col gap-2 rounded-md bg-sage-soft p-4">
+      <h3 id={titleId} className="m-0 text-label text-sage-ink">
+        {copy.stepChange.title(proposal.direction, proposal.to)}
+      </h3>
+      <p className="m-0 text-small text-ink-soft">{copy.stepChange.body(proposal.direction)}</p>
+      {failed && (
+        <p role="alert" className="m-0 text-caption text-honey-ink">
+          {copy.saveFailed}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <Button variant="ghost" block disabled={saving} onClick={dismiss}>
+          {copy.stepChange.notNow}
+        </Button>
+        <Button block disabled={saving} onClick={confirm}>
+          {copy.stepChange.confirm(proposal.to)}
+        </Button>
+      </div>
+    </section>
   );
 }
 

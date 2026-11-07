@@ -22,6 +22,12 @@ export interface LevelCopy {
   unavailableTitle: string;
   unavailableBody: string;
   tryAgain: string;
+  stepChange: {
+    title: (direction: "up" | "down", to: string) => string;
+    body: (direction: "up" | "down") => string;
+    confirm: (to: string) => string;
+    notNow: string;
+  };
 }
 
 export const LEVEL_COPY: Copy<LevelCopy> = {
@@ -47,6 +53,15 @@ export const LEVEL_COPY: Copy<LevelCopy> = {
     unavailableTitle: "Couldn't load your level",
     unavailableBody: "Voxa's server didn't answer. Your level is safe; try again in a moment.",
     tryAgain: "Try again",
+    stepChange: {
+      title: (direction, to) => (direction === "up" ? `Ready for ${to}?` : `Try ${to} for a while?`),
+      body: (direction) =>
+        direction === "up"
+          ? "In your last 3 measured sessions, at least 8 in 10 of your answers needed no help, and long pauses didn't grow. Sessions would give a little less help."
+          : "In your last 3 measured sessions, most answers needed help. That's normal while you build up. Sessions would give a little more help.",
+      confirm: (to) => `Move to ${to}`,
+      notNow: "Not now",
+    },
   },
   "pt-BR": {
     levelTitle: "Seu nível de fala",
@@ -70,5 +85,14 @@ export const LEVEL_COPY: Copy<LevelCopy> = {
     unavailableTitle: "Não deu para carregar seu nível",
     unavailableBody: "O servidor do Voxa não respondeu. Seu nível está guardado; tente de novo daqui a pouco.",
     tryAgain: "Tentar de novo",
+    stepChange: {
+      title: (direction, to) => (direction === "up" ? `Vamos para o ${to}?` : `Que tal o ${to} por um tempo?`),
+      body: (direction) =>
+        direction === "up"
+          ? "Nas suas últimas 3 sessões medidas, pelo menos 8 em cada 10 respostas não precisaram de ajuda, e as pausas longas não aumentaram. As sessões dariam um pouco menos de ajuda."
+          : "Nas suas últimas 3 sessões medidas, a maioria das respostas precisou de ajuda. Isso é normal enquanto você ganha base. As sessões dariam um pouco mais de ajuda.",
+      confirm: (to) => `Mudar para ${to}`,
+      notNow: "Agora não",
+    },
   },
 };

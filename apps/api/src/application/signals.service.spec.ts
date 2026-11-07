@@ -16,6 +16,9 @@ class FakeSignals implements SignalsRepository {
     const language = this.rows[index]?.language;
     return this.rows.slice(0, Math.max(index, 0)).filter((r) => r.language === language).reverse().slice(0, limit);
   }
+  async recent(language: string, limit: number) {
+    return this.rows.filter((r) => r.language === language).reverse().slice(0, limit);
+  }
 }
 
 const clock = { now: () => new Date("2026-11-07T10:00:00Z") };

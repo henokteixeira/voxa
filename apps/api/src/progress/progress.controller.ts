@@ -1,12 +1,14 @@
 import { Body, Controller, Get, Put, Query } from "@nestjs/common";
 import { z } from "zod";
 import { ProgressService } from "../application/progress.service.js";
+import { SignalsService } from "../application/signals.service.js";
 import { Language, parse } from "../common/http.js";
 import { DAILY_MINUTES, isTimeZone } from "../domain/progress/daily-goal.js";
 
 /** An IANA time zone (e.g. "America/Sao_Paulo"): days, the goal and the streak follow the learner's clock. */
 const TimeZone = z.string().max(64).refine(isTimeZone, "Unknown time zone.");
 const TodayQuery = z.object({ language: Language, timeZone: TimeZone });
+const SignalsQuery = z.object({ language: Language });
 const DailyGoalBody = z.object({
   language: Language,
   timeZone: TimeZone,
@@ -15,7 +17,10 @@ const DailyGoalBody = z.object({
 
 @Controller("progress")
 export class ProgressController {
-  constructor(private readonly progress: ProgressService) {}
+  constructor(
+    private readonly progress: ProgressService,
+    private readonly signals: SignalsService,
+  ) {}
 
   /** Today's XP, goal and streak. */
   @Get("today")
@@ -29,5 +34,12 @@ export class ProgressController {
   async setDailyGoal(@Body() body: unknown) {
     const { language, timeZone, minutesPerDay } = parse(DailyGoalBody, body);
     return this.progress.setDailyMinutes(language, minutesPerDay, timeZone);
+  }
+
+  /** The fluency signals of the last practice sessions, oldest first. */
+  @Get("signals")
+  async signalsHistory(@Query() query: unknown) {
+    const { language } = parse(SignalsQuery, query);
+    return { sessions: await this.signals.history(language) };
   }
 }

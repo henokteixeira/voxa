@@ -4,16 +4,21 @@ import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyHttpConventions } from "../common/http-app.js";
 import { ProgressService } from "../application/progress.service.js";
+import { SignalsService } from "../application/signals.service.js";
 import { ProgressController } from "./progress.controller.js";
 
 const service = { today: vi.fn(), setDailyMinutes: vi.fn() };
+const signals = { history: vi.fn() };
 let app: INestApplication;
 
 beforeEach(async () => {
   vi.resetAllMocks();
   const mod = await Test.createTestingModule({
     controllers: [ProgressController],
-    providers: [{ provide: ProgressService, useValue: service }],
+    providers: [
+      { provide: ProgressService, useValue: service },
+      { provide: SignalsService, useValue: signals },
+    ],
   }).compile();
   app = applyHttpConventions(mod.createNestApplication());
   await app.init();
@@ -52,4 +57,14 @@ describe("PUT /progress/daily-goal", () => {
       expect(service.setDailyMinutes).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("GET /progress/signals", () => {
+  it("returns the signals of the last sessions, in English by default", async () => {
+    signals.history.mockResolvedValue([{ sessionId: "s1", mode: "daily", recordedAt: "2026-11-07T10:00:00.000Z", signals: {} }]);
+    const res = await request(app.getHttpServer()).get("/progress/signals");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ sessions: [{ sessionId: "s1", mode: "daily", recordedAt: "2026-11-07T10:00:00.000Z", signals: {} }] });
+    expect(signals.history).toHaveBeenCalledWith("en");
+  });
 });
