@@ -10,6 +10,7 @@ export interface OnboardingCopy {
     start: string;
     listening: string;
     heard: string;
+    notHearing: string;
     tryAgain: string;
     action: string;
   };
@@ -38,6 +39,7 @@ export const ONBOARDING_COPY: Copy<OnboardingCopy> = {
       start: "Turn on the microphone",
       listening: "Listening",
       heard: "We can hear you.",
+      notHearing: "Nothing yet. Speak a bit louder, or check which microphone the browser uses.",
       tryAgain: "Try again",
       action: "Continue",
     },
@@ -67,6 +69,7 @@ export const ONBOARDING_COPY: Copy<OnboardingCopy> = {
       start: "Ligar o microfone",
       listening: "Ouvindo",
       heard: "Estamos ouvindo você.",
+      notHearing: "Nada ainda. Fale um pouco mais alto ou veja qual microfone o navegador está usando.",
       tryAgain: "Tentar de novo",
       action: "Continuar",
     },
@@ -74,7 +77,7 @@ export const ONBOARDING_COPY: Copy<OnboardingCopy> = {
       title: "Uma conversa curta sobre o seu trabalho",
       body: "Cerca de 7 minutos. Ajuda o tutor a dar a quantidade certa de ajuda.",
       points: [
-        "Sem pistas e sem correções. O tutor só escuta.",
+        "Sem dicas e sem correções. O tutor só escuta.",
         "Começa fácil e fica um pouco mais difícil.",
         "Travou? Diga “I don't know” ou fale em português. Tudo bem.",
       ],

@@ -4,7 +4,7 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { VoiceDepsContext, type VoiceDeps } from "@/features/session/voice-deps";
 import { type MicrophoneHandlers, MicrophoneUnavailableError } from "@/lib/voice/microphone";
-import { OnboardingPage } from "./onboarding-page";
+import { NOT_HEARING_MS, OnboardingPage } from "./onboarding-page";
 
 function renderOnboarding(openMicrophone: VoiceDeps["openMicrophone"]) {
   const router = createMemoryRouter(
@@ -64,11 +64,34 @@ describe("OnboardingPage", () => {
     expect(openMicrophone).toHaveBeenCalledTimes(2);
   });
 
-  it("goes back a step", async () => {
-    const router = renderOnboarding(vi.fn());
+  it("closes the microphone when the learner goes back, and checks again on return", async () => {
+    const mic = { stop: vi.fn(), unlock: vi.fn(), pause: vi.fn(), resume: vi.fn(), sendNow: vi.fn() };
+    renderOnboarding(vi.fn().mockResolvedValue(mic));
     await userEvent.click(screen.getByRole("button", { name: "Get started" }));
+    await userEvent.click(screen.getByRole("button", { name: "Turn on the microphone" }));
+    await screen.findByText("Listening");
+
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByRole("button", { name: "Get started" })).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe("/onboarding");
+    expect(mic.stop).toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Get started" }));
+    expect(screen.getByRole("button", { name: "Turn on the microphone" })).toBeInTheDocument();
+  });
+
+  it("offers to try again when nothing is heard for a while", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const mic = { stop: vi.fn(), unlock: vi.fn(), pause: vi.fn(), resume: vi.fn(), sendNow: vi.fn() };
+      renderOnboarding(vi.fn().mockResolvedValue(mic));
+      await user.click(screen.getByRole("button", { name: "Get started" }));
+      await user.click(screen.getByRole("button", { name: "Turn on the microphone" }));
+      expect(await screen.findByText("Listening")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+      act(() => vi.advanceTimersByTime(NOT_HEARING_MS));
+      expect(screen.getByText(/Speak a bit louder/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
