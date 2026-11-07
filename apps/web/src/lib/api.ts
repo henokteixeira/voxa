@@ -381,6 +381,20 @@ async function errorFrom(response: Response, where: string): Promise<ApiError> {
   return error;
 }
 
+/** What a learner fact is about. */
+export const FACT_TOPICS = ["work", "projects", "people", "interests", "life", "goals"] as const;
+export type FactTopic = (typeof FACT_TOPICS)[number];
+
+/** Something the learner told the tutor; the tutor brings it up in later sessions. */
+export interface LearnerFact {
+  id: string;
+  topic: FactTopic;
+  /** One short sentence in English, in the third person. */
+  statement: string;
+  learnedAt: string;
+  updatedAt: string;
+}
+
 export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...args) => fetch(...args)) {
   async function request<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
     let response: Response;
@@ -464,6 +478,10 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
       (await request<{ mistakes: BankMistake[] }>(`/mistakes?language=${encodeURIComponent(language)}`)).mistakes,
     dismissMistake: (id: string, reason: DismissReason) =>
       request<void>(`/mistakes/${encodeURIComponent(id)}/dismiss`, { method: "POST", body: { reason } }),
+    learnerFacts: async () => (await request<{ facts: LearnerFact[] }>("/memory/facts")).facts,
+    editLearnerFact: (id: string, statement: string) =>
+      request<LearnerFact>(`/memory/facts/${encodeURIComponent(id)}`, { method: "PATCH", body: { statement } }),
+    deleteLearnerFact: (id: string) => request<void>(`/memory/facts/${encodeURIComponent(id)}`, { method: "DELETE" }),
     practice: (language = "en") => request<PracticeView>(`/practice?language=${encodeURIComponent(language)}`),
     reviewOverview: (language = "en") => request<ReviewOverview>(`/reviews?language=${encodeURIComponent(language)}`),
     /** A new cue for one pattern or new word. */
