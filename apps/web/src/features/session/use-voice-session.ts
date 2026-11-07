@@ -70,6 +70,8 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
   /** The tutor's clips waiting to play, in order (a reply, then a hint about the learner's turn). */
   const speechQueue = useRef<ArrayBuffer[]>([]);
   const playing = useRef(false);
+  /** The learner stopped the tutor: the rest of this turn's speech (e.g. a hint still on its way) stays silent. */
+  const muted = useRef(false);
   /** Plays the next clip; when none is left, the tutor's turn to speak is over. */
   const playNext = useCallback(function next() {
     const wav = speechQueue.current.shift();
@@ -108,9 +110,11 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
       const ws = deps.openVoiceSocket(api.voiceUrl(id), {
         onOpen: () => {
           if (onOpen.kind === "speak") {
+            muted.current = false;
             dispatch({ type: "sent", request: "speak" });
             ws.speakLast();
           } else if (onOpen.kind === "text") {
+            muted.current = false;
             dispatch({ type: "sent", request: "text", text: onOpen.text });
             ws.sendText(onOpen.text);
           } else if (onOpen.kind === "listen") {
@@ -130,6 +134,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
             missedSpeech.current = true;
             return;
           }
+          if (muted.current) return;
           // A hint can follow the reply in the same turn: play them one after the other.
           speechQueue.current.push(wav);
           if (!playing.current) playNext();
@@ -182,6 +187,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
             });
             sentEarly.current = false;
             mic.current?.pause();
+            muted.current = false;
             dispatch({ type: "sent", request: "audio" });
             socket.current?.sendTurn(wav);
             player.arm(speaker.current);
@@ -274,8 +280,10 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
   // Only when `listening` flips: resuming drops what was heard, so doing it again when the learner starts
   // talking ("listening" → "hearing") would lose their turn and leave nothing to send.
   useEffect(() => {
-    if (listening) mic.current?.resume();
-    else mic.current?.pause();
+    if (listening) {
+      clock.current.listening(performance.now());
+      mic.current?.resume();
+    } else mic.current?.pause();
   }, [listening]);
   // Typing or pausing: the wait that follows is not a pause before speaking.
   const interrupted = typing || state.phase === "paused";
@@ -285,12 +293,14 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
 
   const sendText = useCallback((text: string) => {
     setTyping(false);
+    muted.current = false;
     dispatch({ type: "sent", request: "text", text });
     socket.current?.sendText(text);
   }, []);
 
   const repeatLast = useCallback(() => {
     stopSpeech();
+    muted.current = false;
     dispatch({ type: "sent", request: "speak" });
     socket.current?.speakLast();
   }, [stopSpeech]);
@@ -301,7 +311,10 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
       sentEarly.current = true;
       if (!mic.current?.sendNow()) sentEarly.current = false;
     }
-    else if (state.phase === "speaking") stopSpeech();
+    else if (state.phase === "speaking") {
+      muted.current = true;
+      stopSpeech();
+    }
   }, [state.phase, stopSpeech]);
 
   /** Any tap on the screen: lets the browser play and record, and replays a line it blocked. */

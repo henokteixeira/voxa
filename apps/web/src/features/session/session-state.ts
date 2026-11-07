@@ -203,7 +203,10 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case "followup": {
       // Spoken after the reply: a hint about what the learner just said, or the stop-or-keep-going question.
       const { message } = action.result;
-      const base = message ? withTutor(state, { ...action.result, message }) : state;
+      // A spoken reply-kind line (the stop-or-keep-going question) keeps what the reply said about a fix.
+      const base = message
+        ? { ...withTutor(state, { ...action.result, message }), ...(action.result.kind === "reply" ? { fixed: state.fixed } : {}) }
+        : state;
       return {
         ...base,
         support: action.result.support ?? state.support,

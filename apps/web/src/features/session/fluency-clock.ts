@@ -46,6 +46,11 @@ export class FluencyClock {
     this.learnerSince = null;
   }
 
+  /** The microphone opened: the learner's pause runs from now, not from the end of a clip heard before a wait. */
+  listening(now: number) {
+    if (this.waitingSince !== null) this.waitingSince = Math.max(this.waitingSince, now);
+  }
+
   /** The learner paused the session or chose to type: the current wait is not a pause before speaking. */
   interrupt() {
     this.waitingSince = null;

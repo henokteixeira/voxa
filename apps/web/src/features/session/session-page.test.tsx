@@ -213,12 +213,23 @@ describe("live session", () => {
     expect(speaker.play).toHaveBeenCalledTimes(2);
     await act(async () => finishPlayback());
     expect(speaker.play).toHaveBeenCalledTimes(3);
-    expect(speaker.play).toHaveBeenLastCalledWith(new ArrayBuffer(9));
+    expect(speaker.play.mock.calls[2][0].byteLength).toBe(9);
     expect(screen.getByText("Speaking")).toBeInTheDocument();
     expect(mic.resume).not.toHaveBeenCalled();
 
     await act(async () => finishPlayback());
     expect(mic.resume).toHaveBeenCalled();
+  });
+
+  it("stays silent for the rest of the turn after the learner stops the tutor", async () => {
+    await startAndListen();
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTutor({ kind: "reply", message: "Nice.", selfCorrected: false }));
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
+    await userEvent.click(screen.getByRole("button", { name: "Stop the tutor" }));
+    const plays = speaker.play.mock.calls.length;
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(9)));
+    expect(speaker.play).toHaveBeenCalledTimes(plays);
   });
 
   it("plays a hint that arrives after the reply finished", async () => {
