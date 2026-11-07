@@ -413,6 +413,23 @@ describe("live session", () => {
     expect(socket.sendText).not.toHaveBeenCalled();
   });
 
+  it("shows how long the learner has talked, and calmly what happens at the longest turn", async () => {
+    await startAndListen();
+    vi.useFakeTimers();
+    try {
+      act(() => micHandlers.onSpeechStart());
+      expect(screen.getByRole("timer")).toHaveTextContent("0:00 of 1:00");
+      expect(screen.queryByText(/Voxa sends what you said so far/)).not.toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(46_000));
+      expect(screen.getByRole("timer")).toHaveTextContent("0:46 of 1:00");
+      expect(screen.getByText("At 1:00 Voxa sends what you said so far. Then you can go on.")).toBeInTheDocument();
+      act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+      expect(screen.queryByRole("timer")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps a turn whose speech recognition timed out and sends the same recording again", async () => {
     await startAndListen();
     const wav = new ArrayBuffer(16);
