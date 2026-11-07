@@ -42,6 +42,8 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
   const { stage: stageCopy, page } = useCopy(SESSION_COPY);
   const { state } = session;
   const [showTranscript, setShowTranscript] = useState(false);
+  // Which caption the learner chose to read: a new tutor line starts hidden again.
+  const [shownCaption, setShownCaption] = useState(-1);
   const elapsed = useElapsed(state.sessionId !== null && state.phase !== "paused" && state.phase !== "ended");
   const stage = stageFor(state, stageCopy);
   const lastCaption = state.captions.at(-1);
@@ -87,7 +89,15 @@ function LiveSession({ mode, confidenceBefore }: { mode: Mode; confidenceBefore?
   } else if (state.hintStep > 0 && lastTutor) {
     bottom = <HintCard step={state.hintStep} said={state.hintFor} tip={lastTutor.text} />;
   } else if (lastCaption && !showTranscript) {
-    bottom = <LatestCaption key={state.captions.length} caption={lastCaption} />;
+    const index = state.captions.length - 1;
+    bottom = (
+      <LatestCaption
+        key={index}
+        caption={lastCaption}
+        shown={shownCaption === index}
+        onShow={() => setShownCaption(index)}
+      />
+    );
   }
 
   return (

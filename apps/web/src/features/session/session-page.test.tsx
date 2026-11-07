@@ -119,7 +119,21 @@ describe("live session", () => {
     act(() => socketHandlers.onTutor({ kind: "reply", message: "Nice. What's next?", selfCorrected: false }));
     expect(screen.queryByText("Nice. What's next?")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Show what the tutor said" }));
+    expect(screen.getByText("Nice. What's next?")).toHaveFocus();
+
+    // Opening the transcript and closing it again keeps the line revealed.
+    await userEvent.click(screen.getByRole("button", { name: "Show transcript" }));
+    await userEvent.click(screen.getByRole("button", { name: "Hide transcript" }));
     expect(screen.getByText("Nice. What's next?")).toBeInTheDocument();
+  });
+
+  it("still shows the correct form on its own after two hints", async () => {
+    await startAndListen();
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("I finish it"));
+    act(() => socketHandlers.onTutor({ kind: "reveal", message: "I finished it yesterday.", selfCorrected: false }));
+    expect(screen.getByRole("region", { name: "The correct form" })).toHaveTextContent("I finished it yesterday.");
+    expect(screen.queryByRole("button", { name: "Show what the tutor said" })).not.toBeInTheDocument();
   });
 
   it("keeps the whole conversation readable from the transcript button", async () => {
@@ -167,6 +181,7 @@ describe("live session", () => {
     const card = screen.getByRole("region", { name: "Hint 1 of 2" });
     expect(card).toHaveTextContent("“Yesterday I finish the upload screen”");
     expect(card).toHaveTextContent("When did this happen?");
+    expect(screen.queryByRole("button", { name: "Show what the tutor said" })).not.toBeInTheDocument();
     expect(screen.getByText("Hint · say it again")).toBeInTheDocument();
   });
 
@@ -562,6 +577,7 @@ describe("a safe place to speak", () => {
       }),
     );
     expect(screen.getByRole("note", { name: "Help" })).toHaveTextContent("“Prazo” em inglês é “deadline”.");
+    expect(screen.queryByText("In English we say deadline. When is it?")).not.toBeInTheDocument();
   });
 
   it("reminds the learner that Portuguese is fine when they are stuck", async () => {
