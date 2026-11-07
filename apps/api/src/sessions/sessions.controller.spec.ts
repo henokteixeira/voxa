@@ -7,18 +7,23 @@ import {
   SessionEndedError,
   SessionNotFoundError,
 } from "../application/conversation.service.js";
+import { ProgressService } from "../application/progress.service.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import { SessionsController } from "./sessions.controller.js";
 
 const id = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
 const service = { start: vi.fn(), resume: vi.fn(), respond: vi.fn(), end: vi.fn(), rateConfidence: vi.fn() };
+const progress = { awardSession: vi.fn() };
 let app: INestApplication;
 
 beforeEach(async () => {
   vi.resetAllMocks();
   const mod = await Test.createTestingModule({
     controllers: [SessionsController],
-    providers: [{ provide: ConversationService, useValue: service }],
+    providers: [
+      { provide: ConversationService, useValue: service },
+      { provide: ProgressService, useValue: progress },
+    ],
   }).compile();
   app = mod.createNestApplication();
   await app.init();
@@ -101,17 +106,37 @@ describe("POST /sessions/:id/turns", () => {
 });
 
 describe("POST /sessions/:id/end", () => {
-  it("returns the summary", async () => {
-    const summary = { sessionId: id, mode: "daily", mistakes: [], selfCorrections: 0 };
+  const summary = {
+    sessionId: id,
+    mode: "daily",
+    mistakes: [],
+    selfCorrections: 1,
+    signals: { wordsPerMinute: 72 },
+    goals: [
+      { id: "yesterday", covered: true },
+      { id: "today", covered: false },
+    ],
+  };
+  const xp = { awards: [{ reason: "self_corrected", count: 1, points: 5 }], total: 5 };
+
+  it("returns the summary with the XP the session earned", async () => {
     service.end.mockResolvedValue(summary);
+    progress.awardSession.mockResolvedValue(xp);
     const res = await request(app.getHttpServer()).post(`/sessions/${id}/end`);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual(summary);
+    expect(res.body).toEqual({ ...summary, xp });
     expect(service.end).toHaveBeenCalledWith(id, null);
+    expect(progress.awardSession).toHaveBeenCalledWith({
+      sessionId: id,
+      goalsCovered: 1,
+      selfCorrections: 1,
+      wordsPerMinute: 72,
+    });
   });
 
   it("passes the timing the app measured", async () => {
-    service.end.mockResolvedValue({});
+    service.end.mockResolvedValue(summary);
+    progress.awardSession.mockResolvedValue(xp);
     const timing = {
       learnerSpeechMs: 61_000,
       tutorSpeechMs: 40_200,
