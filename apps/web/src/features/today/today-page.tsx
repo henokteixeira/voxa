@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Sheet } from "@/components/ui/sheet";
 import { VoiceBall } from "@/components/voice-ball";
 import { useModeInfo } from "@/features/session/modes";
 import { useApiStatus } from "@/hooks/use-api-status";
@@ -53,6 +54,7 @@ function Welcome({ title, body }: { title: string; body: string }) {
 /** Today: one suggested session, everything else secondary. */
 export function TodayPage() {
   const [now] = useState(() => new Date());
+  const [choosing, setChoosing] = useState(false);
   const { status, retry } = useApiStatus();
   const online = useOnline();
   const copy = useCopy(TODAY_COPY);
@@ -84,8 +86,8 @@ export function TodayPage() {
           </Button>
         </Card>
       ) : (
-        <Card className="items-center gap-4 px-5 py-7 text-center">
-          <VoiceBall state="idle" size={120} />
+        <Card className="items-center gap-3 px-5 py-6 text-center">
+          <VoiceBall state="idle" size={104} />
           <h2 className="m-0 text-heading">{copy.readyTitle}</h2>
           <p className="m-0 text-caption text-taupe">{copy.readyBody(modes.daily.title)}</p>
           <Button block asChild>
@@ -95,22 +97,30 @@ export function TodayPage() {
       )}
 
       {online && status === "ok" && (
-        <nav aria-label={copy.otherPractice} className="flex flex-col gap-3 pb-2">
-          <h2 className="m-0 text-label text-taupe">{copy.otherPractice}</h2>
-          {MODES.map((mode) => (
-            <Link
-              key={mode}
-              to={`/session/${mode}/check-in`}
-              className="flex min-h-14 items-center gap-3 rounded-md bg-paper px-5 py-4 text-ink no-underline shadow-card"
-            >
-              <span aria-hidden="true" className="size-3.5 shrink-0 rounded-full" style={{ background: modes[mode].color }} />
-              <span className="flex flex-1 flex-col gap-0.5">
-                <b className="text-body-strong">{modes[mode].title}</b>
-                <span className="text-caption text-taupe">{modes[mode].meta}</span>
-              </span>
-            </Link>
-          ))}
-        </nav>
+        <Button variant="ghost" block onClick={() => setChoosing(true)}>
+          {copy.otherPractice}
+        </Button>
+      )}
+
+      {choosing && (
+        <Sheet label={copy.otherPractice} closeLabel={copy.close} onClose={() => setChoosing(false)}>
+          <h2 className="m-0 text-heading">{copy.otherPractice}</h2>
+          <nav aria-label={copy.otherPractice} className="flex flex-col gap-3">
+            {MODES.map((mode) => (
+              <Link
+                key={mode}
+                to={`/session/${mode}/check-in`}
+                className="flex min-h-14 items-center gap-3 rounded-md bg-paper px-5 py-4 text-ink no-underline shadow-card transition-[transform,background-color] duration-150 hover:bg-sand-soft active:scale-[0.98]"
+              >
+                <span aria-hidden="true" className="size-3.5 shrink-0 rounded-full" style={{ background: modes[mode].color }} />
+                <span className="flex flex-1 flex-col gap-0.5">
+                  <b className="text-body-strong">{modes[mode].title}</b>
+                  <span className="text-caption text-taupe">{modes[mode].meta}</span>
+                </span>
+              </Link>
+            ))}
+          </nav>
+        </Sheet>
       )}
     </>
   );
