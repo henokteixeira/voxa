@@ -9,7 +9,7 @@ import {
   goalsFor,
   mergeCovered,
 } from "../domain/conversation/session-goals.js";
-import { NEW_WORD_CATEGORY, type PracticeTarget, type Session } from "../domain/conversation/types.js";
+import { type ChatTurn, NEW_WORD_CATEGORY, type PracticeTarget, type Session } from "../domain/conversation/types.js";
 import { mistakeStatus } from "../domain/mistakes/mistake-status.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { MISTAKE_BANK_REPOSITORY, type MistakeBankRepository } from "../domain/ports/mistake-bank.repository.js";
@@ -63,6 +63,20 @@ export interface SessionStart {
   goals: readonly string[];
 }
 
+/** What the app needs to pick an open session up again, e.g. after the page reloads. */
+export interface SessionResume {
+  sessionId: string;
+  mode: Mode;
+  language: string;
+  startedAt: Date;
+  /** The conversation so far, in order. */
+  turns: ChatTurn[];
+  goals: readonly string[];
+  coveredGoals: string[];
+  /** The serious mistake the conversation is paused on, without its correction (the hints must not give it away). */
+  hint: { hintsGiven: number; revealed: boolean } | null;
+}
+
 export interface SessionSummary {
   sessionId: string;
   mode: Mode;
@@ -92,6 +106,22 @@ export class ConversationService {
     const message = await this.tutor.open(this.tutorContext(session, await this.learnerContext.load()));
     await this.sessions.appendTurn(session.id, { role: "assistant", content: message });
     return { session, message, goals: goalsFor(mode) };
+  }
+
+  /** The state of an open session, so the learner can go on where they left off. */
+  async resume(sessionId: string): Promise<SessionResume> {
+    const session = await this.openSession(sessionId);
+    const { pending } = session;
+    return {
+      sessionId: session.id,
+      mode: session.mode,
+      language: session.language,
+      startedAt: session.startedAt,
+      turns: await this.sessions.history(sessionId),
+      goals: goalsFor(session.mode),
+      coveredGoals: session.coveredGoals,
+      hint: pending ? { hintsGiven: pending.hintsGiven, revealed: pending.revealed } : null,
+    };
   }
 
   async respond(sessionId: string, utterance: string): Promise<TurnResult> {

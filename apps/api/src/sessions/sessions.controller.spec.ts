@@ -11,7 +11,7 @@ import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import { SessionsController } from "./sessions.controller.js";
 
 const id = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
-const service = { start: vi.fn(), respond: vi.fn(), end: vi.fn(), rateConfidence: vi.fn() };
+const service = { start: vi.fn(), resume: vi.fn(), respond: vi.fn(), end: vi.fn(), rateConfidence: vi.fn() };
 let app: INestApplication;
 
 beforeEach(async () => {
@@ -47,6 +47,34 @@ describe("POST /sessions", () => {
     service.start.mockRejectedValue(new TutorUnavailableError("down"));
     const res = await request(app.getHttpServer()).post("/sessions").send({ mode: "review" });
     expect(res.status).toBe(502);
+  });
+});
+
+describe("GET /sessions/:id", () => {
+  it("returns the open session so the app can pick it up again", async () => {
+    const resumed = {
+      sessionId: id,
+      mode: "daily",
+      language: "en",
+      startedAt: new Date("2026-11-07T10:00:00Z"),
+      turns: [{ role: "assistant", content: "Morning!" }],
+      goals: ["yesterday", "today", "blockers"],
+      coveredGoals: [],
+      hint: null,
+    };
+    service.resume.mockResolvedValue(resumed);
+    const res = await request(app.getHttpServer()).get(`/sessions/${id}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ...resumed, startedAt: "2026-11-07T10:00:00.000Z" });
+    expect(service.resume).toHaveBeenCalledWith(id);
+  });
+
+  it("rejects a malformed id, and maps unknown to 404 and ended to 409", async () => {
+    expect((await request(app.getHttpServer()).get("/sessions/abc")).status).toBe(400);
+    service.resume.mockRejectedValueOnce(new SessionNotFoundError(id));
+    expect((await request(app.getHttpServer()).get(`/sessions/${id}`)).status).toBe(404);
+    service.resume.mockRejectedValueOnce(new SessionEndedError(id));
+    expect((await request(app.getHttpServer()).get(`/sessions/${id}`)).status).toBe(409);
   });
 });
 
