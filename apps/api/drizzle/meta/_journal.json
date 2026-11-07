@@ -64,6 +64,13 @@
       "when": 1794025538813,
       "tag": "0008_speaking_levels",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794026566334,
+      "tag": "0009_xp_and_daily_goal",
+      "breakpoints": true
     }
   ]
 }
