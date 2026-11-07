@@ -141,9 +141,9 @@ describe("voice socket", () => {
   });
 
   it.each([
-    [new SessionNotFoundError(), "not_found"],
-    [new SessionEndedError(), "ended"],
-    [new TutorUnavailableError(), "tutor_unavailable"],
+    [new SessionNotFoundError(id), "not_found"],
+    [new SessionEndedError(id), "ended"],
+    [new TutorUnavailableError("down"), "tutor_unavailable"],
     [new VoiceUnavailableError("down"), "voice_unavailable"],
     [new VoiceRequestError("bad", 422), "bad_audio"],
     [new Error("boom"), "server"],

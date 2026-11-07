@@ -2,6 +2,7 @@ import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { applyHttpConventions } from "../common/http-app.js";
 import { ProgressService } from "../application/progress.service.js";
 import { ProgressController } from "./progress.controller.js";
 
@@ -14,7 +15,7 @@ beforeEach(async () => {
     controllers: [ProgressController],
     providers: [{ provide: ProgressService, useValue: service }],
   }).compile();
-  app = mod.createNestApplication();
+  app = applyHttpConventions(mod.createNestApplication());
   await app.init();
 });
 afterEach(() => app.close());

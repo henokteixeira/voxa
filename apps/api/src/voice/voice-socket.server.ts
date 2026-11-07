@@ -4,10 +4,8 @@ import { Injectable, Logger, type OnApplicationBootstrap, type OnApplicationShut
 import { HttpAdapterHost } from "@nestjs/core";
 import { type RawData, type WebSocket, WebSocketServer } from "ws";
 import { z } from "zod";
-import { SessionEndedError, SessionNotFoundError } from "../application/conversation.service.js";
 import { type VoiceInput, VoiceConversationService } from "../application/voice-conversation.service.js";
-import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
-import { VoiceRequestError, VoiceUnavailableError } from "../domain/ports/voice.port.js";
+import { DomainError, type ErrorCode, InvalidInputError } from "../domain/errors.js";
 
 /**
  * Live voice session over a WebSocket at /api/sessions/:id/voice. One socket per session.
@@ -27,15 +25,7 @@ import { VoiceRequestError, VoiceUnavailableError } from "../domain/ports/voice.
  * request is running (the message is dropped). Close codes: 1009 frame too large, 4409 the session
  * already has a live socket.
  */
-export type VoiceErrorCode =
-  | "not_found"
-  | "ended"
-  | "tutor_unavailable"
-  | "voice_unavailable"
-  | "bad_audio"
-  | "invalid"
-  | "busy"
-  | "server";
+export type VoiceErrorCode = ErrorCode | "busy" | "server";
 
 export const SESSION_IN_USE_CLOSE_CODE = 4409;
 
@@ -51,29 +41,16 @@ const ClientMessage = z.discriminatedUnion("type", [
 /** Sends a JSON message, or a binary frame for speech. */
 type Send = (message: Record<string, unknown> | Buffer) => void;
 
-class InvalidMessageError extends Error {}
-class NotWavError extends Error {}
+class NotWavError extends DomainError {
+  readonly code = "bad_audio";
 
-function codeFor(error: unknown): VoiceErrorCode {
-  if (error instanceof InvalidMessageError) return "invalid";
-  if (error instanceof NotWavError || error instanceof VoiceRequestError) return "bad_audio";
-  if (error instanceof SessionNotFoundError) return "not_found";
-  if (error instanceof SessionEndedError) return "ended";
-  if (error instanceof TutorUnavailableError) return "tutor_unavailable";
-  if (error instanceof VoiceUnavailableError) return "voice_unavailable";
-  return "server";
+  constructor() {
+    super("The audio frame is not a WAV file.", "Voxa couldn't use that recording.");
+  }
 }
 
-const MESSAGES: Record<VoiceErrorCode, string> = {
-  not_found: "Session not found.",
-  ended: "This session has ended.",
-  tutor_unavailable: "The tutor didn't answer.",
-  voice_unavailable: "The voice server isn't running.",
-  bad_audio: "Voxa couldn't use that recording.",
-  invalid: "Voxa didn't understand that message.",
-  busy: "Still answering your last turn.",
-  server: "Something went wrong.",
-};
+const BUSY_MESSAGE = "Still answering your last turn.";
+const SERVER_MESSAGE = "Something went wrong.";
 
 @Injectable()
 export class VoiceSocketServer implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -122,7 +99,7 @@ export class VoiceSocketServer implements OnApplicationBootstrap, OnApplicationS
     const send: Send = (message) => {
       if (ws.readyState === ws.OPEN) ws.send(Buffer.isBuffer(message) ? message : JSON.stringify(message));
     };
-    const fail = (code: VoiceErrorCode) => send({ type: "error", code, message: MESSAGES[code] });
+    const fail = (code: VoiceErrorCode, message: string) => send({ type: "error", code, message });
 
     const leave = () => {
       if (closed) return;
@@ -136,13 +113,18 @@ export class VoiceSocketServer implements OnApplicationBootstrap, OnApplicationS
     });
     ws.on("close", leave);
     ws.on("message", (data: RawData, isBinary: boolean) => {
-      if (busy) return fail("busy");
+      if (busy) return fail("busy", BUSY_MESSAGE);
       busy = true;
       void this.handle(sessionId, toBuffer(data), isBinary, send, () => closed)
         .catch((error: unknown) => {
-          const code = codeFor(error);
-          if (code === "server") this.logger.error(error);
-          fail(code);
+          if (error instanceof DomainError) {
+            if (error.code === "tutor_unavailable" || error.code === "voice_unavailable") {
+              this.logger.warn(`Voice turn on session ${sessionId}: ${error.name}: ${error.message}`);
+            }
+            return fail(error.code, error.publicMessage);
+          }
+          this.logger.error(`Voice turn on session ${sessionId} failed`, (error as Error)?.stack ?? String(error));
+          fail("server", SERVER_MESSAGE);
         })
         .finally(() => {
           busy = false;
@@ -184,10 +166,10 @@ function parseMessage(data: Buffer) {
   try {
     json = JSON.parse(data.toString("utf8"));
   } catch {
-    throw new InvalidMessageError("not JSON");
+    throw new InvalidInputError("The message is not JSON.");
   }
   const parsed = ClientMessage.safeParse(json);
-  if (!parsed.success) throw new InvalidMessageError(z.prettifyError(parsed.error));
+  if (!parsed.success) throw new InvalidInputError(z.prettifyError(parsed.error));
   return parsed.data;
 }
 
