@@ -18,6 +18,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import type { PendingCorrection, PracticeTarget } from "../../domain/conversation/types.js";
+import type { TutorMemory } from "../../domain/memory/learner-fact.js";
 
 // Every record carries its language (BCP 47 code, e.g. "en") to support other languages.
 
@@ -54,6 +55,8 @@ export const sessions = pgTable("sessions", {
   /** Goals in a row answered alone, and stuck at the answer: they move the step between A1 and A2. */
   trackUnaidedStreak: smallint("track_unaided_streak").notNull().default(0),
   trackStuckStreak: smallint("track_stuck_streak").notNull().default(0),
+  /** What the tutor remembered when the session started. */
+  memory: jsonb("memory").$type<TutorMemory>().notNull().default({ facts: [], recentSessions: [] }),
   /** When what the learner said about themselves was saved to memory; null until then. */
   rememberedAt: timestamp("remembered_at", { withTimezone: true }),
   /** One sentence on what the learner talked about, for later sessions; null when there is nothing to recall. */

@@ -3,6 +3,7 @@ import type { Mode } from "../conversation/mode.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget, Session } from "../conversation/types.js";
 import type { TrackState } from "../conversation/guided-track.js";
 import type { SupportStep } from "../level/speaking-level.js";
+import type { TutorMemory } from "../memory/learner-fact.js";
 
 /** What a session leaves for its summary besides mistakes and turns. */
 export interface SessionOutcome {
@@ -26,11 +27,12 @@ export interface SessionProgress {
 export type NewTurn = ChatTurn & { assisted?: boolean };
 
 export interface SessionRepository {
-  /** `startedAt` defaults to now, `targets` to none and `step` to null. */
+  /** `startedAt` defaults to now, `targets` to none, `step` to null and `memory` to nothing remembered. */
   create(input: {
     language: string;
     mode: Mode;
     startedAt?: Date;
+    memory?: TutorMemory;
     targets?: PracticeTarget[];
     step?: SupportStep | null;
     track?: TrackState | null;

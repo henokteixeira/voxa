@@ -21,6 +21,7 @@ import type { SessionTiming } from "../domain/conversation/fluency.js";
 import type { KnownPattern, MistakePattern } from "../domain/mistakes/pattern.js";
 import type { ReviewRepository, ReviewSubject } from "../domain/ports/review.repository.js";
 import type { ReviewState } from "../domain/review/review-schedule.js";
+import { NOTHING_REMEMBERED, type TutorMemory } from "../domain/memory/learner-fact.js";
 import type { LearnerMemoryService } from "./learner-memory.service.js";
 import { ReviewScheduler } from "./review-scheduler.js";
 import type { NewTurn, SessionProgress, SessionRepository } from "../domain/ports/session.repository.js";
@@ -55,7 +56,7 @@ type Row = Session & { turns: ChatTurn[]; timing: SessionTiming | null };
 
 class FakeSessions implements SessionRepository {
   rows = new Map<string, Row>();
-  async create(input: { language: string; mode: Mode; startedAt?: Date; targets?: PracticeTarget[]; step?: SupportStep | null; track?: TrackState | null }) {
+  async create(input: { language: string; mode: Mode; startedAt?: Date; targets?: PracticeTarget[]; step?: SupportStep | null; track?: TrackState | null; memory?: TutorMemory }) {
     const id = `s${this.rows.size + 1}`;
     const session: Session = {
       id,
@@ -71,6 +72,7 @@ class FakeSessions implements SessionRepository {
       step: input.step ?? null,
       scaffold: null,
       track: input.track ?? null,
+      memory: input.memory ?? NOTHING_REMEMBERED,
     };
     this.rows.set(id, { ...session, turns: [], timing: null });
     return session;
@@ -327,6 +329,20 @@ beforeEach(() => {
 });
 
 describe("ConversationService.start", () => {
+  it("gives the tutor what it remembered at the start, all session long", async () => {
+    const { session } = await service.start("free_talk", "en");
+    // A memory saved mid-session (another session's background run) does not change this one's prompt.
+    memory.recall.mockResolvedValue({ facts: [], recentSessions: [] });
+    tutor.verdicts.push(verdict({}));
+    await service.respond(session.id, "Hi");
+
+    const stored = await sessions.get(session.id);
+    expect(memory.recall).toHaveBeenCalledTimes(1);
+    expect(memory.recall).toHaveBeenCalledWith({ startedAt: stored?.startedAt });
+    expect(tutor.opened[0]).toEqual(expect.objectContaining({ memory: remembered }));
+    expect(tutor.requests[0]).toEqual(expect.objectContaining({ memory: remembered }));
+  });
+
   it("picks up sessions left unremembered", async () => {
     await service.start("daily", "en");
     expect(memory.sweep).toHaveBeenCalledTimes(1);
@@ -1016,17 +1032,6 @@ describe("ConversationService: the guided track (A1–A2)", () => {
 });
 
 describe("ConversationService.end", () => {
-  it("gives the tutor what it remembers from the sessions before this one", async () => {
-    const { session } = await service.start("free_talk", "en");
-    tutor.verdicts.push(verdict({}));
-    await service.respond(session.id, "Hi");
-
-    const stored = await sessions.get(session.id);
-    expect(memory.recall).toHaveBeenCalledWith(expect.objectContaining({ startedAt: stored?.startedAt }));
-    expect(tutor.opened[0]).toEqual(expect.objectContaining({ memory: remembered }));
-    expect(tutor.requests[0]).toEqual(expect.objectContaining({ memory: remembered }));
-  });
-
   it("asks for the ended session to be remembered, placement included", async () => {
     const { session } = await service.start("free_talk", "en");
     await service.end(session.id);

@@ -69,8 +69,8 @@ export class LearnerMemoryService {
   }
 
   /**
-   * What the tutor knows when `session` runs: every fact, and the last sessions started before it.
-   * Fixed by the session's start, so the tutor's prompt stays the same (and cached) all session.
+   * What the tutor knows when a session starts: every fact, and the last sessions started before it.
+   * The session keeps this, so the tutor's prompt stays the same (and cached) all session.
    */
   async recall(session: Pick<Session, "startedAt">): Promise<TutorMemory> {
     const [facts, recent] = await Promise.all([
