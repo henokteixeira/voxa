@@ -6,7 +6,9 @@ import { ReviewService } from "../application/review.service.js";
 import { applyHttpConventions } from "../common/http-app.js";
 import { ReviewsController } from "./reviews.controller.js";
 
-const service = { overview: vi.fn() };
+const service = { overview: vi.fn(), card: vi.fn(), answer: vi.fn() };
+const subject = { kind: "pattern", id: "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b" };
+const cue = { cue: "Eu terminei ontem.", answer: "I finished it yesterday." };
 let app: INestApplication;
 
 beforeEach(async () => {
@@ -32,5 +34,31 @@ describe("GET /reviews", () => {
   it("rejects a malformed language", async () => {
     const res = await request(app.getHttpServer()).get("/reviews?language=English!");
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /reviews/cards", () => {
+  it("asks for a cue for one item", async () => {
+    service.card.mockResolvedValue({ cue });
+    const res = await request(app.getHttpServer()).post("/reviews/cards").send({ subject });
+    expect(res.status).toBe(200);
+    expect(service.card).toHaveBeenCalledWith(subject);
+  });
+
+  it("rejects an unknown kind of item", async () => {
+    const res = await request(app.getHttpServer()).post("/reviews/cards").send({ subject: { ...subject, kind: "other" } });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /reviews/answers", () => {
+  it("checks a spoken answer, or none when the learner doesn't know", async () => {
+    service.answer.mockResolvedValue({ recalled: false });
+    await request(app.getHttpServer()).post("/reviews/answers").send({ subject, cue, utterance: "I finish it" }).expect(200);
+    await request(app.getHttpServer()).post("/reviews/answers").send({ subject, cue, utterance: null }).expect(200);
+    expect(service.answer.mock.calls).toEqual([
+      [subject, cue, "I finish it"],
+      [subject, cue, null],
+    ]);
   });
 });

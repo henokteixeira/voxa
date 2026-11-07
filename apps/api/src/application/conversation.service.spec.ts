@@ -19,7 +19,7 @@ import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import type { Mistake, MistakeRepository, NewMistake, SessionMistake } from "../domain/ports/mistake.repository.js";
 import type { SessionTiming } from "../domain/conversation/fluency.js";
 import type { KnownPattern, MistakePattern } from "../domain/mistakes/pattern.js";
-import type { DueReview, ReviewRepository, ReviewSubject } from "../domain/ports/review.repository.js";
+import type { ReviewItem, ReviewRepository, ReviewSubject } from "../domain/ports/review.repository.js";
 import type { ReviewState } from "../domain/review/review-schedule.js";
 import { ReviewScheduler } from "./review-scheduler.js";
 import type { NewTurn, SessionProgress, SessionRepository } from "../domain/ports/session.repository.js";
@@ -118,8 +118,11 @@ class FakeReviews implements ReviewRepository {
   async save(language: string, subject: ReviewSubject, state: ReviewState) {
     this.items.set(`${subject.kind}:${subject.id}`, { language, ...state });
   }
-  async due(): Promise<DueReview[]> {
+  async due(): Promise<ReviewItem[]> {
     return [];
+  }
+  async item() {
+    return null;
   }
   async nextDueAt() {
     return null;

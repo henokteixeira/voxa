@@ -79,6 +79,17 @@ describe("DrizzleReviewRepository", () => {
     expect(await reviews.due("en", now, 5)).toEqual([]);
   });
 
+  it("finds one item, due or not, unless its mistakes were dismissed", async () => {
+    const { word } = await bank();
+    const subject = { kind: "new_word" as const, id: word.id };
+    expect(await reviews.item(subject)).toBeNull();
+    await reviews.save("en", subject, { step: 2, dueAt: day(5) }, null);
+
+    expect(await reviews.item(subject)).toMatchObject({ name: "deadline", rule: "prazo", step: 2, dueAt: day(5) });
+    await mistakes.dismiss(word.id, "not_needed");
+    expect(await reviews.item(subject)).toBeNull();
+  });
+
   it("says when the next item comes back", async () => {
     const { goed, fix, word } = await bank();
     expect(await reviews.nextDueAt("en", now)).toBeNull();
