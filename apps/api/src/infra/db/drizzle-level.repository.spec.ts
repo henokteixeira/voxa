@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "./db.module.js";
 import { DrizzleLevelRepository } from "./drizzle-level.repository.js";
+import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
@@ -35,6 +36,16 @@ describe("DrizzleLevelRepository", () => {
 
     expect(await levels.current("en")).toEqual({ ...placed, level: "B1", source: "manual", evidence: [] });
     expect((await levels.current("es"))?.level).toBe("A1");
+  });
+
+  it("keeps one level per placement session", async () => {
+    const session = await new DrizzleSessionRepository(db).create({ language: "en", mode: "placement" });
+    expect(await levels.forSession(session.id)).toBeNull();
+    expect(await levels.addForSession(session.id, placed)).toEqual(placed);
+    // A second end (a retry, or two at once) keeps the first.
+    expect(await levels.addForSession(session.id, { ...placed, level: "C1" })).toEqual(placed);
+    expect(await levels.forSession(session.id)).toEqual(placed);
+    expect(await levels.current("en")).toEqual(placed);
   });
 
   it("finds the newest placement even after a level set by hand", async () => {

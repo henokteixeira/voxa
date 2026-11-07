@@ -1,3 +1,4 @@
+import { correctsMistakes, type Mode } from "./mode.js";
 import type { Issue, NewWord, PendingCorrection } from "./types.js";
 
 /** After this many hints the tutor shows the correct form and asks the learner to repeat it. */
@@ -98,4 +99,10 @@ export function safeHint(hint: string | null | undefined, target: { correction: 
     return `Let's try that once more. Look at the ${target.category.replaceAll("_", " ")} in that sentence.`;
   }
   return text;
+}
+
+/** In a mode that only observes (the placement interview), every mistake counts as minor, so none gets a hint. */
+export function verdictForMode(mode: Mode, verdict: TutorVerdict): TutorVerdict {
+  if (correctsMistakes(mode)) return verdict;
+  return { ...verdict, issues: verdict.issues.map((i) => ({ ...i, severity: "minor", matchesKnownMistake: false })) };
 }

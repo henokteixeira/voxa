@@ -4,6 +4,13 @@ import { checkInDue, checkInLine, mergeCovered } from "./session-goals.js";
 const min = (n: number) => n * 60_000;
 
 describe("checkInDue", () => {
+  it("ends the placement interview with its own question, and asks at 10 minutes", () => {
+    const all = ["warm_up", "routine", "past_work", "project", "opinion"];
+    expect(checkInDue({ coveredBefore: [], mode: "placement", covered: all, elapsedMs: min(4), lastCheckInMs: null })).toBe("placement_done");
+    expect(checkInLine("placement_done", "en")).toMatch(/see your level/);
+    expect(checkInDue({ coveredBefore: [], mode: "placement", covered: [], elapsedMs: min(10), lastCheckInMs: null })).toBe("time");
+  });
+
   it("asks once every goal of the mode is covered", () => {
     expect(checkInDue({ coveredBefore: [], mode: "daily", covered: ["yesterday", "today"], elapsedMs: min(3), lastCheckInMs: null })).toBeNull();
     expect(

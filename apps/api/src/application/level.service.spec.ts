@@ -5,6 +5,17 @@ import { LevelService } from "./level.service.js";
 
 class InMemoryLevels implements LevelRepository {
   readonly rows: SpeakingLevel[] = [];
+  readonly bySession = new Map<string, SpeakingLevel>();
+  async addForSession(sessionId: string, level: SpeakingLevel) {
+    const existing = this.bySession.get(sessionId);
+    if (existing) return existing;
+    this.bySession.set(sessionId, level);
+    this.rows.push(level);
+    return level;
+  }
+  async forSession(sessionId: string) {
+    return this.bySession.get(sessionId) ?? null;
+  }
   async add(level: SpeakingLevel) {
     this.rows.push(level);
   }

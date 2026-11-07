@@ -178,6 +178,15 @@ export const ALL_SCENARIOS: Scenario[] = [
       { utterance: "Yes, I pretend to finish it today.", expect: { kind: "hint", selfCorrected: false } },
     ],
   },
+  {
+    name: "placement: the interviewer only observes, never corrects",
+    rule: "The placement interview gives no hint, even for a mistake that changes the meaning; it keeps the talk going.",
+    mode: "placement",
+    turns: [
+      { utterance: "I am developer. I work in app for translate.", expect: { kind: "reply" } },
+      { utterance: "Yesterday I pretend to finish the export, but I no can.", expect: { kind: "reply" } },
+    ],
+  },
 ];
 
 /** The golden sessions: a quick check that the tutor works (hint and self-correction, new word, no false alarm). */
@@ -186,5 +195,6 @@ export const SCENARIOS: Scenario[] = ALL_SCENARIOS.filter((s) =>
     "serious mistake: hint, then the learner fixes it",
     "first-language word: a new word, not a mistake",
     "fluent utterance: nothing to correct",
+    "placement: the interviewer only observes, never corrects",
   ].includes(s.name),
 );
