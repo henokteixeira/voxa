@@ -51,6 +51,8 @@ export interface TurnResult {
   selfCorrected: boolean;
   /** Written help in the learner's first language, shown on screen only. */
   support: string | null;
+  /** On a hint: the learner's words that hold the mistake, so the screen can point at them. Never the correction. */
+  mistake: string | null;
   /** True when the tutor asked whether to stop or keep going. */
   checkIn: boolean;
   /** Goals of the mode the learner has covered so far. */
@@ -74,7 +76,7 @@ export interface SessionResume {
   goals: readonly string[];
   coveredGoals: string[];
   /** The serious mistake the conversation is paused on, without its correction (the hints must not give it away). */
-  hint: { hintsGiven: number; revealed: boolean } | null;
+  hint: { hintsGiven: number; revealed: boolean; mistake: string } | null;
 }
 
 export interface SessionSummary {
@@ -121,7 +123,7 @@ export class ConversationService {
       turns,
       goals: goalsFor(session.mode),
       coveredGoals: session.coveredGoals,
-      hint: pending ? { hintsGiven: pending.hintsGiven, revealed: pending.revealed } : null,
+      hint: pending ? { hintsGiven: pending.hintsGiven, revealed: pending.revealed, mistake: pending.original } : null,
     };
   }
 
@@ -160,6 +162,7 @@ export class ConversationService {
               message: reply,
               selfCorrected: false,
               support: null,
+              mistake: null,
               checkIn: false,
               coveredGoals: session.coveredGoals,
             });
@@ -255,6 +258,7 @@ export class ConversationService {
       message,
       selfCorrected: decision.selfCorrected,
       support: safeSupport(verdict.support, decision.nextPending?.correction),
+      mistake: decision.kind === "hint" ? (decision.nextPending?.original ?? null) : null,
       checkIn: checkIn !== null,
       coveredGoals,
     };

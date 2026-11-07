@@ -406,7 +406,13 @@ describe("ConversationService.respond", () => {
 
     const result = await service.respond(session.id, "I goed to the meeting");
 
-    expect(result).toMatchObject({ kind: "hint", message: "Think of 'go, ___, gone'.", selfCorrected: false, support: null });
+    expect(result).toMatchObject({
+      kind: "hint",
+      message: "Think of 'go, ___, gone'.",
+      selfCorrected: false,
+      support: null,
+      mistake: goed.original,
+    });
     expect(mistakes.events).toHaveLength(1);
   });
 
@@ -493,13 +499,22 @@ describe("ConversationService.respond: the reply first, the analysis after", () 
     const result = await service.respond(session.id, "I opened PR", onReply);
 
     expect(lines).toEqual([
-      { kind: "reply", message: "Nice. What happened next?", selfCorrected: false, support: null, checkIn: false, coveredGoals: [] },
+      {
+        kind: "reply",
+        message: "Nice. What happened next?",
+        selfCorrected: false,
+        support: null,
+        mistake: null,
+        checkIn: false,
+        coveredGoals: [],
+      },
     ]);
     expect(result).toEqual({
       kind: "reply",
       message: "",
       selfCorrected: false,
       support: "PR = pull request.",
+      mistake: null,
       checkIn: false,
       coveredGoals: ["yesterday"],
     });
@@ -708,7 +723,7 @@ describe("ConversationService.resume", () => {
       ],
       goals: ["yesterday", "today", "blockers"],
       coveredGoals: ["yesterday"],
-      hint: { hintsGiven: 1, revealed: false },
+      hint: { hintsGiven: 1, revealed: false, mistake: goed.original },
     });
     // The hints must not give the correction away.
     expect(JSON.stringify(resumed)).not.toContain(goed.correction);

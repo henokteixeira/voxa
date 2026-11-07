@@ -97,11 +97,12 @@ export function openVoiceSocket(
 }
 
 /** The fields of a tutor line the app uses; empty help and missing optional fields are left out. */
-function turnFields({ kind, selfCorrected, support, checkIn, coveredGoals }: Omit<TurnResult, "message">) {
+function turnFields({ kind, selfCorrected, support, mistake, checkIn, coveredGoals }: Omit<TurnResult, "message">) {
   return {
     kind,
     selfCorrected,
     ...(support ? { support } : {}),
+    ...(mistake ? { mistake } : {}),
     ...(checkIn !== undefined ? { checkIn } : {}),
     ...(coveredGoals !== undefined ? { coveredGoals } : {}),
   };

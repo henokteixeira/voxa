@@ -60,7 +60,7 @@ describe("openVoiceSocket", () => {
     fake.open();
     const wav = new ArrayBuffer(4);
     fake.receive({ type: "transcript", text: "I finish it" });
-    fake.receive({ type: "tutor", kind: "hint", message: "When?", selfCorrected: false, support: "Pense no passado." });
+    fake.receive({ type: "tutor", kind: "hint", message: "When?", selfCorrected: false, support: "Pense no passado.", mistake: "I finish" });
     fake.receive(wav);
     fake.receive({ type: "error", code: "voice_unavailable", message: "Down." });
     fake.receive({ type: "done" });
@@ -68,7 +68,13 @@ describe("openVoiceSocket", () => {
 
     expect(handlers.onOpen).toHaveBeenCalled();
     expect(handlers.onTranscript).toHaveBeenCalledWith("I finish it");
-    expect(handlers.onTutor).toHaveBeenCalledWith({ kind: "hint", message: "When?", selfCorrected: false, support: "Pense no passado." });
+    expect(handlers.onTutor).toHaveBeenCalledWith({
+      kind: "hint",
+      message: "When?",
+      selfCorrected: false,
+      support: "Pense no passado.",
+      mistake: "I finish",
+    });
     expect(handlers.onSpeech).toHaveBeenCalledWith(wav);
     expect(handlers.onError).toHaveBeenCalledWith("voice_unavailable", "Down.");
     expect(handlers.onDone).toHaveBeenCalledTimes(1);
@@ -84,9 +90,17 @@ describe("openVoiceSocket", () => {
   it("routes a follow-up after the reply, with or without a spoken line", () => {
     const { fake } = open();
     fake.open();
-    fake.receive({ type: "followup", kind: "hint", message: "When?", selfCorrected: false, support: "Passado.", checkIn: false, coveredGoals: [] });
-    fake.receive({ type: "followup", kind: "reply", message: null, selfCorrected: false, support: null, checkIn: false, coveredGoals: ["today"] });
-    expect(handlers.onFollowUp).toHaveBeenNthCalledWith(1, { kind: "hint", message: "When?", selfCorrected: false, support: "Passado.", checkIn: false, coveredGoals: [] });
+    fake.receive({ type: "followup", kind: "hint", message: "When?", selfCorrected: false, support: "Passado.", mistake: "I finish", checkIn: false, coveredGoals: [] });
+    fake.receive({ type: "followup", kind: "reply", message: null, selfCorrected: false, support: null, mistake: null, checkIn: false, coveredGoals: ["today"] });
+    expect(handlers.onFollowUp).toHaveBeenNthCalledWith(1, {
+      kind: "hint",
+      message: "When?",
+      selfCorrected: false,
+      support: "Passado.",
+      mistake: "I finish",
+      checkIn: false,
+      coveredGoals: [],
+    });
     expect(handlers.onFollowUp).toHaveBeenNthCalledWith(2, { kind: "reply", message: null, selfCorrected: false, checkIn: false, coveredGoals: ["today"] });
   });
 

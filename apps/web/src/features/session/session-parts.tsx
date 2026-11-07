@@ -69,16 +69,27 @@ export function LatestCaption({ caption, shown, onShow }: { caption: Caption; sh
   }
   // Hidden: a quiet link, not a card, so listening stays the focus.
   return (
-    <button
-      type="button"
+    <QuietLink
       onClick={() => {
         setTapped(true);
         onShow();
       }}
-      className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 self-center rounded-full border-none bg-transparent px-3 text-caption text-taupe transition-colors duration-150 hover:bg-sand-soft hover:text-ink"
     >
       <TextIcon />
       {parts.showTutorLine}
+    </QuietLink>
+  );
+}
+
+/** A small, discreet action under the voice ball: it is there when needed, without pulling the eye. */
+export function QuietLink({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 self-center rounded-full border-none bg-transparent px-3 text-caption text-taupe transition-colors duration-150 hover:bg-sand-soft hover:text-ink"
+    >
+      {children}
     </button>
   );
 }
@@ -103,12 +114,15 @@ export function HintCard({ step, said, tip, help }: { step: number; said: string
       </div>
       <section aria-label={parts.hintOf(step)} className="flex flex-col gap-2 rounded-md bg-honey-soft p-4">
         <span className="text-label text-honey-ink">{parts.hint}</span>
+        <p lang="en" className="m-0 text-phrase">{tip}</p>
         {said && (
-          <span lang="en" className="text-phrase">
-            “{said}”
+          <span className="flex flex-col gap-0.5">
+            <span className="text-caption text-taupe">{parts.youSaid}</span>
+            <mark lang="en" className="self-start rounded-[6px] bg-honey/35 px-1.5 py-0.5 text-small text-ink">
+              “{said}”
+            </mark>
           </span>
         )}
-        <p lang="en" className="m-0 text-body">{tip}</p>
         {help && <HelpLine text={help} divider="border-honey/30" />}
       </section>
     </>

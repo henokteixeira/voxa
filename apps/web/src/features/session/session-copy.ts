@@ -52,6 +52,7 @@ export interface SessionCopy {
     tutor: string;
     you: string;
     showTutorLine: string;
+    youSaid: string;
     hint: string;
     hintOf: (step: number) => string;
     correctForm: string;
@@ -210,6 +211,7 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       tutor: "Tutor",
       you: "You",
       showTutorLine: "Show what the tutor said",
+      youSaid: "What you said",
       hint: "Hint",
       hintOf: (step) => `Hint ${step} of 2`,
       correctForm: "The correct form",
@@ -256,6 +258,7 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       tutor: "Tutor",
       you: "Você",
       showTutorLine: "Ver o que o tutor disse",
+      youSaid: "O que você disse",
       hint: "Dica",
       hintOf: (step) => `Dica ${step} de 2`,
       correctForm: "A forma correta",

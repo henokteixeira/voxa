@@ -9,7 +9,7 @@ function run(...actions: SessionAction[]): SessionState {
 const started: SessionAction = { type: "started", sessionId: "s1", message: "Morning! What did you do yesterday?" };
 const hint = (message = "When did it happen?"): SessionAction => ({
   type: "tutor",
-  result: { kind: "hint", message, selfCorrected: false },
+  result: { kind: "hint", message, selfCorrected: false, mistake: "I finish it" },
 });
 
 describe("sessionReducer", () => {
@@ -19,7 +19,10 @@ describe("sessionReducer", () => {
       { type: "sent", request: "audio" },
       { type: "transcript", text: "Yesterday I finish it" },
       { type: "tutor", result: { kind: "reply", message: "Nice. What's next?", selfCorrected: false } },
-      { type: "followup", result: { kind: "hint", message: "When did it happen?", selfCorrected: false, support: "Pense no passado." } },
+      {
+        type: "followup",
+        result: { kind: "hint", message: "When did it happen?", selfCorrected: false, support: "Pense no passado.", mistake: "I finish it" },
+      },
     );
     expect(state.captions.map((c) => c.text)).toEqual([
       "Morning! What did you do yesterday?",
@@ -27,7 +30,7 @@ describe("sessionReducer", () => {
       "Nice. What's next?",
       "When did it happen?",
     ]);
-    expect(state).toMatchObject({ hintStep: 1, hintFor: "Yesterday I finish it", support: "Pense no passado." });
+    expect(state).toMatchObject({ hintStep: 1, hintFor: "I finish it", support: "Pense no passado." });
   });
 
   it("takes help and goals from a follow-up without a spoken line", () => {
@@ -66,9 +69,17 @@ describe("sessionReducer", () => {
     expect(state.hintStep).toBe(0);
   });
 
-  it("climbs the hint ladder and keeps the sentence the hint is about", () => {
+  it("shows no excerpt when the hint does not say which words it is about", () => {
+    const state = run(started, { type: "sent", request: "audio" }, { type: "transcript", text: "Yesterday I finish it" }, {
+      type: "tutor",
+      result: { kind: "hint", message: "When did it happen?", selfCorrected: false },
+    });
+    expect(state).toMatchObject({ hintStep: 1, hintFor: null });
+  });
+
+  it("climbs the hint ladder and keeps the words the hint is about", () => {
     let state = run(started, { type: "sent", request: "audio" }, { type: "transcript", text: "Yesterday I finish it" }, hint());
-    expect(state).toMatchObject({ hintStep: 1, hintFor: "Yesterday I finish it", revealed: false });
+    expect(state).toMatchObject({ hintStep: 1, hintFor: "I finish it", revealed: false });
 
     state = run(
       started,
@@ -79,7 +90,7 @@ describe("sessionReducer", () => {
       { type: "transcript", text: "Yesterday I finishing it" },
       hint("Past form of finish."),
     );
-    expect(state).toMatchObject({ hintStep: 2, hintFor: "Yesterday I finish it" });
+    expect(state).toMatchObject({ hintStep: 2, hintFor: "I finish it" });
 
     state = sessionReducer(state, { type: "tutor", result: { kind: "reveal", message: "Say: I finished it.", selfCorrected: false } });
     expect(state.revealed).toBe(true);
@@ -236,7 +247,7 @@ describe("sessionReducer", () => {
       ],
       goals: ["yesterday", "today"],
       coveredGoals: ["yesterday"],
-      hint: { hintsGiven: 1, revealed: false },
+      hint: { hintsGiven: 1, revealed: false, mistake: "I goed" },
     });
     expect(state).toMatchObject({
       phase: "paused",
@@ -244,7 +255,7 @@ describe("sessionReducer", () => {
       goals: ["yesterday", "today"],
       coveredGoals: ["yesterday"],
       hintStep: 1,
-      hintFor: "I goed to the meeting",
+      hintFor: "I goed",
       revealed: false,
     });
     expect(state.captions).toHaveLength(3);

@@ -22,7 +22,7 @@ export interface ResumedSession {
   goals: string[];
   coveredGoals: string[];
   /** The pending correction's hint step, without the correction. */
-  hint: { hintsGiven: number; revealed: boolean } | null;
+  hint: { hintsGiven: number; revealed: boolean; mistake?: string } | null;
 }
 
 export interface TurnResult {
@@ -31,6 +31,8 @@ export interface TurnResult {
   selfCorrected: boolean;
   /** Written help in the learner's first language, shown on screen and never spoken. */
   support?: string | null;
+  /** On a hint: the learner's words that hold the mistake (never the correction). */
+  mistake?: string | null;
   /** The tutor asked whether to stop or keep going. */
   checkIn?: boolean;
   /** Goals of the meeting covered so far. */
