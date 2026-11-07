@@ -1,4 +1,5 @@
-import { bigserial, boolean, integer, jsonb, pgTable, primaryKey, smallint, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { bigserial, boolean, check, index, integer, jsonb, pgTable, primaryKey, smallint, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import type { PendingCorrection, PracticeTarget } from "../../domain/conversation/types.js";
 
@@ -100,3 +101,53 @@ export const speakingLevels = pgTable("speaking_levels", {
     .unique()
     .references(() => sessions.id, { onDelete: "set null" }),
 });
+
+/** Every daily practice time the learner chose, per language. A day is judged by the newest choice made by its end. */
+export const dailyGoalSettings = pgTable(
+  "daily_goal_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    language: varchar("language", { length: 16 }).notNull(),
+    /** Insertion order. Timestamps can tie, so ordering never relies on them. */
+    seq: bigserial("seq", { mode: "number" }).notNull(),
+    minutesPerDay: smallint("minutes_per_day").notNull(),
+    setAt: timestamp("set_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [check("daily_goal_settings_minutes", sql`${t.minutesPerDay} in (15, 30, 45, 60)`)],
+);
+
+/** The XP of one ended session. Its primary key makes awarding happen once, even when two ends race. */
+export const sessionXp = pgTable(
+  "session_xp",
+  {
+    sessionId: uuid("session_id")
+      .primaryKey()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    language: varchar("language", { length: 16 }).notNull(),
+    total: integer("total").notNull(),
+    /** The session's pace, kept to find personal records; null when it was not measured. */
+    wordsPerMinute: integer("words_per_minute"),
+    awardedAt: timestamp("awarded_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("session_xp_language_awarded_at").on(t.language, t.awardedAt)],
+);
+
+/** What the session's XP is made of, one row per reason. */
+export const xpAwards = pgTable(
+  "xp_awards",
+  {
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => sessionXp.sessionId, { onDelete: "cascade" }),
+    reason: varchar("reason", { length: 32 }).notNull(),
+    count: integer("count").notNull(),
+    points: integer("points").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.sessionId, t.reason] }),
+    check(
+      "xp_awards_reason",
+      sql`${t.reason} in ('practice_minute', 'goal_covered', 'self_corrected', 'personal_record')`,
+    ),
+  ],
+);

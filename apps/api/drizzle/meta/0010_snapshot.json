@@ -1,9 +1,58 @@
 {
-  "id": "9cca199a-5d34-46d5-b0d8-544d2516e1a7",
+  "id": "359e478d-8a5e-4472-8a08-544b896f908e",
   "prevId": "d8e3fd5e-094e-4e33-bb3a-20fbb3267197",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.daily_goal_settings": {
+      "name": "daily_goal_settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "language": {
+          "name": "language",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "seq": {
+          "name": "seq",
+          "type": "bigserial",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "minutes_per_day": {
+          "name": "minutes_per_day",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "set_at": {
+          "name": "set_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "daily_goal_settings_minutes": {
+          "name": "daily_goal_settings_minutes",
+          "value": "\"daily_goal_settings\".\"minutes_per_day\" in (15, 30, 45, 60)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.mistake_correct_uses": {
       "name": "mistake_correct_uses",
       "schema": "",
@@ -238,6 +287,85 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.session_xp": {
+      "name": "session_xp",
+      "schema": "",
+      "columns": {
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "language": {
+          "name": "language",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total": {
+          "name": "total",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "words_per_minute": {
+          "name": "words_per_minute",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "awarded_at": {
+          "name": "awarded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "session_xp_language_awarded_at": {
+          "name": "session_xp_language_awarded_at",
+          "columns": [
+            {
+              "expression": "language",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "awarded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "session_xp_session_id_sessions_id_fk": {
+          "name": "session_xp_session_id_sessions_id_fk",
+          "tableFrom": "session_xp",
+          "tableTo": "sessions",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.sessions": {
       "name": "sessions",
       "schema": "",
@@ -324,18 +452,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'[]'::jsonb"
-        },
-        "support_step": {
-          "name": "support_step",
-          "type": "varchar(16)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "scaffold": {
-          "name": "scaffold",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
@@ -466,13 +582,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "assisted": {
-          "name": "assisted",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -501,6 +610,70 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.xp_awards": {
+      "name": "xp_awards",
+      "schema": "",
+      "columns": {
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "count": {
+          "name": "count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "points": {
+          "name": "points",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "xp_awards_session_id_session_xp_session_id_fk": {
+          "name": "xp_awards_session_id_session_xp_session_id_fk",
+          "tableFrom": "xp_awards",
+          "tableTo": "session_xp",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "columnsTo": [
+            "session_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "xp_awards_session_id_reason_pk": {
+          "name": "xp_awards_session_id_reason_pk",
+          "columns": [
+            "session_id",
+            "reason"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "xp_awards_reason": {
+          "name": "xp_awards_reason",
+          "value": "\"xp_awards\".\"reason\" in ('practice_minute', 'goal_covered', 'self_corrected', 'personal_record')"
+        }
+      },
       "isRLSEnabled": false
     }
   },

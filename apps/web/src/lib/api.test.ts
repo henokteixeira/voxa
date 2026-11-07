@@ -122,6 +122,20 @@ describe("createApiClient", () => {
     expect(error).toMatchObject({ kind, status, message: "Nope." });
   });
 
+  it("reads today's progress in the device's time zone and sets the minutes a day", async () => {
+    const fetchImpl = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ earnedXp: 12 }), { status: 200 }));
+    const api = createApiClient("http://api", fetchImpl);
+
+    await expect(api.todayProgress("en", "America/Sao_Paulo")).resolves.toMatchObject({ earnedXp: 12 });
+    expect(fetchImpl.mock.calls[0][0]).toBe("http://api/api/progress/today?language=en&timeZone=America%2FSao_Paulo");
+
+    await api.setDailyMinutes(45, "en", "UTC");
+    const [url, init] = fetchImpl.mock.calls[1];
+    expect(url).toBe("http://api/api/progress/daily-goal");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body)).toEqual({ language: "en", timeZone: "UTC", minutesPerDay: 45 });
+  });
+
   it("reports offline when the server can't be reached", async () => {
     const api = createApiClient("http://api", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
     await expect(api.health()).rejects.toMatchObject({ kind: "offline" });
