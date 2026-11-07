@@ -18,11 +18,19 @@ export function MistakesPage(props: { now?: Date }) {
   const [mistakes, setMistakes] = useState<BankMistake[] | "loading" | "failed">("loading");
   const [attempt, setAttempt] = useState(0);
   const [status, setStatus] = useState<MistakeStatus>("open");
+  // Phones: the mistake open in the sheet. Wide screens: the id shown beside the list.
   const [selected, setSelected] = useState<BankMistake | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [removed, setRemoved] = useState(false);
   const copy = useCopy(MISTAKES_COPY);
   const status_ = useCopy(STATUS_LABEL);
   const { locale } = useLocale();
   const wide = useMediaQuery(WIDE);
+
+  // A sheet opened on a narrow window doesn't survive widening (the panel takes over).
+  useEffect(() => {
+    if (wide) setSelected(null);
+  }, [wide]);
 
   useEffect(() => {
     let active = true;
@@ -84,10 +92,17 @@ export function MistakesPage(props: { now?: Date }) {
 
   const shown = mistakes.filter((m) => m.status === status);
   // Wide screens show one mistake beside the list: the picked one, else the first.
-  const detail = wide ? (shown.find((m) => m.id === selected?.id) ?? shown[0] ?? null) : null;
+  const detail = wide ? (shown.find((m) => m.id === picked) ?? shown[0] ?? null) : null;
   const dismissed = (id: string) => {
-    setSelected(null);
-    setMistakes(mistakes.filter((m) => m.id !== id));
+    setSelected((s) => (s?.id === id ? null : s));
+    setPicked((p) => (p === id ? null : p));
+    setMistakes((list) => (Array.isArray(list) ? list.filter((m) => m.id !== id) : list));
+    setRemoved(true);
+  };
+  const pick = (m: BankMistake) => {
+    setRemoved(false);
+    if (wide) setPicked(m.id);
+    else setSelected(m);
   };
   return (
     <>
@@ -98,7 +113,10 @@ export function MistakesPage(props: { now?: Date }) {
             key={s}
             type="button"
             aria-pressed={s === status}
-            onClick={() => setStatus(s)}
+            onClick={() => {
+              setRemoved(false);
+              setStatus(s);
+            }}
             className="min-h-10 cursor-pointer rounded-pill border-none bg-transparent font-sans text-[13px] font-bold text-taupe transition-[background-color,color,box-shadow] duration-200 hover:text-ink aria-pressed:bg-paper aria-pressed:text-ink aria-pressed:shadow-tab"
           >
             {status_[s]} · {mistakes.filter((m) => m.status === s).length}
@@ -116,8 +134,9 @@ export function MistakesPage(props: { now?: Date }) {
               <li key={m.id}>
                 <button
                   type="button"
-                  onClick={() => setSelected(m)}
+                  onClick={() => pick(m)}
                   aria-current={detail?.id === m.id || undefined}
+                  aria-controls={wide ? "mistake-detail" : undefined}
                   className="flex w-full cursor-pointer flex-col gap-2 rounded-md border-none bg-paper p-[18px] text-left font-sans text-ink shadow-card transition-[transform,box-shadow] duration-150 hover:shadow-[0_1px_0_var(--color-sand),0_6px_16px_-10px_rgba(46,37,32,0.25)] motion-safe:active:scale-[0.98] aria-[current]:shadow-[inset_0_0_0_2px_var(--color-ink)]"
                 >
                   <span className="flex justify-between gap-2">
@@ -138,12 +157,15 @@ export function MistakesPage(props: { now?: Date }) {
           </ul>
         </div>
         {detail && (
-          <div className="sticky top-0">
-            <MistakePanel key={detail.id} mistake={detail} onDismissed={dismissed} />
+          <div className="sticky top-0 max-h-dvh overflow-y-auto overscroll-contain pb-5">
+            <MistakePanel key={detail.id} mistake={detail} onDismissed={dismissed} takeFocus={removed} />
           </div>
         )}
       </div>
 
+      <p role="status" className="sr-only">
+        {removed ? copy.removed : ""}
+      </p>
       {selected && !wide && <MistakeSheet mistake={selected} onClose={() => setSelected(null)} onDismissed={dismissed} />}
     </>
   );

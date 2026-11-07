@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { useApi } from "@/hooks/use-api";
@@ -26,6 +26,19 @@ function useMistakeDetail(mistake: BankMistake, onDismissed: (id: string) => voi
   const statusLabel = useCopy(STATUS_CHIP_LABEL);
   const { locale } = useLocale();
   const newWord = mistake.category === NEW_WORD_CATEGORY;
+  const whyHeading = useRef<HTMLHeadingElement>(null);
+  // A dismiss still saving when this mistake is no longer shown must not touch the next one.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  // The button that started the question is gone: keep focus on the question.
+  useEffect(() => {
+    if (asking) whyHeading.current?.focus();
+  }, [asking]);
 
   async function remove() {
     if (!reason) return;
@@ -34,14 +47,16 @@ function useMistakeDetail(mistake: BankMistake, onDismissed: (id: string) => voi
       await api.dismissMistake(mistake.id, reason);
       onDismissed(mistake.id);
     } catch {
-      setState("failed");
+      if (mounted.current) setState("failed");
     }
   }
 
   const label = asking ? copy.whyNot : newWord ? categoryLabel(mistake.category, locale) : copy.mistake;
   const content = asking ? (
     <>
-      <h2 className="m-0 font-serif text-2xl font-normal">{copy.whyNot}</h2>
+      <h2 ref={whyHeading} tabIndex={-1} className="m-0 font-serif text-2xl font-normal outline-none">
+        {copy.whyNot}
+      </h2>
       {REASONS.map((r) => (
         <button
           key={r}
@@ -118,10 +133,29 @@ export function MistakeSheet({
 }
 
 /** Wide screens: the mistake beside the list (key it by id so each mistake starts fresh). */
-export function MistakePanel({ mistake, onDismissed }: { mistake: BankMistake; onDismissed: (id: string) => void }) {
+export function MistakePanel({
+  mistake,
+  onDismissed,
+  takeFocus = false,
+}: {
+  mistake: BankMistake;
+  onDismissed: (id: string) => void;
+  /** Focus the panel when it appears (after the previous mistake was removed). */
+  takeFocus?: boolean;
+}) {
   const { label, content } = useMistakeDetail(mistake, onDismissed);
+  const panel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (takeFocus) panel.current?.focus();
+  }, [takeFocus]);
   return (
-    <section aria-label={label} className="vx-page-in flex flex-col gap-3 rounded-lg bg-paper p-6 shadow-card">
+    <section
+      ref={panel}
+      id="mistake-detail"
+      tabIndex={-1}
+      aria-label={label}
+      className="vx-page-in flex flex-col gap-3 rounded-lg bg-paper p-6 shadow-card outline-none"
+    >
       {content}
     </section>
   );
