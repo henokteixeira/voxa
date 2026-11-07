@@ -1,9 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#F6F1EA"/>
-  <circle cx="256" cy="256" r="168" fill="#F2A57E"/>
-  <g fill="#2E2520">
-    <ellipse cx="216" cy="246" rx="16" ry="20"/>
-    <ellipse cx="296" cy="246" rx="16" ry="20"/>
+  <!-- Transparent background: the ball alone, like other browser tab icons. -->
+  <g transform="translate(256 256) scale(1.45) translate(-256 -256)">
+    <circle cx="256" cy="256" r="168" fill="#F2A57E"/>
+    <g fill="#2E2520">
+      <ellipse cx="216" cy="246" rx="16" ry="20"/>
+      <ellipse cx="296" cy="246" rx="16" ry="20"/>
+    </g>
+    <path d="M226 312 q30 22 60 0" fill="none" stroke="#2E2520" stroke-width="11" stroke-linecap="round"/>
   </g>
-  <path d="M226 312 q30 22 60 0" fill="none" stroke="#2E2520" stroke-width="11" stroke-linecap="round"/>
 </svg>
