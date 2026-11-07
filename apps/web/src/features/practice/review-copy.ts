@@ -17,6 +17,7 @@ export interface ReviewCopy {
   next: string;
   finish: string;
   failed: string;
+  answerFailed: string;
   retry: string;
   skip: string;
 }
@@ -38,6 +39,7 @@ export const REVIEW_COPY: Copy<ReviewCopy> = {
     next: "Next",
     finish: "Finish",
     failed: "Couldn't load this one.",
+    answerFailed: "Couldn't check that answer. Try again.",
     retry: "Try again",
     skip: "Skip",
   },
@@ -57,6 +59,7 @@ export const REVIEW_COPY: Copy<ReviewCopy> = {
     next: "Próximo",
     finish: "Concluir",
     failed: "Não deu para carregar este.",
+    answerFailed: "Não deu para conferir essa resposta. Tente de novo.",
     retry: "Tentar de novo",
     skip: "Pular",
   },

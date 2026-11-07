@@ -711,7 +711,7 @@ describe("session summary", () => {
     await userEvent.type(screen.getByLabelText("Your answer"), "Yesterday I finished it{Enter}");
     expect(api.reviewCard).toHaveBeenCalledWith({ kind: "pattern", id: "p1" });
     expect(api.answerReview).toHaveBeenCalledWith("c1", "Yesterday I finished it");
-    expect(await screen.findByText("That's it")).toBeInTheDocument();
+    expect(await screen.findByRole("status")).toHaveTextContent("That's it");
     expect(screen.getByRole("region", { name: "You said" })).toHaveTextContent(`Yesterday I finished it${past.name}. ${past.rule}`);
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
 
@@ -727,6 +727,20 @@ describe("session summary", () => {
       `${past.name}in 3 days`,
       `${waitFor.name}tomorrow`,
     ]);
+  });
+
+  it("says when an answer can't be checked, and keeps the question", async () => {
+    api.endSession.mockResolvedValue(summaryWith(patterned, { takeaways: takeaways.slice(0, 1) }));
+    api.reviewCard.mockResolvedValue({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, name: past.name }, cue: "Eu terminei ontem." });
+    api.answerReview.mockRejectedValueOnce(new Error("offline"));
+    await startAndListen();
+    await endFromPause();
+    await userEvent.click(await screen.findByRole("button", { name: "See what to keep" }));
+    await userEvent.click(screen.getByRole("button", { name: "Try them · 1 min" }));
+    await userEvent.click(await screen.findByRole("button", { name: "I don't know, show me" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't check that answer. Try again.");
+    expect(screen.getByText("“Eu terminei ontem.”")).toBeInTheDocument();
   });
 
   it("offers to try again when a cue can't be loaded", async () => {

@@ -19,7 +19,7 @@ export interface ReviewResult {
 type Step =
   | { kind: "loading" }
   | { kind: "failed" }
-  | { kind: "asking"; card: ReviewCard }
+  | { kind: "asking"; card: ReviewCard; failed?: boolean }
   | { kind: "checking"; card: ReviewCard }
   | { kind: "answered"; card: ReviewCard; said: string | null; answer: ReviewAnswer };
 
@@ -64,7 +64,7 @@ export function ReviewRun({ subjects, onDone }: { subjects: ReviewSubject[]; onD
       setResults((r) => [...r, { subject: card.item.subject, name: card.item.name, recalled: result.recalled, nextDueAt: result.nextDueAt }]);
       setStep({ kind: "answered", card, said, answer: result });
     } catch {
-      setStep({ kind: "asking", card });
+      setStep({ kind: "asking", card, failed: true });
     }
   }
 
@@ -87,8 +87,10 @@ export function ReviewRun({ subjects, onDone }: { subjects: ReviewSubject[]; onD
         <button
           type="button"
           aria-label={copy.close}
+          // An answer being checked is saved on the server: wait for it, so it is listed too.
+          disabled={step.kind === "checking"}
           onClick={() => onDone(results)}
-          className="inline-flex size-11 cursor-pointer items-center justify-center rounded-full border-none bg-paper text-ink shadow-card"
+          className="inline-flex disabled:opacity-40 size-11 cursor-pointer items-center justify-center rounded-full border-none bg-paper text-ink shadow-card"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
             <path d="M6 6l12 12M18 6L6 18" />
@@ -157,6 +159,11 @@ export function ReviewRun({ subjects, onDone }: { subjects: ReviewSubject[]; onD
               {step.kind === "checking" ? copy.checking : copy.check}
             </Button>
           </form>
+          {step.kind === "asking" && step.failed && (
+            <p role="alert" className="m-0 text-center text-caption text-honey-ink">
+              {copy.answerFailed}
+            </p>
+          )}
           <Button variant="ghost" block disabled={step.kind === "checking"} onClick={() => void answer(step.card, null)}>
             {copy.dontKnow}
           </Button>
@@ -167,7 +174,7 @@ export function ReviewRun({ subjects, onDone }: { subjects: ReviewSubject[]; onD
         <>
           <div className="flex flex-1 flex-col items-center justify-center gap-3">
             <VoiceBall state={step.answer.recalled ? "success" : "hint"} size={140} />
-            <span className={cn("text-label", step.answer.recalled ? "text-sage-ink" : "text-honey-ink")}>
+            <span role="status" className={cn("text-label", step.answer.recalled ? "text-sage-ink" : "text-honey-ink")}>
               {step.answer.recalled ? copy.gotIt : copy.almost}
             </span>
           </div>
