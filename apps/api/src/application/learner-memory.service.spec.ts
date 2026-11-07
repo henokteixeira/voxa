@@ -63,14 +63,26 @@ describe("LearnerMemoryService", () => {
     expect(await memory.remembered(session.id)).toBe(false);
   });
 
-  it("leaves the session unremembered when Claude fails, so a later end retries", async () => {
-    vi.spyOn(Logger.prototype, "error").mockImplementation(() => {});
+  it("logs a failure, leaves the session unremembered, and a sweep picks it up", async () => {
+    const error = vi.spyOn(Logger.prototype, "error").mockImplementation(() => {});
     const session = await endedSession("I am developer.");
     extract.mockRejectedValueOnce(new Error("down"));
-    await expect(service.remember(session.id)).rejects.toThrow("down");
+
+    await expect(service.rememberLater(session.id)).resolves.toBeUndefined();
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("down"), expect.anything());
     expect(await memory.remembered(session.id)).toBe(false);
 
-    await service.remember(session.id);
+    await service.sweep();
     expect(await memory.facts()).toHaveLength(1);
+    expect(await memory.unremembered(5)).toEqual([]);
+  });
+
+  it("runs one session at a time: two ends at once call Claude once, and a run sees the facts the one before saved", async () => {
+    const first = await endedSession("I am developer.");
+    const second = await endedSession("I live in Brazil.");
+    await Promise.all([service.rememberLater(first.id), service.rememberLater(first.id), service.rememberLater(second.id)]);
+
+    expect(extract).toHaveBeenCalledTimes(2);
+    expect(extract.mock.calls[1][0].known.map((f) => f.statement)).toEqual(["Works as a developer."]);
   });
 });

@@ -15,6 +15,16 @@ export class DrizzleLearnerMemoryRepository implements LearnerMemoryRepository {
     return rows.map(toFact);
   }
 
+  async unremembered(limit: number): Promise<string[]> {
+    const rows = await this.db
+      .select({ id: sessions.id })
+      .from(sessions)
+      .where(and(isNotNull(sessions.endedAt), isNull(sessions.rememberedAt)))
+      .orderBy(asc(sessions.endedAt))
+      .limit(limit);
+    return rows.map((r) => r.id);
+  }
+
   async remembered(sessionId: string): Promise<boolean> {
     const [row] = await this.db
       .select({ rememberedAt: sessions.rememberedAt })
@@ -36,7 +46,7 @@ export class DrizzleLearnerMemoryRepository implements LearnerMemoryRepository {
       for (const { id, statement } of memory.updated) {
         await tx
           .update(learnerFacts)
-          .set({ statement, sourceSessionId: sessionId, updatedAt: at })
+          .set({ statement, language, sourceSessionId: sessionId, updatedAt: at })
           .where(eq(learnerFacts.id, id));
       }
       if (memory.added.length) {

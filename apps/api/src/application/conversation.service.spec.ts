@@ -301,7 +301,7 @@ let clock: FakeClock;
 let bankEntries: BankEntry[];
 let levels: FakeLevels;
 let assessor: FakeAssessor;
-let memory: { rememberLater: ReturnType<typeof vi.fn> };
+let memory: { rememberLater: ReturnType<typeof vi.fn>; sweep: ReturnType<typeof vi.fn> };
 
 beforeEach(() => {
   tutor = new FakeTutor();
@@ -313,11 +313,16 @@ beforeEach(() => {
   levels = new FakeLevels();
   assessor = new FakeAssessor();
   reviews = new FakeReviews();
-  memory = { rememberLater: vi.fn() };
+  memory = { rememberLater: vi.fn().mockResolvedValue(undefined), sweep: vi.fn().mockResolvedValue(undefined) };
   service = new ConversationService(tutor, sessions, mistakes, learnerContext, bank, clock, assessor, levels, new ReviewScheduler(reviews), memory as unknown as LearnerMemoryService);
 });
 
 describe("ConversationService.start", () => {
+  it("picks up sessions left unremembered", async () => {
+    await service.start("daily", "en");
+    expect(memory.sweep).toHaveBeenCalledTimes(1);
+  });
+
   it("opens the scene for the mode with the learner's context and saves the first line", async () => {
     const { session, message } = await service.start("presentation", "en");
 
@@ -1001,10 +1006,20 @@ describe("ConversationService: the guided track (A1–A2)", () => {
 });
 
 describe("ConversationService.end", () => {
-  it("asks for the ended session to be remembered", async () => {
+  it("asks for the ended session to be remembered, placement included", async () => {
     const { session } = await service.start("free_talk", "en");
     await service.end(session.id);
     expect(memory.rememberLater).toHaveBeenCalledWith(session.id);
+
+    const { session: placement } = await service.start("placement", "en");
+    await service.end(placement.id);
+    expect(memory.rememberLater).toHaveBeenCalledWith(placement.id);
+  });
+
+  it("does not wait for the memory to be saved", async () => {
+    memory.rememberLater.mockReturnValue(new Promise(() => {}));
+    const { session } = await service.start("free_talk", "en");
+    await expect(service.end(session.id)).resolves.toEqual(expect.objectContaining({ sessionId: session.id }));
   });
 
   it("ends the session and summarizes its mistakes and self-corrections", async () => {

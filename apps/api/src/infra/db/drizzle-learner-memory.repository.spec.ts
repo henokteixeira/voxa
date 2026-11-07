@@ -36,9 +36,19 @@ describe("DrizzleLearnerMemoryRepository", () => {
     expect(await memory.facts()).toEqual([
       expect.objectContaining({ topic: "life", statement: "Lives in Brazil.", language: "en", sourceSessionId: session.id, learnedAt: at }),
     ]);
-    // A second end (a retry, or two at once) adds nothing.
+    // A second save adds nothing.
     expect(await memory.save(session.id, "en", { recap: "Other.", added: [{ topic: "life", statement: "X." }], updated: [] }, at)).toBe(false);
     expect(await memory.facts()).toHaveLength(1);
+  });
+
+  it("lists ended sessions not remembered yet", async () => {
+    const going = await sessions.create({ language: "en", mode: "daily" });
+    const ended = await sessions.create({ language: "en", mode: "daily" });
+    await sessions.end(ended.id, null);
+    expect(await memory.unremembered(5)).toEqual([ended.id]);
+    await memory.save(ended.id, "en", { recap: null, added: [], updated: [] }, at);
+    expect(await memory.unremembered(5)).toEqual([]);
+    expect(going.endedAt).toBeNull();
   });
 
   it("replaces a fact the learner changed, keeping when it was first learned", async () => {
@@ -47,10 +57,10 @@ describe("DrizzleLearnerMemoryRepository", () => {
     const [fact] = await memory.facts();
 
     const second = await sessions.create({ language: "en", mode: "daily" });
-    await memory.save(second.id, "en", { recap: null, added: [], updated: [{ id: fact.id, statement: "Moved to the Voxa project." }] }, later);
+    await memory.save(second.id, "es", { recap: null, added: [], updated: [{ id: fact.id, statement: "Moved to the Voxa project." }] }, later);
 
     expect(await memory.facts()).toEqual([
-      { ...fact, statement: "Moved to the Voxa project.", sourceSessionId: second.id, updatedAt: later },
+      { ...fact, statement: "Moved to the Voxa project.", language: "es", sourceSessionId: second.id, updatedAt: later },
     ]);
   });
 

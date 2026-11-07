@@ -4,6 +4,8 @@ import type { LearnerFact, RecalledSession, SessionMemory } from "../memory/lear
 export interface LearnerMemoryRepository {
   /** Every fact, oldest first. */
   facts(): Promise<LearnerFact[]>;
+  /** Ended sessions whose memory was not saved yet (a failed or interrupted run), oldest first. */
+  unremembered(limit: number): Promise<string[]>;
   /** True once the session's memory was saved (also when it taught nothing). */
   remembered(sessionId: string): Promise<boolean>;
   /**

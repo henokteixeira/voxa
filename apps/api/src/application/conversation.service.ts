@@ -152,6 +152,8 @@ export class ConversationService {
   ) {}
 
   async start(mode: Mode, language: string): Promise<SessionStart> {
+    // Picks up sessions a failed or interrupted run left unremembered, in the background.
+    void this.memory.sweep();
     const [targets, level] = await Promise.all([
       correctsMistakes(mode)
         ? Promise.all([this.bank.list(language), this.reviews.duePatterns(language, this.clock.now())]).then(([bank, due]) =>
@@ -373,8 +375,8 @@ export class ConversationService {
       level = (await this.levels.forSession(sessionId)) ?? (session.endedAt ? null : await this.assessPlacement(session, history));
     }
     if (!session.endedAt) await this.sessions.end(sessionId, timing);
-    // Off the summary's path; it saves once, so ending again only retries a failed run.
-    this.memory.rememberLater(sessionId);
+    // Off the summary's path. It saves once, so ending again does not add anything twice.
+    void this.memory.rememberLater(sessionId);
     const [mistakes, outcome] = await Promise.all([
       this.mistakes.forSession(sessionId),
       this.sessions.outcome(sessionId),
