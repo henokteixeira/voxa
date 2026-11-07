@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { Pool } from "pg";
+import type { Env } from "../../config/env.js";
 import * as schema from "./schema.js";
 
 /** Any Postgres driver (node-postgres in the app, PGlite in tests). */
@@ -15,8 +16,8 @@ export const DATABASE = Symbol("DATABASE");
     {
       provide: DATABASE,
       inject: [ConfigService],
-      useFactory: (config: ConfigService): Database =>
-        drizzle(new Pool({ connectionString: config.getOrThrow<string>("DATABASE_URL") }), { schema }),
+      useFactory: (config: ConfigService<Env, true>): Database =>
+        drizzle(new Pool({ connectionString: config.get("DATABASE_URL", { infer: true }) }), { schema }),
     },
   ],
   exports: [DATABASE],

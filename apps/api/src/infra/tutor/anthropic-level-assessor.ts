@@ -1,6 +1,7 @@
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import type { Env } from "../../config/env.js";
 import { z } from "zod";
 import type { ChatTurn } from "../../domain/conversation/types.js";
 import { CEFR_LEVELS } from "../../domain/level/speaking-level.js";
@@ -37,9 +38,9 @@ export class AnthropicLevelAssessor implements LevelAssessorPort {
 
   constructor(
     @Inject(ANTHROPIC_CLIENT) private readonly messages: AnthropicMessages,
-    config: ConfigService,
+    config: ConfigService<Env, true>,
   ) {
-    this.model = config.get<string>("ANTHROPIC_MODEL") ?? "claude-opus-5-5";
+    this.model = config.get("ANTHROPIC_MODEL", { infer: true });
   }
 
   async assess({ language, turns }: { language: string; turns: ChatTurn[] }): Promise<LevelAssessment> {

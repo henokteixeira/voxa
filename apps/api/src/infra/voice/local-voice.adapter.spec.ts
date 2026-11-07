@@ -1,10 +1,9 @@
-import { ConfigService } from "@nestjs/config";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { testConfig } from "../../config/testing.js";
 import { VoiceRequestError, VoiceUnavailableError } from "../../domain/ports/voice.port.js";
 import { LocalVoiceAdapter } from "./local-voice.adapter.js";
 
-const config = (values: Record<string, string> = {}) =>
-  new ConfigService({ VOICE_SERVICE_URL: "http://voice.test", ...values });
+const config = (values: Record<string, string> = {}) => testConfig({ VOICE_SERVICE_URL: "http://voice.test", ...values });
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });

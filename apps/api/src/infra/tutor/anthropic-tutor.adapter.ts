@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import type { Env } from "../../config/env.js";
 import { z } from "zod";
 import type { TutorVerdict } from "../../domain/conversation/correction-policy.js";
 import {
@@ -64,7 +65,7 @@ export function leadingReply(partialJson: string): string | null {
   }
 }
 
-type Effort = "low" | "medium" | "high";
+type Effort = Env["ANTHROPIC_EFFORT"];
 
 /**
  * The saved turns, with a cache breakpoint on the last one. They are sent the same way on every turn, so the
@@ -89,13 +90,12 @@ export class AnthropicTutorAdapter implements TutorPort {
 
   constructor(
     @Inject(ANTHROPIC_CLIENT) private readonly messages: AnthropicMessages,
-    config: ConfigService,
+    config: ConfigService<Env, true>,
   ) {
-    this.model = config.get<string>("ANTHROPIC_MODEL") ?? "claude-opus-5-5";
-    const effort = config.get<string>("ANTHROPIC_EFFORT");
-    // Low effort keeps spoken turns fast; raise it if the tutor misses mistakes.
-    this.effort = effort === "medium" || effort === "high" ? effort : "low";
-    this.firstLanguage = config.get<string>("LEARNER_FIRST_LANGUAGE") || "pt-BR";
+    this.model = config.get("ANTHROPIC_MODEL", { infer: true });
+    // Low effort (the default) keeps spoken turns fast; raise it if the tutor misses mistakes.
+    this.effort = config.get("ANTHROPIC_EFFORT", { infer: true });
+    this.firstLanguage = config.get("LEARNER_FIRST_LANGUAGE", { infer: true });
   }
 
   async open(context: TutorContext, plan: TrackPlan | null = null): Promise<TutorOpening> {
