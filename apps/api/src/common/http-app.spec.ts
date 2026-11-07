@@ -52,12 +52,12 @@ describe("error answers", () => {
   });
 
   it("keeps provider details out of the answer and in the logs", async () => {
-    const warn = vi.spyOn(Logger.prototype, "warn");
+    const logged = vi.spyOn(Logger.prototype, "error");
     const res = await request(app.getHttpServer()).get("/probe/tutor");
     expect(res.status).toBe(502);
     expect(res.body).toMatchObject({ code: "tutor_unavailable", message: "The tutor is not available right now." });
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("529 overloaded"));
-    warn.mockRestore();
+    await vi.waitFor(() => expect(logged).toHaveBeenCalledWith(expect.stringMatching(/GET \/probe\/tutor 502 .*529 overloaded/)));
+    logged.mockRestore();
   });
 
   it("answers a bug as a generic 500", async () => {

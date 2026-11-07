@@ -1,7 +1,7 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, HttpStatus, Logger } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { DomainError, type ErrorCode } from "../domain/errors.js";
-import { requestIdOf } from "./request-context.js";
+import { requestIdOf, setErrorDetail } from "./request-context.js";
 
 /** Every error the API answers has this body. `code` is what clients branch on. */
 export interface ApiErrorBody {
@@ -37,7 +37,7 @@ function httpMessage(error: HttpException): string {
 
 /**
  * The single place that turns errors into HTTP answers and logs them.
- * Expected failures keep their public message; anything else is a bug, logged with its stack and
+ * Expected failures keep their public message and add their internal detail to the access log line; anything else is a bug, logged with its stack and
  * answered as a generic 500 so no internals leak.
  */
 @Catch()
@@ -54,10 +54,12 @@ export class ApiExceptionFilter implements ExceptionFilter {
     let body: ApiErrorBody;
     if (error instanceof DomainError) {
       body = { statusCode: STATUS[error.code], code: error.code, message: error.publicMessage, requestId };
-      if (body.statusCode >= 500) this.logger.warn(`${where} ${error.name}: ${error.message}${causeOf(error)}`);
+      // Expected: the access log line carries the detail, no stack needed.
+      setErrorDetail(res, `${error.name}: ${error.message}${causeOf(error)}`);
     } else if (error instanceof HttpException) {
       const statusCode = error.getStatus();
       body = { statusCode, code: codeForStatus(statusCode), message: httpMessage(error), requestId };
+      setErrorDetail(res, body.message);
       if (statusCode >= 500) this.logger.error(`${where} ${error.message}`, error.stack);
     } else {
       body = { statusCode: 500, code: "internal", message: "Something went wrong.", requestId };

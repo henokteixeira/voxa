@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DomainError } from "../domain/errors.js";
 import { fillerLinesFor } from "../domain/conversation/fillers.js";
-import { TTS_PORT, type TextToSpeechPort } from "../domain/ports/voice.port.js";
+import { TTS_PORT, type TextToSpeechPort, VoiceRequestError } from "../domain/ports/voice.port.js";
 
 export class FillerNotFoundError extends DomainError {
   readonly code = "not_found";
@@ -33,7 +33,13 @@ export class FillerSpeechService {
     let speech = this.cache.get(key);
     if (!speech) {
       if (this.cache.size >= MAX_CACHED) this.cache.clear();
-      speech = this.tts.synthesize(line, language);
+      speech = this.tts.synthesize(line, language).catch((error: unknown) => {
+        // The lines are ours: the engine rejecting one is a bug, not bad input from the learner.
+        if (error instanceof VoiceRequestError) {
+          throw new Error(`The voice engine rejected filler ${index} for ${language}: ${error.message}`, { cause: error });
+        }
+        throw error;
+      });
       this.cache.set(key, speech);
       speech.catch(() => this.cache.delete(key));
     }
