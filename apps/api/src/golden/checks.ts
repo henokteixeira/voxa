@@ -1,13 +1,18 @@
+import { sameText } from "../application/conversation.service.js";
 import { isSerious } from "../domain/conversation/correction-policy.js";
 import type { TurnRecord } from "./run-scenario.js";
 import type { TurnExpectation } from "./scenarios.js";
 
-const MARKDOWN = /[*#`]|^\s*([-•]|\d+[.)])\s/m;
+const MARKDOWN = /[*`]|^\s*(#+|[-•]|\d+[.)])\s/m;
 const EMOJI = /\p{Extended_Pictographic}/u;
-/** Words that grade the learner. The tutor never says a sentence was wrong. */
-const JUDGING = /\b(wrong|incorrect|error)\b/i;
+/** Phrases that grade the learner's words. Talk about bugs ("what went wrong?") is fine. */
+const JUDGING =
+  /\b(that|this|your) (sentence |answer |phrase )?(was|is|'s) (wrong|incorrect|bad|not right)\b|\byou made an? (error|mistake)\b/i;
 
-const contains = (text: string, part: string) => text.toLowerCase().includes(part.trim().toLowerCase());
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Whole-word match, so a one-word correction like "in" is not found inside "think". */
+const contains = (text: string, part: string) =>
+  new RegExp(`(^|[^\\p{L}])${escape(part.trim())}($|[^\\p{L}])`, "iu").test(text);
 
 /** Rules for any line that is read aloud. */
 export function checkSpoken(label: string, text: string): string[] {
@@ -24,10 +29,10 @@ export function checkTurn(turn: TurnRecord, expect: TurnExpectation): string[] {
   const { verdict, decision, pendingBefore } = turn;
   const failures = checkSpoken("spoken line", decision.message);
 
-  // Hints help the learner find the fix alone, so the tutor's own hints never carry it.
-  for (const issue of verdict.issues) {
-    if (contains(issue.hint, issue.correction)) failures.push(`hint gives the answer away: "${issue.hint}"`);
-  }
+  // Prompt compliance: the hints the learner hears help find the fix alone, so they never carry it.
+  // (The policy would replace a leaking hint with a generic one, which helps less.)
+  const serious = pendingBefore ? undefined : verdict.issues.find(isSerious);
+  if (serious && contains(serious.hint, serious.correction)) failures.push(`hint gives the answer away: "${serious.hint}"`);
   if (pendingBefore && verdict.nextHint && contains(verdict.nextHint, pendingBefore.correction)) {
     failures.push(`next hint gives the answer away: "${verdict.nextHint}"`);
   }
@@ -52,8 +57,8 @@ export function checkTurn(turn: TurnRecord, expect: TurnExpectation): string[] {
     if (!verdict.newWords.some((w) => contains(w.said, word))) failures.push(`"${word}" is not listed as a new word`);
     if (verdict.issues.some((i) => contains(i.original, word))) failures.push(`"${word}" was treated as a mistake`);
   }
-  if (expect.support && !verdict.support?.trim()) failures.push("no on-screen help");
-  if (expect.correctUse && !verdict.correctUses.some((u) => contains(u, expect.correctUse ?? ""))) {
+  if (expect.support && !turn.support) failures.push("no on-screen help shown");
+  if (expect.correctUse && !verdict.correctUses.some((u) => sameText(u, expect.correctUse ?? ""))) {
     failures.push(`"${expect.correctUse}" is not listed as a correct use`);
   }
   if (expect.message && !expect.message.test(decision.message)) {

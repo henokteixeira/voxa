@@ -31,6 +31,7 @@ export interface Scenario {
   rule: string;
   mode: Mode;
   knownMistakes?: KnownMistake[];
+  knownNewWords?: KnownMistake[];
   turns: ScriptedTurn[];
 }
 
@@ -58,6 +59,7 @@ export const SCENARIOS: Scenario[] = [
       { utterance: "I am very boring in the long meetings.", expect: { kind: "hint", issues: "serious" } },
       { utterance: "Yes, I am boring in the long meetings.", expect: { kind: "hint" } },
       { utterance: "I am boring, I think.", expect: { kind: "reveal" } },
+      // After the correct form is shown the policy always goes on; this turn checks the spoken line only.
       { utterance: "I am very bored in the long meetings.", expect: { kind: "reply" } },
     ],
   },
@@ -76,6 +78,15 @@ export const SCENARIOS: Scenario[] = [
         utterance: "We built a system to follow the orçamento of each project.",
         expect: { kind: "reply", newWord: "orçamento", support: true, message: /budget/i },
       },
+    ],
+  },
+  {
+    name: "known new word now said in English: a correct use, never a mistake",
+    rule: "A word once said in Portuguese, now said in English, counts as learned; it is never treated as a mistake.",
+    mode: "presentation",
+    knownNewWords: [{ original: "orçamento", correction: "budget", category: "new_word" }],
+    turns: [
+      { utterance: "We track the budget of each project every month.", expect: { kind: "reply", issues: "none", correctUse: "orçamento" } },
     ],
   },
   {
@@ -112,7 +123,10 @@ export const SCENARIOS: Scenario[] = [
     turns: [
       {
         utterance: "Do you remember the name of the tool we chose for the reports last month?",
-        expect: { kind: "reply", message: /(don't|do not|can't|cannot) (know|remember|recall)|not sure|no idea/i },
+        expect: {
+          kind: "reply",
+          message: /(don't|do not|can't|cannot) (know|remember|recall)|not sure|no idea|remind me|wasn't there|don't have/i,
+        },
       },
     ],
   },

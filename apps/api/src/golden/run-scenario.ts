@@ -1,3 +1,4 @@
+import { safeSupport } from "../application/conversation.service.js";
 import { decide, type PolicyDecision, type TutorVerdict } from "../domain/conversation/correction-policy.js";
 import type { ChatTurn, PendingCorrection } from "../domain/conversation/types.js";
 import type { TutorPort } from "../domain/ports/tutor.port.js";
@@ -8,6 +9,8 @@ export interface TurnRecord {
   pendingBefore: PendingCorrection | null;
   verdict: TutorVerdict;
   decision: PolicyDecision;
+  /** The on-screen help the learner sees, after the same filter the service applies. */
+  support: string | null;
 }
 
 export interface Transcript {
@@ -32,11 +35,12 @@ export async function runScenario(tutor: TutorPort, scenario: Scenario, learnerC
       history: [...history],
       pending,
       knownMistakes: scenario.knownMistakes ?? [],
-      knownNewWords: [],
+      knownNewWords: scenario.knownNewWords ?? [],
       utterance,
     });
     const decision = decide(pending, verdict);
-    turns.push({ utterance, pendingBefore: pending, verdict, decision });
+    const support = safeSupport(verdict.support, decision.nextPending?.correction);
+    turns.push({ utterance, pendingBefore: pending, verdict, decision, support });
     history.push({ role: "user", content: utterance }, { role: "assistant", content: decision.message });
     pending = decision.nextPending;
   }
