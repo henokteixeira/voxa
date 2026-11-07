@@ -33,7 +33,7 @@ function fakeStream(response: { parsed_output?: unknown } & object, failure?: Er
 function fakeMessages(response: object) {
   const create = vi.fn().mockResolvedValue(response);
   const parse = vi.fn().mockResolvedValue(response);
-  const stream = vi.fn((_params: any) => fakeStream(response));
+  const stream = vi.fn((_params: any, _options?: any) => fakeStream(response));
   return { messages: { create, parse, stream } as unknown as AnthropicMessages, create, parse, stream };
 }
 
@@ -95,6 +95,12 @@ describe("AnthropicTutorAdapter.evaluate", () => {
 
     expect(result).toEqual(answer);
     expect(handed).toEqual([{ reply: 'Nice. "Ship it" today?', settled: false }]);
+  });
+
+  it("limits the whole stream, not only the wait for its first byte", async () => {
+    const { messages, stream } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
+    await new AnthropicTutorAdapter(messages, config()).evaluate(request);
+    expect(stream.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("still fails when the answer is refused after the line was written", async () => {

@@ -108,17 +108,21 @@ export class AnthropicTutorAdapter implements TutorPort {
 
   async evaluate(request: TutorRequest, onReply?: (reply: string) => void): Promise<TutorVerdict> {
     const response = await this.call("evaluate", () => {
-      const stream = this.messages.stream({
-        model: this.model,
-        max_tokens: 8000,
-        output_config: { effort: this.effort, format: zodOutputFormat(VerdictSchema) },
-        system: this.system(request),
-        messages: [
-          { role: "user", content: OPENING_REQUEST },
-          ...cachedHistory(request.history),
-          { role: "user", content: [{ type: "text", text: buildTurnMessage(request) }] },
-        ],
-      });
+      const stream = this.messages.stream(
+        {
+          model: this.model,
+          max_tokens: 8000,
+          output_config: { effort: this.effort, format: zodOutputFormat(VerdictSchema) },
+          system: this.system(request),
+          messages: [
+            { role: "user", content: OPENING_REQUEST },
+            ...cachedHistory(request.history),
+            { role: "user", content: [{ type: "text", text: buildTurnMessage(request) }] },
+          ],
+        },
+        // The client's timeout stops at the response headers; a stalled stream must fail fast too.
+        { signal: AbortSignal.timeout(TUTOR_TIMEOUT_MS) },
+      );
       // `reply` is the schema's first field: it can be spoken while the model writes the analysis.
       if (onReply) {
         let handed = false;
