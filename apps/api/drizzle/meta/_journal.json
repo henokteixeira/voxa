@@ -85,6 +85,13 @@
       "when": 1794027943623,
       "tag": "0011_session_support",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794028406469,
+      "tag": "0012_guided_track",
+      "breakpoints": true
     }
   ]
 }

@@ -4,8 +4,15 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { z } from "zod";
 import type { TutorVerdict } from "../../domain/conversation/correction-policy.js";
-import { type TutorContext, type TutorPort, type TutorRequest, TutorUnavailableError } from "../../domain/ports/tutor.port.js";
-import { buildSystemPrompt, buildTurnMessage, OPENING_REQUEST } from "./tutor-prompts.js";
+import {
+  type TrackPlan,
+  type TutorContext,
+  type TutorOpening,
+  type TutorPort,
+  type TutorRequest,
+  TutorUnavailableError,
+} from "../../domain/ports/tutor.port.js";
+import { buildSystemPrompt, buildTrackInstruction, buildTurnMessage, OPENING_REQUEST } from "./tutor-prompts.js";
 
 export const ANTHROPIC_CLIENT = Symbol("ANTHROPIC_CLIENT");
 
@@ -21,7 +28,7 @@ export const anthropicClientProvider = {
   useFactory: (): AnthropicMessages => new Anthropic({ timeout: TUTOR_TIMEOUT_MS, maxRetries: 1 }).messages,
 };
 
-const OpeningSchema = z.object({ reply: z.string() });
+const OpeningSchema = z.object({ reply: z.string(), scaffold: z.string().nullable() });
 
 const VerdictSchema = z.object({
   reply: z.string(),
@@ -91,7 +98,7 @@ export class AnthropicTutorAdapter implements TutorPort {
     this.firstLanguage = config.get<string>("LEARNER_FIRST_LANGUAGE") || "pt-BR";
   }
 
-  async open(context: TutorContext): Promise<string> {
+  async open(context: TutorContext, plan: TrackPlan | null = null): Promise<TutorOpening> {
     // Structured output: the system prompt describes the turn's JSON fields, and in plain text the model
     // sometimes answered the opening with that JSON, which was then shown and spoken as is.
     const response = await this.call("open", () =>
@@ -100,12 +107,20 @@ export class AnthropicTutorAdapter implements TutorPort {
         max_tokens: 4000,
         output_config: { effort: this.effort, format: zodOutputFormat(OpeningSchema) },
         system: this.system(context),
-        messages: [{ role: "user", content: OPENING_REQUEST }],
+        // The guided track's first step goes with this request only: later turns replay the plain request.
+        messages: [
+          {
+            role: "user",
+            content: plan
+              ? `${OPENING_REQUEST}\n<guided_track>\n${buildTrackInstruction(plan)}\n</guided_track>`
+              : OPENING_REQUEST,
+          },
+        ],
       }),
     );
     const text = response.parsed_output?.reply.trim();
     if (!text) throw new TutorUnavailableError("The tutor returned an empty opening line.");
-    return text;
+    return { line: text, scaffold: response.parsed_output?.scaffold?.trim() || null };
   }
 
   async evaluate(request: TutorRequest, onReply?: (reply: string) => void): Promise<TutorVerdict> {

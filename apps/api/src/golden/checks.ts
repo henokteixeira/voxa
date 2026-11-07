@@ -71,6 +71,7 @@ export function checkTurn(turn: TurnRecord, expect: TurnExpectation): string[] {
     }
   }
   if (expect.scaffold === false && turn.scaffold) failures.push(`words given to say: "${turn.scaffold}"`);
+  if (expect.stage && turn.stage !== expect.stage) failures.push(`stage: expected ${expect.stage}, got ${turn.stage}`);
   if (expect.message && !expect.message.test(decision.message)) {
     failures.push(`spoken line does not match ${expect.message}: "${decision.message}"`);
   }

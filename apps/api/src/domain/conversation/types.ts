@@ -1,4 +1,5 @@
 import type { SupportStep } from "../level/speaking-level.js";
+import type { TrackState } from "./guided-track.js";
 import type { Mode } from "./mode.js";
 
 export interface ChatTurn {
@@ -64,4 +65,6 @@ export interface Session {
   step: SupportStep | null;
   /** Words the tutor's last line gave the learner to say (a model sentence or a sentence start), or null. */
   scaffold: string | null;
+  /** Where the learner is in the guided track (A1–A2 steps only), or null. */
+  track: TrackState | null;
 }

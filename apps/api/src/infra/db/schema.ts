@@ -30,6 +30,17 @@ export const sessions = pgTable("sessions", {
   supportStep: varchar("support_step", { length: 16 }),
   /** Words the tutor's last line gave the learner to say (a model sentence or a sentence start). */
   scaffold: text("scaffold"),
+  /** The guided track (A1–A2): the stage (model | swap | extend | answer | again), null outside the track. */
+  trackStage: varchar("track_stage", { length: 16 }),
+  /** The goal the track is building (a goal id of the mode), null in free talk. */
+  trackGoal: varchar("track_goal", { length: 32 }),
+  /** Extra tries at the current stage. */
+  trackTries: smallint("track_tries").notNull().default(0),
+  /** The learner was stuck at the current goal's answer, so it was built from the model. */
+  trackHelped: boolean("track_helped").notNull().default(false),
+  /** Goals in a row answered alone, and stuck at the answer: they move the step between A1 and A2. */
+  trackUnaidedStreak: smallint("track_unaided_streak").notNull().default(0),
+  trackStuckStreak: smallint("track_stuck_streak").notNull().default(0),
 });
 
 export const turns = pgTable("turns", {

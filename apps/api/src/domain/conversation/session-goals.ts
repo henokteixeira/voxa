@@ -64,6 +64,11 @@ export function checkInLine(reason: CheckInReason, language: string): string {
   return lines[reason];
 }
 
+/** What a goal asks of the learner, or undefined for an id that is not a goal. */
+export function describeGoal(id: string): string | undefined {
+  return Object.hasOwn(GOAL_DESCRIPTIONS, id) ? GOAL_DESCRIPTIONS[id as SessionGoal] : undefined;
+}
+
 export function goalsFor(mode: Mode): readonly SessionGoal[] {
   return SESSION_GOALS[mode];
 }

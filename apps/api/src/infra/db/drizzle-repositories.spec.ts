@@ -36,6 +36,7 @@ describe("DrizzleSessionRepository", () => {
       metTargets: [],
       step: null,
       scaffold: null,
+      track: null,
     });
   });
 
@@ -44,15 +45,20 @@ describe("DrizzleSessionRepository", () => {
     const targets = [{ original: "I goed", correction: "I went", category: "grammar" }];
     const { id } = await sessions.create({ language: "en", mode: "daily", startedAt, targets, step: "supported" });
     const askedAt = new Date("2026-11-07T10:09:00Z");
-    await sessions.setProgress(id, { coveredGoals: ["yesterday", "today"], lastCheckInAt: askedAt, metTargets: ["I goed"], scaffold: "Yesterday I..." });
+    await sessions.setProgress(id, { coveredGoals: ["yesterday", "today"], lastCheckInAt: askedAt, metTargets: ["I goed"],
+      scaffold: "Yesterday I...",
+      step: "build_light",
+      track: { stage: "swap", goal: "yesterday", tries: 1, helped: true, unaidedStreak: 2, stuckStreak: 0 },
+    });
     expect(await sessions.get(id)).toMatchObject({
       metTargets: ["I goed"],
       startedAt,
       targets,
       coveredGoals: ["yesterday", "today"],
       lastCheckInAt: askedAt,
-      step: "supported",
+      step: "build_light",
       scaffold: "Yesterday I...",
+      track: { stage: "swap", goal: "yesterday", tries: 1, helped: true, unaidedStreak: 2, stuckStreak: 0 },
     });
   });
 

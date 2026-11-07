@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { asc, eq } from "drizzle-orm";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
+import { isTrackStage, type TrackState } from "../../domain/conversation/guided-track.js";
 import { isMode } from "../../domain/conversation/mode.js";
 import { isSupportStep, type SupportStep } from "../../domain/level/speaking-level.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget, Session } from "../../domain/conversation/types.js";
@@ -34,6 +35,32 @@ function toSession(row: SessionRow): Session {
     metTargets: row.metTargets,
     step: row.supportStep,
     scaffold: row.scaffold,
+    track: toTrack(row),
+  };
+}
+
+function toTrack(row: SessionRow): TrackState | null {
+  if (row.trackStage === null) return null;
+  if (!isTrackStage(row.trackStage)) throw new Error(`Unknown track stage in session ${row.id}: ${row.trackStage}`);
+  return {
+    stage: row.trackStage,
+    goal: row.trackGoal,
+    tries: row.trackTries,
+    helped: row.trackHelped,
+    unaidedStreak: row.trackUnaidedStreak,
+    stuckStreak: row.trackStuckStreak,
+  };
+}
+
+/** The track's columns; all cleared (stage null) outside the track. */
+function trackColumns(track: TrackState | null) {
+  return {
+    trackStage: track?.stage ?? null,
+    trackGoal: track?.goal ?? null,
+    trackTries: track?.tries ?? 0,
+    trackHelped: track?.helped ?? false,
+    trackUnaidedStreak: track?.unaidedStreak ?? 0,
+    trackStuckStreak: track?.stuckStreak ?? 0,
   };
 }
 
@@ -43,11 +70,17 @@ export class DrizzleSessionRepository implements SessionRepository {
 
   async create({
     step,
+    track,
     ...input
-  }: Pick<Session, "language" | "mode"> & { startedAt?: Date; targets?: PracticeTarget[]; step?: SupportStep | null }): Promise<Session> {
+  }: Pick<Session, "language" | "mode"> & {
+    startedAt?: Date;
+    targets?: PracticeTarget[];
+    step?: SupportStep | null;
+    track?: TrackState | null;
+  }): Promise<Session> {
     const [row] = await this.db
       .insert(sessions)
-      .values({ ...input, supportStep: step ?? null })
+      .values({ ...input, supportStep: step ?? null, ...trackColumns(track ?? null) })
       .returning();
     return toSession(row);
   }
@@ -76,8 +109,11 @@ export class DrizzleSessionRepository implements SessionRepository {
     await this.db.update(sessions).set({ pending }).where(eq(sessions.id, sessionId));
   }
 
-  async setProgress(sessionId: string, progress: SessionProgress): Promise<void> {
-    await this.db.update(sessions).set(progress).where(eq(sessions.id, sessionId));
+  async setProgress(sessionId: string, { step, track, ...progress }: SessionProgress): Promise<void> {
+    await this.db
+      .update(sessions)
+      .set({ ...progress, supportStep: step, ...trackColumns(track) })
+      .where(eq(sessions.id, sessionId));
   }
 
   async end(sessionId: string, timing: SessionTiming | null): Promise<void> {

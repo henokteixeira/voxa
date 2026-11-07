@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { MODES } from "../../domain/conversation/mode.js";
 import { SUPPORT_STEPS, type SupportStep } from "../../domain/level/speaking-level.js";
-import { buildSystemPrompt, buildTurnMessage, PLACEMENT_RULES, SCENES, SUPPORT_RULES } from "./tutor-prompts.js";
+import {
+  buildSystemPrompt,
+  buildTrackInstruction,
+  buildTurnMessage,
+  PLACEMENT_RULES,
+  SCENES,
+  SUPPORT_RULES,
+} from "./tutor-prompts.js";
 
 describe("buildSystemPrompt", () => {
   it("has a scene for every mode", () => {
@@ -128,6 +135,12 @@ describe("buildSystemPrompt: help by support step", () => {
     expect(SUPPORT_RULES.supported).toMatch(/serious mistake .* give no sentence start/);
   });
 
+  it("follows the guided track at A1–A2", () => {
+    expect(prompt("build_full")).toMatch(/guided track/);
+    expect(prompt("build_light")).toMatch(/guided track/);
+    expect(prompt("supported")).not.toMatch(/guided track/);
+  });
+
   it("gives no words to say from B2 up, and none in the placement interview", () => {
     expect(prompt("conversation")).toContain(SUPPORT_RULES.conversation);
     expect(prompt("demanding")).toMatch(/harder follow-ups/);
@@ -136,6 +149,40 @@ describe("buildSystemPrompt: help by support step", () => {
 
   it("always asks whether the learner is stuck", () => {
     for (const step of [...SUPPORT_STEPS, null]) expect(prompt(step)).toMatch(/Set `stuck` to true/);
+  });
+});
+
+describe("buildTrackInstruction", () => {
+  const goal = { id: "yesterday", description: "said what they did yesterday" };
+
+  it("gives one instruction when it does not depend on the learner being stuck", () => {
+    const step = { stage: "model" as const, retry: true, goal };
+    const text = buildTrackInstruction({ otherwise: step, ifStuck: step, hintsPause: false });
+    expect(text).toMatch(/^Say the same model sentence again, slowly/);
+    expect(text).toContain("Goal: the learner said what they did yesterday.");
+    expect(text).not.toContain("If the learner is stuck");
+    expect(text).not.toContain("warm words only");
+  });
+
+  it("gives both branches when it does", () => {
+    const text = buildTrackInstruction({
+      otherwise: { stage: "again", retry: false, goal },
+      ifStuck: { stage: "model", retry: false, goal },
+      hintsPause: true,
+    });
+    expect(text).toMatch(/^If the learner is stuck: Say one short model sentence/);
+    expect(text).toMatch(/\nOtherwise: React in a few words, then ask the learner to say their answer once more/);
+    // Only the learner's own answer stops for a hint, so only then does the reply stay short.
+    expect(text).toMatch(/serious mistake .* reply with a few warm words only/);
+  });
+
+  it("goes into the turn message only in the track", () => {
+    const step = { stage: "answer" as const, retry: false, goal: null };
+    const base = { utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], coveredGoals: [], scaffold: null };
+    expect(buildTurnMessage({ ...base, plan: { otherwise: step, ifStuck: step, hintsPause: false } })).toMatch(
+      /<guided_track>\nAsk the meeting's question for the goal, with no model sentence\. Goal: a short topic/,
+    );
+    expect(buildTurnMessage({ ...base, plan: null })).not.toContain("<guided_track>");
   });
 });
 
@@ -148,6 +195,7 @@ describe("buildTurnMessage", () => {
       knownNewWords: [{ original: "prazo", correction: "deadline", category: "new_word" }],
       coveredGoals: ["yesterday"],
       scaffold: "Yesterday I...",
+      plan: null,
     });
     expect(message).toContain("<words_given>\nYesterday I...\n</words_given>");
     expect(message).toContain("<covered_goals>\nyesterday\n</covered_goals>");
@@ -158,7 +206,7 @@ describe("buildTurnMessage", () => {
   });
 
   it("says none when there is nothing to check against", () => {
-    const message = buildTurnMessage({ utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], coveredGoals: [], scaffold: null });
+    const message = buildTurnMessage({ utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], coveredGoals: [], scaffold: null, plan: null });
     expect(message).toContain("<words_given>\nnone\n</words_given>");
     expect(message).toContain("<new_words>\nnone\n</new_words>");
     expect(message).toContain("<known_mistakes>\nnone\n</known_mistakes>");

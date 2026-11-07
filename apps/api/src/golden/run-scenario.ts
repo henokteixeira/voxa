@@ -1,11 +1,24 @@
 import { safeSupport } from "../application/conversation.service.js";
 import {
   decide,
+  notedOnly,
   type PolicyDecision,
   type TutorVerdict,
   verdictForMode,
 } from "../domain/conversation/correction-policy.js";
-import { GOAL_DESCRIPTIONS, goalsFor, mergeCovered } from "../domain/conversation/session-goals.js";
+import {
+  givesWords,
+  nextGoalAfter,
+  openingPlan,
+  pausesForHints,
+  resolveTrackTurn,
+  startTrack,
+  type TrackStage,
+  trackOutcomes,
+  turnPlan,
+  usesTrack,
+} from "../domain/conversation/guided-track.js";
+import { describeGoal, GOAL_DESCRIPTIONS, goalsFor, mergeCovered } from "../domain/conversation/session-goals.js";
 import { keptScaffold, sessionStep } from "../domain/conversation/support.js";
 import type { ChatTurn, PendingCorrection } from "../domain/conversation/types.js";
 import type { TutorPort } from "../domain/ports/tutor.port.js";
@@ -20,10 +33,14 @@ export interface TurnRecord {
   support: string | null;
   /** The words given to say next, after the same filter the service applies. */
   scaffold: string | null;
+  /** In the guided track: the stage the learner is at after this turn. */
+  stage: TrackStage | null;
 }
 
 export interface Transcript {
   opening: string;
+  /** Words the opening gave the learner to say (the guided track's first model). */
+  openingScaffold: string | null;
   turns: TurnRecord[];
 }
 
@@ -40,14 +57,29 @@ export async function runScenario(tutor: TutorPort, scenario: Scenario, learnerC
     targets: [],
     step: scenario.step ?? sessionStep(scenario.mode, null),
   };
-  const opening = await tutor.open(context);
+  let step = context.step;
+  let track = startTrack(step, goalsFor(scenario.mode)[0] ?? null);
+  const opened = await tutor.open(context, track ? openingPlan(track, describeGoal) : null);
+  const opening = opened.line;
   const history: ChatTurn[] = [{ role: "assistant", content: opening }];
   let pending: PendingCorrection | null = null;
   let coveredGoals: string[] = [];
-  let scaffold: string | null = null;
+  let scaffold: string | null = track && givesWords(track.stage) ? opened.scaffold : null;
+  const openingScaffold = scaffold;
   const turns: TurnRecord[] = [];
 
   for (const { utterance } of scenario.turns) {
+    const current = track;
+    const outcomes =
+      current && usesTrack(step)
+        ? trackOutcomes({
+            track: current,
+            step,
+            model: scaffold,
+            utterance,
+            nextGoal: nextGoalAfter(goalsFor(scenario.mode), current.goal, coveredGoals),
+          })
+        : null;
     const verdict = await tutor.evaluate({
       ...context,
       history: [...history],
@@ -57,17 +89,29 @@ export async function runScenario(tutor: TutorPort, scenario: Scenario, learnerC
       utterance,
       coveredGoals,
       scaffold,
+      step,
+      plan: outcomes && current ? turnPlan(current, outcomes, describeGoal) : null,
     });
-    const decision = decide(pending, verdictForMode(scenario.mode, verdict));
+    const byMode = verdictForMode(scenario.mode, verdict);
+    const decision = decide(pending, current && !pausesForHints(current.stage) ? notedOnly(byMode) : byMode);
+    const inTrack =
+      outcomes && current
+        ? resolveTrackTurn({ track: current, outcomes, replied: decision.kind === "reply", verdict })
+        : null;
+    const move = inTrack?.move ?? null;
     const support = safeSupport(verdict.support, decision.nextPending?.correction);
-    const given = decision.kind === "reply" ? keptScaffold(context.step, verdict) : null;
-    turns.push({ utterance, pendingBefore: pending, verdict, decision, support, scaffold: given });
+    const given = inTrack ? inTrack.scaffold : decision.kind === "reply" ? keptScaffold(step, verdict) : null;
+    if (move) {
+      track = move.track;
+      step = move.step;
+    }
+    turns.push({ utterance, pendingBefore: pending, verdict, decision, support, scaffold: given, stage: track?.stage ?? null });
     scaffold = given;
     history.push({ role: "user", content: utterance }, { role: "assistant", content: decision.message });
     pending = decision.nextPending;
-    coveredGoals = mergeCovered(scenario.mode, coveredGoals, verdict.coveredGoals);
+    coveredGoals = mergeCovered(scenario.mode, coveredGoals, inTrack?.reportedGoals ?? verdict.coveredGoals);
   }
-  return { opening, turns };
+  return { opening, openingScaffold, turns };
 }
 
 /** Readable transcript for a failure report. */

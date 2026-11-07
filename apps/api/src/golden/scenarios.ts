@@ -1,5 +1,6 @@
 import type { TurnKind } from "../domain/conversation/correction-policy.js";
 import type { Mode } from "../domain/conversation/mode.js";
+import type { TrackStage } from "../domain/conversation/guided-track.js";
 import type { SupportStep } from "../domain/level/speaking-level.js";
 import type { KnownMistake } from "../domain/ports/tutor.port.js";
 
@@ -23,6 +24,8 @@ export interface TurnExpectation {
   stuck?: boolean;
   /** true: the tutor gives words to say next, and says them. false: it gives none. */
   scaffold?: boolean;
+  /** In the guided track: the stage the learner must be at after this turn. */
+  stage?: TrackStage;
 }
 
 export interface ScriptedTurn {
@@ -39,6 +42,8 @@ export interface Scenario {
   step?: SupportStep;
   knownMistakes?: KnownMistake[];
   knownNewWords?: KnownMistake[];
+  /** The opening must give words to say (the guided track's first model sentence). */
+  openingGivesWords?: boolean;
   turns: ScriptedTurn[];
 }
 
@@ -205,6 +210,24 @@ export const ALL_SCENARIOS: Scenario[] = [
     ],
   },
   {
+    name: "A1 guided track: repeat the model, then say it with your own information",
+    rule: "At A1 a goal starts with a short model sentence to repeat; after the repetition the tutor asks for the same sentence with the learner's own information.",
+    mode: "daily",
+    step: "build_full",
+    openingGivesWords: true,
+    turns: [
+      { utterance: "Yesterday I worked on the login screen.", expect: { kind: "reply", stage: "swap", scaffold: true } },
+      { utterance: "Yesterday I worked on the report export.", expect: { kind: "reply", stage: "extend", scaffold: true } },
+    ],
+  },
+  {
+    name: "A2 guided track: the model comes only when the learner is stuck",
+    rule: "At A2 the tutor asks the meeting question first and gives a model sentence only when the learner can't answer.",
+    mode: "daily",
+    step: "build_light",
+    turns: [{ utterance: "Hmm... I don't know how to say.", expect: { kind: "reply", stuck: true, stage: "model", scaffold: true } }],
+  },
+  {
     name: "B2 conversation: no words to say, even when stuck",
     rule: "From B2 up, the tutor helps only with hints and first-language words; it never gives sentences to say.",
     mode: "daily",
@@ -221,5 +244,6 @@ export const SCENARIOS: Scenario[] = ALL_SCENARIOS.filter((s) =>
     "fluent utterance: nothing to correct",
     "placement: the interviewer only observes, never corrects",
     "B1 support: the start of a sentence when the learner is stuck",
+    "A1 guided track: repeat the model, then say it with your own information",
   ].includes(s.name),
 );
