@@ -29,24 +29,28 @@ const request: TutorRequest = {
 };
 
 describe("AnthropicTutorAdapter.open", () => {
-  it("returns the opening line with the configured model and a cached system prompt", async () => {
-    const { messages, create } = fakeMessages({
-      stop_reason: "end_turn",
-      content: [{ type: "text", text: " Morning! " }],
-    });
+  it("asks for the opening line as structured output, so it never comes back as raw JSON text", async () => {
+    const { messages, parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: { reply: " Morning! " } });
     const adapter = new AnthropicTutorAdapter(messages, config({ ANTHROPIC_MODEL: "claude-test" }));
 
     await expect(adapter.open({ mode: "daily", language: "en", learnerContext: "", goals: [], targets: [] })).resolves.toBe("Morning!");
 
-    const params = create.mock.calls[0][0];
+    const params = parse.mock.calls[0][0];
     expect(params.model).toBe("claude-test");
-    expect(params.output_config).toEqual({ effort: "low" });
+    expect(params.output_config.effort).toBe("low");
+    expect(params.output_config.format).toBeDefined();
     expect(params.system[0].cache_control).toEqual({ type: "ephemeral" });
     expect(params.messages).toEqual([{ role: "user", content: OPENING_REQUEST }]);
   });
 
   it("fails on an empty opening line", async () => {
-    const { messages } = fakeMessages({ stop_reason: "end_turn", content: [] });
+    const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: { reply: "  " } });
+    const adapter = new AnthropicTutorAdapter(messages, config());
+    await expect(adapter.open(request)).rejects.toBeInstanceOf(TutorUnavailableError);
+  });
+
+  it("fails when the opening line does not match the schema", async () => {
+    const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: null });
     const adapter = new AnthropicTutorAdapter(messages, config());
     await expect(adapter.open(request)).rejects.toBeInstanceOf(TutorUnavailableError);
   });
