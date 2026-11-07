@@ -195,4 +195,36 @@ describe("sessionReducer", () => {
     const summary = { sessionId: "s1", mode: "daily", mistakes: [], selfCorrections: 0 } as unknown as SessionSummary;
     expect(run(started, { type: "ending" }, { type: "ended", summary })).toMatchObject({ phase: "ended", summary });
   });
+
+  it("comes back paused after a reload, with the conversation, the goals and the hint step", () => {
+    const state = run({
+      type: "resumed",
+      sessionId: "s1",
+      captions: [
+        { who: "tutor", text: "Morning!" },
+        { who: "you", text: "I goed to the meeting" },
+        { who: "tutor", text: "When did it happen?" },
+      ],
+      goals: ["yesterday", "today"],
+      coveredGoals: ["yesterday"],
+      hint: { hintsGiven: 1, revealed: false },
+    });
+    expect(state).toMatchObject({
+      phase: "paused",
+      sessionId: "s1",
+      goals: ["yesterday", "today"],
+      coveredGoals: ["yesterday"],
+      hintStep: 1,
+      hintFor: "I goed to the meeting",
+      revealed: false,
+    });
+    expect(state.captions).toHaveLength(3);
+    // Resuming waits for the tutor to say its last line again, so the microphone stays off.
+    expect(sessionReducer(state, { type: "resume" }).phase).toBe("thinking");
+  });
+
+  it("only resumes a session that is still starting", () => {
+    const state = run(started, { type: "resumed", sessionId: "s2", captions: [], goals: [], coveredGoals: [], hint: null });
+    expect(state.sessionId).toBe("s1");
+  });
 });

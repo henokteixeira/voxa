@@ -1,17 +1,20 @@
 import { useCallback, useContext, useEffect, useReducer, useRef, useState } from "react";
 import { useApi } from "@/hooks/use-api";
-import type { ApiClient, ConfidenceMoment, Mode } from "@/lib/api";
+import { ApiError, type ApiClient, type ApiErrorKind, type ConfidenceMoment, type Mode } from "@/lib/api";
 import { type Microphone, MicrophoneUnavailableError } from "@/lib/voice/microphone";
 import { DEFAULT_TURN_OPTIONS } from "@/lib/voice/turn-detector";
 import { createFillerPlayer } from "@/lib/voice/filler-player";
 import { AudioBlockedError, type Speaker } from "@/lib/voice/speaker";
 import type { VoiceSocket } from "@/lib/voice/voice-socket";
 import { FluencyClock } from "./fluency-clock";
+import { clearSavedSession, loadSavedSession, saveSession } from "./saved-session";
 import { type FailureCode, initialSessionState, type Retry, sessionReducer } from "./session-state";
 import { VoiceDepsContext } from "./voice-deps";
 
 /** Failures that need the whole start again (no session was created yet). */
 const START_FAILURES: FailureCode[] = ["mic_blocked", "mic_missing", "mic_busy", "mic_unsupported", "start_failed"];
+/** API errors that may pass: a saved session is kept to pick up on "Try again". */
+const TRANSIENT: ApiErrorKind[] = ["offline", "server", "tutor_unavailable"];
 /** Failures that need a new socket on the same session. */
 const SOCKET_FAILURES: FailureCode[] = ["disconnected", "in_use"];
 
@@ -21,6 +24,17 @@ function rateConfidence(api: ApiClient, sessionId: string, moment: ConfidenceMom
     .rateConfidence(sessionId, moment, value)
     .catch(() => new Promise((resolve) => setTimeout(resolve, 2000)).then(() => api.rateConfidence(sessionId, moment, value)))
     .catch(() => {});
+}
+
+/** Counts the seconds the session runs (not while paused); a resumed session starts from its saved count. */
+function useElapsedSeconds(running: boolean) {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [running]);
+  return [seconds, setSeconds] as const;
 }
 
 /** What to send once a (re)connected socket opens. */
@@ -48,6 +62,9 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
   const filler = useRef(createFillerPlayer());
   /** Set when the session starts; the lines load after the opening line, so they never delay it. */
   const fillerLanguage = useRef<string | null>(null);
+  /** Picked up after a reload: the socket opens on the first "Resume", which is also the tap the browser needs. */
+  const resumedPending = useRef(false);
+  const [seconds, setSeconds] = useElapsedSeconds(state.sessionId !== null && state.phase !== "paused" && state.phase !== "ended");
   useEffect(() => {
     paused.current = state.phase === "paused";
   }, [state.phase]);
@@ -152,6 +169,39 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
         if (!cancelled) dispatch({ type: "failed", code: `mic_${reason}` });
         return;
       }
+      const saved = loadSavedSession();
+      if (saved && saved.mode !== mode) {
+        // Another meeting type was asked for: close the old session, best effort.
+        clearSavedSession();
+        void api.endSession(saved.sessionId, saved.timing).catch(() => {});
+      } else if (saved) {
+        try {
+          const resumed = await api.resumeSession(saved.sessionId);
+          sessionId.current = resumed.sessionId;
+          if (cancelled || ended.current) return;
+          speaker.current = deps.createSpeaker();
+          fillerLanguage.current = resumed.language;
+          clock.current = FluencyClock.from(saved.timing);
+          setSeconds(saved.elapsedSeconds);
+          resumedPending.current = true;
+          dispatch({
+            type: "resumed",
+            sessionId: resumed.sessionId,
+            captions: resumed.turns.map((t) => ({ who: t.role === "user" ? "you" : "tutor", text: t.content })),
+            goals: resumed.goals,
+            coveredGoals: resumed.coveredGoals,
+            hint: resumed.hint,
+          });
+          return;
+        } catch (error) {
+          // Offline or the server is down: try again later. Anything else (gone, ended, unreadable): start a new one.
+          if (error instanceof ApiError && TRANSIENT.includes(error.kind)) {
+            if (!cancelled) dispatch({ type: "failed", code: "start_failed" });
+            return;
+          }
+          clearSavedSession();
+        }
+      }
       try {
         const started = await api.startSession(mode);
         sessionId.current = started.sessionId;
@@ -159,6 +209,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
         if (cancelled || ended.current) return void api.endSession(started.sessionId).catch(() => {});
         speaker.current = deps.createSpeaker();
         fillerLanguage.current = started.language;
+        saveSession({ sessionId: started.sessionId, mode, elapsedSeconds: 0, timing: clock.current.timing() });
         dispatch({ type: "started", sessionId: started.sessionId, message: started.message, goals: started.goals });
         if (confidenceBefore) void rateConfidence(api, started.sessionId, "before", confidenceBefore);
         connect(started.sessionId, { kind: "speak" });
@@ -177,11 +228,20 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
       mic.current = socket.current = speaker.current = null;
       // Leaving mid-session (back button): close it on the server, best effort.
       if (sessionId.current && !ended.current) {
+        clearSavedSession();
         void api.endSession(sessionId.current, clock.current.timing()).catch(() => {});
       }
       sessionId.current = null;
+      resumedPending.current = false;
     };
-  }, [api, deps, mode, connect, attempt, confidenceBefore]);
+  }, [api, deps, mode, connect, attempt, confidenceBefore, setSeconds]);
+
+  // Keeps what the server does not, so a reload can pick the session up again.
+  useEffect(() => {
+    const id = state.sessionId;
+    if (!id || ended.current || state.phase === "ending" || state.phase === "ended") return;
+    saveSession({ sessionId: id, mode, elapsedSeconds: seconds, timing: clock.current.timing() });
+  }, [state.sessionId, state.phase, mode, seconds]);
 
   // The microphone listens only on the learner's turn (and not while typing), so it never hears the tutor.
   const listening = (state.phase === "listening" || state.phase === "hearing") && !typing;
@@ -228,11 +288,15 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
 
   const resume = useCallback(() => {
     dispatch({ type: "resume" });
+    if (resumedPending.current && state.sessionId) {
+      resumedPending.current = false;
+      return connect(state.sessionId, { kind: "speak" });
+    }
     if (missedSpeech.current && state.turn.done) {
       missedSpeech.current = false;
       repeatLast();
     }
-  }, [state.turn.done, repeatLast]);
+  }, [state.turn.done, state.sessionId, repeatLast, connect]);
 
   const retry = useCallback(() => {
     const { failure, retry: next } = state;
@@ -250,6 +314,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
 
   const end = useCallback(async () => {
     ended.current = true;
+    clearSavedSession();
     const id = state.sessionId;
     dispatch({ type: "ending" });
     filler.current.cancel();
@@ -276,5 +341,7 @@ export function useVoiceSession(mode: Mode, confidenceBefore?: number) {
   /** "Keep going" on the tutor's stop-or-keep-going question: the conversation just goes on. */
   const keepGoing = useCallback(() => dispatch({ type: "keep_going" }), []);
 
-  return { state, typing, setTyping, tapBall, unlock, pause, resume, repeatLast, sendText, retry, end, rateAfter, keepGoing };
+  const elapsed = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+
+  return { state, elapsed, typing, setTyping, tapBall, unlock, pause, resume, repeatLast, sendText, retry, end, rateAfter, keepGoing };
 }

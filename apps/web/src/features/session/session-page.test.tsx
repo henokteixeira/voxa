@@ -4,7 +4,7 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiProvider } from "@/app/api-context";
 import { routes } from "@/app/router";
-import type { ApiClient } from "@/lib/api";
+import { ApiError, type ApiClient } from "@/lib/api";
 import { type MicrophoneHandlers, MicrophoneUnavailableError } from "@/lib/voice/microphone";
 import type { VoiceSocketHandlers } from "@/lib/voice/voice-socket";
 import { LocaleProvider } from "@/lib/i18n/locale-provider";
@@ -22,10 +22,11 @@ const api = {
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   endSession: vi.fn(),
+  resumeSession: vi.fn(),
   rateConfidence: vi.fn(),
   fillerSpeech: vi.fn(),
   voiceUrl: (id: string) => `ws://api/api/sessions/${id}/voice`,
-} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "rateConfidence" | "fillerSpeech"]: ReturnType<typeof vi.fn> };
+} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "resumeSession" | "rateConfidence" | "fillerSpeech"]: ReturnType<typeof vi.fn> };
 
 const deps: VoiceDeps = {
   openMicrophone: vi.fn(async (handlers: MicrophoneHandlers) => {
@@ -561,3 +562,111 @@ describe("a safe place to speak", () => {
     expect(screen.getByText("Morning! What did you work on yesterday?")).toHaveAttribute("lang", "en");
   });
 });
+
+describe("after a reload", () => {
+  const savedDaily = {
+    sessionId: "s1",
+    mode: "daily",
+    elapsedSeconds: 65,
+    timing: { learnerSpeechMs: 4000, tutorSpeechMs: 6000, pausesMs: [800] },
+  };
+  const resumed = {
+    sessionId: "s1",
+    mode: "daily",
+    language: "en",
+    startedAt: "2026-11-07T10:00:00.000Z",
+    turns: [
+      { role: "assistant", content: "Morning! What did you work on yesterday?" },
+      { role: "user", content: "I goed to the meeting" },
+      { role: "assistant", content: "When did it happen?" },
+    ],
+    goals: ["yesterday", "today", "blockers"],
+    coveredGoals: ["yesterday"],
+    hint: { hintsGiven: 1, revealed: false },
+  };
+  const saved = () => JSON.parse(localStorage.getItem("voxa.liveSession") ?? "null");
+
+  it("remembers the live session while it runs and forgets it once it ends", async () => {
+    await startAndListen();
+    expect(saved()).toMatchObject({ sessionId: "s1", mode: "daily" });
+    await userEvent.click(screen.getByRole("button", { name: "Pause" }));
+    await userEvent.click(screen.getByRole("button", { name: "End session" }));
+    await screen.findByRole("heading", { name: "Session done" });
+    expect(saved()).toBeNull();
+  });
+
+  it("comes back paused in the same session, then the tutor says its last line again", async () => {
+    localStorage.setItem("voxa.liveSession", JSON.stringify(savedDaily));
+    api.resumeSession.mockResolvedValue(resumed);
+    renderSession();
+
+    const sheet = await screen.findByRole("dialog", { name: "Paused" });
+    expect(sheet).toHaveTextContent("1:05");
+    expect(api.resumeSession).toHaveBeenCalledWith("s1");
+    expect(api.startSession).not.toHaveBeenCalled();
+    expect(deps.openVoiceSocket).not.toHaveBeenCalled();
+    // The hint the learner was working on is still there.
+    expect(screen.getByText("“I goed to the meeting”")).toBeInTheDocument();
+    expect(screen.getByText("When did it happen?")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Resume" }));
+    expect(deps.openVoiceSocket).toHaveBeenCalledWith("ws://api/api/sessions/s1/voice", expect.anything());
+    act(() => socketHandlers.onOpen());
+    expect(socket.speakLast).toHaveBeenCalledTimes(1);
+    expect(mic.resume).not.toHaveBeenCalled();
+
+    // The timing measured before the reload counts in the summary.
+    await userEvent.click(screen.getByRole("button", { name: "Pause" }));
+    await userEvent.click(screen.getByRole("button", { name: "End session" }));
+    expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ learnerSpeechMs: 4000, tutorSpeechMs: 6000 }));
+  });
+
+  it("repeats the last line from the pause sheet right after a reload", async () => {
+    localStorage.setItem("voxa.liveSession", JSON.stringify(savedDaily));
+    api.resumeSession.mockResolvedValue(resumed);
+    renderSession();
+    await screen.findByRole("dialog", { name: "Paused" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Repeat the last question" }));
+    expect(deps.openVoiceSocket).toHaveBeenCalledTimes(1);
+    act(() => socketHandlers.onOpen());
+    expect(socket.speakLast).toHaveBeenCalled();
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
+    expect(speaker.play).toHaveBeenCalled();
+  });
+
+  it("keeps the saved session when the API can't be reached, and picks it up on Try again", async () => {
+    localStorage.setItem("voxa.liveSession", JSON.stringify(savedDaily));
+    api.resumeSession.mockRejectedValueOnce(new ApiError("offline", "Can't reach the Voxa API.")).mockResolvedValue(resumed);
+    renderSession();
+    await screen.findByRole("alert");
+    expect(api.startSession).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: /try again/i }));
+    expect(await screen.findByRole("dialog", { name: "Paused" })).toBeInTheDocument();
+    expect(api.startSession).not.toHaveBeenCalled();
+  });
+
+  it.each([new ApiError("invalid", "Bad id.", 400), new Error("boom")])("starts a new session when the saved one can't be used (%s)", async (error) => {
+    localStorage.setItem("voxa.liveSession", JSON.stringify(savedDaily));
+    api.resumeSession.mockRejectedValue(error);
+    await startAndListen();
+    expect(api.startSession).toHaveBeenCalledWith("daily");
+  });
+
+  it("starts a new session when the saved one has ended", async () => {
+    localStorage.setItem("voxa.liveSession", JSON.stringify(savedDaily));
+    api.resumeSession.mockRejectedValue(new ApiError("ended", "This session has ended.", 409));
+    await startAndListen();
+    expect(api.startSession).toHaveBeenCalledWith("daily");
+  });
+
+  it("closes a saved session of another meeting type and starts the one asked for", async () => {
+    localStorage.setItem("voxa.liveSession", JSON.stringify({ ...savedDaily, sessionId: "old", mode: "review" }));
+    await startAndListen();
+    expect(api.resumeSession).not.toHaveBeenCalled();
+    expect(api.endSession).toHaveBeenCalledWith("old", savedDaily.timing);
+    expect(api.startSession).toHaveBeenCalledWith("daily");
+  });
+});
+
