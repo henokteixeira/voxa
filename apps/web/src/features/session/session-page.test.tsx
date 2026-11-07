@@ -325,7 +325,7 @@ describe("live session", () => {
     // The hint leads; only the words with the mistake follow, not the whole answer.
     expect(card.querySelector("p")).toHaveTextContent("When did this happen?");
     expect(within(card).getByText("“I finish”")).toBeInTheDocument();
-    expect(card).toHaveTextContent("What you said");
+    expect(card).toHaveTextContent("Say it again, fixing these words");
     expect(card).not.toHaveTextContent("upload screen");
     expect(screen.queryByRole("button", { name: "Show what the tutor said" })).not.toBeInTheDocument();
     expect(screen.getByText("Hint · say it again")).toBeInTheDocument();

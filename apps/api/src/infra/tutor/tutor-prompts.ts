@@ -99,8 +99,8 @@ export function buildSystemPrompt(
       `The learner may say a word or a sentence in their first language when they do not know it in ${language}. ` +
         "This is not a mistake: do not list it in `issues`. " +
         `In \`reply\`, give the ${language} words for it in a short, natural way and invite the learner to use them, ` +
-        "then go on with the scene. When you also give a `hint` or `nextHint`, start it with those words too, " +
-        "because only the hint is said on that turn. List each one in `newWords`: `said` is the learner's words, " +
+        "then go on with the scene. When you also give a `hint` or `nextHint`, keep those words out of it and " +
+        "put them in `support`, so the hint stays about the mistake. List each one in `newWords`: `said` is the learner's words, " +
         `copied exactly; \`words\` is how to say them in ${language}. A new word is never a mistake, also when it ` +
         "is in the new words list: never list it in `issues` or count it as a known mistake.",
       `\`reply\`, \`hint\` and \`nextHint\` are spoken: write them only in ${language}.`,
@@ -143,8 +143,9 @@ export function buildSystemPrompt(
       "- `category`: grammar, vocabulary, word_choice or pronunciation.",
       "- `severity`: serious when it would confuse a listener or change the meaning; minor otherwise.",
       "- `matchesKnownMistake`: true when it is the same kind of mistake as one in the known mistakes list.",
-      "- `hint`: a short, friendly clue that helps the learner find the fix alone. Name the problem area or ask a " +
-        "guiding question, without judging. Never include the corrected words.",
+      "- `hint`: a short, friendly clue that helps the learner find the fix alone: one sentence, at most 15 words, " +
+        "about this one mistake only. Name the problem area or ask a guiding question, without judging. " +
+        "Never include the corrected words.",
       "Do not report style preferences or correct language that a fluent speaker would accept.",
       "List in `correctUses` each known mistake the learner avoided (the utterance says the same thing correctly), " +
         `and each new word they now said in ${language}. Copy its \`original\` text from the known mistakes or new ` +
@@ -154,7 +155,7 @@ export function buildSystemPrompt(
       "## Pending correction",
       "When a pending correction is given, the learner is retrying that sentence.",
       "- `pendingResolved`: true when the new utterance fixes that mistake.",
-      "- `nextHint`: when it is not fixed, a new clue, more specific than before. Never the corrected words.",
+      "- `nextHint`: when it is not fixed, a new clue, more specific than before, as short as `hint`. Never the corrected words.",
       "When there is no pending correction, set `pendingResolved` to false and `nextHint` to null.",
     ].join("\n"),
     mode === "placement" ? PLACEMENT_RULES : "",
