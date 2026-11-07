@@ -1,7 +1,16 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { TutorVerdict } from "../domain/conversation/correction-policy.js";
 import type { Mode } from "../domain/conversation/mode.js";
-import type { ChatTurn, Issue, PendingCorrection, Session, Severity } from "../domain/conversation/types.js";
+import type {
+  ChatTurn,
+  Issue,
+  PendingCorrection,
+  PracticeTarget,
+  Session,
+  Severity,
+} from "../domain/conversation/types.js";
+import type { Clock } from "../domain/ports/clock.port.js";
+import type { BankEntry } from "../domain/ports/mistake-bank.repository.js";
 import type { LearnerContextPort } from "../domain/ports/learner-context.port.js";
 import type { Mistake, MistakeRepository, NewMistake, SessionMistake } from "../domain/ports/mistake.repository.js";
 import type { SessionTiming } from "../domain/conversation/fluency.js";
@@ -30,10 +39,25 @@ type Row = Session & { turns: ChatTurn[]; timing: SessionTiming | null; before: 
 
 class FakeSessions implements SessionRepository {
   rows = new Map<string, Row>();
-  async create(input: { language: string; mode: Mode }) {
+  async create(input: { language: string; mode: Mode; startedAt?: Date; targets?: PracticeTarget[] }) {
     const id = `s${this.rows.size + 1}`;
-    this.rows.set(id, { id, ...input, pending: null, endedAt: null, turns: [], timing: null, before: null, after: null });
-    return { id, ...input, pending: null, endedAt: null };
+    const session: Session = {
+      id,
+      language: input.language,
+      mode: input.mode,
+      pending: null,
+      startedAt: input.startedAt ?? new Date(),
+      endedAt: null,
+      coveredGoals: [],
+      lastCheckInAt: null,
+      targets: input.targets ?? [],
+      metTargets: [],
+    };
+    this.rows.set(id, { ...session, turns: [], timing: null, before: null, after: null });
+    return session;
+  }
+  async setProgress(id: string, progress: { coveredGoals: string[]; lastCheckInAt: Date | null; metTargets: string[] }) {
+    Object.assign(this.rows.get(id)!, progress);
   }
   async get(id: string) {
     const row = this.rows.get(id);
@@ -132,28 +156,176 @@ const verdict = (v: Partial<TutorVerdict>): TutorVerdict => ({
   correctUses: [],
   newWords: [],
   support: null,
+  coveredGoals: [],
   ...v,
+});
+
+class FakeClock implements Clock {
+  time = new Date("2026-11-07T10:00:00Z");
+  now() {
+    return new Date(this.time);
+  }
+  advanceMinutes(n: number) {
+    this.time = new Date(this.time.getTime() + n * 60_000);
+  }
+}
+
+const entry = (over: Partial<BankEntry>): BankEntry => ({
+  id: "b1",
+  language: "en",
+  original: "I goed",
+  correction: "I went",
+  category: "grammar",
+  occurrences: 1,
+  lastSeenAt: new Date(),
+  sessionsCorrect: 0,
+  ...over,
 });
 
 let tutor: FakeTutor;
 let sessions: FakeSessions;
 let mistakes: FakeMistakes;
 let service: ConversationService;
+let clock: FakeClock;
+let bankEntries: BankEntry[];
 
 beforeEach(() => {
   tutor = new FakeTutor();
   sessions = new FakeSessions();
   mistakes = new FakeMistakes();
-  service = new ConversationService(tutor, sessions, mistakes, learnerContext);
+  clock = new FakeClock();
+  bankEntries = [];
+  const bank = { list: async (language: string) => bankEntries.filter((e) => e.language === language) };
+  service = new ConversationService(tutor, sessions, mistakes, learnerContext, bank, clock);
 });
 
 describe("ConversationService.start", () => {
   it("opens the scene for the mode with the learner's context and saves the first line", async () => {
     const { session, message } = await service.start("presentation", "en");
 
-    expect(tutor.opened).toEqual([{ mode: "presentation", language: "en", learnerContext: "Works on Oral Collector." }]);
+    expect(tutor.opened).toEqual([
+      expect.objectContaining({ mode: "presentation", language: "en", learnerContext: "Works on Oral Collector." }),
+    ]);
     expect(message).toBe("Tell me about your project.");
     expect(await sessions.history(session.id)).toEqual([{ role: "assistant", content: message }]);
+  });
+
+  it("returns the mode's goals and gives them to the tutor", async () => {
+    const { goals } = await service.start("daily", "en");
+    expect(goals).toEqual(["yesterday", "today", "blockers"]);
+    expect(tutor.opened[0].goals.map((g) => g.id)).toEqual(["yesterday", "today", "blockers"]);
+    expect((await service.start("free_talk", "en")).goals).toEqual([]);
+  });
+
+  it("practices the two most frequent mistakes not mastered yet, never a new word", async () => {
+    bankEntries = [
+      entry({ original: "rare", occurrences: 1 }),
+      entry({ original: "mastered", occurrences: 9, sessionsCorrect: 3 }),
+      entry({ original: "a word", occurrences: 8, category: NEW_WORD_CATEGORY }),
+      entry({ original: "improving", occurrences: 5, sessionsCorrect: 1 }),
+      entry({ original: "open", occurrences: 4 }),
+      entry({ original: "other language", occurrences: 7, language: "es" }),
+    ];
+    const { session } = await service.start("daily", "en");
+    expect(session.targets.map((t) => t.original)).toEqual(["improving", "open"]);
+    expect(tutor.opened[0].targets.map((t) => t.original)).toEqual(["improving", "open"]);
+  });
+});
+
+describe("Session goals", () => {
+  it("keeps the goals the tutor reports, only the mode's", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ coveredGoals: ["yesterday", "status"] }), verdict({ coveredGoals: ["today"] }));
+
+    expect((await service.respond(session.id, "Yesterday I fixed a bug.")).coveredGoals).toEqual(["yesterday"]);
+    const second = await service.respond(session.id, "Today I will test it.");
+
+    expect(second.coveredGoals).toEqual(["yesterday", "today"]);
+    expect(tutor.requests[1].coveredGoals).toEqual(["yesterday"]);
+    expect(second.checkIn).toBe(false);
+  });
+
+  it("asks whether to stop once every goal is covered", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ reply: "Thanks.", coveredGoals: ["yesterday", "today", "blockers"] }));
+
+    const result = await service.respond(session.id, "Yesterday tests, today deploy, no blockers.");
+
+    expect(result.checkIn).toBe(true);
+    expect(result.message).toBe("Thanks. We've covered everything for this meeting. Do you want to stop here or keep going?");
+    expect((await sessions.history(session.id)).at(-1)?.content).toBe(result.message);
+  });
+
+  it("asks in free talk after 8 minutes, then again every 5 minutes", async () => {
+    const { session } = await service.start("free_talk", "en");
+    tutor.verdicts.push(verdict({}), verdict({}), verdict({}), verdict({}));
+
+    clock.advanceMinutes(7);
+    expect((await service.respond(session.id, "Hi")).checkIn).toBe(false);
+    clock.advanceMinutes(1);
+    expect((await service.respond(session.id, "Hi")).checkIn).toBe(true);
+    clock.advanceMinutes(4);
+    expect((await service.respond(session.id, "Hi")).checkIn).toBe(false);
+    clock.advanceMinutes(1);
+    expect((await service.respond(session.id, "Hi")).message).toContain("We've been talking for a while.");
+  });
+
+  it("never asks on a turn that gives a hint", async () => {
+    const { session } = await service.start("free_talk", "en");
+    clock.advanceMinutes(9);
+    tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true }));
+
+    expect((await service.respond(session.id, "I goed to the meeting")).checkIn).toBe(false);
+    expect((await service.respond(session.id, "I went to the meeting")).checkIn).toBe(true);
+  });
+
+  it("counts a target met when said right without a hint, even after making the mistake this session", async () => {
+    bankEntries = [entry({ original: "I goed", occurrences: 3 }), entry({ original: "more better", correction: "better" })];
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(
+      verdict({ issues: [{ ...goed, original: "I goed", correction: "I went" }] }),
+      verdict({ pendingResolved: true, correctUses: ["I goed"] }),
+      verdict({ correctUses: ["I goed", "more better", "not a target"] }),
+      verdict({ issues: [{ ...article, original: "more better", correction: "better" }] }),
+    );
+    await service.respond(session.id, "I goed there");
+    await service.respond(session.id, "I went there");
+    expect((await sessions.get(session.id))?.metTargets).toEqual([]); // the retry after a hint does not count
+    await service.respond(session.id, "Then I went home, it was better");
+    await service.respond(session.id, "more better");
+
+    expect((await service.end(session.id)).targets.map((t) => [t.original, t.met])).toEqual([
+      ["I goed", true],
+      ["more better", true],
+    ]);
+  });
+
+  it("watches a target outside the known mistakes list once, by its exact text", async () => {
+    bankEntries = [entry({ original: "I goed", occurrences: 3 })];
+    mistakes.bank.push({ id: "m1", language: "en", original: "I goed", correction: "I went", category: "grammar", occurrences: 3, lastSeenAt: new Date() });
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({}));
+    await service.respond(session.id, "Hi");
+    expect(tutor.requests[0].knownMistakes.filter((m) => m.original === "I goed")).toHaveLength(1);
+  });
+
+  it("shows covered goals and met targets in the summary", async () => {
+    bankEntries = [entry({ original: "I goed", occurrences: 3 }), entry({ original: "more better", correction: "better" })];
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ coveredGoals: ["yesterday"], correctUses: ["I goed"] }));
+    await service.respond(session.id, "Yesterday I went to the office.");
+
+    const summary = await service.end(session.id);
+
+    expect(summary.goals).toEqual([
+      { id: "yesterday", covered: true },
+      { id: "today", covered: false },
+      { id: "blockers", covered: false },
+    ]);
+    expect(summary.targets.map((t) => [t.original, t.met])).toEqual([
+      ["I goed", true],
+      ["more better", false],
+    ]);
   });
 });
 
@@ -164,7 +336,7 @@ describe("ConversationService.respond", () => {
 
     const result = await service.respond(session.id, "I opened PR");
 
-    expect(result).toEqual({ kind: "reply", message: "Nice. What happened next?", selfCorrected: false, support: null });
+    expect(result).toMatchObject({ kind: "reply", message: "Nice. What happened next?", selfCorrected: false, support: null });
     expect(mistakes.events).toEqual([
       { sessionId: session.id, original: "I opened PR", severity: "minor", selfCorrected: false },
     ]);
@@ -216,7 +388,7 @@ describe("ConversationService.respond", () => {
 
     const result = await service.respond(session.id, "I went to the meeting");
 
-    expect(result).toEqual({ kind: "reply", message: "Nice. What happened next?", selfCorrected: true, support: null });
+    expect(result).toMatchObject({ kind: "reply", message: "Nice. What happened next?", selfCorrected: true, support: null });
     expect(mistakes.events[0].selfCorrected).toBe(true);
     expect((await sessions.get(session.id))?.pending).toBeNull();
   });
@@ -231,7 +403,7 @@ describe("ConversationService.respond", () => {
 
     const result = await service.respond(session.id, "I goed to the meeting");
 
-    expect(result).toEqual({ kind: "hint", message: "Think of 'go, ___, gone'.", selfCorrected: false, support: null });
+    expect(result).toMatchObject({ kind: "hint", message: "Think of 'go, ___, gone'.", selfCorrected: false, support: null });
     expect(mistakes.events).toHaveLength(1);
   });
 
@@ -313,7 +485,7 @@ describe("ConversationService.respond: words in the learner's first language", (
 
     const result = await service.respond(session.id, "The prazo is Friday");
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       kind: "reply",
       message: "Nice. What happened next?",
       selfCorrected: false,

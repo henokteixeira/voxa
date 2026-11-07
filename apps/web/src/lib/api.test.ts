@@ -54,6 +54,33 @@ describe("createApiClient", () => {
     expect(createApiClient("https://voxa.local").voiceUrl("s 1")).toBe("wss://voxa.local/api/sessions/s%201/voice");
   });
 
+  it("loads every filler line of a language as audio", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ count: 2 }), { status: 200 }))
+      .mockImplementation(async () => new Response(new Uint8Array([1, 2]), { status: 200 }));
+    const api = createApiClient("http://api", fetchImpl);
+
+    const clips = await api.fillerSpeech("en-US");
+
+    expect(clips.map((clip) => clip.byteLength)).toEqual([2, 2]);
+    expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual([
+      "http://api/api/voice/fillers?language=en-US",
+      "http://api/api/voice/fillers/0?language=en-US",
+      "http://api/api/voice/fillers/1?language=en-US",
+    ]);
+  });
+
+  it("fails the filler lines when one can't be loaded", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ count: 1 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }));
+    const api = createApiClient("http://api", fetchImpl);
+
+    await expect(api.fillerSpeech()).rejects.toMatchObject({ kind: "tutor_unavailable", status: 503 });
+  });
+
   it("lists the mistake bank in a language", async () => {
     const mistake = { id: "m1", language: "en", original: "I goed", correction: "I went", category: "grammar", occurrences: 2, lastSeenAt: "2026-11-05T10:00:00.000Z", status: "open" };
     const fetchImpl = respond(200, { mistakes: [mistake] });

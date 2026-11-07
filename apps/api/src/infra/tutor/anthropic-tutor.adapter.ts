@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { z } from "zod";
 import type { TutorVerdict } from "../../domain/conversation/correction-policy.js";
@@ -21,6 +21,8 @@ export const anthropicClientProvider = {
   useFactory: (): AnthropicMessages => new Anthropic({ timeout: TUTOR_TIMEOUT_MS, maxRetries: 1 }).messages,
 };
 
+const OpeningSchema = z.object({ reply: z.string() });
+
 const VerdictSchema = z.object({
   reply: z.string(),
   issues: z.array(
@@ -38,12 +40,14 @@ const VerdictSchema = z.object({
   correctUses: z.array(z.string()),
   newWords: z.array(z.object({ said: z.string(), words: z.string() })),
   support: z.string().nullable(),
+  coveredGoals: z.array(z.string()),
 });
 
 type Effort = "low" | "medium" | "high";
 
 @Injectable()
 export class AnthropicTutorAdapter implements TutorPort {
+  private readonly logger = new Logger(AnthropicTutorAdapter.name);
   private readonly model: string;
   private readonly effort: Effort;
   /** BCP 47. The tutor writes on-screen support in it. */
@@ -61,26 +65,24 @@ export class AnthropicTutorAdapter implements TutorPort {
   }
 
   async open(context: TutorContext): Promise<string> {
-    const response = await this.call(() =>
-      this.messages.create({
+    // Structured output: the system prompt describes the turn's JSON fields, and in plain text the model
+    // sometimes answered the opening with that JSON, which was then shown and spoken as is.
+    const response = await this.call("open", () =>
+      this.messages.parse({
         model: this.model,
         max_tokens: 4000,
-        output_config: { effort: this.effort },
+        output_config: { effort: this.effort, format: zodOutputFormat(OpeningSchema) },
         system: this.system(context),
         messages: [{ role: "user", content: OPENING_REQUEST }],
       }),
     );
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("")
-      .trim();
+    const text = response.parsed_output?.reply.trim();
     if (!text) throw new TutorUnavailableError("The tutor returned an empty opening line.");
     return text;
   }
 
   async evaluate(request: TutorRequest): Promise<TutorVerdict> {
-    const response = await this.call(() =>
+    const response = await this.call("evaluate", () =>
       this.messages.parse({
         model: this.model,
         max_tokens: 8000,
@@ -105,12 +107,23 @@ export class AnthropicTutorAdapter implements TutorPort {
     return [{ type: "text", text: buildSystemPrompt(context, this.firstLanguage), cache_control: { type: "ephemeral" } }];
   }
 
-  private async call<T extends { stop_reason: Anthropic.StopReason | null }>(send: () => Promise<T>): Promise<T> {
+  private async call<T extends { stop_reason: Anthropic.StopReason | null; usage?: Anthropic.Usage }>(
+    name: string,
+    send: () => Promise<T>,
+  ): Promise<T> {
     let response: T;
     try {
       response = await send();
     } catch (error) {
       throw new TutorUnavailableError(`Claude API request failed: ${(error as Error).message}`, { cause: error });
+    }
+    // Tokens per call, to measure the cost of a turn.
+    const usage = response.usage;
+    if (usage) {
+      this.logger.log(
+        `tutor usage call=${name} input=${usage.input_tokens} cache_read=${usage.cache_read_input_tokens ?? 0} ` +
+          `cache_write=${usage.cache_creation_input_tokens ?? 0} output=${usage.output_tokens}`,
+      );
     }
     if (response.stop_reason === "refusal") throw new TutorUnavailableError("The model declined to answer.");
     if (response.stop_reason === "max_tokens" || response.stop_reason === "model_context_window_exceeded") throw new TutorUnavailableError("The tutor's answer was cut off.");

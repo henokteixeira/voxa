@@ -1,3 +1,4 @@
+import { Logger } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import { describe, expect, it, vi } from "vitest";
 import { type TutorRequest, TutorUnavailableError } from "../../domain/ports/tutor.port.js";
@@ -12,7 +13,7 @@ function fakeMessages(response: object) {
   return { messages: { create, parse } as unknown as AnthropicMessages, create, parse };
 }
 
-const verdict = { reply: "Nice.", issues: [], pendingResolved: false, nextHint: null, correctUses: [], newWords: [], support: null };
+const verdict = { reply: "Nice.", issues: [], pendingResolved: false, nextHint: null, correctUses: [], newWords: [], support: null, coveredGoals: [] };
 const request: TutorRequest = {
   mode: "daily",
   language: "en",
@@ -22,27 +23,34 @@ const request: TutorRequest = {
   knownMistakes: [],
   knownNewWords: [],
   utterance: "I fixed the upload.",
+  goals: [],
+  targets: [],
+  coveredGoals: [],
 };
 
 describe("AnthropicTutorAdapter.open", () => {
-  it("returns the opening line with the configured model and a cached system prompt", async () => {
-    const { messages, create } = fakeMessages({
-      stop_reason: "end_turn",
-      content: [{ type: "text", text: " Morning! " }],
-    });
+  it("asks for the opening line as structured output, so it never comes back as raw JSON text", async () => {
+    const { messages, parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: { reply: " Morning! " } });
     const adapter = new AnthropicTutorAdapter(messages, config({ ANTHROPIC_MODEL: "claude-test" }));
 
-    await expect(adapter.open({ mode: "daily", language: "en", learnerContext: "" })).resolves.toBe("Morning!");
+    await expect(adapter.open({ mode: "daily", language: "en", learnerContext: "", goals: [], targets: [] })).resolves.toBe("Morning!");
 
-    const params = create.mock.calls[0][0];
+    const params = parse.mock.calls[0][0];
     expect(params.model).toBe("claude-test");
-    expect(params.output_config).toEqual({ effort: "low" });
+    expect(params.output_config.effort).toBe("low");
+    expect(params.output_config.format).toBeDefined();
     expect(params.system[0].cache_control).toEqual({ type: "ephemeral" });
     expect(params.messages).toEqual([{ role: "user", content: OPENING_REQUEST }]);
   });
 
   it("fails on an empty opening line", async () => {
-    const { messages } = fakeMessages({ stop_reason: "end_turn", content: [] });
+    const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: { reply: "  " } });
+    const adapter = new AnthropicTutorAdapter(messages, config());
+    await expect(adapter.open(request)).rejects.toBeInstanceOf(TutorUnavailableError);
+  });
+
+  it("fails when the opening line does not match the schema", async () => {
+    const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: null });
     const adapter = new AnthropicTutorAdapter(messages, config());
     await expect(adapter.open(request)).rejects.toBeInstanceOf(TutorUnavailableError);
   });
@@ -97,5 +105,29 @@ describe("AnthropicTutorAdapter.open when the context window is full", () => {
     await new AnthropicTutorAdapter(messages, config({ LEARNER_FIRST_LANGUAGE: "es" })).evaluate(request);
     expect(parse.mock.calls[0][0].system[0].text).toContain("The learner's first language is pt-BR");
     expect(parse.mock.calls[1][0].system[0].text).toContain("The learner's first language is es");
+  });
+});
+
+describe("AnthropicTutorAdapter usage log", () => {
+  it("logs the tokens each call used, so the cost per turn can be measured", async () => {
+    const log = vi.spyOn(Logger.prototype, "log").mockImplementation(() => {});
+    const usage = { input_tokens: 120, cache_read_input_tokens: 3000, cache_creation_input_tokens: 400, output_tokens: 250 };
+    const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict, usage });
+    const adapter = new AnthropicTutorAdapter(messages, config());
+
+    await adapter.evaluate(request);
+
+    expect(log).toHaveBeenCalledWith("tutor usage call=evaluate input=120 cache_read=3000 cache_write=400 output=250");
+    log.mockRestore();
+  });
+
+  it("logs nothing when the response has no usage", async () => {
+    const log = vi.spyOn(Logger.prototype, "log").mockImplementation(() => {});
+    const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
+
+    await new AnthropicTutorAdapter(messages, config()).evaluate(request);
+
+    expect(log).not.toHaveBeenCalled();
+    log.mockRestore();
   });
 });

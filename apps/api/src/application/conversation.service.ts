@@ -2,7 +2,17 @@ import { Inject, Injectable } from "@nestjs/common";
 import { decide, isSerious, type TurnKind } from "../domain/conversation/correction-policy.js";
 import { type FluencySignals, fluencySignals, type SessionTiming } from "../domain/conversation/fluency.js";
 import type { Mode } from "../domain/conversation/mode.js";
-import { NEW_WORD_CATEGORY, type Session } from "../domain/conversation/types.js";
+import {
+  checkInDue,
+  checkInLine,
+  GOAL_DESCRIPTIONS,
+  goalsFor,
+  mergeCovered,
+} from "../domain/conversation/session-goals.js";
+import { NEW_WORD_CATEGORY, type PracticeTarget, type Session } from "../domain/conversation/types.js";
+import { mistakeStatus } from "../domain/mistakes/mistake-status.js";
+import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
+import { MISTAKE_BANK_REPOSITORY, type MistakeBankRepository } from "../domain/ports/mistake-bank.repository.js";
 import { LEARNER_CONTEXT_PORT, type LearnerContextPort } from "../domain/ports/learner-context.port.js";
 import { MISTAKE_REPOSITORY, type MistakeRepository, type SessionMistake } from "../domain/ports/mistake.repository.js";
 import {
@@ -11,10 +21,12 @@ import {
   type SessionOutcome,
   type SessionRepository,
 } from "../domain/ports/session.repository.js";
-import { TUTOR_PORT, type TutorPort } from "../domain/ports/tutor.port.js";
+import { type TutorContext, TUTOR_PORT, type TutorPort } from "../domain/ports/tutor.port.js";
 
 /** How many of the learner's most frequent mistakes the tutor watches for. */
 export const KNOWN_MISTAKES_LIMIT = 20;
+/** How many mistakes from the bank each session practices. */
+export const PRACTICE_TARGETS = 2;
 
 /** Speech-to-text output varies in case and end punctuation; ignore both when matching. */
 export function sameText(a: string, b: string): boolean {
@@ -39,6 +51,16 @@ export interface TurnResult {
   selfCorrected: boolean;
   /** Written help in the learner's first language, shown on screen only. */
   support: string | null;
+  /** True when the tutor asked whether to stop or keep going. */
+  checkIn: boolean;
+  /** Goals of the mode the learner has covered so far. */
+  coveredGoals: string[];
+}
+
+export interface SessionStart {
+  session: Session;
+  message: string;
+  goals: readonly string[];
 }
 
 export interface SessionSummary {
@@ -48,6 +70,9 @@ export interface SessionSummary {
   selfCorrections: number;
   signals: FluencySignals;
   confidence: SessionOutcome["confidence"];
+  goals: { id: string; covered: boolean }[];
+  /** The mistakes practiced in this session; `met` when the learner said the correct form. */
+  targets: (PracticeTarget & { met: boolean })[];
 }
 
 @Injectable()
@@ -57,13 +82,16 @@ export class ConversationService {
     @Inject(SESSION_REPOSITORY) private readonly sessions: SessionRepository,
     @Inject(MISTAKE_REPOSITORY) private readonly mistakes: MistakeRepository,
     @Inject(LEARNER_CONTEXT_PORT) private readonly learnerContext: LearnerContextPort,
+    @Inject(MISTAKE_BANK_REPOSITORY) private readonly bank: Pick<MistakeBankRepository, "list">,
+    @Inject(CLOCK) private readonly clock: Clock,
   ) {}
 
-  async start(mode: Mode, language: string): Promise<{ session: Session; message: string }> {
-    const session = await this.sessions.create({ mode, language });
-    const message = await this.tutor.open({ mode, language, learnerContext: await this.learnerContext.load() });
+  async start(mode: Mode, language: string): Promise<SessionStart> {
+    const targets = await this.pickTargets(language);
+    const session = await this.sessions.create({ mode, language, startedAt: this.clock.now(), targets });
+    const message = await this.tutor.open(this.tutorContext(session, await this.learnerContext.load()));
     await this.sessions.appendTurn(session.id, { role: "assistant", content: message });
-    return { session, message };
+    return { session, message, goals: goalsFor(mode) };
   }
 
   async respond(sessionId: string, utterance: string): Promise<TurnResult> {
@@ -75,18 +103,22 @@ export class ConversationService {
       this.learnerContext.load(),
     ]);
 
-    const toKnown = ({ original, correction, category }: (typeof known)[number]) => ({ original, correction, category });
+    const toKnown = ({ original, correction, category }: PracticeTarget) => ({ original, correction, category });
     const knownMistakes = known.filter((m) => m.category !== NEW_WORD_CATEGORY).slice(0, KNOWN_MISTAKES_LIMIT);
     const knownNewWords = known.filter((m) => m.category === NEW_WORD_CATEGORY).slice(0, KNOWN_MISTAKES_LIMIT);
+    // The tutor watches the practice targets too, so a correct use of one is reported.
+    const watched = [
+      ...knownMistakes.map(toKnown),
+      ...session.targets.filter((t) => !knownMistakes.some((m) => sameText(m.original, t.original))),
+    ];
     const verdict = await this.tutor.evaluate({
-      mode: session.mode,
-      language: session.language,
-      learnerContext,
+      ...this.tutorContext(session, learnerContext),
       history,
       pending: session.pending,
-      knownMistakes: knownMistakes.map(toKnown),
+      knownMistakes: watched,
       knownNewWords: knownNewWords.map(toKnown),
       utterance,
+      coveredGoals: session.coveredGoals,
     });
     const decision = decide(session.pending, verdict);
 
@@ -103,7 +135,7 @@ export class ConversationService {
     }
     // Correct uses of known mistakes, except the retry of the pending one (that came after a hint).
     for (const used of verdict.correctUses) {
-      const mistake = known.find((m) => sameText(m.original, used));
+      const mistake = [...known, ...session.targets].find((m) => sameText(m.original, used));
       if (!mistake || (pending && sameText(mistake.original, pending.original))) continue;
       await this.mistakes.recordCorrectUse(sessionId, { language: session.language, original: mistake.original });
     }
@@ -121,15 +153,45 @@ export class ConversationService {
       await this.mistakes.markSelfCorrected(sessionId, { language: session.language, original: pending.original });
     }
 
+    // Goals and the stop-or-keep-going question, only on a turn where the conversation goes on.
+    const coveredGoals = mergeCovered(session.mode, session.coveredGoals, verdict.coveredGoals);
+    // A target is met by the correct form said without a hint, even if the mistake also came up this session.
+    const metTargets = session.targets
+      .map((t) => t.original)
+      .filter(
+        (original) =>
+          session.metTargets.includes(original) ||
+          (verdict.correctUses.some((u) => sameText(u, original)) && !(pending && sameText(pending.original, original))),
+      );
+    const now = this.clock.now();
+    const checkIn =
+      decision.kind === "reply"
+        ? checkInDue({
+            mode: session.mode,
+            coveredBefore: session.coveredGoals,
+            covered: coveredGoals,
+            elapsedMs: now.getTime() - session.startedAt.getTime(),
+            lastCheckInMs: session.lastCheckInAt ? session.lastCheckInAt.getTime() - session.startedAt.getTime() : null,
+          })
+        : null;
+    const message = checkIn ? `${decision.message} ${checkInLine(checkIn, session.language)}` : decision.message;
+
     await this.sessions.appendTurn(sessionId, { role: "user", content: utterance });
-    await this.sessions.appendTurn(sessionId, { role: "assistant", content: decision.message });
+    await this.sessions.appendTurn(sessionId, { role: "assistant", content: message });
     await this.sessions.setPending(sessionId, decision.nextPending);
+    await this.sessions.setProgress(sessionId, {
+      coveredGoals,
+      lastCheckInAt: checkIn ? now : session.lastCheckInAt,
+      metTargets,
+    });
 
     return {
       kind: decision.kind,
-      message: decision.message,
+      message,
       selfCorrected: decision.selfCorrected,
       support: safeSupport(verdict.support, decision.nextPending?.correction),
+      checkIn: checkIn !== null,
+      coveredGoals,
     };
   }
 
@@ -155,6 +217,8 @@ export class ConversationService {
         timing: outcome?.timing ?? null,
       }),
       confidence: outcome?.confidence ?? { before: null, after: null },
+      goals: goalsFor(session.mode).map((id) => ({ id, covered: session.coveredGoals.includes(id) })),
+      targets: session.targets.map((t) => ({ ...t, met: session.metTargets.includes(t.original) })),
     };
   }
 
@@ -164,6 +228,26 @@ export class ConversationService {
     const session = await this.sessions.get(sessionId);
     if (!session) throw new SessionNotFoundError(sessionId);
     await this.sessions.setConfidence(sessionId, moment, value);
+  }
+
+  /** The most frequent mistakes the learner has not mastered yet. New words are not mistakes. */
+  private async pickTargets(language: string): Promise<PracticeTarget[]> {
+    const entries = await this.bank.list(language);
+    return entries
+      .filter((m) => m.category !== NEW_WORD_CATEGORY && mistakeStatus(m.sessionsCorrect) !== "mastered")
+      .sort((a, b) => b.occurrences - a.occurrences)
+      .slice(0, PRACTICE_TARGETS)
+      .map(({ original, correction, category }) => ({ original, correction, category }));
+  }
+
+  private tutorContext(session: Session, learnerContext: string): TutorContext {
+    return {
+      mode: session.mode,
+      language: session.language,
+      learnerContext,
+      goals: goalsFor(session.mode).map((id) => ({ id, description: GOAL_DESCRIPTIONS[id] })),
+      targets: session.targets,
+    };
   }
 
   private async openSession(sessionId: string): Promise<Session> {

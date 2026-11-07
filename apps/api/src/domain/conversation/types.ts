@@ -38,10 +38,25 @@ export interface PendingCorrection {
   revealed: boolean;
 }
 
+/** A mistake from the bank the learner practices in this session: the tutor gives chances to say it right. */
+export interface PracticeTarget {
+  original: string;
+  correction: string;
+  category: string;
+}
+
 export interface Session {
   id: string;
   language: string;
   mode: Mode;
   pending: PendingCorrection | null;
+  startedAt: Date;
   endedAt: Date | null;
+  /** Goals of the mode the learner has covered so far. */
+  coveredGoals: string[];
+  /** When the tutor last asked whether to stop or keep going, or null. */
+  lastCheckInAt: Date | null;
+  targets: PracticeTarget[];
+  /** The `original` of each target the learner said correctly in this session. */
+  metTargets: string[];
 }

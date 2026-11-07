@@ -8,6 +8,8 @@ export interface StartedSession {
   mode: Mode;
   language: string;
   message: string;
+  /** Goals of the meeting, in order; empty in free talk. */
+  goals: string[];
 }
 
 export interface TurnResult {
@@ -16,6 +18,10 @@ export interface TurnResult {
   selfCorrected: boolean;
   /** Written help in the learner's first language, shown on screen and never spoken. */
   support?: string | null;
+  /** The tutor asked whether to stop or keep going. */
+  checkIn?: boolean;
+  /** Goals of the meeting covered so far. */
+  coveredGoals?: string[];
 }
 
 /** The category the API gives a word the learner said in their first language. Not a mistake. */
@@ -56,6 +62,9 @@ export interface SessionSummary {
   selfCorrections: number;
   signals: FluencySignals;
   confidence: { before: number | null; after: number | null };
+  goals: { id: string; covered: boolean }[];
+  /** Mistakes from the bank practiced in this session; `met` when the learner said the correct form. */
+  targets: { original: string; correction: string; category: string; met: boolean }[];
 }
 
 export type MistakeStatus = "open" | "improving" | "mastered";
@@ -121,6 +130,18 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     return (await response.json()) as T;
   }
 
+  /** A GET that answers audio. */
+  async function audio(path: string): Promise<ArrayBuffer> {
+    let response: Response;
+    try {
+      response = await fetchImpl(`${baseUrl}/api${path}`);
+    } catch {
+      throw new ApiError("offline", "Can't reach the Voxa API.");
+    }
+    if (!response.ok) throw new ApiError(kindFor(response.status), `Request failed (${response.status}).`, response.status);
+    return response.arrayBuffer();
+  }
+
   return {
     health: () => request<{ status: string }>("/health"),
     startSession: (mode: Mode, language = "en") =>
@@ -141,6 +162,15 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     /** WebSocket address of the live voice session (see lib/voice/voice-socket.ts). */
     voiceUrl: (sessionId: string) =>
       `${baseUrl.replace(/^http/, "ws")}/api/sessions/${encodeURIComponent(sessionId)}/voice`,
+    /** The short lines played while the tutor prepares an answer, as WAV; empty when the language has none. */
+    fillerSpeech: async (language = "en") => {
+      const query = `language=${encodeURIComponent(language)}`;
+      const { count } = await request<{ count: number }>(`/voice/fillers?${query}`);
+      // One at a time: the voice server is also speaking the tutor's opening line.
+      const clips: ArrayBuffer[] = [];
+      for (let index = 0; index < count; index++) clips.push(await audio(`/voice/fillers/${index}?${query}`));
+      return clips;
+    },
     listMistakes: async (language = "en") =>
       (await request<{ mistakes: BankMistake[] }>(`/mistakes?language=${encodeURIComponent(language)}`)).mistakes,
     dismissMistake: (id: string, reason: DismissReason) =>

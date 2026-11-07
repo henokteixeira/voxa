@@ -53,8 +53,8 @@ export class SessionsController {
   async start(@Body() body: unknown) {
     const { mode, language } = parse(StartBody, body);
     return handle(async () => {
-      const { session, message } = await this.conversation.start(mode, language);
-      return { sessionId: session.id, mode: session.mode, language: session.language, message };
+      const { session, message, goals } = await this.conversation.start(mode, language);
+      return { sessionId: session.id, mode: session.mode, language: session.language, message, goals };
     });
   }
 

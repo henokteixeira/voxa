@@ -23,8 +23,9 @@ const api = {
   sendTurn: vi.fn(),
   endSession: vi.fn(),
   rateConfidence: vi.fn(),
+  fillerSpeech: vi.fn(),
   voiceUrl: (id: string) => `ws://api/api/sessions/${id}/voice`,
-} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "rateConfidence"]: ReturnType<typeof vi.fn> };
+} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "rateConfidence" | "fillerSpeech"]: ReturnType<typeof vi.fn> };
 
 const deps: VoiceDeps = {
   openMicrophone: vi.fn(async (handlers: MicrophoneHandlers) => {
@@ -90,6 +91,7 @@ beforeEach(() => {
   api.health.mockResolvedValue({ status: "ok" });
   api.endSession.mockResolvedValue(summaryWith([]));
   api.rateConfidence.mockResolvedValue(undefined);
+  api.fillerSpeech.mockResolvedValue([]);
   api.startSession.mockResolvedValue({
     sessionId: "s1",
     mode: "daily",
@@ -140,6 +142,44 @@ describe("live session", () => {
     expect(card).toHaveTextContent("“Yesterday I finish the upload screen”");
     expect(card).toHaveTextContent("When did this happen?");
     expect(screen.getByText("Hint · say it again")).toBeInTheDocument();
+  });
+
+  it("says a filler line while a slow answer comes, and cuts it for the answer", async () => {
+    const fillerClip = new ArrayBuffer(4);
+    api.fillerSpeech.mockResolvedValue([fillerClip]);
+    await startAndListen();
+    expect(api.fillerSpeech).toHaveBeenCalledWith("en");
+    vi.useFakeTimers();
+    try {
+      act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+      act(() => socketHandlers.onTranscript("I finished it"));
+      act(() => vi.advanceTimersByTime(1000));
+      expect(speaker.play).toHaveBeenLastCalledWith(fillerClip);
+      expect(screen.getByText("Thinking")).toBeInTheDocument();
+
+      const answer = new ArrayBuffer(8);
+      act(() => socketHandlers.onSpeech(answer));
+      expect(speaker.stop).toHaveBeenCalled();
+      expect(speaker.play).toHaveBeenLastCalledWith(answer);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("says nothing extra when the answer is quick", async () => {
+    api.fillerSpeech.mockResolvedValue([new ArrayBuffer(4)]);
+    await startAndListen();
+    vi.useFakeTimers();
+    try {
+      act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+      act(() => socketHandlers.onTranscript("I finished it"));
+      act(() => vi.advanceTimersByTime(500));
+      act(() => socketHandlers.onDone());
+      act(() => vi.advanceTimersByTime(1000));
+      expect(speaker.play).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("says it didn't catch a turn with no speech", async () => {
@@ -206,6 +246,57 @@ describe("live session", () => {
     expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ pausesMs: expect.any(Array) }));
     expect(mic.stop).toHaveBeenCalled();
     expect(socket.close).toHaveBeenCalled();
+  });
+
+  it("shows the meeting's goals, ticks covered ones and asks whether to stop", async () => {
+    api.startSession.mockResolvedValueOnce({
+      sessionId: "s1",
+      mode: "daily",
+      language: "en",
+      message: "Morning! What did you work on yesterday?",
+      goals: ["yesterday", "today", "blockers"],
+    });
+    api.endSession.mockResolvedValueOnce(
+      summaryWith([], {
+        goals: [
+          { id: "yesterday", covered: true },
+          { id: "today", covered: true },
+          { id: "blockers", covered: true },
+        ],
+        targets: [
+          { original: "I goed", correction: "I went", category: "grammar", met: true },
+          { original: "more better", correction: "better", category: "grammar", met: false },
+        ],
+      }),
+    );
+    await startAndListen();
+    const goals = screen.getByRole("list", { name: "Meeting goals" });
+    expect(goals).toHaveTextContent("Yesterday");
+    expect(goals).not.toHaveTextContent("✓");
+
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("All done, no blockers."));
+    act(() =>
+      socketHandlers.onTutor({
+        kind: "reply",
+        message: "Thanks. Do you want to stop here or keep going?",
+        selfCorrected: false,
+        checkIn: true,
+        coveredGoals: ["yesterday", "today", "blockers"],
+      }),
+    );
+    act(() => socketHandlers.onDone());
+
+    expect(screen.getByRole("list", { name: "Meeting goals" })).toHaveTextContent("✓ Blockers");
+    await userEvent.click(screen.getByRole("button", { name: "Keep going" }));
+    expect(screen.queryByRole("region", { name: "Stop here?" })).not.toBeInTheDocument();
+
+    act(() => socketHandlers.onTutor({ kind: "reply", message: "Anything else?", selfCorrected: false, checkIn: true }));
+    await userEvent.click(screen.getByRole("button", { name: "Stop and see the summary" }));
+    expect(await screen.findByRole("heading", { name: "Session done" })).toBeInTheDocument();
+    expect(screen.getByText("Goals: 3 of 3")).toBeInTheDocument();
+    expect(screen.getByText(/You got 1 of 2 right/)).toBeInTheDocument();
+    expect(screen.getByText("Next time")).toBeInTheDocument();
   });
 
   it("keeps the microphone off while the learner types", async () => {
