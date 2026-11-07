@@ -230,6 +230,7 @@ function ReviewSaved({ results }: { results: ReviewResult[] }) {
       <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
         <VoiceBall state="success" size={140} />
         <h1 className="m-0 text-title">{copy.reviewSaved}</h1>
+        <p className="m-0 text-small font-medium text-sage-ink">{copy.reviewXp(results.reduce((sum, r) => sum + r.xp, 0))}</p>
         <ul className="m-0 flex w-full list-none flex-col gap-2.5 rounded-md bg-paper p-4 text-left shadow-card">
           {results.map((r) => (
             <li key={r.subject.id} className="flex justify-between gap-3 text-small">

@@ -10,6 +10,7 @@ import {
   type ReviewSubject,
 } from "../domain/ports/review.repository.js";
 import { ReviewScheduler } from "./review-scheduler.js";
+import { XP_PER_REVIEW } from "../domain/progress/daily-goal.js";
 
 /** How many items one review asks for: short enough for about three minutes by voice. */
 export const REVIEW_SIZE = 5;
@@ -52,6 +53,8 @@ export interface ReviewAnswer {
   rule: string;
   /** When the item comes back. */
   nextDueAt: Date;
+  /** XP the answer earned. A card counts once, so a retried answer reports the same XP without adding more. */
+  xp: number;
 }
 
 @Injectable()
@@ -99,11 +102,11 @@ export class ReviewService {
       return this.result(first?.recalled ?? recalled, card, await this.find(card.subject));
     }
     const next = await this.scheduler.answered(item.language, card.subject, recalled ? "recalled" : "missed", now);
-    return { recalled, answer: card.answer, rule: item.rule, nextDueAt: next.dueAt };
+    return { recalled, answer: card.answer, rule: item.rule, nextDueAt: next.dueAt, xp: XP_PER_REVIEW };
   }
 
   private result(recalled: boolean, card: ReviewCue, item: ReviewItem): ReviewAnswer {
-    return { recalled, answer: card.answer, rule: item.rule, nextDueAt: item.dueAt };
+    return { recalled, answer: card.answer, rule: item.rule, nextDueAt: item.dueAt, xp: XP_PER_REVIEW };
   }
 
   private async find(subject: ReviewSubject): Promise<ReviewItem> {

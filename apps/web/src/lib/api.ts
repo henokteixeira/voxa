@@ -181,6 +181,8 @@ export interface ReviewAnswer {
   rule: string;
   /** ISO 8601 date-time: when the item comes back. */
   nextDueAt: string;
+  /** XP the answer earned, right or wrong. */
+  xp: number;
 }
 
 export interface ReviewOverview {
@@ -305,6 +307,8 @@ export interface TodayProgress {
   streakDays: number;
   /** XP for each reason, to show XP as it is earned. */
   points: Record<XpReason, number>;
+  /** XP for each answered review item. */
+  reviewPoints: number;
 }
 
 /** The device's IANA time zone: days, the goal and the streak follow the learner's clock. */

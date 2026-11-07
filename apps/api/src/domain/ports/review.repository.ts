@@ -50,6 +50,8 @@ export interface ReviewRepository {
   card(id: string): Promise<StoredReviewCard | null>;
   /** Records the answer once: false when the card was already answered (e.g. a retried request). */
   answerCard(id: string, recalled: boolean, at: Date): Promise<boolean>;
+  /** When each card in this language answered since a moment was answered, oldest first. */
+  answeredSince(language: string, since: Date): Promise<Date[]>;
   /** Every schedule in this language, due or not (dismissed or not). */
   schedules(language: string): Promise<ReviewSchedule[]>;
   /** When the next item not yet due comes back, or null when there is none. */

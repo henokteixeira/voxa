@@ -22,6 +22,7 @@ export interface ReflectionCopy {
   later: string;
   reviewSaved: string;
   reviewSavedNote: string;
+  reviewXp: (xp: number) => string;
   done: string;
   close: string;
   signalsLabel: string;
@@ -79,6 +80,7 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     later: "Later",
     reviewSaved: "Saved for your review",
     reviewSavedNote: "Mistakes are how you learn. These will come back a little later each time.",
+    reviewXp: (xp) => `+${xp} XP toward today's goal`,
     done: "Done",
     close: "Close",
     signalsLabel: "Fluency signals",
@@ -136,6 +138,7 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     later: "Depois",
     reviewSaved: "Guardado para sua revisão",
     reviewSavedNote: "É errando que se aprende. Eles vão voltar, cada vez um pouco mais tarde.",
+    reviewXp: (xp) => `+${xp} XP para a meta de hoje`,
     done: "Concluir",
     close: "Fechar",
     signalsLabel: "Sinais de fluência",

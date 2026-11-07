@@ -9,12 +9,13 @@ import { comesBack } from "./format";
 import { REVIEW_COPY } from "./review-copy";
 import { useReviewMicrophone } from "./use-review-microphone";
 
-/** One answered item: what it was and when it comes back. */
+/** One answered item: what it was, when it comes back and the XP it earned. */
 export interface ReviewResult {
   subject: ReviewSubject;
   name: string;
   recalled: boolean;
   nextDueAt: string;
+  xp: number;
 }
 
 type Step =
@@ -63,7 +64,7 @@ export function ReviewRun({ subjects, onDone }: { subjects: ReviewSubject[]; onD
     setStep({ kind: "checking", card });
     try {
       const result = await api.answerReview(card.cardId, said);
-      setResults((r) => [...r, { subject: card.item.subject, name: card.item.name, recalled: result.recalled, nextDueAt: result.nextDueAt }]);
+      setResults((r) => [...r, { subject: card.item.subject, name: card.item.name, recalled: result.recalled, nextDueAt: result.nextDueAt, xp: result.xp }]);
       setStep({ kind: "answered", card, said, answer: result });
     } catch {
       setStep({ kind: "asking", card, problem: "failed" });

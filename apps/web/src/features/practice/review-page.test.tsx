@@ -33,7 +33,7 @@ function renderReview(path: string, api: Partial<ApiClient>) {
 describe("Review", () => {
   it("reviews what is due, then says when each one comes back", async () => {
     const reviewCard = vi.fn().mockImplementation(async ({ id }: { id: string }) => card(id, id === "p1" ? "Past" : "Wait for"));
-    const answerReview = vi.fn().mockResolvedValue({ recalled: false, answer: "One way.", rule: "Rule.", nextDueAt: tomorrow() });
+    const answerReview = vi.fn().mockResolvedValue({ recalled: false, answer: "One way.", rule: "Rule.", nextDueAt: tomorrow(), xp: 1 });
     const due = [{ subject: { kind: "pattern", id: "p1" } }, { subject: { kind: "pattern", id: "p2" } }];
     const router = renderReview("/review", { reviewOverview: vi.fn().mockResolvedValue({ due, nextDueAt: null }), reviewCard, answerReview });
 
@@ -44,6 +44,7 @@ describe("Review", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Finish" }));
 
     expect(screen.getByRole("heading", { name: "Review done" })).toBeInTheDocument();
+    expect(screen.getByText("+2 XP toward today's goal")).toBeInTheDocument();
     expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Pasttomorrow", "Wait fortomorrow"]);
     await userEvent.click(screen.getByRole("link", { name: "Done" }));
     expect(router.state.location.pathname).toBe("/mistakes");

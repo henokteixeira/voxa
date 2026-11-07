@@ -44,6 +44,9 @@ class FakeReviews implements ReviewRepository {
   async schedules() {
     return [];
   }
+  async answeredSince() {
+    return [];
+  }
   async nextDueAt() {
     return null;
   }
@@ -90,7 +93,7 @@ describe("ReviewService", () => {
     const result = await service.answer(cardId, " I finished the report yesterday ");
 
     expect(coach.checked).toEqual(["I finished the report yesterday"]);
-    expect(result).toEqual({ recalled: true, answer: cue.answer, rule: "Passado.", nextDueAt: day(7) });
+    expect(result).toEqual({ recalled: true, answer: cue.answer, rule: "Passado.", nextDueAt: day(7), xp: 1 });
   });
 
   it("moves it back on a wrong answer or on \"I don't know\", without asking the coach", async () => {

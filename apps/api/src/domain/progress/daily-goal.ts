@@ -43,6 +43,12 @@ export const XP_POINTS: Record<XpReason, number> = {
   personal_record: 3,
 };
 
+/**
+ * XP for each answered review item, right or wrong (decided on 2026-11-07): about a minute of practice, like a minute
+ * of conversation, and a miss is worth the same so the review never feels like a test.
+ */
+export const XP_PER_REVIEW = 1;
+
 /** XP earned in one session, by reason. */
 export interface XpAward {
   reason: XpReason;

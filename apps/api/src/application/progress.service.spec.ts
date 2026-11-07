@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { SessionTiming } from "../domain/conversation/fluency.js";
 import type { Clock } from "../domain/ports/clock.port.js";
 import type { Database } from "../infra/db/db.module.js";
+import { DrizzleMistakeRepository } from "../infra/db/drizzle-mistake.repository.js";
 import { DrizzleProgressRepository } from "../infra/db/drizzle-progress.repository.js";
+import { DrizzleReviewRepository } from "../infra/db/drizzle-review.repository.js";
 import { DrizzleSessionRepository } from "../infra/db/drizzle-session.repository.js";
 import { createTestDatabase } from "../infra/db/test-database.js";
 import { ProgressService } from "./progress.service.js";
@@ -12,13 +14,15 @@ let close: () => Promise<void>;
 let sessions: DrizzleSessionRepository;
 let now: Date;
 let service: ProgressService;
+let reviews: DrizzleReviewRepository;
 const clock: Clock = { now: () => now };
 const tz = "America/Sao_Paulo";
 
 beforeEach(async () => {
   ({ db, close } = await createTestDatabase());
   sessions = new DrizzleSessionRepository(db);
-  service = new ProgressService(new DrizzleProgressRepository(db), sessions, clock);
+  reviews = new DrizzleReviewRepository(db);
+  service = new ProgressService(new DrizzleProgressRepository(db), sessions, clock, reviews);
   now = new Date("2026-11-07T15:00:00Z");
 });
 afterEach(() => close());
@@ -103,7 +107,28 @@ describe("ProgressService.today", () => {
       goalMet: false,
       streakDays: 0,
       points: { practice_minute: 1, goal_covered: 1, self_corrected: 2, personal_record: 3 },
+      reviewPoints: 1,
     });
+  });
+
+  it("adds 1 XP for each answered review item, right or wrong, on the day it was answered", async () => {
+    const session = await sessions.create({ language: "en", mode: "daily" });
+    const word = await new DrizzleMistakeRepository(db).record(
+      { language: "en", original: "prazo", correction: "deadline", category: "new_word", pattern: null },
+      { sessionId: session.id, severity: "minor" },
+    );
+    const subject = { kind: "new_word" as const, id: word!.id };
+    await reviews.save("en", subject, { step: 0, dueAt: now }, null);
+    const answer = async (recalled: boolean, at: string) => {
+      const card = await reviews.addCard(subject, { cue: "Qual é o prazo?", answer: "What is the deadline?" });
+      await reviews.answerCard(card.id, recalled, new Date(at));
+    };
+    await answer(true, "2026-11-07T14:00:00Z");
+    await answer(false, "2026-11-07T14:01:00Z");
+    await answer(true, "2026-11-06T14:00:00Z"); // yesterday
+    await reviews.addCard(subject, { cue: "Qual é o prazo?", answer: "What is the deadline?" }); // never answered
+
+    expect((await service.today("en", tz)).earnedXp).toBe(2);
   });
 
   it("adds up today's XP in the learner's day and counts the streak", async () => {

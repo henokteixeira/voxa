@@ -8,6 +8,7 @@ import {
   localDay,
   minutesForDay,
   streakDays,
+  XP_PER_REVIEW,
   XP_POINTS,
   type XpAward,
   type XpReason,
@@ -16,6 +17,7 @@ import {
 import { rewardsGoals } from "../domain/conversation/mode.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { PROGRESS_REPOSITORY, type ProgressRepository } from "../domain/ports/progress.repository.js";
+import { REVIEW_REPOSITORY, type ReviewRepository } from "../domain/ports/review.repository.js";
 import { SESSION_REPOSITORY, type SessionRepository } from "../domain/ports/session.repository.js";
 
 /** Today's goal as the Today screen shows it. */
@@ -28,6 +30,8 @@ export interface TodayProgress {
   streakDays: number;
   /** XP for each reason, so the app can show XP as it is earned. */
   points: Record<XpReason, number>;
+  /** XP for each answered review item. */
+  reviewPoints: number;
 }
 
 /** What a session earned, for its summary. */
@@ -63,15 +67,18 @@ export class ProgressService {
     @Inject(PROGRESS_REPOSITORY) private readonly progress: ProgressRepository,
     @Inject(SESSION_REPOSITORY) private readonly sessions: Pick<SessionRepository, "get" | "outcome">,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(REVIEW_REPOSITORY) private readonly reviews: Pick<ReviewRepository, "answeredSince">,
   ) {}
 
   async today(language: string, timeZone: string): Promise<TodayProgress> {
     const now = this.clock.now();
     const since = new Date(now.getTime() - STREAK_LOOKBACK_DAYS * 86_400_000);
-    const [history, earned] = await Promise.all([
+    const [history, sessionsEarned, reviewsAnswered] = await Promise.all([
       this.progress.dailyMinutesHistory(language),
       this.progress.earnedSince(language, since),
+      this.reviews.answeredSince(language, since),
     ]);
+    const earned = [...sessionsEarned, ...reviewsAnswered.map((awardedAt) => ({ total: XP_PER_REVIEW, awardedAt }))];
 
     const xpByDay = new Map<LocalDay, number>();
     for (const { total, awardedAt } of earned) {
@@ -92,6 +99,7 @@ export class ProgressService {
       goalMet: metDays.has(today),
       streakDays: streakDays(metDays, today),
       points: XP_POINTS,
+      reviewPoints: XP_PER_REVIEW,
     };
   }
 
