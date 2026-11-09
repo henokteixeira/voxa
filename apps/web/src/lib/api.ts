@@ -309,6 +309,10 @@ export interface CheckInPace {
   recordedAt: string;
   wordsPerMinute: number | null;
   longPauses: number;
+  /** Mistakes the tutor found reading the transcript afterwards; null when it couldn't read it. */
+  mistakesPer100Words: number | null;
+  /** Words said in Portuguese (another language); null when the transcript wasn't read. */
+  otherLanguageWords: number | null;
 }
 
 export interface CheckInOverview {

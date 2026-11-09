@@ -66,12 +66,33 @@ describe("Check-in", () => {
     expect(recordCheckIn).toHaveBeenCalledWith(expect.any(ArrayBuffer), expect.objectContaining({ pausesMs: [] }));
     expect(await screen.findByRole("heading", { name: "The time before, you said 68 words a minute. Today, 81." })).toBeInTheDocument();
     expect(screen.getByRole("row", { name: "Long pauses 9 4" })).toBeInTheDocument();
+    // The earlier check-in wasn't read for mistakes: no mistake rows to compare.
+    expect(screen.queryByRole("row", { name: /^Mistakes per 100 words/ })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /^Hear .+, then today$/ }));
     expect(checkInRecording.mock.calls.map(([id]) => id)).toEqual(["c1", "c2"]);
     expect(speaker.play).toHaveBeenCalledTimes(2);
     await userEvent.click(screen.getByRole("link", { name: "Done" }));
     expect(router.state.location.pathname).toBe("/");
+  });
+
+  it("compares mistakes per 100 words and Portuguese words when both check-ins have them", async () => {
+    const read = (id: string, at: string, wpm: number, mistakes: number, words: number) => ({
+      ...pace(id, at, wpm, 4),
+      mistakesPer100Words: mistakes,
+      otherLanguageWords: words,
+    });
+    const recordCheckIn = vi.fn().mockResolvedValue({
+      checkIn: { ...read("c2", "2026-11-23T10:00:00Z", 81, 3.5, 2), transcript: "My project…" },
+      previous: read("c1", "2026-11-09T10:00:00Z", 68, 6.2, 2),
+    });
+    const { speak } = renderCheckIn({ checkIns: vi.fn().mockResolvedValue(overview(true)), recordCheckIn, checkInRecording: vi.fn() });
+    await userEvent.click(await screen.findByRole("button", { name: "Start · 2:00" }));
+    speak();
+    await userEvent.click(screen.getByRole("button", { name: "I'm done" }));
+
+    expect(await screen.findByRole("row", { name: "Mistakes per 100 words 6.2 3.5" })).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: "Words in Portuguese 2 2" })).toBeInTheDocument();
   });
 
   it("asks again when nothing was said", async () => {

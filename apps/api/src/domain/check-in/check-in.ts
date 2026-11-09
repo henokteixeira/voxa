@@ -22,6 +22,10 @@ export interface CheckIn {
   speechMs: number;
   /** Silences of at least 1 s inside it. */
   longPauses: number;
+  /** Mistakes the tutor found reading the transcript afterwards (none are shown during it); null when it couldn't read it. */
+  mistakes: number | null;
+  /** Words said in another language than the check-in's; null when it couldn't read it. */
+  otherLanguageWords: number | null;
 }
 
 export interface CheckInPace {
@@ -29,6 +33,9 @@ export interface CheckInPace {
   recordedAt: Date;
   wordsPerMinute: number | null;
   longPauses: number;
+  /** Rounded to one decimal; null when the transcript was not read or has no words. */
+  mistakesPer100Words: number | null;
+  otherLanguageWords: number | null;
 }
 
 export function checkInPace(checkIn: CheckIn): CheckInPace {
@@ -37,6 +44,11 @@ export function checkInPace(checkIn: CheckIn): CheckInPace {
     recordedAt: checkIn.recordedAt,
     wordsPerMinute: wordsPerMinute(checkIn.spokenWords, checkIn.speechMs),
     longPauses: checkIn.longPauses,
+    mistakesPer100Words:
+      checkIn.mistakes === null || checkIn.spokenWords === 0
+        ? null
+        : Math.round((checkIn.mistakes / checkIn.spokenWords) * 1000) / 10,
+    otherLanguageWords: checkIn.otherLanguageWords,
   };
 }
 

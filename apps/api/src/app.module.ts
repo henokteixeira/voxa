@@ -23,6 +23,7 @@ import { FASTER_ROUND_REPOSITORY } from "./domain/ports/faster-round.repository.
 import { LEARNER_CONTEXT_PORT } from "./domain/ports/learner-context.port.js";
 import { LEARNER_MEMORY_REPOSITORY } from "./domain/ports/learner-memory.repository.js";
 import { MEMORY_EXTRACTOR_PORT } from "./domain/ports/memory-extractor.port.js";
+import { CHECK_IN_READER_PORT } from "./domain/ports/check-in-reader.port.js";
 import { LEVEL_ASSESSOR_PORT } from "./domain/ports/level-assessor.port.js";
 import { LEVEL_REPOSITORY } from "./domain/ports/level.repository.js";
 import { MISTAKE_BANK_REPOSITORY } from "./domain/ports/mistake-bank.repository.js";
@@ -45,6 +46,7 @@ import { DrizzleProgressRepository } from "./infra/db/drizzle-progress.repositor
 import { DrizzleSessionRepository } from "./infra/db/drizzle-session.repository.js";
 import { DrizzleSignalsRepository } from "./infra/db/drizzle-signals.repository.js";
 import { AnthropicMemoryExtractor } from "./infra/tutor/anthropic-memory-extractor.js";
+import { AnthropicCheckInReader } from "./infra/tutor/anthropic-check-in-reader.js";
 import { AnthropicLevelAssessor } from "./infra/tutor/anthropic-level-assessor.js";
 import { AnthropicTutorAdapter, anthropicClientProvider } from "./infra/tutor/anthropic-tutor.adapter.js";
 import { FileLearnerContext } from "./infra/tutor/file-learner-context.js";
@@ -94,6 +96,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
     { provide: CLOCK, useValue: systemClock },
     { provide: TUTOR_PORT, useClass: AnthropicTutorAdapter },
     { provide: LEVEL_ASSESSOR_PORT, useClass: AnthropicLevelAssessor },
+    { provide: CHECK_IN_READER_PORT, useClass: AnthropicCheckInReader },
     { provide: REVIEW_COACH_PORT, useClass: AnthropicReviewCoach },
     { provide: LEARNER_CONTEXT_PORT, useClass: FileLearnerContext },
     { provide: MEMORY_EXTRACTOR_PORT, useClass: AnthropicMemoryExtractor },

@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { Logger } from "@nestjs/common";
+import { describe, expect, it, vi } from "vitest";
 import type { CheckIn } from "../domain/check-in/check-in.js";
+import type { CheckInReaderPort } from "../domain/ports/check-in-reader.port.js";
 import type { CheckInRecording, CheckInRepository } from "../domain/ports/check-in.repository.js";
+import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import { CheckInNotDueError, CheckInNotFoundError, CheckInService } from "./check-in.service.js";
 
 class FakeCheckIns implements CheckInRepository {
@@ -33,11 +36,12 @@ class FakeCheckIns implements CheckInRepository {
   }
 }
 
-function setup(heard = "My project helps volunteers find a place to serve") {
+function setup(heard = "My project helps volunteers find a place to serve", reader?: CheckInReaderPort) {
   const clock = { at: new Date("2026-11-09T10:00:00Z"), now: () => clock.at };
   const checkIns = new FakeCheckIns();
   const stt = { transcribe: async () => ({ text: ` ${heard} `, language: "en" }) };
-  return { clock, checkIns, service: new CheckInService(checkIns, stt, clock) };
+  const read = reader ?? { read: vi.fn().mockResolvedValue({ mistakes: 1, otherLanguageWords: 0 }) };
+  return { clock, checkIns, read, service: new CheckInService(checkIns, stt, clock, read) };
 }
 const wav = { mimeType: "audio/wav", audio: Buffer.from([1, 2, 3]) };
 
@@ -66,6 +70,23 @@ describe("CheckInService", () => {
     expect(await service.result(first.checkIn.id)).toEqual(first);
     expect(await service.recording(second.checkIn.id)).toEqual(wav);
     expect(checkIns.rows).toHaveLength(2);
+  });
+
+  it("counts the mistakes and other-language words the tutor finds in the transcript", async () => {
+    const reader = { read: vi.fn().mockResolvedValue({ mistakes: 2, otherLanguageWords: 1 }) };
+    const { service } = setup("My project help volunteers to find um lugar to serve", reader);
+    const result = await service.record("en", wav, { speechMs: 12_000, pausesMs: [] });
+    expect(reader.read).toHaveBeenCalledWith({ language: "en", transcript: "My project help volunteers to find um lugar to serve" });
+    expect(result.checkIn).toMatchObject({ mistakesPer100Words: 20, otherLanguageWords: 1 });
+  });
+
+  it("keeps the check-in without mistake numbers when the tutor can't read it", async () => {
+    vi.spyOn(Logger.prototype, "warn").mockImplementation(() => {});
+    const reader = { read: vi.fn().mockRejectedValue(new TutorUnavailableError("down")) };
+    const { service, checkIns } = setup(undefined, reader);
+    const result = await service.record("en", wav, { speechMs: 12_000, pausesMs: [] });
+    expect(result.checkIn).toMatchObject({ wordsPerMinute: 45, mistakesPer100Words: null, otherLanguageWords: null });
+    expect(checkIns.rows).toHaveLength(1);
   });
 
   it("refuses a silent recording, one too long, and unknown check-ins", async () => {

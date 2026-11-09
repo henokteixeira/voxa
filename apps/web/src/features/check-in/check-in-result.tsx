@@ -37,6 +37,9 @@ export function CheckInComparison({
           better: (checkIn.wordsPerMinute ?? 0) > (previous.wordsPerMinute ?? Infinity),
         },
         { label: copy.longPauses, before: previous.longPauses, now: checkIn.longPauses, better: checkIn.longPauses < previous.longPauses },
+        // Shown only when both check-ins were read for mistakes (older ones weren't): fewer is better.
+        ...fewerIsBetter(copy.mistakesPer100Words, previous.mistakesPer100Words, checkIn.mistakesPer100Words),
+        ...fewerIsBetter(copy.otherLanguageWords, previous.otherLanguageWords, checkIn.otherLanguageWords),
       ]
     : [];
   return (
@@ -83,6 +86,11 @@ export function CheckInComparison({
       </Button>
     </>
   );
+}
+
+function fewerIsBetter(label: string, before: number | null | undefined, now: number | null | undefined) {
+  if (before == null || now == null) return [];
+  return [{ label, before, now, better: now < before }];
 }
 
 /** Plays the recordings one after the other (the old one first). */
