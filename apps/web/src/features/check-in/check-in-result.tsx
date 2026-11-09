@@ -11,7 +11,7 @@ import { CHECK_IN_COPY } from "./check-in-copy";
 import { clearestGain, useCheckInDate } from "./check-in-format";
 
 /** The check-in compared with the one before: only what went better gets a color; nothing is red. */
-export function CheckInComparison({ result }: { result: CheckInResult }) {
+export function CheckInComparison({ result, doneTo = "/" }: { result: CheckInResult; doneTo?: string }) {
   const copy = useCopy(CHECK_IN_COPY);
   const date = useCheckInDate();
   const { checkIn, previous } = result;
@@ -69,7 +69,7 @@ export function CheckInComparison({ result }: { result: CheckInResult }) {
       <HearRecordings ids={[...(previous ? [previous.id] : []), checkIn.id]} label={previous ? copy.hearBoth(date(previous.recordedAt)) : copy.hearToday} />
       <div className="flex-1" />
       <Button block asChild>
-        <Link to="/">{copy.finish}</Link>
+        <Link to={doneTo}>{copy.finish}</Link>
       </Button>
     </>
   );

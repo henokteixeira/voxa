@@ -34,6 +34,10 @@ export interface CheckInCopy {
   playing: string;
   playFailed: string;
   finish: string;
+  historyTitle: string;
+  historyEvery: string;
+  historyItem: (date: string, wordsPerMinute: number | null) => string;
+  next: (date: string) => string;
 }
 
 export const CHECK_IN_COPY: Copy<CheckInCopy> = {
@@ -74,6 +78,10 @@ export const CHECK_IN_COPY: Copy<CheckInCopy> = {
     playing: "Playing…",
     playFailed: "The recording couldn't play.",
     finish: "Done",
+    historyTitle: "Check-ins · words per minute",
+    historyEvery: "every 2 weeks",
+    historyItem: (date, wpm) => `${date}: ${wpm ?? "no"} words per minute. Open this check-in`,
+    next: (date) => `Next check-in: ${date}`,
   },
   "pt-BR": {
     label: "Check-in",
@@ -112,5 +120,9 @@ export const CHECK_IN_COPY: Copy<CheckInCopy> = {
     playing: "Tocando…",
     playFailed: "Não deu para tocar a gravação.",
     finish: "Concluir",
+    historyTitle: "Check-ins · palavras por minuto",
+    historyEvery: "a cada 2 semanas",
+    historyItem: (date, wpm) => `${date}: ${wpm ?? "sem"} palavras por minuto. Abrir este check-in`,
+    next: (date) => `Próximo check-in: ${date}`,
   },
 };
