@@ -71,14 +71,7 @@ export function TypePage({ type, practice, now }: { type: string; practice: Prac
         <h1 ref={heading} tabIndex={-1} className="m-0 font-serif text-[28px] leading-tight font-normal outline-none">
           {title}
         </h1>
-        <StatusBar counts={counts} className="h-1.5 rounded-[3px]" />
-        <span className="flex gap-3.5 text-caption text-taupe">
-          {(["new", "improving", "mastered"] as const).map((s) => (
-            <span key={s}>
-              <b className="font-bold text-ink tabular-nums">{counts[s]}</b> {copy.status[s].toLowerCase()}
-            </span>
-          ))}
-        </span>
+        <StatusBar counts={counts} />
       </div>
       <Groups items={items} now={now} row={row} />
     </>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, Navigate } from "react-router";
+import { Link, Navigate, useLocation, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SegmentedSetting } from "@/components/ui/segmented";
@@ -60,7 +60,15 @@ const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds
 /** Today: what to do today. The free conversations live in Talk. */
 export function TodayPage() {
   const [now] = useState(() => new Date());
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  // The memory page sends the learner back here with Settings open, where they came from.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [settingsOpen, setSettingsOpen] = useState(() => (location.state as { settings?: boolean } | null)?.settings === true);
+  const closeSettings = () => {
+    setSettingsOpen(false);
+    // Drop the "open Settings" note so a reload does not open them again.
+    if (location.state) navigate(".", { replace: true, state: null });
+  };
   const { status, retry } = useApiStatus();
   const online = useOnline();
   const copy = useCopy(TODAY_COPY);
@@ -161,9 +169,8 @@ export function TodayPage() {
         </>
       )}
 
-
       {settingsOpen && (
-        <Sheet label={copy.settings} closeLabel={copy.close} onClose={() => setSettingsOpen(false)}>
+        <Sheet label={copy.settings} closeLabel={copy.close} onClose={closeSettings}>
           <h2 className="m-0 text-heading">{copy.settings}</h2>
           <LanguageSetting title={copy.language} hint={copy.languageHint} />
           {/* A new practice time changes the goal: the card takes what the server answered. */}

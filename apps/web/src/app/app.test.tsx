@@ -30,6 +30,7 @@ function renderApp(
     endSession,
     level,
     practice: vi.fn().mockResolvedValue({ patterns: [], newWords: [], earlier: [] }),
+    learnerFacts: vi.fn().mockResolvedValue([]),
     reviewOverview,
     todayProgress: vi.fn().mockResolvedValue(today(30)),
     signalsHistory: vi.fn().mockResolvedValue({ sessions: [] }),
@@ -199,6 +200,17 @@ describe("Today, more", () => {
     await userEvent.keyboard("{Escape}");
     expect(await screen.findByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("en");
+  });
+
+  it("goes back to Settings from what Voxa knows about you", async () => {
+    const router = renderApp("/", up());
+    await userEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    await userEvent.click(screen.getByRole("link", { name: /What Voxa knows about you/ }));
+    expect(router.state.location.pathname).toBe("/memory");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Back" }));
+    expect(router.state.location.pathname).toBe("/");
+    expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
   });
 
   it("lets you choose how long a pause can be before your turn is sent", async () => {

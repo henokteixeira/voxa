@@ -71,16 +71,10 @@ describe("Practice", () => {
 
     const types = await screen.findByRole("region", { name: "By type" });
     expect(within(types).getAllByRole("link").map((l) => l.textContent)).toEqual([
-      "Verb tense4 patterns41 today",
-      "New words2 words2tomorrow",
-      "Articles and prepositions1 pattern1Mon",
-      "Agreement1 pattern1Mastered",
-    ]);
-    expect(within(types).getAllByRole("img").map((bar) => bar.getAttribute("aria-label"))).toEqual([
-      "2 new, 1 improving, 1 mastered",
-      "1 new, 1 mastered",
-      "1 new",
-      "1 mastered",
+      "Verb tense4 patterns42 new · 1 improving · 1 mastered1 today",
+      "New words2 words21 new · 1 masteredtomorrow",
+      "Articles and prepositions1 pattern11 newMon",
+      "Agreement1 pattern11 masteredMastered",
     ]);
     expect(screen.getByRole("region", { name: "Nothing to review right now" })).toHaveTextContent("Next review: Tue");
     expect(screen.getByRole("link", { name: /From before patterns/ })).toHaveTextContent("1");
@@ -92,7 +86,8 @@ describe("Practice", () => {
 
     expect(router.state.location.pathname).toBe("/mistakes/types/verb_tense");
     expect(screen.getByRole("heading", { name: "Verb tense" })).toHaveFocus();
-    expect(screen.getByRole("img", { name: "2 new, 1 improving, 1 mastered" })).toBeInTheDocument();
+    // The status is written out, not only shown as colors.
+    expect(screen.getByText((_, el) => el?.textContent === "2 new · 1 improving · 1 mastered" && el.children.length === 3)).toBeInTheDocument();
     const today = screen.getByRole("region", { name: "Review today" });
     expect(within(today).getAllByRole("link").map((l) => l.textContent)).toEqual(["Improving · Past for finished actionsReview today"]);
     const upcoming = screen.getByRole("region", { name: "Coming up" });
