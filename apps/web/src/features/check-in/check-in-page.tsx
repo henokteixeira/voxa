@@ -1,10 +1,11 @@
 import { useContext, useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { TimeRing } from "@/components/time-ring";
 import { VoiceBall } from "@/components/voice-ball";
 import { RoundMeter } from "@/features/faster/round-meter";
 import { VoiceDepsContext } from "@/features/session/voice-deps";
+import { MISSION_PATH } from "@/features/mission/mission-steps";
 import { useApi } from "@/hooks/use-api";
 import { ApiError, type CheckInResult } from "@/lib/api";
 import { useCopy } from "@/lib/i18n/locale";
@@ -38,6 +39,9 @@ const clock = (ms: number) => {
 export function CheckInPage() {
   const api = useApi();
   const copy = useCopy(CHECK_IN_COPY);
+  // From the mission (step 0), the check-in goes back to it; only that address is followed.
+  const [params] = useSearchParams();
+  const back = params.get("next") === MISSION_PATH ? MISSION_PATH : "/";
   const { openMicrophone } = useContext(VoiceDepsContext);
   const [step, setStep] = useState<Step>({ kind: "loading" });
   const [limitMs, setLimitMs] = useState(120_000);
@@ -148,7 +152,7 @@ export function CheckInPage() {
     <div className="mx-auto flex h-dvh w-full max-w-[480px] flex-col gap-5 px-5 pt-7 pb-8">
       <div className="flex min-h-11 items-center justify-between">
         <Link
-          to="/"
+          to={back}
           aria-label={copy.back}
           className="inline-flex size-11 items-center justify-center rounded-full bg-paper text-ink shadow-card"
         >
@@ -172,7 +176,7 @@ export function CheckInPage() {
         </p>
       )}
 
-      {step.kind === "result" && <CheckInComparison result={step.result} />}
+      {step.kind === "result" && <CheckInComparison result={step.result} doneTo={back} />}
 
       {(step.kind === "ready" || step.kind === "recording" || step.kind === "saving") && (
         <>

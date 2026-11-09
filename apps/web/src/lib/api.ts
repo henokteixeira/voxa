@@ -147,10 +147,56 @@ export interface Takeaway {
   said: string;
 }
 
-/** What a review asks for: a pattern from the bank, or one new word. */
+/** What a review asks for: a pattern from the bank, one new word, or an expression from a daily mission. */
 export interface ReviewSubject {
-  kind: "pattern" | "new_word";
+  kind: "pattern" | "new_word" | "expression";
   id: string;
+}
+
+/** The situations the daily mission goes round, one a day. */
+export type MissionSituation = Extract<Mode, "daily" | "my_day" | "presentation" | "story" | "review" | "opinion">;
+
+/** Which of the mission's steps are done. `checkIn` is step 0 on check-in day only (null on other days). */
+export interface MissionSteps {
+  checkIn: boolean | null;
+  listen: boolean;
+  expressions: boolean;
+  task: boolean;
+  faster: boolean;
+  review: boolean;
+}
+
+/** The steps the learner marks done: the conversation and "say it faster" are read from the session. */
+export type MarkedMissionStep = "listen" | "expressions" | "review";
+
+export interface MissionView {
+  id: string;
+  language: string;
+  /** The learner's local day, YYYY-MM-DD. */
+  day: string;
+  situation: MissionSituation;
+  steps: MissionSteps;
+  done: boolean;
+  /** Step 3's conversation, once started. */
+  sessionId: string | null;
+}
+
+export interface MissionExpression {
+  id: string;
+  position: number;
+  /** The reusable chunk, e.g. "I'm blocked by…". */
+  phrase: string;
+  /** The model's sentence that uses it. */
+  example: string;
+  /** ISO 8601; null until the learner used it in a sentence of their own. */
+  saidAt: string | null;
+}
+
+/** Step 1: someone else does the same task first, at the learner's level. */
+export interface MissionModel {
+  speaker: string;
+  text: string;
+  expressions: MissionExpression[];
 }
 
 /** A pattern or new word with its review schedule. */
@@ -495,8 +541,22 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
 
   return {
     health: () => request<{ status: string }>("/health"),
-    startSession: (mode: Mode, language = "en") =>
-      request<StartedSession>("/sessions", { method: "POST", body: { mode, language } }),
+    /** With `missionId`, the session is that daily mission's conversation (step 3). */
+    startSession: (mode: Mode, language = "en", missionId?: string) =>
+      request<StartedSession>("/sessions", { method: "POST", body: { mode, language, ...(missionId ? { missionId } : {}) } }),
+    missionToday: (language = "en", timeZone = deviceTimeZone()) =>
+      request<MissionView>(`/missions/today?language=${encodeURIComponent(language)}&timeZone=${encodeURIComponent(timeZone)}`),
+    missionModel: (missionId: string) => request<MissionModel>(`/missions/${encodeURIComponent(missionId)}/model`),
+    /** The model as speech (WAV). */
+    missionSpeech: (missionId: string) => audio(`/missions/${encodeURIComponent(missionId)}/model/speech`),
+    markMissionStep: (missionId: string, step: MarkedMissionStep, timeZone = deviceTimeZone()) =>
+      request<MissionView>(`/missions/${encodeURIComponent(missionId)}/steps/${step}`, { method: "POST", body: { timeZone } }),
+    /** Step 2: whether the learner's sentence used the expression. */
+    sayExpression: (missionId: string, expressionId: string, utterance: string) =>
+      request<{ used: boolean }>(
+        `/missions/${encodeURIComponent(missionId)}/expressions/${encodeURIComponent(expressionId)}/attempts`,
+        { method: "POST", body: { utterance } },
+      ),
     resumeSession: (sessionId: string) => request<ResumedSession>(`/sessions/${encodeURIComponent(sessionId)}`),
     sendTurn: (sessionId: string, text: string) =>
       request<TurnResult>(`/sessions/${encodeURIComponent(sessionId)}/turns`, { method: "POST", body: { text } }),

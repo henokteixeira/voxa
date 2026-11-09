@@ -5,6 +5,7 @@ import { clearSavedSession, isExpired, loadSavedSession, RESUME_LIMIT_MS, saveSe
 const saved = {
   sessionId: "s1",
   mode: "daily" as const,
+  missionId: null,
   elapsedSeconds: 65,
   timing: { learnerSpeechMs: 1000, tutorSpeechMs: 2000, pausesMs: [900], longPausesMs: [1200], spokenWords: 12 },
 };

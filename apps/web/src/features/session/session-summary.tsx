@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { VoiceBall } from "@/components/voice-ball";
 import {
@@ -16,37 +16,42 @@ import { categoryLabel } from "@/features/mistakes/format";
 import { comesBack } from "@/features/practice/format";
 import { type ReviewResult, ReviewRun } from "@/features/practice/review-run";
 import { SessionXpCard } from "@/features/xp/session-xp";
-import { FASTER_COPY } from "@/features/faster/faster-copy";
-import { FasterRun } from "@/features/faster/faster-run";
+import { MISSION_PATH, saveMissionTakeaways } from "@/features/mission/mission-steps";
 import { GoalsSummary } from "./goals";
 import { useCopy, useLocale } from "@/lib/i18n/locale";
 import { useModeInfo } from "./modes";
 import { REFLECTION_COPY } from "./reflection-copy";
 import { LEVEL_PATH } from "@/features/progress/level-card";
 
-type Step = "result" | "faster" | "takeaways" | "review" | "reviewed" | "saved";
+type Step = "result" | "takeaways" | "review" | "reviewed" | "saved";
 
 /**
  * After "End session": the result with the fluency signals and how they compare with the last sessions,
  * up to three patterns to take away (with the rest one tap away), an optional quick try of them, then where
  * they were saved. Without a summary (the end failed), only "Session saved".
+ * As step 3 of the daily mission (`missionId`), the takeaways show once with no try, and the mission goes on:
+ * step 5 reviews them.
  */
-export function SummaryFlow(props: { mode: Mode; elapsed: string; summary: SessionSummary | null }) {
-  const { summary, mode } = props;
+export function SummaryFlow(props: { mode: Mode; elapsed: string; summary: SessionSummary | null; missionId?: string | null }) {
+  const { summary, mode, missionId } = props;
   const modes = useModeInfo();
   const copy = useCopy(REFLECTION_COPY);
-  const fasterCopy = useCopy(FASTER_COPY);
+  const navigate = useNavigate();
   const [step, setStep] = useState<Step>(summary ? "result" : "saved");
   const [reviewed, setReviewed] = useState<ReviewResult[]>([]);
+  useEffect(() => {
+    if (missionId && summary?.takeaways?.length) saveMissionTakeaways(missionId, summary.takeaways.map((t) => t.patternId));
+  }, [missionId, summary]);
+  const toMission = () => navigate(MISSION_PATH, { replace: true });
 
   const { mistakes } = summary ?? { mistakes: [] };
   const takeaways = summary?.takeaways ?? [];
   const realMistakes = mistakes.filter((m) => !isNewWord(m));
   // The placement interview never talks about mistakes.
   const savedMistakes = summary && mode !== "placement" ? realMistakes.length : null;
-  if (!summary || step === "saved") return <Saved mistakes={savedMistakes} />;
+  if (!summary || step === "saved") return <Saved mistakes={savedMistakes} inMission={Boolean(missionId)} />;
 
-  const afterResult = () => setStep(mistakes.length ? "takeaways" : "saved");
+  const afterResult = () => (mistakes.length ? setStep("takeaways") : missionId ? toMission() : setStep("saved"));
 
   // The placement interview ends with thanks, not with a level or mistakes: the level lives in Progress.
   if (mode === "placement") return <PlacementResult summary={summary} />;
@@ -65,17 +70,12 @@ export function SummaryFlow(props: { mode: Mode; elapsed: string; summary: Sessi
         <Signals signals={summary.signals} mistakes={mistakes} />
         <GoalsSummary summary={summary} />
         <div className="flex-1" />
-        <Button block variant="secondary" onClick={() => setStep("faster")}>
-          {fasterCopy.offer}
-        </Button>
         <Button block onClick={afterResult}>
-          {mistakes.length ? copy.seeMistakes : copy.continue}
+          {mistakes.length ? copy.seeMistakes : missionId ? copy.continueMission : copy.continue}
         </Button>
       </>
     );
   }
-
-  if (step === "faster") return <FasterRun sessionId={summary.sessionId} onDone={afterResult} />;
 
   if (step === "takeaways") {
     return (
@@ -83,8 +83,9 @@ export function SummaryFlow(props: { mode: Mode; elapsed: string; summary: Sessi
         heading={`${modes[mode].title} · ${props.elapsed}`}
         takeaways={takeaways}
         mistakes={mistakes}
-        onTry={() => setStep("review")}
-        onLater={() => setStep("saved")}
+        onTry={missionId ? undefined : () => setStep("review")}
+        onLater={missionId ? toMission : () => setStep("saved")}
+        laterLabel={missionId ? copy.continueMission : undefined}
       />
     );
   }
@@ -115,8 +116,10 @@ function Takeaways(props: {
   heading: string;
   takeaways: Takeaway[];
   mistakes: SessionMistake[];
-  onTry: () => void;
+  /** Without it (in the mission) there is no try here: step 5 reviews them. */
+  onTry?: () => void;
   onLater: () => void;
+  laterLabel?: string;
 }) {
   const { takeaways, mistakes } = props;
   const copy = useCopy(REFLECTION_COPY);
@@ -167,7 +170,7 @@ function Takeaways(props: {
       )}
       <div className="flex-1" />
       <div className="flex flex-col gap-2">
-        {takeaways.length > 0 ? (
+        {takeaways.length > 0 && props.onTry ? (
           <>
             <Button block onClick={props.onTry}>
               {copy.tryThem}
@@ -178,7 +181,7 @@ function Takeaways(props: {
           </>
         ) : (
           <Button block onClick={props.onLater}>
-            {copy.continue}
+            {props.laterLabel ?? copy.continue}
           </Button>
         )}
       </div>
@@ -347,7 +350,7 @@ function PlacementResult({ summary }: { summary: SessionSummary }) {
   );
 }
 
-function Saved({ mistakes }: { mistakes: number | null }) {
+function Saved({ mistakes, inMission }: { mistakes: number | null; inMission: boolean }) {
   const copy = useCopy(REFLECTION_COPY);
   return (
     <>
@@ -358,7 +361,7 @@ function Saved({ mistakes }: { mistakes: number | null }) {
         {mistakes ? <p className="m-0 text-body text-ink-soft">{copy.savedEncouragement}</p> : null}
       </div>
       <Button block asChild>
-        <Link to="/">{copy.backToToday}</Link>
+        {inMission ? <Link to={MISSION_PATH}>{copy.continueMission}</Link> : <Link to="/">{copy.backToToday}</Link>}
       </Button>
     </>
   );

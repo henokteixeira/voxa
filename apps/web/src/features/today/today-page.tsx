@@ -9,8 +9,6 @@ import { useModeInfo } from "@/features/session/modes";
 import { MemoryLink } from "@/features/memory/memory-link";
 import { DailyGoalSetting, SoundSetting } from "@/features/settings/practice-settings";
 import { TodayGoalCard } from "@/features/xp/today-goal-card";
-import { TodayCheckInCard } from "@/features/check-in/today-check-in-card";
-import { TodayReviewCard } from "@/features/practice/today-review-card";
 import { useTodayProgress } from "@/features/xp/use-today-progress";
 import { takeSavedSession } from "@/features/session/saved-session";
 import { useApi } from "@/hooks/use-api";
@@ -21,7 +19,8 @@ import { ONBOARDING_PATH } from "@/features/onboarding/onboarding-page";
 import { useLevel } from "@/features/progress/use-level";
 import { LOCALES, useCopy, useLocale } from "@/lib/i18n/locale";
 import { PAUSE_CHOICES_MS, readPauseMs, savePauseMs } from "@/lib/voice/pause-setting";
-import { TALK_PATH } from "@/features/talk/talk-page";
+import { missionSessionPath } from "@/features/mission/mission-steps";
+import { TodayMissionCard } from "@/features/mission/today-mission-card";
 import { LANGUAGE_NAMES, TODAY_COPY } from "./today-copy";
 
 /** The interface language. The conversation stays in the language being learned. */
@@ -96,7 +95,7 @@ export function TodayPage() {
   return (
     <>
       <div className="flex min-h-11 items-center justify-between gap-3">
-        <span className="text-label text-taupe">{date}</span>
+        <h1 className="m-0 text-label text-taupe">{date}</h1>
         <button
             type="button"
             aria-label={copy.settings}
@@ -111,7 +110,6 @@ export function TodayPage() {
             </svg>
           </button>
       </div>
-      <h1 className="m-0 text-display">{copy.greeting(now.getHours())}</h1>
       {online && status === "ok" && progress.today && <TodayGoalCard today={progress.today} />}
 
       {!online ? (
@@ -134,7 +132,7 @@ export function TodayPage() {
           <h2 className="m-0 text-heading">{copy.pausedTitle}</h2>
           <p className="m-0 text-caption text-taupe">{copy.pausedBody(modes[paused.mode].title, clock(paused.elapsedSeconds))}</p>
           <Button block asChild>
-            <Link to={`/session/${paused.mode}`}>{copy.continueSession}</Link>
+            <Link to={paused.missionId ? missionSessionPath(paused.mode, paused.missionId) : `/session/${paused.mode}`}>{copy.continueSession}</Link>
           </Button>
         </Card>
       ) : level.view === undefined ? (
@@ -152,21 +150,7 @@ export function TodayPage() {
           </Button>
         </Card>
       ) : (
-        <Card className="items-center gap-3 px-5 py-6 text-center">
-          <VoiceBall state="idle" size={104} />
-          <h2 className="m-0 text-heading">{copy.readyTitle}</h2>
-          <p className="m-0 text-caption text-taupe">{copy.readyBody}</p>
-          <Button block asChild>
-            <Link to={TALK_PATH}>{copy.talk}</Link>
-          </Button>
-        </Card>
-      )}
-
-      {online && status === "ok" && !paused && level.view && !needsPlacement && (
-        <>
-          <TodayCheckInCard />
-          <TodayReviewCard />
-        </>
+        <TodayMissionCard />
       )}
 
       {settingsOpen && (
