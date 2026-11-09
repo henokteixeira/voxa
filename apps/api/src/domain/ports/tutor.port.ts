@@ -26,6 +26,11 @@ export interface TutorContext {
   targets: PracticeTarget[];
   /** How much help to give, from the learner's level; null in the placement interview. */
   step: SupportStep | null;
+  /**
+   * In a daily mission's conversation: the 3 expressions the learner just took from the model, to invite. Then the
+   * tutor also asks, now and then, for a fuller answer. Absent outside a mission.
+   */
+  expressions?: string[];
 }
 
 export interface TutorOpening {

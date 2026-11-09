@@ -52,10 +52,20 @@ describe("POST /sessions", () => {
       track: null,
       scaffold: null,
     });
-    expect(service.start).toHaveBeenCalledWith("daily", "en");
+    expect(service.start).toHaveBeenCalledWith("daily", "en", undefined);
   });
 
-  it.each([[{ mode: "karaoke" }], [{}], [{ mode: "daily", language: "English" }]])("rejects %j", async (body) => {
+  it("starts a daily mission's conversation", async () => {
+    service.start.mockResolvedValue({
+      session: { id, language: "en", mode: "daily", pending: null, endedAt: null, track: null, scaffold: null },
+      message: "Morning!",
+      goals: [],
+    });
+    await request(app.getHttpServer()).post("/sessions").send({ mode: "daily", missionId: id });
+    expect(service.start).toHaveBeenCalledWith("daily", "en", id);
+  });
+
+  it.each([[{ mode: "karaoke" }], [{}], [{ mode: "daily", language: "English" }], [{ mode: "daily", missionId: "m1" }]])("rejects %j", async (body) => {
     const res = await request(app.getHttpServer()).post("/sessions").send(body);
     expect(res.status).toBe(400);
     expect(service.start).not.toHaveBeenCalled();
