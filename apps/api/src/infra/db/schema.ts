@@ -294,7 +294,7 @@ export const fasterRounds = pgTable(
     sessionId: uuid("session_id")
       .notNull()
       .references(() => sessions.id, { onDelete: "cascade" }),
-    round: smallint("round").notNull(), // 1, 2 or 3
+    round: smallint("round").notNull(), // 1 to FASTER_ROUNDS (3); the check below must follow it
     language: varchar("language", { length: 16 }).notNull(),
     timeLimitMs: integer("time_limit_ms").notNull(),
     transcript: text("transcript").notNull(),

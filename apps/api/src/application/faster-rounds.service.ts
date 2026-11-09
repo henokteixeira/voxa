@@ -56,23 +56,23 @@ export class FasterRoundsService {
     if (told.round > stored.length + 1) {
       throw new InvalidInputError(`Round ${told.round} comes after round ${stored.length + 1}, which was not told yet.`);
     }
+    // A round sent again (a retry) keeps what was stored first.
+    if (told.round <= stored.length) return this.viewOf(sessionId);
     const timeLimitMs = roundLimitMs(told.round);
     if (told.speechMs > timeLimitMs + FASTER_ROUND_GRACE_MS) {
       throw new InvalidInputError(`Round ${told.round} has ${timeLimitMs / 1000} s; ${told.speechMs} ms of speech is too long.`);
     }
-    if (told.round === stored.length + 1) {
-      await this.rounds.saveOnce({
-        sessionId,
-        language: session.language,
-        round: told.round,
-        timeLimitMs,
-        transcript: told.transcript,
-        spokenWords: countWords(told.transcript),
-        speechMs: told.speechMs,
-        longPauses: told.longPausesMs.filter((ms) => ms >= LONG_PAUSE_MS).length,
-        recordedAt: this.clock.now(),
-      });
-    }
+    await this.rounds.saveOnce({
+      sessionId,
+      language: session.language,
+      round: told.round,
+      timeLimitMs,
+      transcript: told.transcript,
+      spokenWords: countWords(told.transcript),
+      speechMs: told.speechMs,
+      longPauses: told.longPausesMs.filter((ms) => ms >= LONG_PAUSE_MS).length,
+      recordedAt: this.clock.now(),
+    });
     return this.viewOf(sessionId);
   }
 

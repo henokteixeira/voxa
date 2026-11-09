@@ -32,7 +32,7 @@ describe("/sessions/:id/faster-rounds", () => {
     expect(service.record).toHaveBeenCalledWith(id, { ...round, transcript: "I finished it" });
   });
 
-  it.each([[{ round: 0, transcript: "", speechMs: 0, longPausesMs: [] }], [{ round: 1, transcript: "x" }]])("rejects %j", async (body) => {
+  it.each([[{ round: 0, transcript: "", speechMs: 0, longPausesMs: [] }], [{ round: 1, transcript: "x" }], [{ round: 1, transcript: "x", speechMs: 1000, longPausesMs: [1500] }]])("rejects %j", async (body) => {
     const res = await request(app.getHttpServer()).post(`/sessions/${id}/faster-rounds`).send(body);
     expect(res.status).toBe(400);
   });

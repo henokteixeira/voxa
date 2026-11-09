@@ -41,6 +41,8 @@ describe("FasterRoundsService", () => {
     await service.record("s1", told(2));
     const done = await service.record("s1", told(3, "I finished the login screen", 4_000));
     expect(done).toMatchObject({ nextRound: null, nextLimitMs: null, result: { paceChangePercent: 25 } });
+    // A retry of the last round, even with other numbers, gives the same result.
+    expect(await service.record("s1", told(3, "x", 200_000))).toEqual(done);
   });
 
   it("ignores a round sent again and refuses one out of order", async () => {
@@ -61,5 +63,6 @@ describe("FasterRoundsService", () => {
     await expect(setup(null).service.view("s1")).rejects.toBeInstanceOf(SessionNotFoundError);
     await expect(setup({ endedAt: null }).service.record("s1", told(1))).rejects.toMatchObject({ code: "invalid" });
     await expect(setup({ mode: "placement" }).service.view("s1")).rejects.toMatchObject({ code: "invalid" });
+    await expect(setup({ mode: "placement" }).service.record("s1", told(1))).rejects.toMatchObject({ code: "invalid" });
   });
 });
