@@ -1,6 +1,6 @@
 # Voxa — PRD
 
-As of 2026-11-06. Source of truth while editing: the [PRD doc](https://claude.ai/artifact/1SYAcyzh5D68B4ve6hMhjd).
+As of 2026-11-09. Source of truth while editing: the [PRD doc](https://claude.ai/artifact/1SYAcyzh5D68B4ve6hMhjd).
 Personal details (employer, projects, meeting contents) live in a local context file outside the repository.
 
 ## Problem and goal
@@ -29,6 +29,26 @@ The MVP is a voice conversation practice loop with hint-based correction and a m
 | 8 | Use from the phone away from home |
 
 **Non-goals for the MVP:** multiple users and login, other languages in the UI (the data model supports them), cloud hosting of the voice models, commercial features.
+
+## Learning method: the daily mission
+
+The daily mission is the next priority (approved on 2026-11-09), ahead of the remaining phases: one situation a day, in 5 steps that cover the four strands of a balanced course (Nation), in order, with nothing for the learner to decide.
+
+**Why:** the app was strong on speaking, hints and spaced review, but weak on listening input and fluency training (no task is ever repeated), so the learner could practise without improving. It also gave no starting point when he is stuck: steps 1 and 2 give him a model and phrases to start from.
+
+| # | Step | Strand | Time at a 30-minute goal | What happens |
+| --- | --- | --- | --- | --- |
+| 1 | Listen | Meaning-focused input | about 4 min | The tutor does the task first, at the learner's level. Audio only; the text shows when tapped. |
+| 2 | Take 3 expressions | Language-focused learning | about 3 min | 3 ready-made expressions from the model; the learner says each aloud in a sentence of his own. They join the spaced review. |
+| 3 | Do the task | Meaning-focused output | about 10 min | The conversation with hints, as today. The tutor invites the 3 expressions and, when answers stay very simple, asks for a slightly fuller one (an invitation, never a correction). |
+| 4 | Say it faster | Fluency development | about 5 min | The learner tells the same content 3 times, in 2, 1.5 and 1 minute (a shortened 4/3/2), with no correction. The app shows how the pace changed. |
+| 5 | Review | Retrieval practice | about 3 min | The existing voice review. |
+
+- **Benchmark task every 2 weeks:** always the same prompt (for example, present your project in 2 minutes), compared with earlier runs: pace, pauses, mistakes per 100 words, and the old recording to listen to.
+- **Other modes stay:** free talk and the other conversations remain available outside the mission.
+- **Delivery order:** say it faster (4), benchmark task, listen and take expressions (1 and 2), fuller answers in the task (3), then the mission on Today joining them. Screens are designed in the prototype and approved before building.
+- **Research basis:** Nation and Yamamoto 2012 (four strands); Arevart and Nation 1991 and Tran and Saito (4/3/2: faster speech and fewer pauses, carried over to a new topic, no accuracy gain); Boers et al. 2006 (formulaic sequences and perceived fluency); DeKeyser and Criado 2013 (skill acquisition stages).
+- **Open:** how the day's situation is picked (rotation or the learner's choice); whether the benchmark keeps audio (no audio is stored today, only transcripts); step times scale with the daily goal.
 
 ## Conversation modes
 
