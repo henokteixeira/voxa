@@ -3,6 +3,7 @@ import {
   bigserial,
   boolean,
   check,
+  customType,
   doublePrecision,
   index,
   integer,
@@ -305,3 +306,36 @@ export const fasterRounds = pgTable(
   },
   (t) => [primaryKey({ columns: [t.sessionId, t.round] }), check("faster_rounds_round", sql`${t.round} between 1 and 3`)],
 );
+
+/** Raw bytes (Postgres bytea), e.g. a recording. */
+const bytea = customType<{ data: Buffer; driverData: Buffer | Uint8Array }>({
+  dataType: () => "bytea",
+  fromDriver: (value) => (Buffer.isBuffer(value) ? value : Buffer.from(value)),
+});
+
+/** The check-in every 2 weeks: the same task, compared over time. */
+export const checkIns = pgTable(
+  "check_ins",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Insertion order. Timestamps can tie, so ordering never relies on them. */
+    seq: bigserial("seq", { mode: "number" }).notNull(),
+    language: varchar("language", { length: 16 }).notNull(),
+    task: varchar("task", { length: 32 }).notNull(), // present_project
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+    transcript: text("transcript").notNull(),
+    spokenWords: integer("spoken_words").notNull(),
+    speechMs: integer("speech_ms").notNull(),
+    longPauses: smallint("long_pauses").notNull(),
+  },
+  (t) => [index("check_ins_language_seq").on(t.language, t.seq)],
+);
+
+/** Each check-in's recording, apart so that listing check-ins never loads audio. */
+export const checkInRecordings = pgTable("check_in_recordings", {
+  checkInId: uuid("check_in_id")
+    .primaryKey()
+    .references(() => checkIns.id, { onDelete: "cascade" }),
+  mimeType: varchar("mime_type", { length: 64 }).notNull(),
+  audio: bytea("audio").notNull(),
+});

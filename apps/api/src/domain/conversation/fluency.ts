@@ -32,6 +32,11 @@ export function countWords(text: string): number {
   return text.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
 }
 
+/** Words per minute of speech; null without words or speech. */
+export function wordsPerMinute(words: number, speechMs: number): number | null {
+  return words > 0 && speechMs > 0 ? Math.round(words / (speechMs / 60_000)) : null;
+}
+
 export function fluencySignals(input: {
   mistakes: { severity: Severity; selfCorrected: boolean }[];
   learnerUtterances: string[];
