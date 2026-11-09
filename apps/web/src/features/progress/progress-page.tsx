@@ -1,3 +1,4 @@
+import { CheckInHistory } from "@/features/check-in/check-in-history";
 import { useCopy, type Copy } from "@/lib/i18n/locale";
 import { LevelCard, LevelUnavailable, StepChangeSheet } from "./level-card";
 import { SignalsHistory } from "./signals-history";
@@ -30,6 +31,7 @@ export function ProgressPage() {
           </>
         )
       )}
+      <CheckInHistory />
       <SignalsHistory />
     </>
   );

@@ -1,5 +1,6 @@
 import type { RouteObject } from "react-router";
 import { CHECK_IN_PATH, CheckInPage } from "@/features/check-in/check-in-page";
+import { CheckInDetailPage } from "@/features/check-in/check-in-detail-page";
 import { MemoryPage } from "@/features/memory/memory-page";
 import { OnboardingPage } from "@/features/onboarding/onboarding-page";
 import { PracticePage } from "@/features/practice/practice-page";
@@ -27,6 +28,7 @@ export const routes: RouteObject[] = [
   { path: "onboarding", element: <OnboardingPage /> },
   // The check-in every 2 weeks takes the whole screen, like a session.
   { path: CHECK_IN_PATH.slice(1), element: <CheckInPage /> },
+  { path: `${CHECK_IN_PATH.slice(1)}/:checkInId`, element: <CheckInDetailPage /> },
   // The voice review takes the whole screen, like a session.
   { path: "review", element: <ReviewPage /> },
   // A live session takes the whole screen: no tab bar.
