@@ -17,7 +17,7 @@ export const MODEL_LEVELS: Record<SupportStep, string> = {
   build_full: "The learner is a beginner (about CEFR A1): very short, simple sentences (five to eight words), common words, about 70 words.",
   build_light: "The learner speaks at about CEFR A2: short, simple sentences (up to twelve words), common words, about 100 words.",
   supported: "The learner speaks at about CEFR B1: clear, natural sentences, everyday words, about 130 words.",
-  conversation: "The learner speaks at about CEFR B2: natural spoken English with common idioms, about 150 words.",
+  conversation: "The learner speaks at about CEFR B2: natural speech with common idioms, about 150 words.",
   demanding: "The learner is advanced (CEFR C1 or above): natural, fluent speech with some richer vocabulary, about 160 words.",
 };
 

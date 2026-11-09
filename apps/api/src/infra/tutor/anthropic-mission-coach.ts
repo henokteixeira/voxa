@@ -11,6 +11,10 @@ import { buildModelMessage, buildModelPrompt } from "./mission-prompts.js";
 
 /** About a minute and a half of speech at most; the voice engine takes up to 2000 characters. */
 export const MAX_MODEL_CHARS = 1500;
+/** Even the shortest model (about 70 words at A1) is longer than this: a shorter one shows nothing to learn from. */
+export const MIN_MODEL_CHARS = 200;
+
+const squash = (text: string) => text.replace(/\s+/g, " ").toLowerCase();
 
 const ModelSchema = z.object({
   speaker: z.string(),
@@ -55,15 +59,25 @@ export class AnthropicMissionCoach implements MissionCoachPort {
   }
 }
 
-/** The trimmed model, or an error when it is empty, too long, or does not give exactly 3 expressions. */
+/** The trimmed model, or an error when its text or its 3 expressions are not usable. */
 function checked(output: z.infer<typeof ModelSchema>): MissionModel {
   const speaker = output.speaker.trim();
   const text = output.text.trim();
   const expressions = output.expressions.map((e, i) => ({ position: i + 1, phrase: e.phrase.trim(), example: e.example.trim() }));
   if (!speaker || !text) throw new TutorUnavailableError("The mission model came back empty.");
-  if (text.length > MAX_MODEL_CHARS) throw new TutorUnavailableError(`The mission model is ${text.length} characters long.`);
+  if (text.length < MIN_MODEL_CHARS || text.length > MAX_MODEL_CHARS) {
+    throw new TutorUnavailableError(`The mission model is ${text.length} characters long.`);
+  }
   if (expressions.length !== MISSION_EXPRESSIONS || expressions.some((e) => !e.phrase || !e.example)) {
     throw new TutorUnavailableError(`The mission model gave ${expressions.length} expressions, not ${MISSION_EXPRESSIONS} complete ones.`);
+  }
+  // Each phrase leaves room for the learner's words, the 3 differ, and each example is a sentence the learner heard.
+  if (expressions.some((e) => !e.phrase.includes("…"))) throw new TutorUnavailableError("A mission expression has no room for the learner's words.");
+  if (new Set(expressions.map((e) => squash(e.phrase))).size !== expressions.length) {
+    throw new TutorUnavailableError("The mission model gave the same expression twice.");
+  }
+  if (expressions.some((e) => !squash(text).includes(squash(e.example)))) {
+    throw new TutorUnavailableError("A mission expression's example is not in the model.");
   }
   return { speaker: speaker.slice(0, 64), text, expressions };
 }

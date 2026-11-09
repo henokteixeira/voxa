@@ -3,6 +3,7 @@ import type { SpeakingLevel } from "../domain/level/speaking-level.js";
 import type { Mission, MissionModel } from "../domain/mission/mission.js";
 import type { LevelRepository } from "../domain/ports/level.repository.js";
 import type { MissionRepository, NewMission } from "../domain/ports/mission.repository.js";
+import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import { MissionNotFoundError, MissionService } from "./mission.service.js";
 
 class FakeMissions implements MissionRepository {
@@ -58,6 +59,22 @@ describe("MissionService", () => {
     // 01:00 in São Paulo is a new day: a new mission.
     clock.at = new Date("2026-11-10T04:00:00Z");
     expect(await service.today("en", "America/Sao_Paulo")).toMatchObject({ day: "2026-11-10", situation: "my_day" });
+  });
+
+  it("goes on from the last mission after days without one", async () => {
+    const { service, clock } = setup();
+    await service.today("en", "UTC");
+    clock.at = new Date("2026-11-13T12:00:00Z");
+    expect(await service.today("en", "UTC")).toMatchObject({ day: "2026-11-13", situation: "my_day" });
+  });
+
+  it("keeps nothing when the model can't be written, so the next request tries again", async () => {
+    const { service, coach, missions } = setup();
+    const { id } = await service.today("en", "UTC");
+    coach.model.mockRejectedValueOnce(new TutorUnavailableError("down"));
+    await expect(service.model(id)).rejects.toBeInstanceOf(TutorUnavailableError);
+    expect((await missions.get(id))?.model).toBeNull();
+    expect(await service.model(id)).toEqual(model);
   });
 
   it("writes the model at the learner's level once, then keeps it", async () => {

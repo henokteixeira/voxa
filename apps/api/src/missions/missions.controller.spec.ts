@@ -28,6 +28,8 @@ describe("/missions", () => {
     expect(res.status).toBe(200);
     expect(service.today).toHaveBeenCalledWith("en", "America/Sao_Paulo");
     expect((await request(app.getHttpServer()).get("/missions/today?timeZone=Mars/Base")).status).toBe(400);
+    expect((await request(app.getHttpServer()).get("/missions/today?timeZone=UTC&language=EN_us")).status).toBe(400);
+    expect((await request(app.getHttpServer()).get("/missions/today")).status).toBe(400);
   });
 
   it("gives the model, and 404 for an unknown mission", async () => {
