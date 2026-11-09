@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { clearestGain } from "./check-in-format";
 
-const pace = (wordsPerMinute: number | null, longPauses: number) => ({ id: "c", recordedAt: "2026-11-09T10:00:00Z", wordsPerMinute, longPauses });
+const pace = (wordsPerMinute: number | null, longPauses: number) => ({
+  id: "c",
+  recordedAt: "2026-11-09T10:00:00Z",
+  wordsPerMinute,
+  longPauses,
+  mistakesPer100Words: null,
+  otherLanguageWords: null,
+});
 
 describe("clearestGain", () => {
   it("names the pace first, then fewer long pauses, and nothing when neither got better", () => {
