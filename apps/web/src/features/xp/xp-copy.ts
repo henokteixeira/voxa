@@ -7,7 +7,8 @@ export interface XpCopy {
   toGo: (xp: number) => string;
   goalMet: string;
   streak: (days: number) => string;
-  streakNone: string;
+  /** The streak on Today's one-line goal. */
+  streakShort: (days: number) => string;
   /** Toasts during the session. */
   fixedIt: string;
   goalCovered: string;
@@ -24,7 +25,7 @@ export const XP_COPY: Copy<XpCopy> = {
     toGo: (xp) => `${xp} XP to today's goal.`,
     goalMet: "Goal met for today.",
     streak: (d) => (d === 1 ? "1 day in a row" : `${d} days in a row`),
-    streakNone: "Meet the goal to start a streak.",
+    streakShort: (d) => (d === 1 ? "1 day" : `${d} days`),
     fixedIt: "Fixed it yourself",
     goalCovered: "Goal covered",
     sessionXp: "XP this session",
@@ -43,7 +44,7 @@ export const XP_COPY: Copy<XpCopy> = {
     toGo: (xp) => `Faltam ${xp} XP para a meta de hoje.`,
     goalMet: "Meta de hoje batida.",
     streak: (d) => (d === 1 ? "1 dia seguido" : `${d} dias seguidos`),
-    streakNone: "Bata a meta para começar uma sequência.",
+    streakShort: (d) => (d === 1 ? "1 dia" : `${d} dias`),
     fixedIt: "Você se corrigiu",
     goalCovered: "Objetivo coberto",
     sessionXp: "XP desta sessão",

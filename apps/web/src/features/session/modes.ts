@@ -8,6 +8,12 @@ export interface ModeInfo {
   color: string;
 }
 
+/** About how long a mode takes, from its meta ("Friend · about 6 min" → "About 6 min"), for the short tiles. */
+export function lengthOf(info: Pick<ModeInfo, "meta">): string {
+  const length = info.meta.split(" · ").pop() ?? info.meta;
+  return length.charAt(0).toUpperCase() + length.slice(1);
+}
+
 export const MODE_INFO: Record<Mode, ModeInfo> = {
   free_talk: { title: "Free conversation", meta: "Colleague · about 5 min", color: "var(--color-lilac)" },
   my_day: { title: "Talk about your day", meta: "Friend · about 6 min", color: "var(--color-honey)" },

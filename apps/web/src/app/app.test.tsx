@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -156,32 +156,22 @@ describe("Today", () => {
     expect(work).toHaveTextContent(/Daily stand-up.*Present your project.*Sprint review/);
     // The placement interview is not a category to practice.
     expect(categories).not.toHaveTextContent("Find your speaking level");
+    // Each tile shows only the title and the length.
+    expect(within(everyday).getByRole("link", { name: /Tell a story/ })).toHaveTextContent(/^Tell a storyAbout 6 min$/);
     await userEvent.click(within(everyday).getByRole("link", { name: /Tell a story/ }));
     expect(router.state.location.pathname).toBe("/session/story");
   });
 
-  it("says mistakes are welcome, Portuguese is fine and Voxa can be wrong too", async () => {
+  it("has no welcome text on Today: the app itself is the welcome", async () => {
     renderApp("/", up());
-    const welcome = screen.getByRole("region", { name: "Mistakes are welcome here" });
-    expect(welcome).toHaveTextContent("Say it in Portuguese");
-    expect(welcome).toHaveTextContent("Voxa's AI makes mistakes too");
-  });
-
-  it("keeps the welcome card when the server is down or the browser is offline", async () => {
-    renderApp("/", down());
-    expect(await screen.findByRole("heading", { name: "Voxa's server isn't running" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Mistakes are welcome here" })).toBeInTheDocument();
-    cleanup();
-    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
-    renderApp("/", up());
-    expect(screen.getByRole("region", { name: "Mistakes are welcome here" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Mistakes are welcome here" })).not.toBeInTheDocument();
   });
 
   it("starts in Portuguese and switches the interface to English", async () => {
     renderApp("/", up(), { withLocale: true });
     expect(await screen.findByRole("heading", { name: "O que você quer treinar agora?" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Categorias de treino" })).toHaveTextContent("Contar uma história");
-    expect(screen.getByRole("region", { name: "Aqui, errar faz parte" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Principal" })).toHaveTextContent("HojePraticarProgresso");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^(Bom dia|Boa tarde|Boa noite)$/);
 

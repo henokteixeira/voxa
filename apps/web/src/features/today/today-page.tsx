@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { SegmentedSetting } from "@/components/ui/segmented";
 import { Sheet } from "@/components/ui/sheet";
 import { VoiceBall } from "@/components/voice-ball";
-import { useModeInfo } from "@/features/session/modes";
+import { lengthOf, useModeInfo } from "@/features/session/modes";
 import { MemoryLink } from "@/features/memory/memory-link";
 import { DailyGoalSetting, SoundSetting } from "@/features/settings/practice-settings";
 import { TodayGoalCard } from "@/features/xp/today-goal-card";
@@ -68,22 +68,9 @@ function PauseSetting({ title, hint, seconds }: { title: string; hint: string; s
   );
 }
 
-/** The app's promise, always in view: mistakes are part of learning, and nobody is grading. */
-function Welcome({ title, body }: { title: string; body: string }) {
-  const id = useId();
-  return (
-    <section aria-labelledby={id} className="flex flex-col gap-1.5 rounded-lg bg-honey-soft px-5 py-4 text-ink">
-      <h2 id={id} className="m-0 text-body-strong">
-        {title}
-      </h2>
-      <p className="m-0 text-caption text-ink-soft">{body}</p>
-    </section>
-  );
-}
-
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
-/** One group of practice categories; each row starts that session. */
+/** One group of practice categories, as a 2-column grid; each tile starts that session. */
 function CategoryGroup({ title, list }: { title: string; list: readonly Mode[] }) {
   const id = useId();
   const modes = useModeInfo();
@@ -92,19 +79,18 @@ function CategoryGroup({ title, list }: { title: string; list: readonly Mode[] }
       <h3 id={id} className="m-0 text-label text-taupe">
         {title}
       </h3>
-      {list.map((mode) => (
-        <Link
-          key={mode}
-          to={`/session/${mode}`}
-          className="flex min-h-14 items-center gap-3 rounded-md bg-paper px-5 py-4 text-ink no-underline shadow-card transition-[transform,background-color] duration-150 hover:bg-sand-soft motion-safe:active:scale-[0.98]"
-        >
-          <span aria-hidden="true" className="size-3.5 shrink-0 rounded-full" style={{ background: modes[mode].color }} />
-          <span className="flex flex-1 flex-col gap-0.5">
-            <b className="text-body-strong">{modes[mode].title}</b>
-            <span className="text-caption text-taupe">{modes[mode].meta}</span>
-          </span>
-        </Link>
-      ))}
+      <div className="grid grid-cols-2 gap-2.5">
+        {list.map((mode) => (
+          <Link
+            key={mode}
+            to={`/session/${mode}`}
+            className="flex min-h-[68px] flex-col justify-center gap-0.5 rounded-md bg-paper px-3.5 py-3 text-ink no-underline shadow-card transition-[transform,background-color] duration-150 hover:bg-sand-soft motion-safe:active:scale-[0.98]"
+          >
+            <b className="text-small leading-tight">{modes[mode].title}</b>
+            <span className="text-caption text-taupe">{lengthOf(modes[mode])}</span>
+          </Link>
+        ))}
+      </div>
     </section>
   );
 }
@@ -159,7 +145,6 @@ export function TodayPage() {
         </div>
       </div>
       <h1 className="m-0 text-display">{copy.greeting(now.getHours())}</h1>
-      <Welcome title={copy.welcomeTitle} body={copy.welcomeBody} />
       {online && status === "ok" && progress.today && <TodayGoalCard today={progress.today} />}
 
       {!online ? (
