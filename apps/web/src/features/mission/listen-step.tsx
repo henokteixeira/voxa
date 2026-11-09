@@ -11,6 +11,7 @@ import { MISSION_COPY } from "./mission-copy";
 /**
  * Step 1: someone else does the same task first, at the learner's level. Audio first, the text on tap.
  * The step is done once the learner listened to it to the end (`onListened`); "Continue" then moves on.
+ * If the audio can't play, Continue is offered too: the text is there to read.
  */
 export function ListenStep(props: { missionId: string; model: MissionModel; onListened: () => void; onContinue: () => void }) {
   const { missionId, model } = props;
@@ -74,10 +75,11 @@ export function ListenStep(props: { missionId: string; model: MissionModel; onLi
         >
           {textShown ? copy.hideText : copy.showText}
         </button>
-        {listened ? (
+        {/* Without audio, reading the text is the way through: the step never blocks the mission. */}
+        {listened || state === "failed" ? (
           <>
             <Button block variant="secondary" disabled={state === "playing"} onClick={() => void play()}>
-              {copy.listenAgain}
+              {listened ? copy.listenAgain : copy.listen}
             </Button>
             <Button block disabled={state === "playing"} onClick={props.onContinue}>
               {copy.continue}

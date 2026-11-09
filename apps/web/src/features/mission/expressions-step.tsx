@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { VoiceBall } from "@/components/voice-ball";
 import { useReviewMicrophone } from "@/features/practice/use-review-microphone";
@@ -16,11 +16,23 @@ type Attempt = { kind: "asking"; problem?: "not_used" | "not_heard" | "failed" }
  * Skipping one is fine. `onDone` comes after the last one.
  */
 export function ExpressionsStep(props: { missionId: string; language: string; expressions: MissionExpression[]; onDone: () => void }) {
+  const { expressions, onDone } = props;
+  // All 3 said before the learner left: the step only needs marking.
+  const allSaid = expressions.every((e) => e.saidAt !== null);
+  const done = useRef(onDone);
+  useEffect(() => {
+    if (allSaid) done.current();
+  }, [allSaid]);
+  if (allSaid) return null;
+  return <Expressions {...props} />;
+}
+
+function Expressions(props: { missionId: string; language: string; expressions: MissionExpression[]; onDone: () => void }) {
   const { missionId, language, expressions } = props;
   const api = useApi();
   const copy = useCopy(MISSION_COPY);
   // Start on the first one not said yet (the step may be done in parts).
-  const [index, setIndex] = useState(() => Math.max(0, expressions.findIndex((e) => e.saidAt === null)));
+  const [index, setIndex] = useState(() => expressions.findIndex((e) => e.saidAt === null));
   const [said, setSaid] = useState(() => new Set(expressions.filter((e) => e.saidAt).map((e) => e.id)));
   const [attempt, setAttempt] = useState<Attempt>({ kind: "asking" });
   const [typing, setTyping] = useState(false);

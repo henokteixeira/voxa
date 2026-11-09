@@ -32,12 +32,15 @@ export function missionSessionPath(situation: string, missionId: string): string
   return `/session/${situation}?mission=${encodeURIComponent(missionId)}`;
 }
 
-const takeawaysKey = (missionId: string) => `voxa.missionTakeaways.${missionId}`;
+const TAKEAWAYS_KEY = "voxa.missionTakeaways";
 
-/** Step 3's takeaway patterns, kept so step 5 reviews them. Best effort: without storage step 5 reviews what is due. */
+/**
+ * Step 3's takeaway patterns, kept on the device so step 5 reviews them even after the app was closed.
+ * Only the last mission's are kept. Best effort: without storage step 5 reviews what is due.
+ */
 export function saveMissionTakeaways(missionId: string, patternIds: string[]) {
   try {
-    sessionStorage.setItem(takeawaysKey(missionId), JSON.stringify(patternIds));
+    localStorage.setItem(TAKEAWAYS_KEY, JSON.stringify({ missionId, patternIds }));
   } catch {
     // Storage blocked or full.
   }
@@ -45,8 +48,9 @@ export function saveMissionTakeaways(missionId: string, patternIds: string[]) {
 
 export function loadMissionTakeaways(missionId: string): string[] {
   try {
-    const value: unknown = JSON.parse(sessionStorage.getItem(takeawaysKey(missionId)) ?? "[]");
-    return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
+    const value = JSON.parse(localStorage.getItem(TAKEAWAYS_KEY) ?? "null") as { missionId?: unknown; patternIds?: unknown } | null;
+    if (!value || value.missionId !== missionId || !Array.isArray(value.patternIds)) return [];
+    return value.patternIds.filter((id): id is string => typeof id === "string");
   } catch {
     return [];
   }

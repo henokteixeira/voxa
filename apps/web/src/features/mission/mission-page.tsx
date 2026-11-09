@@ -1,5 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, Navigate, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { VoiceBall } from "@/components/voice-ball";
 import { CHECK_IN_PATH } from "@/features/check-in/check-in-page";
@@ -83,7 +83,7 @@ export function MissionPage() {
 
 function Busy() {
   return (
-    <div className="flex flex-1 items-center justify-center">
+    <div aria-busy="true" className="flex flex-1 items-center justify-center">
       <VoiceBall state="thinking" size={140} />
     </div>
   );
@@ -121,7 +121,7 @@ function Step({ view, mark, onView }: { view: MissionView; mark: (step: MarkedMi
       {step === "checkIn" && <CheckInStep />}
       {(step === "listen" || step === "expressions") && <ModelSteps view={view} step={step} mark={mark} />}
       {step === "task" && <TaskStep view={view} />}
-      {step === "faster" && view.sessionId && <FasterStep sessionId={view.sessionId} onView={onView} />}
+      {step === "faster" && (view.sessionId ? <FasterStep sessionId={view.sessionId} onView={onView} /> : <Navigate to="/" replace />)}
       {step === "review" && <ReviewStep view={view} onDone={() => mark("review")} />}
     </>
   );
@@ -221,7 +221,7 @@ function FasterStep({ sessionId, onView }: { sessionId: string; onView: (view: M
 
 /**
  * Step 5: step 3's takeaways first, then what is due, a few at most. With nothing to review, the step is done.
- * Closing before answering any leaves the mission for now.
+ * Closing before the last one leaves the mission for now.
  */
 function ReviewStep({ view, onDone }: { view: MissionView; onDone: () => void }) {
   const api = useApi();
@@ -254,7 +254,8 @@ function ReviewStep({ view, onDone }: { view: MissionView; onDone: () => void })
   }, [api, view.id, view.language]);
 
   if (!subjects) return <Busy />;
-  return <ReviewRun subjects={subjects} onDone={(results) => (results.length ? onDone() : navigate("/"))} />;
+  // Done once every item was answered; closing earlier keeps the step open for later today.
+  return <ReviewRun subjects={subjects} onDone={(results) => (results.length === subjects.length ? onDone() : navigate("/"))} />;
 }
 
 function MissionDone({ view }: { view: MissionView }) {

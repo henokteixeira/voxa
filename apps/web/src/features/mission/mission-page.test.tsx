@@ -64,7 +64,7 @@ function renderMission(api: Partial<ApiClient>) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  sessionStorage.clear();
+  localStorage.clear();
 });
 
 describe("the daily mission", () => {
@@ -117,8 +117,8 @@ describe("the daily mission", () => {
   });
 
   it("reviews step 3's takeaways first, then marks step 5", async () => {
-    saveMissionTakeaways("m1", ["p1"]);
-    const reviewCard = vi.fn().mockResolvedValue({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, language: "en", name: "Past" }, cue: "Eu terminei." });
+    saveMissionTakeaways("m1", ["p9", "p1"]);
+    const reviewCard = vi.fn().mockResolvedValue({ cardId: "c1", item: { subject: { kind: "pattern", id: "p9" }, language: "en", name: "Past" }, cue: "Eu terminei." });
     const answerReview = vi.fn().mockResolvedValue({ recalled: true, answer: "I finished.", rule: "Rule.", nextDueAt: new Date().toISOString(), xp: 1 });
     const markMissionStep = vi.fn().mockResolvedValue(view({ listen: true, expressions: true, task: true, faster: true, review: true }, { done: true }));
     renderMission({
@@ -130,15 +130,55 @@ describe("the daily mission", () => {
     });
 
     expect(await screen.findByText("“Eu terminei.”")).toBeInTheDocument();
-    expect(screen.getByText("1 of 2")).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText("Your answer"), "I finished it{Enter}");
-    await userEvent.click(await screen.findByRole("button", { name: "Next" }));
-    await userEvent.click(await screen.findByRole("button", { name: "I don't know, show me" }));
-    await userEvent.click(await screen.findByRole("button", { name: "Finish" }));
+    // The takeaways first, then what is due, each once.
+    expect(reviewCard).toHaveBeenNthCalledWith(1, { kind: "pattern", id: "p9" });
+    expect(screen.getByText("1 of 3")).toBeInTheDocument();
+    for (const button of ["Next", "Next", "Finish"]) {
+      await userEvent.click(await screen.findByRole("button", { name: "I don't know, show me" }));
+      await userEvent.click(await screen.findByRole("button", { name: button }));
+    }
+    expect(reviewCard.mock.calls.map(([subject]) => subject.id)).toEqual(["p9", "p1", "w1"]);
 
     expect(markMissionStep).toHaveBeenCalledWith("m1", "review");
     expect(await screen.findByRole("heading", { name: "See you tomorrow" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Talk more" })).toHaveAttribute("href", "/talk");
+  });
+
+  it("keeps step 5 open when the review is closed before the end", async () => {
+    const markMissionStep = vi.fn();
+    const router = renderMission({
+      missionToday: vi.fn().mockResolvedValue(view({ listen: true, expressions: true, task: true, faster: true })),
+      reviewOverview: vi.fn().mockResolvedValue({ due: [{ subject: { kind: "pattern", id: "p1" } }, { subject: { kind: "pattern", id: "p2" } }], nextDueAt: null }),
+      reviewCard: vi.fn().mockResolvedValue({ cardId: "c1", item: { subject: { kind: "pattern", id: "p1" }, language: "en", name: "Past" }, cue: "Eu terminei." }),
+      answerReview: vi.fn().mockResolvedValue({ recalled: true, answer: "I finished.", rule: "Rule.", nextDueAt: new Date().toISOString(), xp: 1 }),
+      markMissionStep,
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "I don't know, show me" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Close" }));
+    expect(router.state.location.pathname).toBe("/");
+    expect(markMissionStep).not.toHaveBeenCalled();
+  });
+
+  it("goes on to the conversation without audio: the text is there to read", async () => {
+    const markMissionStep = vi.fn().mockResolvedValue(view({ listen: true }));
+    renderMission({
+      missionToday: vi.fn().mockResolvedValue(view()),
+      missionModel: vi.fn().mockResolvedValue(model),
+      missionSpeech: vi.fn().mockRejectedValue(new Error("tts down")),
+      markMissionStep,
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Listen" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The audio couldn't play.");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(markMissionStep).toHaveBeenCalledWith("m1", "listen");
+  });
+
+  it("marks step 2 when all 3 were said before the learner left", async () => {
+    const said = { ...model, expressions: model.expressions.map((e) => ({ ...e, saidAt: "2026-11-09T10:00:00Z" })) };
+    const markMissionStep = vi.fn().mockResolvedValue(view({ listen: true, expressions: true }));
+    renderMission({ missionToday: vi.fn().mockResolvedValue(view({ listen: true })), missionModel: vi.fn().mockResolvedValue(said), markMissionStep });
+    await vi.waitFor(() => expect(markMissionStep).toHaveBeenCalledWith("m1", "expressions"));
+    expect(await screen.findByRole("link", { name: "Start" })).toHaveAttribute("href", "/session/daily?mission=m1");
   });
 
   it("marks step 5 at once when there is nothing to review", async () => {

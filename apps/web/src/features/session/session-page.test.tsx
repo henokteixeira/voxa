@@ -903,7 +903,7 @@ describe("session summary", () => {
     await userEvent.click(await screen.findByRole("button", { name: "See what to keep" }));
     expect(screen.queryByRole("button", { name: "Try them · 1 min" })).toBeNull();
     // Step 5 reviews them.
-    expect(JSON.parse(sessionStorage.getItem("voxa.missionTakeaways.m1") ?? "[]")).toEqual(takeaways.map((t) => t.patternId));
+    expect(JSON.parse(localStorage.getItem("voxa.missionTakeaways") ?? "{}")).toEqual({ missionId: "m1", patternIds: takeaways.map((t) => t.patternId) });
     await userEvent.click(screen.getByRole("button", { name: "Continue mission" }));
     expect(api.missionToday).toHaveBeenCalled();
   });

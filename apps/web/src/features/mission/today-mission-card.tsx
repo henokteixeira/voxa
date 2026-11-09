@@ -36,9 +36,9 @@ export function TodayMissionCard() {
 
   if (view === "loading")
     return (
-      <Middle>
+      <div aria-busy="true" className="flex flex-1 flex-col items-center justify-center">
         <VoiceBall state="idle" size={150} />
-      </Middle>
+      </div>
     );
   if (view === "failed")
     return (
