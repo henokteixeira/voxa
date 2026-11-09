@@ -12,6 +12,9 @@ class FakeRounds implements FasterRoundRepository {
   async list(sessionId: string) {
     return this.rows.filter((r) => r.sessionId === sessionId).sort((a, b) => a.round - b.round);
   }
+  async toldSince(language: string, since: Date) {
+    return this.rows.filter((r) => r.language === language && r.recordedAt >= since);
+  }
 }
 
 const now = new Date("2026-11-09T10:00:00Z");
@@ -52,6 +55,14 @@ describe("FasterRoundsService", () => {
     expect(rounds.rows.map((r) => r.transcript)).toEqual(["first try"]);
     await expect(service.record("s1", told(3))).rejects.toMatchObject({ code: "invalid" });
     await expect(service.record("s1", told(4))).rejects.toMatchObject({ code: "invalid" });
+  });
+
+  it("shows the XP the rounds earned: 1 a minute of speech, like the conversation", async () => {
+    const { service } = setup();
+    expect((await service.view("s1")).xp).toBe(0);
+    await service.record("s1", told(1, "words", 100_000));
+    const view = await service.record("s1", told(2, "words", 80_000));
+    expect(view.xp).toBe(3);
   });
 
   it("refuses speech longer than the round allows", async () => {

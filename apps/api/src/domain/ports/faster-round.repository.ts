@@ -13,6 +13,8 @@ export interface FasterRoundRepository {
   saveOnce(record: FasterRoundRecord): Promise<void>;
   /** The session's rounds, in round order. */
   list(sessionId: string): Promise<FasterRoundRecord[]>;
+  /** The rounds told in a language since a time, for XP. */
+  toldSince(language: string, since: Date): Promise<Pick<FasterRoundRecord, "sessionId" | "speechMs" | "recordedAt">[]>;
 }
 
 export const FASTER_ROUND_REPOSITORY = Symbol("FASTER_ROUND_REPOSITORY");

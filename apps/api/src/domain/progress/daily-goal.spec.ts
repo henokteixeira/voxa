@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dailyGoalXp, isPersonalRecord, localDay, streakDays, xpForSession } from "./daily-goal.js";
+import { dailyGoalXp, isPersonalRecord, localDay, streakDays, xpForFasterRounds, xpForSession } from "./daily-goal.js";
 
 describe("dailyGoalXp", () => {
   it("makes the goal 1 XP a minute of the chosen time", () => {
@@ -65,5 +65,34 @@ describe("streakDays", () => {
     expect(
       streakDays(met("2026-10-28", "2026-10-30", "2026-10-31", "2026-11-01", "2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05", "2026-11-07"), "2026-11-07"),
     ).toBe(9);
+  });
+});
+
+describe("xpForFasterRounds", () => {
+  const round = (sessionId: string, speechMs: number, at: string) => ({ sessionId, speechMs, recordedAt: new Date(at) });
+
+  it("gives 1 XP a minute of speech, adding up each session's rounds", () => {
+    const rounds = [
+      round("a", 110_000, "2026-11-09T10:02:00Z"),
+      round("a", 85_000, "2026-11-09T10:04:00Z"),
+      round("a", 58_000, "2026-11-09T10:05:00Z"),
+      round("b", 50_000, "2026-11-09T11:00:00Z"),
+    ];
+    expect(xpForFasterRounds(rounds)).toEqual([
+      { sessionId: "a", total: 4, awardedAt: new Date("2026-11-09T10:05:00Z") },
+      { sessionId: "b", total: 0, awardedAt: new Date("2026-11-09T11:00:00Z") },
+    ]);
+  });
+
+  it("lands on the day of the session's latest round, whatever the order", () => {
+    const rounds = [round("a", 60_000, "2026-11-10T02:59:00Z"), round("a", 60_000, "2026-11-10T03:01:00Z"), round("a", 60_000, "2026-11-10T03:00:00Z")];
+    // 03:01 UTC is just past midnight in São Paulo: the XP is the new day's.
+    const [award] = xpForFasterRounds(rounds);
+    expect(award.awardedAt).toEqual(new Date("2026-11-10T03:01:00Z"));
+    expect(localDay(award.awardedAt, "America/Sao_Paulo")).toBe("2026-11-10");
+  });
+
+  it("has nothing without rounds", () => {
+    expect(xpForFasterRounds([])).toEqual([]);
   });
 });
