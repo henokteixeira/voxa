@@ -13,7 +13,7 @@ import { type FailureCode, initialSessionState, type Retry, sessionReducer } fro
 import { VoiceDepsContext } from "./voice-deps";
 
 /** Failures that need the whole start again (no session was created yet). */
-const START_FAILURES: FailureCode[] = ["mic_blocked", "mic_missing", "mic_busy", "mic_unsupported", "start_failed"];
+const START_FAILURES: FailureCode[] = ["mic_blocked", "mic_missing", "mic_busy", "mic_unsupported", "start_failed", "tutor_start_failed"];
 /** Failures that need a new socket on the same session. */
 const SOCKET_FAILURES: FailureCode[] = ["disconnected", "in_use"];
 /** Failures that often pass on their own (a slow or restarting server): retried by themselves first. */
@@ -22,6 +22,11 @@ const AUTO_RETRY_FAILURES: FailureCode[] = ["voice_unavailable", "tutor_unavaila
 export const AUTO_RETRY_DELAYS_MS = [2_000, 5_000, 10_000];
 /** Expected along the way (no speech, a frame dropped while busy): nothing to report. */
 const QUIET_ERRORS = new Set(["bad_audio", "busy", "too_long"]);
+
+/** Why a session couldn't start or resume: the tutor (Claude) didn't answer, or the server couldn't be used. */
+function startFailure(error: unknown): FailureCode {
+  return error instanceof ApiError && error.kind === "tutor_unavailable" ? "tutor_start_failed" : "start_failed";
+}
 
 /** An automatic retry is on its way: the attempt number, out of how many. */
 export interface AutoRetry {
@@ -255,7 +260,7 @@ export function useVoiceSession(mode: Mode) {
         } catch (error) {
           // Offline or the server is down: try again later. Anything else (gone, ended, unreadable): start a new one.
           if (error instanceof ApiError && TRANSIENT_ERRORS.includes(error.kind)) {
-            if (!cancelled) dispatch({ type: "failed", code: "start_failed" });
+            if (!cancelled) dispatch({ type: "failed", code: startFailure(error) });
             return;
           }
           clearSavedSession();
@@ -278,8 +283,8 @@ export function useVoiceSession(mode: Mode) {
           scaffold: started.scaffold,
         });
         connect(started.sessionId, { kind: "speak" });
-      } catch {
-        if (!cancelled) dispatch({ type: "failed", code: "start_failed" });
+      } catch (error) {
+        if (!cancelled) dispatch({ type: "failed", code: startFailure(error) });
       }
     })();
     return () => {

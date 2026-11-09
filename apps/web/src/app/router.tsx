@@ -1,4 +1,4 @@
-import type { RouteObject } from "react-router";
+import { Navigate, type RouteObject } from "react-router";
 import { CHECK_IN_PATH, CheckInPage } from "@/features/check-in/check-in-page";
 import { CheckInDetailPage } from "@/features/check-in/check-in-detail-page";
 import { MemoryPage } from "@/features/memory/memory-page";
@@ -35,4 +35,6 @@ export const routes: RouteObject[] = [
   { path: "review", element: <ReviewPage /> },
   // A live session takes the whole screen: no tab bar.
   { path: "session/:mode", element: <SessionPage /> },
+  // An old or mistyped address goes back to Today, not to an error page.
+  { path: "*", element: <Navigate to="/" replace /> },
 ];

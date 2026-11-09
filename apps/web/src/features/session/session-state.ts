@@ -19,7 +19,9 @@ export type FailureCode =
   | "mic_missing"
   | "mic_busy"
   | "mic_unsupported"
-  | "start_failed";
+  | "start_failed"
+  // The session could not start because the tutor (Claude) didn't answer.
+  | "tutor_start_failed";
 
 export interface Caption {
   who: "tutor" | "you";

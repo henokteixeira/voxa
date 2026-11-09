@@ -109,14 +109,20 @@ const FAILURE_EN: Record<FailureCode, FailureCopy> = {
   mic_unsupported: { title: "This browser can't record", body: "Open Voxa in a recent Chrome, Edge or Safari.", action: "Try again" },
   start_failed: {
     title: "The session didn't start",
-    body: "Check that Voxa's server is running on your PC:",
-    command: "pnpm dev:api",
+    body: "Check that Voxa is running on your PC:",
+    command: "docker compose up",
+    action: "Try again",
+  },
+  tutor_start_failed: {
+    title: "The tutor didn't answer",
+    body: "Check the Claude API key in .env and the account's credits. The reason is in the API log:",
+    command: "docker compose logs api",
     action: "Try again",
   },
   voice_unavailable: {
     title: "The voice server isn't running",
     body: "Speech recognition and the tutor's voice run on your PC. Start it there:",
-    command: "cd services/voice && uvicorn main:app --port 8001",
+    command: "docker compose up voice",
     action: "Check again",
   },
   tutor_unavailable: {
@@ -152,14 +158,20 @@ const FAILURE_PT: Record<FailureCode, FailureCopy> = {
   mic_unsupported: { title: "Este navegador não grava áudio", body: "Abra o Voxa em uma versão recente do Chrome, Edge ou Safari.", action: "Tentar de novo" },
   start_failed: {
     title: "A sessão não começou",
-    body: "Veja se o servidor do Voxa está rodando no seu PC:",
-    command: "pnpm dev:api",
+    body: "Veja se o Voxa está rodando no seu PC:",
+    command: "docker compose up",
+    action: "Tentar de novo",
+  },
+  tutor_start_failed: {
+    title: "O tutor não respondeu",
+    body: "Confira a chave da API do Claude no .env e os créditos da conta. O motivo está no log da API:",
+    command: "docker compose logs api",
     action: "Tentar de novo",
   },
   voice_unavailable: {
     title: "O servidor de voz não está rodando",
     body: "O reconhecimento de fala e a voz do tutor rodam no seu PC. Inicie lá:",
-    command: "cd services/voice && uvicorn main:app --port 8001",
+    command: "docker compose up voice",
     action: "Verificar de novo",
   },
   tutor_unavailable: {
