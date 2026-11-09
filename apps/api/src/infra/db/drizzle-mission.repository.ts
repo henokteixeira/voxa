@@ -1,11 +1,16 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { and, asc, desc, eq, isNull, lt } from "drizzle-orm";
-import { isMissionSituation, type Mission, type MissionModel, type NewMissionModel } from "../../domain/mission/mission.js";
+import { isMissionSituation, type MarkedStep, type Mission, type MissionModel, type NewMissionModel } from "../../domain/mission/mission.js";
 import type { MissionRepository, NewMission } from "../../domain/ports/mission.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
 import { missionExpressions, missions } from "./schema.js";
 
 type MissionRow = typeof missions.$inferSelect;
+
+const STEP_COLUMNS = { listen: "listenedAt", expressions: "expressionsDoneAt", review: "reviewDoneAt" } as const satisfies Record<
+  MarkedStep,
+  keyof MissionRow
+>;
 
 @Injectable()
 export class DrizzleMissionRepository implements MissionRepository {
@@ -54,6 +59,14 @@ export class DrizzleMissionRepository implements MissionRepository {
     const kept = await this.get(id);
     if (!kept?.model) throw new Error(`The model of mission ${id} was not stored.`);
     return kept.model;
+  }
+
+  async markStep(id: string, step: MarkedStep, at: Date): Promise<void> {
+    const column = STEP_COLUMNS[step];
+    await this.db
+      .update(missions)
+      .set({ [column]: at })
+      .where(and(eq(missions.id, id), isNull(missions[column])));
   }
 
   async markSaid(expressionId: string, at: Date): Promise<boolean> {

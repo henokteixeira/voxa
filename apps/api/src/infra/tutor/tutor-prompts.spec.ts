@@ -37,6 +37,30 @@ describe("buildSystemPrompt", () => {
   });
 });
 
+describe("buildSystemPrompt: a daily mission's conversation", () => {
+  const context = { mode: "daily" as const, language: "en", learnerContext: "", goals: [], targets: [], step: "supported" as const };
+
+  it("invites the mission's 3 expressions and fuller answers, never as a correction", () => {
+    const prompt = buildSystemPrompt({ ...context, expressions: ["I'm blocked by…", "Yesterday I…", "By the end of the day, I'll…"] }, "pt-BR");
+    expect(prompt).toContain("## Today's expressions");
+    expect(prompt).toContain('- "I\'m blocked by…"');
+    expect(prompt).toMatch(/never treat not using one as a mistake/);
+    expect(prompt).toMatch(/invite a slightly fuller one/);
+    expect(prompt).toMatch(/never a hint or a correction/);
+  });
+
+  it("lets the guided track build fuller answers, and its model sentences may use an expression", () => {
+    const prompt = buildSystemPrompt({ ...context, step: "build_light", expressions: ["I'm blocked by…"] }, "pt-BR");
+    expect(prompt).toMatch(/guided track already builds fuller answers/);
+    expect(prompt).not.toMatch(/invite a slightly fuller one/);
+    expect(prompt).toMatch(/a model sentence or a sentence start they ask for may use an expression/);
+  });
+
+  it("says nothing about expressions outside a mission", () => {
+    expect(buildSystemPrompt(context, "pt-BR")).not.toContain("Today's expressions");
+  });
+});
+
 describe("buildSystemPrompt: placement interview", () => {
   const context = { language: "en", learnerContext: "", goals: [], targets: [], step: null };
 

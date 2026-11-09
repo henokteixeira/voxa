@@ -2,15 +2,18 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { NewMissionModel } from "../../domain/mission/mission.js";
 import type { Database } from "./db.module.js";
 import { DrizzleMissionRepository } from "./drizzle-mission.repository.js";
+import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
 let close: () => Promise<void>;
 let missions: DrizzleMissionRepository;
+let sessions: DrizzleSessionRepository;
 
 beforeEach(async () => {
   ({ db, close } = await createTestDatabase());
   missions = new DrizzleMissionRepository(db);
+  sessions = new DrizzleSessionRepository(db);
 });
 afterEach(() => close());
 
@@ -56,6 +59,23 @@ describe("DrizzleMissionRepository", () => {
     expect(await missions.saveModel(id, model("Sam"))).toEqual(saved);
     expect((await missions.get(id))?.model).toEqual(saved);
     expect(saved.expressions.every((e) => e.saidAt === null)).toBe(true);
+  });
+
+  it("marks steps once", async () => {
+    const { id } = await missions.create({ language: "en", day: "2026-11-09", situation: "daily", createdAt });
+    await missions.markStep(id, "listen", createdAt);
+    await missions.markStep(id, "listen", new Date("2026-11-09T11:00:00Z"));
+    await missions.markStep(id, "review", createdAt);
+    expect(await missions.get(id)).toMatchObject({ listenedAt: createdAt, expressionsDoneAt: null, reviewDoneAt: createdAt });
+  });
+
+  it("finds the newest conversation started as the mission's step 3", async () => {
+    const { id } = await missions.create({ language: "en", day: "2026-11-09", situation: "daily", createdAt });
+    expect(await sessions.latestForMission(id)).toBeNull();
+    await sessions.create({ language: "en", mode: "daily", missionId: id, startedAt: createdAt });
+    const again = await sessions.create({ language: "en", mode: "daily", missionId: id, startedAt: new Date("2026-11-09T11:00:00Z") });
+    await sessions.create({ language: "en", mode: "daily" });
+    expect(await sessions.latestForMission(id)).toMatchObject({ id: again.id, missionId: id });
   });
 
   it("records the first time an expression is used", async () => {

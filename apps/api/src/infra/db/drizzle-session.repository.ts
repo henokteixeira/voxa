@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, count, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import { isTrackStage, type TrackState } from "../../domain/conversation/guided-track.js";
 import { isMode } from "../../domain/conversation/mode.js";
@@ -37,6 +37,7 @@ function toSession(row: SessionRow): Session {
     scaffold: row.scaffold,
     track: toTrack(row),
     memory: row.memory,
+    missionId: row.missionId,
   };
 }
 
@@ -79,12 +80,23 @@ export class DrizzleSessionRepository implements SessionRepository {
     targets?: PracticeTarget[];
     step?: SupportStep | null;
     track?: TrackState | null;
+    missionId?: string | null;
   }): Promise<Session> {
     const [row] = await this.db
       .insert(sessions)
       .values({ ...input, supportStep: step ?? null, ...trackColumns(track ?? null) })
       .returning();
     return toSession(row);
+  }
+
+  async latestForMission(missionId: string): Promise<Session | null> {
+    const [row] = await this.db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.missionId, missionId))
+      .orderBy(desc(sessions.startedAt), desc(sessions.id))
+      .limit(1);
+    return row ? toSession(row) : null;
   }
 
   async get(id: string): Promise<Session | null> {

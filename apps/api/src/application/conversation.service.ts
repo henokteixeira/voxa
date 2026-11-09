@@ -28,12 +28,15 @@ import { keptScaffold, sessionStep, wasAssisted } from "../domain/conversation/s
 import { type ChatTurn, NEW_WORD_CATEGORY, type PracticeTarget, type Session } from "../domain/conversation/types.js";
 import { choosePracticeTargets, metTargetsAfter } from "../domain/conversation/practice-targets.js";
 import { sameText, safeSupport } from "../domain/conversation/text.js";
-import { DomainError } from "../domain/errors.js";
+import { DomainError, InvalidInputError } from "../domain/errors.js";
 import type { SpeakingLevel } from "../domain/level/speaking-level.js";
 import { type SessionSignals, unaidedShare } from "../domain/progress/signal-trend.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { MISTAKE_BANK_REPOSITORY, type MistakeBankRepository } from "../domain/ports/mistake-bank.repository.js";
 import { LEARNER_CONTEXT_PORT, type LearnerContextPort } from "../domain/ports/learner-context.port.js";
+import { MISSION_REPOSITORY, type MissionRepository } from "../domain/ports/mission.repository.js";
+import type { Mission } from "../domain/mission/mission.js";
+import { MissionNotFoundError } from "../domain/mission/mission-errors.js";
 import { LEVEL_ASSESSOR_PORT, type LevelAssessorPort } from "../domain/ports/level-assessor.port.js";
 import { LEVEL_REPOSITORY, type LevelRepository } from "../domain/ports/level.repository.js";
 import { MISTAKE_REPOSITORY, type MistakeRepository, type SessionMistake } from "../domain/ports/mistake.repository.js";
@@ -149,9 +152,12 @@ export class ConversationService {
     @Inject(LEVEL_REPOSITORY) private readonly levels: LevelRepository,
     private readonly reviews: ReviewScheduler,
     private readonly memory: LearnerMemoryService,
+    @Inject(MISSION_REPOSITORY) private readonly missions: Pick<MissionRepository, "get">,
   ) {}
 
-  async start(mode: Mode, language: string): Promise<SessionStart> {
+  /** Starts a session; with `missionId`, it is that daily mission's step 3, with the model's 3 expressions to invite. */
+  async start(mode: Mode, language: string, missionId?: string): Promise<SessionStart> {
+    const mission = missionId ? await this.missionFor(missionId, mode, language) : null;
     // Picks up sessions a failed or interrupted run left unremembered, in the background.
     void this.memory.sweep();
     const [targets, level] = await Promise.all([
@@ -166,9 +172,9 @@ export class ConversationService {
     const track = startTrack(step, goalsFor(mode)[0] ?? null);
     const startedAt = this.clock.now();
     const [learnerContext, memory] = await Promise.all([this.learnerContext.load(), this.memory.recall({ startedAt })]);
-    const created = await this.sessions.create({ mode, language, startedAt, targets, step, track, memory });
+    const created = await this.sessions.create({ mode, language, startedAt, targets, step, track, memory, missionId: mission?.id ?? null });
     const plan = track ? openingPlan(track, describeGoal) : null;
-    const opening = await this.tutor.open(this.tutorContext(created, learnerContext), plan);
+    const opening = await this.tutor.open(this.tutorContext(created, learnerContext, phrasesOf(mission)), plan);
     await this.sessions.appendTurn(created.id, { role: "assistant", content: opening.line });
     // In the guided track the opening already gives the first model sentence.
     const scaffold = track && givesWords(track.stage) ? opening.scaffold : null;
@@ -223,13 +229,14 @@ export class ConversationService {
    */
   async respond(sessionId: string, utterance: string, onReply?: (reply: TurnResult) => void): Promise<TurnResult> {
     const session = await this.openSession(sessionId);
-    const [history, known, knownPatterns, sessionPatterns, learnerContext] = await Promise.all([
+    const [history, known, knownPatterns, sessionPatterns, learnerContext, mission] = await Promise.all([
       this.sessions.history(sessionId),
       // Twice the limit, so new words don't push real mistakes out of the list.
       this.mistakes.mostFrequent(session.language, KNOWN_MISTAKES_LIMIT * 2),
       this.mistakes.patterns(session.language, KNOWN_PATTERNS_LIMIT),
       correctsMistakes(session.mode) ? this.mistakes.sessionPatterns(sessionId) : [],
       this.learnerContext.load(),
+      session.missionId ? this.missions.get(session.missionId) : null,
     ]);
     const learnerTurn = history.filter((t) => t.role === "user").length + 1;
 
@@ -265,7 +272,7 @@ export class ConversationService {
         : undefined;
     const verdict = await this.tutor.evaluate(
       {
-        ...this.tutorContext(session, learnerContext),
+        ...this.tutorContext(session, learnerContext, phrasesOf(mission)),
         history,
         pending: session.pending,
         knownMistakes: watched,
@@ -429,8 +436,18 @@ export class ConversationService {
     return trackOutcomes({ track, step, model: session.scaffold, utterance, nextGoal });
   }
 
-  private tutorContext(session: Session, learnerContext: string): TutorContext {
+  private async missionFor(id: string, mode: Mode, language: string): Promise<Mission> {
+    const mission = await this.missions.get(id);
+    if (!mission) throw new MissionNotFoundError(id);
+    if (mission.situation !== mode || mission.language !== language) {
+      throw new InvalidInputError(`Mission ${id} is a ${mission.situation} in ${mission.language}, not a ${mode} in ${language}.`);
+    }
+    return mission;
+  }
+
+  private tutorContext(session: Session, learnerContext: string, expressions?: string[]): TutorContext {
     return {
+      ...(expressions?.length ? { expressions } : {}),
       mode: session.mode,
       language: session.language,
       learnerContext,
@@ -449,3 +466,8 @@ export class ConversationService {
   }
 }
 
+
+/** The mission's expressions for the tutor to invite; none outside a mission or before its model. */
+function phrasesOf(mission: Mission | null): string[] | undefined {
+  return mission?.model?.expressions.map((e) => e.phrase);
+}

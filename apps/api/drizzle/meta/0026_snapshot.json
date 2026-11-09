@@ -1,5 +1,5 @@
 {
-  "id": "c03513f7-09a1-4227-acc9-17771a709326",
+  "id": "b27cd2fa-4aa2-415a-8aac-10520cfff6c7",
   "prevId": "fdb4c8c4-1aae-4511-8cc8-e56080307281",
   "version": "7",
   "dialect": "postgresql",
@@ -107,18 +107,6 @@
           "type": "smallint",
           "primaryKey": false,
           "notNull": true
-        },
-        "mistakes": {
-          "name": "mistakes",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "other_language_words": {
-          "name": "other_language_words",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -513,6 +501,24 @@
         "model_text": {
           "name": "model_text",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "listened_at": {
+          "name": "listened_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expressions_done_at": {
+          "name": "expressions_done_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "review_done_at": {
+          "name": "review_done_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         }
@@ -1436,10 +1442,30 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "mission_id": {
+          "name": "mission_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "sessions_mission_id_missions_id_fk": {
+          "name": "sessions_mission_id_missions_id_fk",
+          "tableFrom": "sessions",
+          "tableTo": "missions",
+          "columnsFrom": [
+            "mission_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

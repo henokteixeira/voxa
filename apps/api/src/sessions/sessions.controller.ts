@@ -10,6 +10,8 @@ import { MODES } from "../domain/conversation/mode.js";
 const StartBody = z.object({
   mode: z.enum(MODES),
   language: Language,
+  /** A daily mission's step 3: the session is that mission's conversation. */
+  missionId: z.uuid().optional(),
 });
 const TurnBody = z.object({ text: z.string().trim().min(1).max(2000) });
 const Ms = z.number().int().min(0).max(24 * 60 * 60 * 1000);
@@ -39,8 +41,8 @@ export class SessionsController {
 
   @Post()
   async start(@Body() body: unknown) {
-    const { mode, language } = parse(StartBody, body);
-    const { session, message, goals } = await this.conversation.start(mode, language);
+    const { mode, language, missionId } = parse(StartBody, body);
+    const { session, message, goals } = await this.conversation.start(mode, language, missionId);
     return {
       sessionId: session.id,
       mode: session.mode,
