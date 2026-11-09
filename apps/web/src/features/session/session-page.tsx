@@ -1,3 +1,4 @@
+import { BALL_RING_SPACE } from "@/components/ball-ring";
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Link, Navigate, useParams, useSearchParams } from "react-router";
@@ -202,7 +203,7 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
         </ol>
       ) : (
         <div inert={state.phase === "paused"} className="relative flex flex-1 flex-col items-center justify-center gap-4 text-center">
-          <div className="relative inline-flex">
+          <div className="relative inline-flex" style={{ padding: BALL_RING_SPACE }}>
             {ballAction ? (
               <VoiceBall state={stage.ball} size={ballSize} label={ballAction} onPress={tapBall} />
             ) : (

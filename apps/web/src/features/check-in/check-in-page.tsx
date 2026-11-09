@@ -1,3 +1,4 @@
+import { BALL_RING_SPACE } from "@/components/ball-ring";
 import { useContext, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -186,7 +187,7 @@ export function CheckInPage() {
             <span className="font-serif text-[22px] leading-snug">{copy.task}</span>
           </section>
           <div className="flex flex-1 flex-col items-center justify-center gap-3">
-            <div className="relative">
+            <div className="relative inline-flex" style={{ padding: BALL_RING_SPACE }}>
               <VoiceBall state={step.kind === "saving" ? "thinking" : startedAt !== null ? "listening" : "idle"} size={BALL} />
               {startedAt !== null && <TimeRing ballSize={BALL} share={Math.max(0, leftMs) / limitMs} />}
             </div>
