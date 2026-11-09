@@ -53,7 +53,7 @@ export function MemoryPage() {
   return (
     <div className="vx-page-in flex flex-col gap-5">
       <div className="flex min-h-11 items-center">
-        <IconButton label={copy.back} onClick={() => navigate("/")}>
+        <IconButton label={copy.back} onClick={() => navigate("/", { state: { settings: true } })}>
           <BackIcon />
         </IconButton>
       </div>
