@@ -26,7 +26,7 @@ export interface MistakesCopy {
 
 export const MISTAKES_COPY: Copy<MistakesCopy> = {
   en: {
-    title: "Practice",
+    title: "Review",
     loading: "Loading your mistakes",
     loadFailed: "Can't load your mistakes",
     loadFailedBody: "Check that Voxa's server is running on your PC.",
@@ -52,7 +52,7 @@ export const MISTAKES_COPY: Copy<MistakesCopy> = {
     notAMistake: "This isn't a mistake",
   },
   "pt-BR": {
-    title: "Praticar",
+    title: "Revisar",
     loading: "Carregando seus erros",
     loadFailed: "Não deu para carregar seus erros",
     loadFailedBody: "Veja se o servidor do Voxa está rodando no seu PC.",

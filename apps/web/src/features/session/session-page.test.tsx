@@ -648,11 +648,9 @@ describe("live session", () => {
     expect(mic.sendNow).toHaveBeenCalled();
   });
 
-  it("sends Today's mode picker to the right session and rejects unknown modes", async () => {
+  it("sends an unknown mode back to Today", async () => {
     const router = renderSession("/session/karaoke");
     expect(router.state.location.pathname).toBe("/");
-    await userEvent.click(await screen.findByRole("link", { name: /Sprint review/ }));
-    expect(router.state.location.pathname).toBe("/session/review");
   });
 });
 

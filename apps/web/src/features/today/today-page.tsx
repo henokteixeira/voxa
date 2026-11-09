@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Navigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -16,38 +16,25 @@ import { takeSavedSession } from "@/features/session/saved-session";
 import { useApi } from "@/hooks/use-api";
 import { useApiStatus } from "@/hooks/use-api-status";
 import { useOnline } from "@/hooks/use-online";
-import { EVERYDAY_MODES, type Mode, WORK_MODES } from "@/lib/api";
 import { onboardingSeen } from "@/features/onboarding/onboarding-seen";
 import { ONBOARDING_PATH } from "@/features/onboarding/onboarding-page";
 import { useLevel } from "@/features/progress/use-level";
 import { LOCALES, useCopy, useLocale } from "@/lib/i18n/locale";
 import { PAUSE_CHOICES_MS, readPauseMs, savePauseMs } from "@/lib/voice/pause-setting";
-import { cn } from "@/lib/utils";
+import { TALK_PATH } from "@/features/talk/talk-page";
 import { LANGUAGE_NAMES, TODAY_COPY } from "./today-copy";
 
-/** Two-option switch for the interface language. The conversation stays in the language being learned. */
-function LanguageSwitch({ label }: { label: string }) {
+/** The interface language. The conversation stays in the language being learned. */
+function LanguageSetting({ title, hint }: { title: string; hint: string }) {
   const { locale, setLocale } = useLocale();
   return (
-    <div role="group" aria-label={label} className="flex rounded-pill bg-sand-soft p-1">
-      {LOCALES.map((l) => (
-        <button
-          key={l}
-          type="button"
-          aria-pressed={l === locale}
-          onClick={() => setLocale(l)}
-          className={cn(
-            "min-h-11 min-w-11 cursor-pointer rounded-pill border-none bg-transparent px-3 text-sm font-bold text-taupe",
-            l === locale && "bg-paper text-ink shadow-tab",
-          )}
-        >
-          <span aria-hidden="true">{l === "en" ? "EN" : "PT"}</span>
-          <span lang={l} className="sr-only">
-            {LANGUAGE_NAMES[l]}
-          </span>
-        </button>
-      ))}
-    </div>
+    <SegmentedSetting
+      title={title}
+      hint={hint}
+      options={LOCALES.map((l) => ({ value: l, label: LANGUAGE_NAMES[l] }))}
+      value={locale}
+      onChange={setLocale}
+    />
   );
 }
 
@@ -70,32 +57,7 @@ function PauseSetting({ title, hint, seconds }: { title: string; hint: string; s
 
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
-/** One group of practice categories, as a 2-column grid; each tile starts that session. */
-function CategoryGroup({ title, list }: { title: string; list: readonly Mode[] }) {
-  const id = useId();
-  const modes = useModeInfo();
-  return (
-    <section aria-labelledby={id} className="flex flex-col gap-3">
-      <h3 id={id} className="m-0 text-label text-taupe">
-        {title}
-      </h3>
-      <div className="grid grid-cols-2 gap-2.5">
-        {list.map((mode) => (
-          <Link
-            key={mode}
-            to={`/session/${mode}`}
-            className="flex min-h-[68px] flex-col justify-center gap-0.5 rounded-md bg-paper px-3.5 py-3 text-ink no-underline shadow-card transition-[transform,background-color] duration-150 hover:bg-sand-soft motion-safe:active:scale-[0.98]"
-          >
-            <b className="text-small leading-tight">{modes[mode].title}</b>
-            <span className="text-caption text-taupe">{modes[mode].length}</span>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/** Today: the learner always picks what to practice; nothing is chosen for them. */
+/** Today: what to do today. The free conversations live in Talk. */
 export function TodayPage() {
   const [now] = useState(() => new Date());
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -127,9 +89,7 @@ export function TodayPage() {
     <>
       <div className="flex min-h-11 items-center justify-between gap-3">
         <span className="text-label text-taupe">{date}</span>
-        <div className="flex items-center gap-2">
-          <LanguageSwitch label={copy.language} />
-          <button
+        <button
             type="button"
             aria-label={copy.settings}
             aria-haspopup="dialog"
@@ -142,7 +102,6 @@ export function TodayPage() {
               <circle cx="10" cy="17" r="2" />
             </svg>
           </button>
-        </div>
       </div>
       <h1 className="m-0 text-display">{copy.greeting(now.getHours())}</h1>
       {online && status === "ok" && progress.today && <TodayGoalCard today={progress.today} />}
@@ -189,6 +148,9 @@ export function TodayPage() {
           <VoiceBall state="idle" size={104} />
           <h2 className="m-0 text-heading">{copy.readyTitle}</h2>
           <p className="m-0 text-caption text-taupe">{copy.readyBody}</p>
+          <Button block asChild>
+            <Link to={TALK_PATH}>{copy.talk}</Link>
+          </Button>
         </Card>
       )}
 
@@ -199,17 +161,11 @@ export function TodayPage() {
         </>
       )}
 
-      {/* Always at the bottom, and always a choice: no category is picked for the learner. */}
-      {online && status === "ok" && (
-        <nav aria-label={copy.categories} className="flex flex-col gap-5">
-          <CategoryGroup title={copy.everyday} list={EVERYDAY_MODES} />
-          <CategoryGroup title={copy.work} list={WORK_MODES} />
-        </nav>
-      )}
 
       {settingsOpen && (
         <Sheet label={copy.settings} closeLabel={copy.close} onClose={() => setSettingsOpen(false)}>
           <h2 className="m-0 text-heading">{copy.settings}</h2>
+          <LanguageSetting title={copy.language} hint={copy.languageHint} />
           {/* A new practice time changes the goal: the card takes what the server answered. */}
           <DailyGoalSetting onSaved={progress.set} />
           <PauseSetting title={copy.pauseTitle} hint={copy.pauseHint} seconds={copy.seconds} />

@@ -48,7 +48,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 export const PRACTICE_COPY: Copy<PracticeCopy> = {
   en: {
-    title: "Practice",
+    title: "Review",
     loading: "Loading your practice",
     loadFailed: "Can't load your practice. Check that Voxa's server is running on your PC.",
     tryAgain: "Try again",
@@ -89,7 +89,7 @@ export const PRACTICE_COPY: Copy<PracticeCopy> = {
     reviewEmpty: "Nothing to review right now.",
   },
   "pt-BR": {
-    title: "Praticar",
+    title: "Revisar",
     loading: "Carregando sua prática",
     loadFailed: "Não deu para carregar sua prática. Veja se o servidor do Voxa está rodando no seu PC.",
     tryAgain: "Tentar de novo",
