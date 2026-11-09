@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   customType,
+  date,
   doublePrecision,
   index,
   integer,
@@ -342,3 +343,38 @@ export const checkInRecordings = pgTable("check_in_recordings", {
   mimeType: varchar("mime_type", { length: 64 }).notNull(),
   audio: bytea("audio").notNull(),
 });
+
+/** The daily mission: one situation a day, picked by rotation. */
+export const missions = pgTable(
+  "missions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    language: varchar("language", { length: 16 }).notNull(),
+    /** The learner's local day. */
+    day: date("day", { mode: "string" }).notNull(),
+    situation: varchar("situation", { length: 32 }).notNull(), // a MissionSituation; the check below must follow it
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    /** Step 1's model, written the first time it is asked for: who speaks and what they say. */
+    modelSpeaker: varchar("model_speaker", { length: 64 }),
+    modelText: text("model_text"),
+  },
+  (t) => [
+    unique("missions_language_day").on(t.language, t.day),
+    check("missions_situation", sql`${t.situation} in ('daily', 'my_day', 'presentation', 'story', 'review', 'opinion')`),
+    check("missions_model", sql`(${t.modelSpeaker} is null) = (${t.modelText} is null)`),
+  ],
+);
+
+/** The 3 expressions each mission's model gives. */
+export const missionExpressions = pgTable(
+  "mission_expressions",
+  {
+    missionId: uuid("mission_id")
+      .notNull()
+      .references(() => missions.id, { onDelete: "cascade" }),
+    position: smallint("position").notNull(), // 1 to MISSION_EXPRESSIONS (3); the check below must follow it
+    phrase: text("phrase").notNull(),
+    example: text("example").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.missionId, t.position] }), check("mission_expressions_position", sql`${t.position} between 1 and 3`)],
+);
