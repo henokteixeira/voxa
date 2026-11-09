@@ -169,6 +169,13 @@
       "when": 1794193685744,
       "tag": "0023_check_ins",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794196706929,
+      "tag": "0024_missions",
+      "breakpoints": true
     }
   ]
 }
