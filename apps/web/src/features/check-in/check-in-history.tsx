@@ -47,6 +47,7 @@ export function CheckInHistory() {
             <Link
               to={`${CHECK_IN_PATH}/${checkIn.id}`}
               aria-label={copy.historyItem(date(checkIn.recordedAt), checkIn.wordsPerMinute)}
+              aria-current={i === shown.length - 1 ? "true" : undefined}
               className="flex h-full w-full flex-col items-center justify-end gap-1.5 text-ink no-underline"
             >
               <span aria-hidden="true" className="text-small font-bold tabular-nums">
@@ -64,7 +65,7 @@ export function CheckInHistory() {
           </li>
         ))}
       </ol>
-      <span className="text-caption text-taupe">{copy.next(date(overview.dueAt))}</span>
+      <span className="text-caption text-taupe">{overview.due ? copy.dueNow : copy.next(date(overview.dueAt))}</span>
     </section>
   );
 }

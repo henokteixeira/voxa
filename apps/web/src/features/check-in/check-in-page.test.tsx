@@ -64,7 +64,7 @@ describe("Check-in", () => {
     await userEvent.click(screen.getByRole("button", { name: "I'm done" }));
 
     expect(recordCheckIn).toHaveBeenCalledWith(expect.any(ArrayBuffer), expect.objectContaining({ pausesMs: [] }));
-    expect(await screen.findByRole("heading", { name: "Last time you said 68 words a minute. Today, 81." })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "The time before, you said 68 words a minute. Today, 81." })).toBeInTheDocument();
     expect(screen.getByRole("row", { name: "Long pauses 9 4" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /^Hear .+, then today$/ }));

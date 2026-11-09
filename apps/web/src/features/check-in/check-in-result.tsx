@@ -11,10 +11,20 @@ import { CHECK_IN_COPY } from "./check-in-copy";
 import { clearestGain, useCheckInDate } from "./check-in-format";
 
 /** The check-in compared with the one before: only what went better gets a color; nothing is red. */
-export function CheckInComparison({ result, doneTo = "/" }: { result: CheckInResult; doneTo?: string }) {
+export function CheckInComparison({
+  result,
+  past = false,
+  doneTo = "/",
+}: {
+  result: CheckInResult;
+  /** Opened from Progress: the check-in is named by its date, not "today". */
+  past?: boolean;
+  doneTo?: string;
+}) {
   const copy = useCopy(CHECK_IN_COPY);
   const date = useCheckInDate();
   const { checkIn, previous } = result;
+  const day = past ? date(checkIn.recordedAt) : null;
   // The button that ended the recording is gone: the title takes the focus, so the result is read out.
   const title = useRef<HTMLHeadingElement>(null);
   useEffect(() => title.current?.focus(), []);
@@ -32,7 +42,7 @@ export function CheckInComparison({ result, doneTo = "/" }: { result: CheckInRes
   return (
     <>
       <h1 ref={title} tabIndex={-1} className="m-0 font-serif text-[26px] leading-tight font-normal outline-none">
-        {previous ? copy.gainTitle(clearestGain(checkIn, previous)) : copy.firstTitle}
+        {previous ? copy.gainTitle(clearestGain(checkIn, previous), day) : copy.firstTitle}
       </h1>
       {previous ? (
         <table className="w-full border-separate border-spacing-0 rounded-lg bg-paper px-5 py-2 text-body shadow-card">
@@ -45,7 +55,7 @@ export function CheckInComparison({ result, doneTo = "/" }: { result: CheckInRes
                 {date(previous.recordedAt)}
               </th>
               <th scope="col" className="w-16 py-2 text-right font-bold">
-                {copy.today}
+                {day ?? copy.today}
               </th>
             </tr>
           </thead>
@@ -66,7 +76,7 @@ export function CheckInComparison({ result, doneTo = "/" }: { result: CheckInRes
       ) : (
         <p className="m-0 text-body text-ink-soft">{copy.firstBody}</p>
       )}
-      <HearRecordings ids={[...(previous ? [previous.id] : []), checkIn.id]} label={previous ? copy.hearBoth(date(previous.recordedAt)) : copy.hearToday} />
+      <HearRecordings ids={[...(previous ? [previous.id] : []), checkIn.id]} label={previous ? copy.hearBoth(date(previous.recordedAt), day) : copy.hearToday} />
       <div className="flex-1" />
       <Button block asChild>
         <Link to={doneTo}>{copy.finish}</Link>

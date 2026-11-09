@@ -41,12 +41,12 @@ export function CheckInDetailPage() {
         <span className="w-11" />
       </div>
       {result === undefined && (
-        <div className="flex flex-1 items-center justify-center">
+        <div role="status" aria-label={copy.loading} className="flex flex-1 items-center justify-center">
           <VoiceBall state="thinking" size={140} />
         </div>
       )}
       {result === null && <p className="m-0 flex-1 text-center text-body text-ink-soft">{copy.loadFailed}</p>}
-      {result && <CheckInComparison result={result} doneTo="/progress" />}
+      {result && <CheckInComparison result={result} past doneTo="/progress" />}
     </div>
   );
 }

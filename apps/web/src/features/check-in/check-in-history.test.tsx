@@ -38,7 +38,7 @@ describe("Check-in history", () => {
     expect(screen.getByText("Next check-in: Dec 7")).toBeInTheDocument();
 
     await userEvent.click(links[1]);
-    expect(await screen.findByRole("heading", { name: "Last time you said 68 words a minute. Today, 81." })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "The time before, you said 68 words a minute. On Nov 23, 81." })).toBeInTheDocument();
     expect(api.checkIn).toHaveBeenCalledWith("c2");
   });
 });

@@ -25,11 +25,15 @@ export interface CheckInCopy {
   firstTitle: string;
   firstBody: string;
   /** The title names the clearest gain; neutral when nothing got better. */
-  gainTitle: (gain: { kind: "pace" | "pauses"; before: number; now: number } | null) => string;
+  /** `day`: the check-in's date when it isn't today's (opened from Progress). */
+  gainTitle: (gain: { kind: "pace" | "pauses"; before: number; now: number } | null, day: string | null) => string;
   today: string;
   wordsPerMinute: string;
   longPauses: string;
-  hearBoth: (date: string) => string;
+  hearBoth: (date: string, day: string | null) => string;
+  dueNow: string;
+  loading: string;
+  latest: string;
   hearToday: string;
   playing: string;
   playFailed: string;
@@ -64,16 +68,20 @@ export const CHECK_IN_COPY: Copy<CheckInCopy> = {
     loadFailed: "The check-in couldn't open right now.",
     firstTitle: "Your first check-in is saved.",
     firstBody: "In 2 weeks you'll do the same task and hear the difference.",
-    gainTitle: (gain) =>
-      !gain
-        ? "You told it again. Listen to how it sounds now."
-        : gain.kind === "pace"
-          ? `Last time you said ${gain.before} words a minute. Today, ${gain.now}.`
-          : `Last time you paused ${gain.before} ${gain.before === 1 ? "time" : "times"}. Today, ${gain.now}.`,
+    gainTitle: (gain, day) => {
+      const when = day ? `On ${day}` : "Today";
+      if (!gain) return day ? "You told it again. Listen to how it sounded." : "You told it again. Listen to how it sounds now.";
+      return gain.kind === "pace"
+        ? `The time before, you said ${gain.before} words a minute. ${when}, ${gain.now}.`
+        : `The time before, you paused ${gain.before} ${gain.before === 1 ? "time" : "times"}. ${when}, ${gain.now}.`;
+    },
     today: "Today",
     wordsPerMinute: "Words per minute",
     longPauses: "Long pauses",
-    hearBoth: (date) => `Hear ${date}, then today`,
+    hearBoth: (date, day) => `Hear ${date}, then ${day ?? "today"}`,
+    dueNow: "Next check-in: due now",
+    loading: "Loading the check-in",
+    latest: "latest",
     hearToday: "Hear your recording",
     playing: "Playing…",
     playFailed: "The recording couldn't play.",
@@ -106,16 +114,20 @@ export const CHECK_IN_COPY: Copy<CheckInCopy> = {
     loadFailed: "Não deu para abrir o check-in agora.",
     firstTitle: "Seu primeiro check-in está salvo.",
     firstBody: "Daqui a 2 semanas você faz a mesma tarefa e ouve a diferença.",
-    gainTitle: (gain) =>
-      !gain
-        ? "Você contou de novo. Ouça como soa agora."
-        : gain.kind === "pace"
-          ? `Da última vez você falou ${gain.before} palavras por minuto. Hoje, ${gain.now}.`
-          : `Da última vez você pausou ${gain.before} ${gain.before === 1 ? "vez" : "vezes"}. Hoje, ${gain.now}.`,
+    gainTitle: (gain, day) => {
+      const when = day ? `Em ${day}` : "Hoje";
+      if (!gain) return day ? "Você contou de novo. Ouça como soou." : "Você contou de novo. Ouça como soa agora.";
+      return gain.kind === "pace"
+        ? `Na vez anterior você falou ${gain.before} palavras por minuto. ${when}, ${gain.now}.`
+        : `Na vez anterior você pausou ${gain.before} ${gain.before === 1 ? "vez" : "vezes"}. ${when}, ${gain.now}.`;
+    },
     today: "Hoje",
     wordsPerMinute: "Palavras por minuto",
     longPauses: "Pausas longas",
-    hearBoth: (date) => `Ouvir ${date} e depois hoje`,
+    hearBoth: (date, day) => `Ouvir ${date} e depois ${day ?? "hoje"}`,
+    dueNow: "Próximo check-in: agora",
+    loading: "Carregando o check-in",
+    latest: "o mais recente",
     hearToday: "Ouvir sua gravação",
     playing: "Tocando…",
     playFailed: "Não deu para tocar a gravação.",
