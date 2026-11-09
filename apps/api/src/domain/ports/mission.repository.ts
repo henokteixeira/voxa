@@ -1,4 +1,4 @@
-import type { Mission, MissionModel, MissionSituation, NewMissionModel } from "../mission/mission.js";
+import type { MarkedStep, Mission, MissionModel, MissionSituation, NewMissionModel } from "../mission/mission.js";
 import type { LocalDay } from "../progress/daily-goal.js";
 
 export interface NewMission {
@@ -18,6 +18,12 @@ export interface MissionRepository {
   get(id: string): Promise<Mission | null>;
   /** Keeps the mission's model once: when it already has one (two requests at once), that one is kept and returned. */
   saveModel(id: string, model: NewMissionModel): Promise<MissionModel>;
+  /** Marks a step done; a step already done keeps its first time. */
+  markStep(id: string, step: MarkedStep, at: Date): Promise<void>;
+  /** Links step 3's conversation; a newer one (the learner started over) replaces it. */
+  linkSession(id: string, sessionId: string): Promise<void>;
+  /** The mission whose step 3 is this conversation, or null. */
+  forSession(sessionId: string): Promise<Mission | null>;
   /** Records the first time the learner used the expression; false when it was already used (or doesn't exist). */
   markSaid(expressionId: string, at: Date): Promise<boolean>;
 }

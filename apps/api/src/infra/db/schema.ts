@@ -362,6 +362,12 @@ export const missions = pgTable(
     /** Step 1's model, written the first time it is asked for: who speaks and what they say. */
     modelSpeaker: varchar("model_speaker", { length: 64 }),
     modelText: text("model_text"),
+    /** When each step was done (step 1 listened once, step 2 the 3 expressions tried, step 5 the review). */
+    listenedAt: timestamp("listened_at", { withTimezone: true }),
+    expressionsDoneAt: timestamp("expressions_done_at", { withTimezone: true }),
+    reviewDoneAt: timestamp("review_done_at", { withTimezone: true }),
+    /** Step 3's conversation (the newest one started); step 4 retells it. */
+    sessionId: uuid("session_id").references(() => sessions.id, { onDelete: "set null" }),
   },
   (t) => [
     unique("missions_language_day").on(t.language, t.day),

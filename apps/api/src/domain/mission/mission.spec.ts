@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isMissionSituation, MISSION_SITUATIONS, nextSituation } from "./mission.js";
+import { isMissionSituation, MISSION_SITUATIONS, missionDone, missionSteps, nextSituation } from "./mission.js";
 
 describe("the daily mission's situation", () => {
   it("starts with the stand-up and goes round work and everyday in turn", () => {
@@ -13,5 +13,32 @@ describe("the daily mission's situation", () => {
     expect(isMissionSituation("free_talk")).toBe(false);
     expect(isMissionSituation("placement")).toBe(false);
     expect(isMissionSituation("story")).toBe(true);
+  });
+});
+
+describe("the daily mission's steps", () => {
+  const none = { listenedAt: null, expressionsDoneAt: null, reviewDoneAt: null };
+  const at = new Date("2026-11-09T12:00:00Z");
+  const all = { listenedAt: at, expressionsDoneAt: at, reviewDoneAt: at };
+  const notCheckInDay = { due: false, doneToday: false };
+
+  it("reads the marked steps, the conversation and the 3 rounds", () => {
+    expect(missionSteps(none, { checkIn: notCheckInDay, taskEnded: false, fasterRounds: 2 })).toEqual({
+      checkIn: null,
+      listen: false,
+      expressions: false,
+      task: false,
+      faster: false,
+      review: false,
+    });
+    const steps = missionSteps(all, { checkIn: notCheckInDay, taskEnded: true, fasterRounds: 3 });
+    expect(missionDone(steps)).toBe(true);
+  });
+
+  it("adds the check-in as step 0 on its day, done or not", () => {
+    const facts = { taskEnded: true, fasterRounds: 3 };
+    expect(missionSteps(all, { ...facts, checkIn: { due: true, doneToday: false } }).checkIn).toBe(false);
+    expect(missionDone(missionSteps(all, { ...facts, checkIn: { due: true, doneToday: false } }))).toBe(false);
+    expect(missionSteps(all, { ...facts, checkIn: { due: false, doneToday: true } }).checkIn).toBe(true);
   });
 });

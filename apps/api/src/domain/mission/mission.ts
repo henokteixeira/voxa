@@ -1,4 +1,5 @@
 import type { Mode } from "../conversation/mode.js";
+import { FASTER_ROUNDS } from "../faster/faster-rounds.js";
 import type { LocalDay } from "../progress/daily-goal.js";
 
 /**
@@ -56,6 +57,10 @@ export interface MissionModel extends NewMissionModel {
   expressions: MissionExpression[];
 }
 
+/** The steps whose end the learner marks; the task and "say it faster" are read from the session. */
+export const MARKED_STEPS = ["listen", "expressions", "review"] as const;
+export type MarkedStep = (typeof MARKED_STEPS)[number];
+
 export interface Mission {
   id: string;
   language: string;
@@ -65,4 +70,45 @@ export interface Mission {
   createdAt: Date;
   /** Null until step 1 first asks for it. */
   model: MissionModel | null;
+  listenedAt: Date | null;
+  expressionsDoneAt: Date | null;
+  reviewDoneAt: Date | null;
+  /** Step 3's conversation, once started. */
+  sessionId: string | null;
+}
+
+/** Which steps are done. `checkIn` is step 0, only on check-in day: null on the other days. */
+export interface MissionSteps {
+  checkIn: boolean | null;
+  listen: boolean;
+  expressions: boolean;
+  task: boolean;
+  faster: boolean;
+  review: boolean;
+}
+
+export interface MissionFacts {
+  /** The check-in is due now, or was recorded on the mission's day. */
+  checkIn: { due: boolean; doneToday: boolean };
+  /** Step 3's conversation has ended. */
+  taskEnded: boolean;
+  /** How many "say it faster" rounds step 4 told. */
+  fasterRounds: number;
+}
+
+export function missionSteps(mission: Pick<Mission, "listenedAt" | "expressionsDoneAt" | "reviewDoneAt">, facts: MissionFacts): MissionSteps {
+  const { due, doneToday } = facts.checkIn;
+  return {
+    checkIn: doneToday ? true : due ? false : null,
+    listen: mission.listenedAt !== null,
+    expressions: mission.expressionsDoneAt !== null,
+    task: facts.taskEnded,
+    faster: facts.fasterRounds >= FASTER_ROUNDS,
+    review: mission.reviewDoneAt !== null,
+  };
+}
+
+/** The mission is done once every step of the day is. */
+export function missionDone(steps: MissionSteps): boolean {
+  return Object.values(steps).every((done) => done !== false);
 }

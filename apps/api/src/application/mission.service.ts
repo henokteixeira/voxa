@@ -1,7 +1,21 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { sessionStep, STEP_WITHOUT_LEVEL } from "../domain/conversation/support.js";
-import { DomainError, InvalidInputError } from "../domain/errors.js";
-import { type Mission, type MissionModel, type MissionSituation, nextSituation } from "../domain/mission/mission.js";
+import { InvalidInputError } from "../domain/errors.js";
+import { MissionExpressionNotFoundError, MissionNotFoundError } from "../domain/mission/mission-errors.js";
+import { checkInDueAt } from "../domain/check-in/check-in.js";
+import {
+  type MarkedStep,
+  type Mission,
+  type MissionModel,
+  type MissionSituation,
+  type MissionSteps,
+  missionDone,
+  missionSteps,
+  nextSituation,
+} from "../domain/mission/mission.js";
+import { CHECK_IN_REPOSITORY, type CheckInRepository } from "../domain/ports/check-in.repository.js";
+import { FASTER_ROUND_REPOSITORY, type FasterRoundRepository } from "../domain/ports/faster-round.repository.js";
+import { SESSION_REPOSITORY, type SessionRepository } from "../domain/ports/session.repository.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { LEARNER_CONTEXT_PORT, type LearnerContextPort } from "../domain/ports/learner-context.port.js";
 import { LEVEL_REPOSITORY, type LevelRepository } from "../domain/ports/level.repository.js";
@@ -11,21 +25,7 @@ import { TTS_PORT, type TextToSpeechPort } from "../domain/ports/voice.port.js";
 import { localDay } from "../domain/progress/daily-goal.js";
 import { ReviewScheduler } from "./review-scheduler.js";
 
-export class MissionNotFoundError extends DomainError {
-  readonly code = "not_found";
-
-  constructor(id: string) {
-    super(`Mission ${id} not found.`, "Mission not found.");
-  }
-}
-
-export class MissionExpressionNotFoundError extends DomainError {
-  readonly code = "not_found";
-
-  constructor(missionId: string, expressionId: string) {
-    super(`Mission ${missionId} has no expression ${expressionId}.`, "That expression is not in this mission.");
-  }
-}
+export { MissionExpressionNotFoundError, MissionNotFoundError };
 
 /** The day's mission as the web app shows it. */
 export interface MissionView {
@@ -33,6 +33,11 @@ export interface MissionView {
   language: string;
   day: string;
   situation: MissionSituation;
+  steps: MissionSteps;
+  /** Every step of the day is done. */
+  done: boolean;
+  /** Step 3's conversation, once started (step 4 retells it). */
+  sessionId: string | null;
 }
 
 /** The daily mission: the day's situation (by rotation) and step 1's model with its 3 expressions. */
@@ -46,6 +51,9 @@ export class MissionService {
     @Inject(TTS_PORT) private readonly tts: TextToSpeechPort,
     @Inject(CLOCK) private readonly clock: Clock,
     private readonly reviews: ReviewScheduler,
+    @Inject(SESSION_REPOSITORY) private readonly sessions: Pick<SessionRepository, "get">,
+    @Inject(FASTER_ROUND_REPOSITORY) private readonly fasterRounds: Pick<FasterRoundRepository, "list">,
+    @Inject(CHECK_IN_REPOSITORY) private readonly checkIns: Pick<CheckInRepository, "list">,
   ) {}
 
   /** The mission of the learner's local day; the first request of a day creates it with the next situation. */
@@ -53,9 +61,17 @@ export class MissionService {
     const now = this.clock.now();
     const day = localDay(now, timeZone);
     const existing = await this.missions.forDay(language, day);
-    if (existing) return view(existing);
+    if (existing) return this.view(existing, timeZone);
     const last = await this.missions.latestBefore(language, day);
-    return view(await this.missions.create({ language, day, situation: nextSituation(last?.situation ?? null), createdAt: now }));
+    const created = await this.missions.create({ language, day, situation: nextSituation(last?.situation ?? null), createdAt: now });
+    return this.view(created, timeZone);
+  }
+
+  /** Marks step 1 (listened once), step 2 (the 3 expressions tried) or step 5 (the review) done. */
+  async markStep(id: string, step: MarkedStep, timeZone: string): Promise<MissionView> {
+    await this.mission(id);
+    await this.missions.markStep(id, step, this.clock.now());
+    return this.view(await this.mission(id), timeZone);
   }
 
   /** Step 1's model, written at the learner's level the first time it is asked for, then kept. */
@@ -94,6 +110,22 @@ export class MissionService {
     return { used };
   }
 
+  private async view(mission: Mission, timeZone: string): Promise<MissionView> {
+    const { id, language, day, situation, sessionId } = mission;
+    const [[last], session, rounds] = await Promise.all([
+      this.checkIns.list(language, 1),
+      sessionId ? this.sessions.get(sessionId) : null,
+      sessionId ? this.fasterRounds.list(sessionId) : [],
+    ]);
+    const now = this.clock.now();
+    const checkIn = {
+      due: checkInDueAt(last?.recordedAt ?? null, now) <= now,
+      doneToday: last ? localDay(last.recordedAt, timeZone) === day : false,
+    };
+    const steps = missionSteps(mission, { checkIn, taskEnded: Boolean(session?.endedAt), fasterRounds: rounds.length });
+    return { id, language, day, situation, steps, done: missionDone(steps), sessionId };
+  }
+
   private async mission(id: string): Promise<Mission> {
     const mission = await this.missions.get(id);
     if (!mission) throw new MissionNotFoundError(id);
@@ -101,4 +133,4 @@ export class MissionService {
   }
 }
 
-const view = ({ id, language, day, situation }: Mission): MissionView => ({ id, language, day, situation });
+

@@ -3,9 +3,12 @@ import type { Response } from "express";
 import { z } from "zod";
 import { MissionService } from "../application/mission.service.js";
 import { Language, parse, TimeZone } from "../common/http.js";
+import { MARKED_STEPS } from "../domain/mission/mission.js";
 
 const TodayQuery = z.object({ language: Language, timeZone: TimeZone });
 const MissionId = z.uuid();
+const Step = z.enum(MARKED_STEPS);
+const StepBody = z.object({ timeZone: TimeZone });
 const SayBody = z.object({ utterance: z.string().trim().min(1).max(2000) });
 
 /** The daily mission: today's situation, and step 1's model with its 3 expressions. */
@@ -24,6 +27,14 @@ export class MissionsController {
   @Get(":id/model")
   model(@Param("id") id: string) {
     return this.missions.model(parse(MissionId, id));
+  }
+
+  /** Marks step 1 (listened once), step 2 (the 3 expressions tried) or step 5 (the review) done; returns the mission. */
+  @Post(":id/steps/:step")
+  @HttpCode(200)
+  markStep(@Param("id") id: string, @Param("step") step: string, @Body() body: unknown) {
+    const { timeZone } = parse(StepBody, body);
+    return this.missions.markStep(parse(MissionId, id), parse(Step, step), timeZone);
   }
 
   /** Step 2: whether the learner's sentence used the expression. */

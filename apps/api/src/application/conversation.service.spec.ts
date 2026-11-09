@@ -1,3 +1,6 @@
+import { InvalidInputError } from "../domain/errors.js";
+import type { Mission } from "../domain/mission/mission.js";
+import { MissionNotFoundError } from "../domain/mission/mission-errors.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TutorVerdict } from "../domain/conversation/correction-policy.js";
 import type { Mode } from "../domain/conversation/mode.js";
@@ -308,6 +311,7 @@ let clock: FakeClock;
 let bankEntries: BankEntry[];
 let levels: FakeLevels;
 let assessor: FakeAssessor;
+let missionRows: Mission[];
 let memory: { rememberLater: ReturnType<typeof vi.fn>; sweep: ReturnType<typeof vi.fn>; recall: ReturnType<typeof vi.fn> };
 
 beforeEach(() => {
@@ -325,7 +329,77 @@ beforeEach(() => {
     sweep: vi.fn().mockResolvedValue(undefined),
     recall: vi.fn().mockResolvedValue(remembered),
   };
-  service = new ConversationService(tutor, sessions, mistakes, learnerContext, bank, clock, assessor, levels, new ReviewScheduler(reviews), memory as unknown as LearnerMemoryService);
+  missionRows = [];
+  const missions = {
+    get: async (id: string) => missionRows.find((m) => m.id === id) ?? null,
+    linkSession: async (id: string, sessionId: string) => void (missionRows.find((m) => m.id === id)!.sessionId = sessionId),
+    forSession: async (sessionId: string) => missionRows.find((m) => m.sessionId === sessionId) ?? null,
+  };
+  service = new ConversationService(
+    tutor,
+    sessions,
+    mistakes,
+    learnerContext,
+    bank,
+    clock,
+    assessor,
+    levels,
+    new ReviewScheduler(reviews),
+    memory as unknown as LearnerMemoryService,
+    missions,
+  );
+});
+
+describe("ConversationService.start in a daily mission", () => {
+  const mission = (over: Partial<Mission> = {}): Mission => ({
+    id: "m1",
+    language: "en",
+    day: "2026-11-09",
+    situation: "daily",
+    createdAt: new Date(),
+    model: {
+      speaker: "Alex",
+      text: "...",
+      expressions: ["I'm still working on…", "I'm blocked by…", "By the end of the day, I'll…"].map((phrase, i) => ({
+        id: `e${i + 1}`,
+        position: i + 1,
+        phrase,
+        example: phrase,
+        saidAt: null,
+      })),
+    },
+    listenedAt: null,
+    expressionsDoneAt: null,
+    reviewDoneAt: null,
+    sessionId: null,
+    ...over,
+  });
+
+  it("links the conversation to the mission and gives the tutor its 3 expressions, all session long", async () => {
+    missionRows.push(mission());
+    const { session } = await service.start("daily", "en", "m1");
+    expect(missionRows[0].sessionId).toBe(session.id);
+    const phrases = ["I'm still working on…", "I'm blocked by…", "By the end of the day, I'll…"];
+    expect(tutor.opened[0].expressions).toEqual(phrases);
+
+    tutor.verdicts.push(verdict({}));
+    await service.respond(session.id, "Hi");
+    expect(tutor.requests[0].expressions).toEqual(phrases);
+  });
+
+  it("gives no expressions outside a mission", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({}));
+    await service.respond(session.id, "Hi");
+    expect(tutor.opened[0].expressions).toBeUndefined();
+    expect(tutor.requests[0].expressions).toBeUndefined();
+  });
+
+  it("refuses a mission of another situation and an unknown one", async () => {
+    missionRows.push(mission());
+    await expect(service.start("story", "en", "m1")).rejects.toBeInstanceOf(InvalidInputError);
+    await expect(service.start("daily", "en", "m9")).rejects.toBeInstanceOf(MissionNotFoundError);
+  });
 });
 
 describe("ConversationService.start", () => {
