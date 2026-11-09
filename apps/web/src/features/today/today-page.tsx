@@ -9,6 +9,7 @@ import { useModeInfo } from "@/features/session/modes";
 import { MemoryLink } from "@/features/memory/memory-link";
 import { DailyGoalSetting, SoundSetting } from "@/features/settings/practice-settings";
 import { TodayGoalCard } from "@/features/xp/today-goal-card";
+import { TodayCheckInCard } from "@/features/check-in/today-check-in-card";
 import { TodayReviewCard } from "@/features/practice/today-review-card";
 import { useTodayProgress } from "@/features/xp/use-today-progress";
 import { takeSavedSession } from "@/features/session/saved-session";
@@ -206,7 +207,12 @@ export function TodayPage() {
         </Card>
       )}
 
-      {online && status === "ok" && !paused && level.view && !needsPlacement && <TodayReviewCard />}
+      {online && status === "ok" && !paused && level.view && !needsPlacement && (
+        <>
+          <TodayCheckInCard />
+          <TodayReviewCard />
+        </>
+      )}
 
       {/* Always at the bottom, and always a choice: no category is picked for the learner. */}
       {online && status === "ok" && (

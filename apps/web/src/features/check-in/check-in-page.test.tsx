@@ -1,0 +1,91 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import { describe, expect, it, vi } from "vitest";
+import { ApiProvider } from "@/app/api-context";
+import { type VoiceDeps, VoiceDepsContext } from "@/features/session/voice-deps";
+import type { ApiClient, CheckInOverview } from "@/lib/api";
+import type { MicrophoneHandlers } from "@/lib/voice/microphone";
+import { CheckInPage } from "./check-in-page";
+
+const overview = (due: boolean): CheckInOverview => ({
+  task: "present_project",
+  limitMs: 120_000,
+  dueAt: "2026-11-09T10:00:00Z",
+  due,
+  checkIns: [],
+});
+const pace = (id: string, recordedAt: string, wordsPerMinute: number, longPauses: number) => ({ id, recordedAt, wordsPerMinute, longPauses });
+
+function renderCheckIn(api: Partial<ApiClient>) {
+  let handlers: MicrophoneHandlers | null = null;
+  const mic = { pause: vi.fn(), resume: vi.fn(), sendNow: vi.fn(() => false), unlock: vi.fn(), stop: vi.fn() };
+  const speaker = { play: vi.fn().mockResolvedValue(undefined), stop: vi.fn(), unlock: vi.fn(), close: vi.fn() };
+  const deps = {
+    openMicrophone: vi.fn(async (h: MicrophoneHandlers) => {
+      handlers = h;
+      return mic;
+    }),
+    createSpeaker: () => speaker,
+  } as unknown as VoiceDeps;
+  const router = createMemoryRouter(
+    [
+      { path: "/check-in", element: <CheckInPage /> },
+      { path: "/", element: <p>Today</p> },
+    ],
+    { initialEntries: ["/check-in"] },
+  );
+  render(
+    <ApiProvider value={api as ApiClient}>
+      <VoiceDepsContext.Provider value={deps}>
+        <RouterProvider router={router} />
+      </VoiceDepsContext.Provider>
+    </ApiProvider>,
+  );
+  const speak = () => {
+    handlers!.onAudio?.(new Float32Array(320), 16_000);
+    handlers!.onSpeechStart();
+    handlers!.onTurn(new ArrayBuffer(8), { pausesMs: [], trailingSilenceMs: 0 });
+  };
+  return { speak, speaker, router };
+}
+
+describe("Check-in", () => {
+  it("records the task, compares it with the last check-in and plays both recordings", async () => {
+    const recordCheckIn = vi.fn().mockResolvedValue({
+      checkIn: { ...pace("c2", "2026-11-23T10:00:00Z", 81, 4), transcript: "My project…" },
+      previous: pace("c1", "2026-11-09T10:00:00Z", 68, 9),
+    });
+    const checkInRecording = vi.fn(async (id: string) => new TextEncoder().encode(id).buffer);
+    const { speak, speaker, router } = renderCheckIn({ checkIns: vi.fn().mockResolvedValue(overview(true)), recordCheckIn, checkInRecording });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Start · 2:00" }));
+    speak();
+    await userEvent.click(screen.getByRole("button", { name: "I'm done" }));
+
+    expect(recordCheckIn).toHaveBeenCalledWith(expect.any(ArrayBuffer), expect.objectContaining({ pausesMs: [] }));
+    expect(await screen.findByRole("heading", { name: "Last time you said 68 words a minute. Today, 81." })).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: "Long pauses 9 4" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /^Hear .+, then today$/ }));
+    expect(checkInRecording.mock.calls.map(([id]) => id)).toEqual(["c1", "c2"]);
+    expect(speaker.play).toHaveBeenCalledTimes(2);
+    await userEvent.click(screen.getByRole("link", { name: "Done" }));
+    expect(router.state.location.pathname).toBe("/");
+  });
+
+  it("asks again when nothing was said", async () => {
+    const recordCheckIn = vi.fn();
+    renderCheckIn({ checkIns: vi.fn().mockResolvedValue(overview(true)), recordCheckIn });
+    await userEvent.click(await screen.findByRole("button", { name: "Start · 2:00" }));
+    await userEvent.click(screen.getByRole("button", { name: "I'm done" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("I didn't hear anything.");
+    expect(recordCheckIn).not.toHaveBeenCalled();
+  });
+
+  it("does not start before it is due", async () => {
+    renderCheckIn({ checkIns: vi.fn().mockResolvedValue(overview(false)) });
+    expect(await screen.findByRole("alert")).toHaveTextContent("The next check-in isn't due yet.");
+    expect(screen.queryByRole("button", { name: "Start · 2:00" })).toBeNull();
+  });
+});

@@ -9,6 +9,8 @@ export interface MicrophoneHandlers {
   /** The learner started talking. */
   onSpeechStart(): void;
   /** A finished turn, as 16 kHz WAV, with the silences inside it. */
+  /** Every frame heard while listening, for a recording of the whole stretch (not only the turns). */
+  onAudio?(frame: Float32Array, sampleRate: number): void;
   onTurn(wav: ArrayBuffer, turn?: Pick<RecordedTurn, "pausesMs"> & Partial<Pick<RecordedTurn, "trailingSilenceMs">>): void;
 }
 
@@ -109,6 +111,7 @@ export async function openMicrophone(
       recorder.learn(event.data);
       return;
     }
+    handlers.onAudio?.(event.data, context.sampleRate);
     const result = recorder.push(event.data);
     if (result?.type === "start") handlers.onSpeechStart();
     else if (result?.type === "turn") handlers.onTurn(result.wav, { pausesMs: result.pausesMs, trailingSilenceMs: result.trailingSilenceMs });
