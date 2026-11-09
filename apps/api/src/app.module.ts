@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { validateEnv } from "./config/env.js";
 import { ConversationService } from "./application/conversation.service.js";
+import { FasterRoundsService } from "./application/faster-rounds.service.js";
 import { FillerSpeechService } from "./application/filler-speech.service.js";
 import { PracticeService } from "./application/practice.service.js";
 import { PracticeController } from "./practice/practice.controller.js";
@@ -13,6 +14,7 @@ import { ProgressService } from "./application/progress.service.js";
 import { SignalsService } from "./application/signals.service.js";
 import { VoiceConversationService } from "./application/voice-conversation.service.js";
 import { CLOCK, systemClock } from "./domain/ports/clock.port.js";
+import { FASTER_ROUND_REPOSITORY } from "./domain/ports/faster-round.repository.js";
 import { LEARNER_CONTEXT_PORT } from "./domain/ports/learner-context.port.js";
 import { LEARNER_MEMORY_REPOSITORY } from "./domain/ports/learner-memory.repository.js";
 import { MEMORY_EXTRACTOR_PORT } from "./domain/ports/memory-extractor.port.js";
@@ -27,6 +29,7 @@ import { TUTOR_PORT } from "./domain/ports/tutor.port.js";
 import { STT_PORT, TTS_PORT } from "./domain/ports/voice.port.js";
 import { HealthController } from "./health/health.controller.js";
 import { DbModule } from "./infra/db/db.module.js";
+import { DrizzleFasterRoundRepository } from "./infra/db/drizzle-faster-round.repository.js";
 import { DrizzleLearnerMemoryRepository } from "./infra/db/drizzle-learner-memory.repository.js";
 import { DrizzleLevelRepository } from "./infra/db/drizzle-level.repository.js";
 import { DrizzleMistakeRepository } from "./infra/db/drizzle-mistake.repository.js";
@@ -49,6 +52,7 @@ import { REVIEW_COACH_PORT } from "./domain/ports/review-coach.port.js";
 import { AnthropicReviewCoach } from "./infra/tutor/anthropic-review-coach.js";
 import { DrizzleReviewRepository } from "./infra/db/drizzle-review.repository.js";
 import { ProgressController } from "./progress/progress.controller.js";
+import { FasterRoundsController } from "./sessions/faster-rounds.controller.js";
 import { SessionsController } from "./sessions/sessions.controller.js";
 import { TranscriptionsController } from "./voice/transcriptions.controller.js";
 import { FillersController } from "./voice/fillers.controller.js";
@@ -58,7 +62,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
 // Swapping the database, AI or voice provider = changing useClass/useExisting below.
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ["../../.env"], validate: validateEnv }), DbModule],
-  controllers: [HealthController, SessionsController, MistakesController, FillersController, LevelsController, ProgressController, ReviewsController, TranscriptionsController, PracticeController, MemoryController],
+  controllers: [HealthController, SessionsController, MistakesController, FillersController, LevelsController, ProgressController, ReviewsController, TranscriptionsController, PracticeController, MemoryController, FasterRoundsController],
   providers: [
     ConversationService,
     MistakeBankService,
@@ -66,6 +70,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
     ReviewService,
     VoiceConversationService,
     FillerSpeechService,
+    FasterRoundsService,
     PracticeService,
     TranscriptionService,
     LearnerMemoryService,
@@ -85,6 +90,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
     { provide: LEVEL_REPOSITORY, useClass: DrizzleLevelRepository },
     { provide: PROGRESS_REPOSITORY, useClass: DrizzleProgressRepository },
     { provide: SIGNALS_REPOSITORY, useClass: DrizzleSignalsRepository },
+    { provide: FASTER_ROUND_REPOSITORY, useClass: DrizzleFasterRoundRepository },
     { provide: REVIEW_REPOSITORY, useClass: DrizzleReviewRepository },
     DrizzleMistakeRepository,
     { provide: MISTAKE_REPOSITORY, useExisting: DrizzleMistakeRepository },

@@ -286,3 +286,22 @@ export const learnerFacts = pgTable(
   },
   (t) => [index("learner_facts_seq").on(t.seq)],
 );
+
+/** The "say it faster" rounds told after a session: the same content, with less time each round. */
+export const fasterRounds = pgTable(
+  "faster_rounds",
+  {
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    round: smallint("round").notNull(), // 1 to FASTER_ROUNDS (3); the check below must follow it
+    language: varchar("language", { length: 16 }).notNull(),
+    timeLimitMs: integer("time_limit_ms").notNull(),
+    transcript: text("transcript").notNull(),
+    spokenWords: integer("spoken_words").notNull(),
+    speechMs: integer("speech_ms").notNull(),
+    longPauses: smallint("long_pauses").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.sessionId, t.round] }), check("faster_rounds_round", sql`${t.round} between 1 and 3`)],
+);
