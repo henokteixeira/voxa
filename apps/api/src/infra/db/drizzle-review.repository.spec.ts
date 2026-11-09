@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { DrizzleMissionRepository } from "./drizzle-mission.repository.js";
 import { DrizzleMistakeRepository } from "./drizzle-mistake.repository.js";
 import { DrizzleReviewRepository } from "./drizzle-review.repository.js";
 import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
@@ -8,6 +9,7 @@ let close: () => Promise<void>;
 let sessions: DrizzleSessionRepository;
 let mistakes: DrizzleMistakeRepository;
 let reviews: DrizzleReviewRepository;
+let missions: DrizzleMissionRepository;
 
 beforeEach(async () => {
   const test = await createTestDatabase();
@@ -15,6 +17,7 @@ beforeEach(async () => {
   sessions = new DrizzleSessionRepository(test.db);
   mistakes = new DrizzleMistakeRepository(test.db);
   reviews = new DrizzleReviewRepository(test.db);
+  missions = new DrizzleMissionRepository(test.db);
 });
 afterEach(() => close());
 
@@ -39,7 +42,35 @@ async function bank() {
   return { goed: goed!, fix: fix!, word: word! };
 }
 
+/** A mission's expression, as step 2 adds it to the review. */
+async function expression() {
+  const { id } = await missions.create({ language: "en", day: "2026-11-07", situation: "daily", createdAt: now });
+  const model = await missions.saveModel(id, {
+    speaker: "Alex",
+    text: "I'm blocked by the API keys.",
+    expressions: [1, 2, 3].map((position) => ({ position, phrase: `I'm blocked by… ${position}`, example: "I'm blocked by the API keys." })),
+  });
+  return model.expressions[0];
+}
+
 describe("DrizzleReviewRepository", () => {
+  it("reviews a mission's expression like any item, with its card and schedule", async () => {
+    const taken = await expression();
+    const subject = { kind: "expression" as const, id: taken.id };
+    await reviews.save("en", subject, { step: 0, dueAt: day(-1) }, null);
+
+    expect(await reviews.due("en", now, 5)).toEqual([
+      { subject, language: "en", category: "expression", name: taken.phrase, rule: taken.example, examples: [], step: 0, dueAt: day(-1) },
+    ]);
+    expect(await reviews.schedules("en")).toEqual([{ subject, step: 0, dueAt: day(-1) }]);
+    const card = await reviews.addCard(subject, { cue: "Estou travado pelo deploy.", answer: "I'm blocked by the deploy." });
+    expect((await reviews.card(card.id))?.subject).toEqual(subject);
+
+    await reviews.save("en", subject, { step: 1, dueAt: day(2) }, now);
+    expect(await reviews.state(subject)).toEqual({ step: 1, dueAt: day(2) });
+    expect(await reviews.nextDueAt("en", now)).toEqual(day(2));
+  });
+
   it("saves and replaces a subject's schedule", async () => {
     const { goed } = await bank();
     const subject = { kind: "pattern" as const, id: goed.patternId! };

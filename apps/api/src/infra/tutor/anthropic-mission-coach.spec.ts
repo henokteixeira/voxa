@@ -20,6 +20,21 @@ function coach(parsed_output: object | null, stop_reason = "end_turn") {
   return { coach: new AnthropicMissionCoach({ parse } as unknown as AnthropicMessages, testConfig()), parse };
 }
 
+describe("AnthropicMissionCoach.usedExpression", () => {
+  it("reads whether the expression was used, giving the model's example to tell a copy apart", async () => {
+    const { coach: c, parse } = coach({ used: true });
+    expect(await c.usedExpression("en", expressions[1], "I'm blocked by the design review")).toBe(true);
+    const message = parse.mock.calls[0][0].messages[0].content;
+    expect(message).toContain("<expression>\nI'm blocked by…\n</expression>");
+    expect(message).toContain("<model_example>\nI'm blocked by the API keys.\n</model_example>");
+    expect(message).toContain("<learner_sentence>\nI'm blocked by the design review\n</learner_sentence>");
+  });
+
+  it("fails on a refusal", async () => {
+    await expect(coach(null, "refusal").coach.usedExpression("en", expressions[1], "x")).rejects.toBeInstanceOf(TutorUnavailableError);
+  });
+});
+
 const fails = (output: object | null, stop?: string) =>
   expect(coach(output, stop).coach.model(request)).rejects.toBeInstanceOf(TutorUnavailableError);
 

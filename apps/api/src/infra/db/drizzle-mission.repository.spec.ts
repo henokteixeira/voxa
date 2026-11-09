@@ -55,5 +55,15 @@ describe("DrizzleMissionRepository", () => {
     // A second model (two requests at once) does not replace the first.
     expect(await missions.saveModel(id, model("Sam"))).toEqual(saved);
     expect((await missions.get(id))?.model).toEqual(saved);
+    expect(saved.expressions.every((e) => e.saidAt === null)).toBe(true);
+  });
+
+  it("records the first time an expression is used", async () => {
+    const { id } = await missions.create({ language: "en", day: "2026-11-09", situation: "daily", createdAt });
+    const [first] = (await missions.saveModel(id, model("Alex"))).expressions;
+
+    expect(await missions.markSaid(first.id, createdAt)).toBe(true);
+    expect(await missions.markSaid(first.id, new Date())).toBe(false);
+    expect((await missions.get(id))?.model?.expressions[0].saidAt).toEqual(createdAt);
   });
 });

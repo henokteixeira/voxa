@@ -27,6 +27,11 @@ describe("review prompts", () => {
     expect(buildCueMessage(word, "")).toContain('"deadline" (the learner once said "prazo"');
   });
 
+  it("describes a mission's expression with the model's sentence", () => {
+    const taken = { ...pattern, subject: { kind: "expression" as const, id: "e1" }, category: "expression", name: "I'm blocked by…", rule: "I'm blocked by the API keys.", examples: [] };
+    expect(buildCueMessage(taken, "")).toContain(`"I'm blocked by…" (a ready-made expression the learner took from a model that said: "I'm blocked by the API keys.")`);
+  });
+
   it("gives the checker the cue, one good answer and the learner's answer", () => {
     const message = buildCheckMessage(pattern, { cue: "Eu fui ontem.", answer: "I went yesterday." }, "I go yesterday");
     expect(message).toContain("<cue>\nEu fui ontem.\n</cue>");

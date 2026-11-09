@@ -2,9 +2,10 @@ import { Body, Controller, Get, HttpCode, Post, Query } from "@nestjs/common";
 import { z } from "zod";
 import { ReviewService } from "../application/review.service.js";
 import { Language, parse, TimeZone } from "../common/http.js";
+import { REVIEW_SUBJECT_KINDS } from "../domain/ports/review.repository.js";
 
 const OverviewQuery = z.object({ language: Language });
-const Subject = z.object({ kind: z.enum(["pattern", "new_word"]), id: z.uuid() });
+const Subject = z.object({ kind: z.enum(REVIEW_SUBJECT_KINDS), id: z.uuid() });
 const CardBody = z.object({ subject: Subject });
 const AnswerBody = z.object({
   cardId: z.uuid(),

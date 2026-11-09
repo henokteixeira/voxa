@@ -10,6 +10,9 @@ import type { LocalDay } from "../progress/daily-goal.js";
 export const MISSION_SITUATIONS = ["daily", "my_day", "presentation", "story", "review", "opinion"] as const satisfies readonly Mode[];
 export type MissionSituation = (typeof MISSION_SITUATIONS)[number];
 
+/** The category of an expression's review item. */
+export const EXPRESSION_CATEGORY = "expression";
+
 /** Each model gives exactly this many expressions to take. */
 export const MISSION_EXPRESSIONS = 3;
 
@@ -36,6 +39,8 @@ export interface NewMissionExpression {
 /** A stored expression: it can come back in the spaced review. */
 export interface MissionExpression extends NewMissionExpression {
   id: string;
+  /** When the learner first used it in a sentence of their own (step 2); null until then. */
+  saidAt: Date | null;
 }
 
 /** Step 1: someone does the situation's task first, at the learner's level. */

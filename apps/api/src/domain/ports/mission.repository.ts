@@ -18,6 +18,8 @@ export interface MissionRepository {
   get(id: string): Promise<Mission | null>;
   /** Keeps the mission's model once: when it already has one (two requests at once), that one is kept and returned. */
   saveModel(id: string, model: NewMissionModel): Promise<MissionModel>;
+  /** Records the first time the learner used the expression; false when it was already used (or doesn't exist). */
+  markSaid(expressionId: string, at: Date): Promise<boolean>;
 }
 
 export const MISSION_REPOSITORY = Symbol("MISSION_REPOSITORY");

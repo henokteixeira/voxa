@@ -56,12 +56,27 @@ export class DrizzleMissionRepository implements MissionRepository {
     return kept.model;
   }
 
+  async markSaid(expressionId: string, at: Date): Promise<boolean> {
+    const marked = await this.db
+      .update(missionExpressions)
+      .set({ saidAt: at })
+      .where(and(eq(missionExpressions.id, expressionId), isNull(missionExpressions.saidAt)))
+      .returning({ id: missionExpressions.id });
+    return marked.length > 0;
+  }
+
   private async toMission(row: MissionRow): Promise<Mission> {
     if (!isMissionSituation(row.situation)) throw new Error(`Mission ${row.id} has an unknown situation: ${row.situation}.`);
     const { modelSpeaker, modelText, ...mission } = row;
     if (modelSpeaker === null || modelText === null) return { ...mission, situation: row.situation, model: null };
     const expressions = await this.db
-      .select({ id: missionExpressions.id, position: missionExpressions.position, phrase: missionExpressions.phrase, example: missionExpressions.example })
+      .select({
+        id: missionExpressions.id,
+        position: missionExpressions.position,
+        phrase: missionExpressions.phrase,
+        example: missionExpressions.example,
+        saidAt: missionExpressions.saidAt,
+      })
       .from(missionExpressions)
       .where(eq(missionExpressions.missionId, row.id))
       .orderBy(asc(missionExpressions.position));
