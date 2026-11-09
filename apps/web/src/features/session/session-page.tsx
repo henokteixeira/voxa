@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Link, Navigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import type { Mode } from "@/lib/api";
 import { useCopy } from "@/lib/i18n/locale";
 import { CheckInCard, GoalsStrip, PartsBar } from "./goals";
 import { ScaffoldCard, TrackBar } from "./guided-track";
+import { ballTipSeen, markBallTipSeen } from "./ball-tip";
 import { isMode, useModeInfo } from "./modes";
 import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-copy";
 import { CaptionCard, FadingCaption, HintCard, IconButton, PauseIcon, QuietLink, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
@@ -52,6 +53,19 @@ function LiveSession({ mode }: { mode: Mode }) {
   const ballAction =
     state.phase === "hearing" ? page.sendNow : state.phase === "speaking" ? page.stopTutor : undefined;
   const ballSize = !ballAction && state.hintStep > 0 ? 180 : 200;
+  // First session only: say once that the ball can be tapped, until the learner taps it or the session ends.
+  const [ballTip, setBallTip] = useState(() => !ballTipSeen());
+  const tapBall = () => {
+    if (ballTip) {
+      markBallTipSeen();
+      setBallTip(false);
+    }
+    session.tapBall();
+  };
+  const ending = state.phase === "ending" || state.phase === "ended";
+  useEffect(() => {
+    if (ending) markBallTipSeen();
+  }, [ending]);
 
   if (state.phase === "ended") {
     return (
@@ -188,7 +202,7 @@ function LiveSession({ mode }: { mode: Mode }) {
         <div inert={state.phase === "paused"} className="relative flex flex-1 flex-col items-center justify-center gap-4 text-center">
           <div className="relative inline-flex">
             {ballAction ? (
-              <VoiceBall state={stage.ball} size={ballSize} label={ballAction} onPress={session.tapBall} />
+              <VoiceBall state={stage.ball} size={ballSize} label={ballAction} onPress={tapBall} />
             ) : (
               <VoiceBall state={stage.ball} size={ballSize} dimmed={state.phase === "failed"} label="Voxa" />
             )}
@@ -201,6 +215,9 @@ function LiveSession({ mode }: { mode: Mode }) {
             {stage.hint}
           </span>
           {state.audioBlocked && <span className="text-caption text-taupe">{page.tapToHear}</span>}
+          {ballTip && ballAction && (
+            <p className="m-0 max-w-[300px] rounded-md bg-paper px-4 py-2.5 text-caption text-ink-soft shadow-card">{page.ballTip}</p>
+          )}
         </div>
       )}
 
