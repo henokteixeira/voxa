@@ -333,6 +333,9 @@ export const checkIns = pgTable(
     spokenWords: integer("spoken_words").notNull(),
     speechMs: integer("speech_ms").notNull(),
     longPauses: smallint("long_pauses").notNull(),
+    /** Null: the tutor could not read the transcript (or the check-in is older than this column). */
+    mistakes: smallint("mistakes"),
+    otherLanguageWords: smallint("other_language_words"),
   },
   (t) => [
     index("check_ins_language_seq").on(t.language, t.seq),

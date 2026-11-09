@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import {
   CHECK_IN_LIMIT_MS,
   CHECK_IN_TASK,
@@ -10,8 +10,10 @@ import {
 import { countWords } from "../domain/conversation/fluency.js";
 import { DomainError, InvalidInputError } from "../domain/errors.js";
 import { LONG_PAUSE_MS } from "../domain/faster/faster-rounds.js";
+import { CHECK_IN_READER_PORT, type CheckInReaderPort, type CheckInReading } from "../domain/ports/check-in-reader.port.js";
 import { CHECK_IN_REPOSITORY, type CheckInRecording, type CheckInRepository } from "../domain/ports/check-in.repository.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
+import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import { STT_PORT, type SpeechToTextPort } from "../domain/ports/voice.port.js";
 
 /** Speech measured a little past the 2 minutes still counts: the last words are cut when the time runs out. */
@@ -51,10 +53,13 @@ export interface CheckInResult {
 /** The check-in every 2 weeks: one recording of the same task, its pace, and the earlier ones. */
 @Injectable()
 export class CheckInService {
+  private readonly logger = new Logger(CheckInService.name);
+
   constructor(
     @Inject(CHECK_IN_REPOSITORY) private readonly checkIns: CheckInRepository,
     @Inject(STT_PORT) private readonly stt: SpeechToTextPort,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(CHECK_IN_READER_PORT) private readonly reader: CheckInReaderPort,
   ) {}
 
   async overview(language: string): Promise<CheckInOverview> {
@@ -84,6 +89,7 @@ export class CheckInService {
     const { text } = await this.stt.transcribe(recording.audio, language, { mimeType: recording.mimeType });
     const transcript = text.trim();
     if (!transcript) throw new InvalidInputError("Nothing was heard in the recording.");
+    const reading = await this.readTranscript(language, transcript);
     const checkIn = await this.checkIns.create(
       {
         language,
@@ -93,10 +99,23 @@ export class CheckInService {
         spokenWords: countWords(transcript),
         speechMs: measure.speechMs,
         longPauses: measure.pausesMs.filter((ms) => ms >= LONG_PAUSE_MS).length,
+        mistakes: reading?.mistakes ?? null,
+        otherLanguageWords: reading?.otherLanguageWords ?? null,
       },
       recording,
     );
     return this.resultOf(checkIn);
+  }
+
+  /** The tutor's reading of the transcript, or null when it is unavailable: the recording and pace are kept anyway. */
+  private async readTranscript(language: string, transcript: string): Promise<CheckInReading | null> {
+    try {
+      return await this.reader.read({ language, transcript });
+    } catch (error) {
+      if (!(error instanceof TutorUnavailableError)) throw error;
+      this.logger.warn(`Check-in stored without its mistakes: ${error.message}`);
+      return null;
+    }
   }
 
   async result(id: string): Promise<CheckInResult> {

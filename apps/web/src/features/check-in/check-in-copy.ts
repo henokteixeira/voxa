@@ -30,6 +30,8 @@ export interface CheckInCopy {
   today: string;
   wordsPerMinute: string;
   longPauses: string;
+  mistakesPer100Words: string;
+  otherLanguageWords: string;
   hearBoth: (date: string, day: string | null) => string;
   dueNow: string;
   loading: string;
@@ -78,6 +80,8 @@ export const CHECK_IN_COPY: Copy<CheckInCopy> = {
     today: "Today",
     wordsPerMinute: "Words per minute",
     longPauses: "Long pauses",
+    mistakesPer100Words: "Mistakes per 100 words",
+    otherLanguageWords: "Words in Portuguese",
     hearBoth: (date, day) => `Hear ${date}, then ${day ?? "today"}`,
     dueNow: "Next check-in: due now",
     loading: "Loading the check-in",
@@ -124,6 +128,8 @@ export const CHECK_IN_COPY: Copy<CheckInCopy> = {
     today: "Hoje",
     wordsPerMinute: "Palavras por minuto",
     longPauses: "Pausas longas",
+    mistakesPer100Words: "Erros a cada 100 palavras",
+    otherLanguageWords: "Palavras em português",
     hearBoth: (date, day) => `Ouvir ${date} e depois ${day ?? "hoje"}`,
     dueNow: "Próximo check-in: agora",
     loading: "Carregando o check-in",

@@ -23,6 +23,8 @@ const checkIn = (language: string, spokenWords: number) => ({
   spokenWords,
   speechMs: 120_000,
   longPauses: 4,
+  mistakes: 3,
+  otherLanguageWords: null,
 });
 
 describe("DrizzleCheckInRepository", () => {
