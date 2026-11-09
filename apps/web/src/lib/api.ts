@@ -278,6 +278,31 @@ export interface SessionSummary {
   takeaways?: Takeaway[];
 }
 
+/** One "say it faster" round: the same content told again with less time. */
+export interface FasterRound {
+  round: number;
+  timeLimitMs: number;
+  transcript: string;
+  spokenWords: number;
+  speechMs: number;
+  longPauses: number;
+}
+
+export interface FasterRoundsView {
+  /** The session's language: the rounds are told in it. */
+  language: string;
+  rounds: FasterRound[];
+  /** The round to tell next and its time; null when the 3 are told. */
+  nextRound: number | null;
+  nextLimitMs: number | null;
+  /** After the third round: each round's pace and how it changed from the first. */
+  result: {
+    rounds: { round: number; wordsPerMinute: number | null; longPauses: number }[];
+    paceChangePercent: number | null;
+    fewerLongPauses: boolean;
+  } | null;
+}
+
 /** What earns XP. A mistake never takes XP away. */
 export type XpReason = "practice_minute" | "goal_covered" | "self_corrected" | "personal_record";
 
@@ -453,6 +478,11 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
         method: "POST",
         body: timing ? { timing } : undefined,
       }),
+    fasterRounds: (sessionId: string) => request<FasterRoundsView>(`/sessions/${encodeURIComponent(sessionId)}/faster-rounds`),
+    recordFasterRound: (
+      sessionId: string,
+      round: { round: number; transcript: string; speechMs: number; longPausesMs: number[] },
+    ) => request<FasterRoundsView>(`/sessions/${encodeURIComponent(sessionId)}/faster-rounds`, { method: "POST", body: round }),
     level: (language = "en") => request<LevelView>(`/level?language=${encodeURIComponent(language)}`),
     /** The learner corrects the estimated level by hand. */
     setLevel: (level: CefrLevel, language = "en") =>

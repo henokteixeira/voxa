@@ -8,6 +8,8 @@ const PRE_ROLL_MS = 400;
 export interface RecordedTurn {
   wav: ArrayBuffer;
   pausesMs: number[];
+  /** The silence the turn ended with (already in the audio). */
+  trailingSilenceMs: number;
 }
 
 export type RecorderEvent = { type: "start" } | ({ type: "turn" } & RecordedTurn) | null;
@@ -77,6 +79,7 @@ export class TurnRecorder {
     return {
       wav: encodeWav(downsample(samples, this.sampleRate), Math.min(this.sampleRate, SPEECH_SAMPLE_RATE)),
       pausesMs: [...this.detector.pausesMs],
+      trailingSilenceMs: this.detector.trailingSilenceMs,
     };
   }
 

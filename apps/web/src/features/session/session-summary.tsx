@@ -16,13 +16,15 @@ import { categoryLabel } from "@/features/mistakes/format";
 import { comesBack } from "@/features/practice/format";
 import { type ReviewResult, ReviewRun } from "@/features/practice/review-run";
 import { SessionXpCard } from "@/features/xp/session-xp";
+import { FASTER_COPY } from "@/features/faster/faster-copy";
+import { FasterRun } from "@/features/faster/faster-run";
 import { GoalsSummary } from "./goals";
 import { useCopy, useLocale } from "@/lib/i18n/locale";
 import { useModeInfo } from "./modes";
 import { REFLECTION_COPY } from "./reflection-copy";
 import { LEVEL_PATH } from "@/features/progress/level-card";
 
-type Step = "result" | "takeaways" | "review" | "reviewed" | "saved";
+type Step = "result" | "faster" | "takeaways" | "review" | "reviewed" | "saved";
 
 /**
  * After "End session": the result with the fluency signals and how they compare with the last sessions,
@@ -33,6 +35,7 @@ export function SummaryFlow(props: { mode: Mode; elapsed: string; summary: Sessi
   const { summary, mode } = props;
   const modes = useModeInfo();
   const copy = useCopy(REFLECTION_COPY);
+  const fasterCopy = useCopy(FASTER_COPY);
   const [step, setStep] = useState<Step>(summary ? "result" : "saved");
   const [reviewed, setReviewed] = useState<ReviewResult[]>([]);
 
@@ -42,6 +45,8 @@ export function SummaryFlow(props: { mode: Mode; elapsed: string; summary: Sessi
   // The placement interview never talks about mistakes.
   const savedMistakes = summary && mode !== "placement" ? realMistakes.length : null;
   if (!summary || step === "saved") return <Saved mistakes={savedMistakes} />;
+
+  const afterResult = () => setStep(mistakes.length ? "takeaways" : "saved");
 
   // The placement interview ends with thanks, not with a level or mistakes: the level lives in Progress.
   if (mode === "placement") return <PlacementResult summary={summary} />;
@@ -60,12 +65,17 @@ export function SummaryFlow(props: { mode: Mode; elapsed: string; summary: Sessi
         <Signals signals={summary.signals} mistakes={mistakes} />
         <GoalsSummary summary={summary} />
         <div className="flex-1" />
-        <Button block onClick={() => setStep(mistakes.length ? "takeaways" : "saved")}>
+        <Button block variant="secondary" onClick={() => setStep("faster")}>
+          {fasterCopy.offer}
+        </Button>
+        <Button block onClick={afterResult}>
           {mistakes.length ? copy.seeMistakes : copy.continue}
         </Button>
       </>
     );
   }
+
+  if (step === "faster") return <FasterRun sessionId={summary.sessionId} onDone={afterResult} />;
 
   if (step === "takeaways") {
     return (
