@@ -11,20 +11,26 @@ export const MAX_CHECK_IN_BYTES = 6 * 1024 * 1024;
 const Ms = z.coerce.number<string>().int().min(0).max(10 * 60 * 1000);
 const LanguageQuery = z.object({ language: Language });
 /** The measure travels in the query, since the body is the recording. `pausesMs` is comma-separated. */
-const RecordQuery = z.object({
-  language: Language,
-  speechMs: Ms,
-  pausesMs: z
-    .string()
-    .max(20_000)
-    .default("")
-    .transform((list) => (list ? list.split(",") : []))
-    .pipe(z.array(Ms).max(1000)),
-});
+const RecordQuery = z
+  .object({
+    language: Language,
+    speechMs: Ms.refine((ms) => ms > 0, "A check-in needs speech."),
+    pausesMs: z
+      .string()
+      .max(20_000)
+      .default("")
+      .transform((list) => (list ? list.split(",") : []))
+      .pipe(z.array(Ms).max(1000)),
+  })
+  .refine((q) => q.pausesMs.reduce((sum, ms) => sum + ms, 0) <= q.speechMs, {
+    message: "The pauses add up to more than the speech.",
+    path: ["pausesMs"],
+  });
+/** The web app records WAV; the recording is served back with the same type. */
 const AudioType = z
   .string()
-  .regex(/^audio\/[\w.+-]+$/i, "The body must be audio, e.g. audio/wav.")
-  .transform((type) => type.toLowerCase());
+  .transform((type) => type.toLowerCase())
+  .pipe(z.enum(["audio/wav", "audio/x-wav", "audio/wave"], "The body must be a WAV recording."));
 const CheckInId = z.uuid();
 
 /** The check-in every 2 weeks: the same 2-minute task, its recording, and how it compares. */

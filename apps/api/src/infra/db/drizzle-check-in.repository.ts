@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 import type { CheckIn } from "../../domain/check-in/check-in.js";
 import type { CheckInRecording, CheckInRepository } from "../../domain/ports/check-in.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
@@ -24,9 +24,21 @@ export class DrizzleCheckInRepository implements CheckInRepository {
     return row ? toCheckIn(row) : null;
   }
 
-  async list(language: string): Promise<CheckIn[]> {
-    const rows = await this.db.select().from(checkIns).where(eq(checkIns.language, language)).orderBy(desc(checkIns.seq));
-    return rows.map(toCheckIn);
+  async list(language: string, limit?: number): Promise<CheckIn[]> {
+    const query = this.db.select().from(checkIns).where(eq(checkIns.language, language)).orderBy(desc(checkIns.seq));
+    return (await (limit === undefined ? query : query.limit(limit))).map(toCheckIn);
+  }
+
+  async previous(id: string): Promise<CheckIn | null> {
+    const [own] = await this.db.select({ language: checkIns.language, seq: checkIns.seq }).from(checkIns).where(eq(checkIns.id, id));
+    if (!own) return null;
+    const [row] = await this.db
+      .select()
+      .from(checkIns)
+      .where(and(eq(checkIns.language, own.language), lt(checkIns.seq, own.seq)))
+      .orderBy(desc(checkIns.seq))
+      .limit(1);
+    return row ? toCheckIn(row) : null;
   }
 
   async recording(id: string): Promise<CheckInRecording | null> {

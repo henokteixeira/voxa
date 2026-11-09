@@ -25,6 +25,14 @@ export class CheckInNotFoundError extends DomainError {
   }
 }
 
+export class CheckInNotDueError extends DomainError {
+  readonly code = "invalid";
+
+  constructor(dueAt: Date) {
+    super(`The next check-in is due on ${dueAt.toISOString()}.`, "The next check-in isn't due yet.");
+  }
+}
+
 export interface CheckInOverview {
   task: string;
   limitMs: number;
@@ -69,6 +77,10 @@ export class CheckInService {
     if (measure.speechMs > CHECK_IN_LIMIT_MS + LIMIT_GRACE_MS) {
       throw new InvalidInputError(`A check-in has ${CHECK_IN_LIMIT_MS / 1000} s; ${measure.speechMs} ms of speech is too long.`);
     }
+    const now = this.clock.now();
+    const [latest] = await this.checkIns.list(language, 1);
+    const dueAt = checkInDueAt(latest?.recordedAt ?? null, now);
+    if (dueAt > now) throw new CheckInNotDueError(dueAt);
     const { text } = await this.stt.transcribe(recording.audio, language, { mimeType: recording.mimeType });
     const transcript = text.trim();
     if (!transcript) throw new InvalidInputError("Nothing was heard in the recording.");
@@ -76,7 +88,7 @@ export class CheckInService {
       {
         language,
         task: CHECK_IN_TASK,
-        recordedAt: this.clock.now(),
+        recordedAt: now,
         transcript,
         spokenWords: countWords(transcript),
         speechMs: measure.speechMs,
@@ -100,9 +112,7 @@ export class CheckInService {
   }
 
   private async resultOf(checkIn: CheckIn): Promise<CheckInResult> {
-    const all = await this.checkIns.list(checkIn.language);
-    const index = all.findIndex((c) => c.id === checkIn.id);
-    const previous = index >= 0 ? all[index + 1] : undefined;
+    const previous = await this.checkIns.previous(checkIn.id);
     return {
       checkIn: { ...checkInPace(checkIn), transcript: checkIn.transcript },
       previous: previous ? checkInPace(previous) : null,

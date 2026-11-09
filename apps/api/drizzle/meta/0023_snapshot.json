@@ -1,5 +1,5 @@
 {
-  "id": "a4c51f1d-5ddb-494a-a0ab-35e776aa9969",
+  "id": "e23e0720-3927-43fc-97a9-8267760836a3",
   "prevId": "d584c2ca-f788-429a-9a78-3eb8ad9fb8cd",
   "version": "7",
   "dialect": "postgresql",
@@ -136,7 +136,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "check_ins_task": {
+          "name": "check_ins_task",
+          "value": "\"check_ins\".\"task\" in ('present_project')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.daily_goal_settings": {

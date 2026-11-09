@@ -10,8 +10,10 @@ export interface CheckInRepository {
   /** Stores a check-in with its recording. */
   create(checkIn: Omit<CheckIn, "id">, recording: CheckInRecording): Promise<CheckIn>;
   get(id: string): Promise<CheckIn | null>;
-  /** The check-ins of a language, newest first. */
-  list(language: string): Promise<CheckIn[]>;
+  /** The check-ins of a language, newest first, all or at most `limit`. */
+  list(language: string, limit?: number): Promise<CheckIn[]>;
+  /** The check-in of the same language stored just before this one. */
+  previous(id: string): Promise<CheckIn | null>;
   recording(id: string): Promise<CheckInRecording | null>;
 }
 

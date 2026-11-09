@@ -328,7 +328,10 @@ export const checkIns = pgTable(
     speechMs: integer("speech_ms").notNull(),
     longPauses: smallint("long_pauses").notNull(),
   },
-  (t) => [index("check_ins_language_seq").on(t.language, t.seq)],
+  (t) => [
+    index("check_ins_language_seq").on(t.language, t.seq),
+    check("check_ins_task", sql`${t.task} in ('present_project')`),
+  ],
 );
 
 /** Each check-in's recording, apart so that listing check-ins never loads audio. */

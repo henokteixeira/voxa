@@ -13,7 +13,8 @@ CREATE TABLE "check_ins" (
 	"transcript" text NOT NULL,
 	"spoken_words" integer NOT NULL,
 	"speech_ms" integer NOT NULL,
-	"long_pauses" smallint NOT NULL
+	"long_pauses" smallint NOT NULL,
+	CONSTRAINT "check_ins_task" CHECK ("check_ins"."task" in ('present_project'))
 );
 --> statement-breakpoint
 ALTER TABLE "check_in_recordings" ADD CONSTRAINT "check_in_recordings_check_in_id_check_ins_id_fk" FOREIGN KEY ("check_in_id") REFERENCES "public"."check_ins"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

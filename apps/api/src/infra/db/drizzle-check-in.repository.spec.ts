@@ -34,6 +34,9 @@ describe("DrizzleCheckInRepository", () => {
 
     expect(await checkIns.get(first.id)).toEqual({ id: first.id, ...checkIn("en", 130) });
     expect((await checkIns.list("en")).map((c) => c.id)).toEqual([second.id, first.id]);
+    expect((await checkIns.list("en", 1)).map((c) => c.id)).toEqual([second.id]);
+    expect((await checkIns.previous(second.id))?.id).toBe(first.id);
+    expect(await checkIns.previous(first.id)).toBeNull();
     expect(await checkIns.recording(first.id)).toEqual({ mimeType: "audio/wav", audio });
     expect(await checkIns.recording("00000000-0000-4000-8000-000000000000")).toBeNull();
   });
