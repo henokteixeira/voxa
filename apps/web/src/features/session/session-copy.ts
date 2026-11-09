@@ -39,6 +39,7 @@ export interface SessionCopy {
     sendNow: string;
     stopTutor: string;
     tapToHear: string;
+    ballTip: string;
     yourAnswer: string;
     send: string;
     typeInstead: string;
@@ -204,6 +205,7 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       sendNow: "Send now",
       stopTutor: "Stop the tutor",
       tapToHear: "Tap anywhere to hear Voxa.",
+      ballTip: "Tip: tap the ball to send what you said, or to stop Voxa talking.",
       yourAnswer: "Your answer",
       send: "Send",
       typeInstead: "Type instead",
@@ -255,6 +257,7 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       sendNow: "Enviar agora",
       stopTutor: "Parar o tutor",
       tapToHear: "Toque em qualquer lugar para ouvir o Voxa.",
+      ballTip: "Dica: toque na bolinha para enviar o que você disse ou para interromper o Voxa.",
       yourAnswer: "Sua resposta",
       send: "Enviar",
       typeInstead: "Digitar em vez de falar",

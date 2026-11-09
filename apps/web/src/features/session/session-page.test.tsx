@@ -292,6 +292,20 @@ describe("live session", () => {
     expect(speaker.play).toHaveBeenCalledTimes(plays);
   });
 
+  it("says once, in the first session, that the ball can be tapped", async () => {
+    localStorage.removeItem("voxa.ballTipSeen");
+    await startAndListen();
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTutor({ kind: "reply", message: "Nice.", selfCorrected: false }));
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
+    const tip = "Tip: tap the ball to send what you said, or to stop Voxa talking.";
+    expect(screen.getByText(tip)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Stop the tutor" }));
+    expect(screen.queryByText(tip)).not.toBeInTheDocument();
+    expect(localStorage.getItem("voxa.ballTipSeen")).toBe("1");
+  });
+
   it("plays a hint that arrives after the reply finished", async () => {
     await startAndListen();
     act(() => micHandlers.onTurn(new ArrayBuffer(16)));

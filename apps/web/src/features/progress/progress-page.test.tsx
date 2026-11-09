@@ -55,6 +55,17 @@ describe("Progress", () => {
     expect(screen.getByRole("link", { name: "Why A2?" })).toHaveAttribute("href", "/progress/level");
   });
 
+  it("puts the check-ins first, above the level", async () => {
+    const checkIn = { id: "c1", recordedAt: "2026-11-09T12:00:00Z", wordsPerMinute: 68, longPauses: 9 };
+    renderProgress({
+      level: vi.fn().mockResolvedValue(placed),
+      checkIns: vi.fn().mockResolvedValue({ task: "present_project", limitMs: 120_000, dueAt: "2026-11-23T12:00:00Z", due: false, checkIns: [checkIn] }),
+    });
+    const checkIns = await screen.findByRole("region", { name: "Check-ins · words per minute" });
+    const level = await screen.findByRole("region", { name: "Speaking level · estimate" });
+    expect(checkIns.compareDocumentPosition(level) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("invites a level chat when there is no level yet, or a level set by hand", async () => {
     const setLevel = vi.fn().mockResolvedValue({ ...placed, current: { ...placed.current!, source: "manual" } });
     renderProgress({ level: vi.fn().mockResolvedValue({ current: null, placementDue: true }), setLevel });

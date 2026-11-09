@@ -15,6 +15,8 @@ export function ProgressPage() {
   return (
     <>
       <h1 className="m-0 text-title">{copy.title}</h1>
+      {/* The check-in comes first: it answers "am I learning?" most directly. */}
+      <CheckInHistory />
       {level.view === null ? (
         <LevelUnavailable onRetry={level.reload} />
       ) : (
@@ -31,7 +33,6 @@ export function ProgressPage() {
           </>
         )
       )}
-      <CheckInHistory />
       <SignalsHistory />
     </>
   );
