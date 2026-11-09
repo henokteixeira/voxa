@@ -296,8 +296,9 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
       socket.current?.close();
       speaker.current?.close();
       mic.current = socket.current = speaker.current = null;
-      // Leaving mid-session (back button): close it on the server, best effort.
-      if (sessionId.current && !ended.current) {
+      // Leaving mid-session (back button): close it on the server, best effort. The mission's conversation
+      // stays paused instead, to pick up later today: ending it would count step 3 as done.
+      if (sessionId.current && !ended.current && !missionId) {
         clearSavedSession();
         void api.endSession(sessionId.current, clock.current.timing()).catch(() => {});
       }
