@@ -657,6 +657,13 @@ describe("live session", () => {
     expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ pausesMs: expect.any(Array) }));
   });
 
+  it("keeps the mission's conversation paused when the learner leaves mid-session", async () => {
+    await startAndListen({ path: "/session/daily?mission=m1" });
+    cleanupApp();
+    expect(api.endSession).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem("voxa.liveSession") ?? "{}")).toMatchObject({ sessionId: "s1", missionId: "m1" });
+  });
+
   it("lets the learner send early or stop the tutor by tapping the ball", async () => {
     await startAndListen();
     act(() => micHandlers.onSpeechStart());
