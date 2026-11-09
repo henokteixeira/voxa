@@ -38,6 +38,7 @@ describe("DrizzleSessionRepository", () => {
       scaffold: null,
       track: null,
       memory: { facts: [], recentSessions: [] },
+      missionId: null,
     });
   });
 

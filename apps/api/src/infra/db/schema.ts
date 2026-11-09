@@ -64,6 +64,8 @@ export const sessions = pgTable("sessions", {
   rememberedAt: timestamp("remembered_at", { withTimezone: true }),
   /** One sentence on what the learner talked about, for later sessions; null when there is nothing to recall. */
   recap: text("recap"),
+  /** The daily mission this session is step 3 of; null outside a mission. */
+  missionId: uuid("mission_id").references((): AnyPgColumn => missions.id, { onDelete: "set null" }),
 });
 
 export const turns = pgTable("turns", {
@@ -366,8 +368,6 @@ export const missions = pgTable(
     listenedAt: timestamp("listened_at", { withTimezone: true }),
     expressionsDoneAt: timestamp("expressions_done_at", { withTimezone: true }),
     reviewDoneAt: timestamp("review_done_at", { withTimezone: true }),
-    /** Step 3's conversation (the newest one started); step 4 retells it. */
-    sessionId: uuid("session_id").references(() => sessions.id, { onDelete: "set null" }),
   },
   (t) => [
     unique("missions_language_day").on(t.language, t.day),

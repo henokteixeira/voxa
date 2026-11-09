@@ -3,6 +3,7 @@ import type { SpeakingLevel } from "../domain/level/speaking-level.js";
 import type { MarkedStep, Mission, MissionModel, NewMissionModel } from "../domain/mission/mission.js";
 import type { LevelRepository } from "../domain/ports/level.repository.js";
 import type { MissionRepository, NewMission } from "../domain/ports/mission.repository.js";
+import { InvalidInputError } from "../domain/errors.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import { MissionExpressionNotFoundError, MissionNotFoundError, MissionService } from "./mission.service.js";
 import type { ReviewScheduler } from "./review-scheduler.js";
@@ -12,7 +13,7 @@ class FakeMissions implements MissionRepository {
   async create(mission: NewMission) {
     const existing = await this.forDay(mission.language, mission.day);
     if (existing) return existing;
-    const row: Mission = { ...mission, id: `m${this.rows.length + 1}`, model: null, listenedAt: null, expressionsDoneAt: null, reviewDoneAt: null, sessionId: null };
+    const row: Mission = { ...mission, id: `m${this.rows.length + 1}`, model: null, listenedAt: null, expressionsDoneAt: null, reviewDoneAt: null };
     this.rows.push(row);
     return row;
   }
@@ -34,12 +35,6 @@ class FakeMissions implements MissionRepository {
     const row = this.rows.find((m) => m.id === id)!;
     const key = ({ listen: "listenedAt", expressions: "expressionsDoneAt", review: "reviewDoneAt" } as const)[step];
     row[key] ??= at;
-  }
-  async linkSession(id: string, sessionId: string) {
-    this.rows.find((m) => m.id === id)!.sessionId = sessionId;
-  }
-  async forSession(sessionId: string) {
-    return this.rows.find((m) => m.sessionId === sessionId) ?? null;
   }
   async markSaid(expressionId: string, at: Date) {
     const expression = this.rows.flatMap((m) => m.model?.expressions ?? []).find((e) => e.id === expressionId);
@@ -69,13 +64,19 @@ function setup(level: SpeakingLevel["level"] | null = "A2") {
   const tts = { synthesize: vi.fn().mockResolvedValue(Buffer.from([1, 2])) };
   const context = { load: async () => "Works at JOCUM." };
   const ended = new Set<string>();
-  const sessions = { get: async (id: string) => ({ id, endedAt: ended.has(id) ? clock.at : null }) } as never;
+  const linked = new Map<string, string>();
+  const sessions = {
+    latestForMission: async (missionId: string) => {
+      const id = linked.get(missionId);
+      return id ? { id, endedAt: ended.has(id) ? clock.at : null } : null;
+    },
+  } as never;
   const rounds = new Map<string, number>();
   const fasterRounds = { list: async (id: string) => Array.from({ length: rounds.get(id) ?? 0 }) } as never;
   const checkIns: { recordedAt: Date }[] = [];
   const checkInRepo = { list: async () => checkIns.slice(-1) } as never;
   const service = new MissionService(missions, coach, levels, context, tts, clock, reviews as unknown as ReviewScheduler, sessions, fasterRounds, checkInRepo);
-  return { clock, missions, coach, tts, reviews, service, ended, rounds, checkIns };
+  return { clock, missions, coach, tts, reviews, service, ended, rounds, checkIns, linked };
 }
 
 describe("MissionService", () => {
@@ -155,13 +156,14 @@ describe("MissionService", () => {
   });
 
   it("tracks each step: marked ones, the conversation's end and the 3 rounds", async () => {
-    const { service, missions, ended, rounds, checkIns, clock } = setup();
+    const { service, ended, rounds, checkIns, clock, linked } = setup();
     // A check-in this week: no step 0 today.
     checkIns.push({ recordedAt: new Date("2026-11-05T12:00:00Z") });
     const { id } = await service.today("en", "UTC");
     expect((await service.markStep(id, "listen", "UTC")).steps).toMatchObject({ checkIn: null, listen: true, expressions: false });
+    await service.model(id);
     await service.markStep(id, "expressions", "UTC");
-    await missions.linkSession(id, "s1");
+    linked.set(id, "s1");
     expect((await service.today("en", "UTC")).steps.task).toBe(false);
     ended.add("s1");
     rounds.set("s1", 3);
@@ -169,11 +171,28 @@ describe("MissionService", () => {
     expect(view).toMatchObject({ sessionId: "s1", done: true });
     expect(view.steps).toEqual({ checkIn: null, listen: true, expressions: true, task: true, faster: true, review: true });
 
-    // Two weeks later the check-in is step 0 of that day's mission, done once recorded.
-    clock.at = new Date("2026-11-19T12:00:00Z");
+    // The check-in falls due at 12:00 on Nov 19: step 0 of that whole day, from the morning on, done once recorded.
+    clock.at = new Date("2026-11-19T08:00:00Z");
     expect((await service.today("en", "UTC")).steps.checkIn).toBe(false);
     checkIns.push({ recordedAt: clock.at });
     expect((await service.today("en", "UTC")).steps.checkIn).toBe(true);
+    // The next day has no step 0.
+    clock.at = new Date("2026-11-20T08:00:00Z");
+    expect((await service.today("en", "UTC")).steps.checkIn).toBeNull();
+  });
+
+  it("judges the check-in's day on the learner's clock", async () => {
+    const { service, checkIns, clock } = setup();
+    // Recorded at 23:30 on Nov 18 in São Paulo (02:30 UTC on Nov 19).
+    checkIns.push({ recordedAt: new Date("2026-11-19T02:30:00Z") });
+    clock.at = new Date("2026-11-19T02:45:00Z");
+    expect((await service.today("en", "America/Sao_Paulo")).steps.checkIn).toBe(true);
+  });
+
+  it("takes step 2 only after the model", async () => {
+    const { service } = setup();
+    const { id } = await service.today("en", "UTC");
+    await expect(service.markStep(id, "expressions", "UTC")).rejects.toBeInstanceOf(InvalidInputError);
   });
 
   it("fails on an unknown mission", async () => {

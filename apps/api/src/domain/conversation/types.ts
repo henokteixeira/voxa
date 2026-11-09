@@ -75,4 +75,6 @@ export interface Session {
   track: TrackState | null;
   /** What the tutor remembered when the session started; kept all session, so its prompt stays the same. */
   memory: TutorMemory;
+  /** The daily mission this session is step 3 of, or null. */
+  missionId: string | null;
 }

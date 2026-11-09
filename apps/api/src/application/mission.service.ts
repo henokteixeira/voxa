@@ -51,7 +51,7 @@ export class MissionService {
     @Inject(TTS_PORT) private readonly tts: TextToSpeechPort,
     @Inject(CLOCK) private readonly clock: Clock,
     private readonly reviews: ReviewScheduler,
-    @Inject(SESSION_REPOSITORY) private readonly sessions: Pick<SessionRepository, "get">,
+    @Inject(SESSION_REPOSITORY) private readonly sessions: Pick<SessionRepository, "latestForMission">,
     @Inject(FASTER_ROUND_REPOSITORY) private readonly fasterRounds: Pick<FasterRoundRepository, "list">,
     @Inject(CHECK_IN_REPOSITORY) private readonly checkIns: Pick<CheckInRepository, "list">,
   ) {}
@@ -69,7 +69,8 @@ export class MissionService {
 
   /** Marks step 1 (listened once), step 2 (the 3 expressions tried) or step 5 (the review) done. */
   async markStep(id: string, step: MarkedStep, timeZone: string): Promise<MissionView> {
-    await this.mission(id);
+    const mission = await this.mission(id);
+    if (step === "expressions" && !mission.model) throw new InvalidInputError("Step 2 comes after the model.");
     await this.missions.markStep(id, step, this.clock.now());
     return this.view(await this.mission(id), timeZone);
   }
@@ -111,17 +112,14 @@ export class MissionService {
   }
 
   private async view(mission: Mission, timeZone: string): Promise<MissionView> {
-    const { id, language, day, situation, sessionId } = mission;
-    const [[last], session, rounds] = await Promise.all([
-      this.checkIns.list(language, 1),
-      sessionId ? this.sessions.get(sessionId) : null,
-      sessionId ? this.fasterRounds.list(sessionId) : [],
-    ]);
+    const { id, language, day, situation } = mission;
+    const [[last], session] = await Promise.all([this.checkIns.list(language, 1), this.sessions.latestForMission(id)]);
+    const sessionId = session?.id ?? null;
+    const rounds = sessionId ? await this.fasterRounds.list(sessionId) : [];
     const now = this.clock.now();
-    const checkIn = {
-      due: checkInDueAt(last?.recordedAt ?? null, now) <= now,
-      doneToday: last ? localDay(last.recordedAt, timeZone) === day : false,
-    };
+    // Step 0 belongs to the whole day the check-in falls due on, not only from its hour on.
+    const doneToday = last ? localDay(last.recordedAt, timeZone) === day : false;
+    const checkIn = { due: !doneToday && localDay(checkInDueAt(last?.recordedAt ?? null, now), timeZone) <= day, doneToday };
     const steps = missionSteps(mission, { checkIn, taskEnded: Boolean(session?.endedAt), fasterRounds: rounds.length });
     return { id, language, day, situation, steps, done: missionDone(steps), sessionId };
   }

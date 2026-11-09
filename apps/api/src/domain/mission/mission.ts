@@ -73,8 +73,6 @@ export interface Mission {
   listenedAt: Date | null;
   expressionsDoneAt: Date | null;
   reviewDoneAt: Date | null;
-  /** Step 3's conversation, once started. */
-  sessionId: string | null;
 }
 
 /** Which steps are done. `checkIn` is step 0, only on check-in day: null on the other days. */

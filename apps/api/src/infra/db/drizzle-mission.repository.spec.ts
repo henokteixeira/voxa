@@ -61,19 +61,21 @@ describe("DrizzleMissionRepository", () => {
     expect(saved.expressions.every((e) => e.saidAt === null)).toBe(true);
   });
 
-  it("marks steps once and links step 3's conversation", async () => {
+  it("marks steps once", async () => {
     const { id } = await missions.create({ language: "en", day: "2026-11-09", situation: "daily", createdAt });
     await missions.markStep(id, "listen", createdAt);
     await missions.markStep(id, "listen", new Date("2026-11-09T11:00:00Z"));
     await missions.markStep(id, "review", createdAt);
-    expect(await missions.get(id)).toMatchObject({ listenedAt: createdAt, expressionsDoneAt: null, reviewDoneAt: createdAt, sessionId: null });
+    expect(await missions.get(id)).toMatchObject({ listenedAt: createdAt, expressionsDoneAt: null, reviewDoneAt: createdAt });
+  });
 
-    const first = await sessions.create({ language: "en", mode: "daily" });
-    const again = await sessions.create({ language: "en", mode: "daily" });
-    await missions.linkSession(id, first.id);
-    await missions.linkSession(id, again.id);
-    expect((await missions.forSession(again.id))?.id).toBe(id);
-    expect(await missions.forSession(first.id)).toBeNull();
+  it("finds the newest conversation started as the mission's step 3", async () => {
+    const { id } = await missions.create({ language: "en", day: "2026-11-09", situation: "daily", createdAt });
+    expect(await sessions.latestForMission(id)).toBeNull();
+    await sessions.create({ language: "en", mode: "daily", missionId: id, startedAt: createdAt });
+    const again = await sessions.create({ language: "en", mode: "daily", missionId: id, startedAt: new Date("2026-11-09T11:00:00Z") });
+    await sessions.create({ language: "en", mode: "daily" });
+    expect(await sessions.latestForMission(id)).toMatchObject({ id: again.id, missionId: id });
   });
 
   it("records the first time an expression is used", async () => {

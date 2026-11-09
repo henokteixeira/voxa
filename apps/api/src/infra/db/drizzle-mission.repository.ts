@@ -69,15 +69,6 @@ export class DrizzleMissionRepository implements MissionRepository {
       .where(and(eq(missions.id, id), isNull(missions[column])));
   }
 
-  async linkSession(id: string, sessionId: string): Promise<void> {
-    await this.db.update(missions).set({ sessionId }).where(eq(missions.id, id));
-  }
-
-  async forSession(sessionId: string): Promise<Mission | null> {
-    const [row] = await this.db.select().from(missions).where(eq(missions.sessionId, sessionId));
-    return row ? this.toMission(row) : null;
-  }
-
   async markSaid(expressionId: string, at: Date): Promise<boolean> {
     const marked = await this.db
       .update(missionExpressions)

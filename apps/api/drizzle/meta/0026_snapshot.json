@@ -1,5 +1,5 @@
 {
-  "id": "09b9ecd5-e605-4e99-9c66-a4031e5a7588",
+  "id": "b27cd2fa-4aa2-415a-8aac-10520cfff6c7",
   "prevId": "fdb4c8c4-1aae-4511-8cc8-e56080307281",
   "version": "7",
   "dialect": "postgresql",
@@ -521,30 +521,10 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "missions_session_id_sessions_id_fk": {
-          "name": "missions_session_id_sessions_id_fk",
-          "tableFrom": "missions",
-          "tableTo": "sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "missions_language_day": {
@@ -1462,10 +1442,30 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "mission_id": {
+          "name": "mission_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "sessions_mission_id_missions_id_fk": {
+          "name": "sessions_mission_id_missions_id_fk",
+          "tableFrom": "sessions",
+          "tableTo": "missions",
+          "columnsFrom": [
+            "mission_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

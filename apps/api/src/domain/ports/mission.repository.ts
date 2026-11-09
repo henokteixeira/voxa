@@ -20,10 +20,6 @@ export interface MissionRepository {
   saveModel(id: string, model: NewMissionModel): Promise<MissionModel>;
   /** Marks a step done; a step already done keeps its first time. */
   markStep(id: string, step: MarkedStep, at: Date): Promise<void>;
-  /** Links step 3's conversation; a newer one (the learner started over) replaces it. */
-  linkSession(id: string, sessionId: string): Promise<void>;
-  /** The mission whose step 3 is this conversation, or null. */
-  forSession(sessionId: string): Promise<Mission | null>;
   /** Records the first time the learner used the expression; false when it was already used (or doesn't exist). */
   markSaid(expressionId: string, at: Date): Promise<boolean>;
 }

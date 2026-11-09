@@ -117,18 +117,22 @@ export function memorySection(memory: TutorMemory | undefined): string {
  * A daily mission's conversation (step 3): the learner just heard a model and took 3 expressions from it. The tutor
  * invites them and asks for fuller answers, always as an invitation, never as a correction.
  */
-export function missionSection(expressions: string[] | undefined): string {
+export function missionSection(expressions: string[] | undefined, step: SupportStep | null): string {
   if (!expressions?.length) return "";
+  const guided = step === "build_full" || step === "build_light";
   return [
     "## Today's expressions",
     "Before this conversation the learner heard someone do the same task and took these ready-made expressions from it:",
     ...expressions.map((e) => `- "${e}"`),
-    "Ask the kind of question whose natural answer uses one of them, so each one gets a chance. Never say them for " +
-      "the learner, never remind the learner of them, and never treat not using one as a mistake.",
-    "When the learner's answer stays very short or simple (a few words) and they are not stuck, sometimes invite a " +
-      'slightly fuller one in `reply`, warmly and inside the scene (for example "Oh, how did that go?" or "Tell me a bit ' +
-      'more about that."). It is an invitation, never a hint or a correction: never on a turn with a hint, and not on ' +
-      "two turns in a row.",
+    "Ask the kind of question whose natural answer uses one of them, so each one gets a chance. Do not remind the " +
+      "learner of them or ask them to use one, and never treat not using one as a mistake. The help rules above still " +
+      "apply: a model sentence or a sentence start they ask for may use an expression.",
+    guided
+      ? "The guided track already builds fuller answers step by step: follow it, and add no other push for longer answers."
+      : "When the learner's answer stays very short or simple (a few words) and they are not stuck, sometimes invite a " +
+        'slightly fuller one in `reply`, warmly and inside the scene (for example "Oh, how did that go?" or "Tell me a bit ' +
+        'more about that."). It is an invitation, never a hint or a correction: never on a turn with a hint, and not on ' +
+        "two turns in a row.",
   ].join("\n");
 }
 
@@ -181,7 +185,7 @@ export function buildSystemPrompt(
         ].join("\n")
       : "",
     supportSection(step),
-    missionSection(expressions),
+    missionSection(expressions, step),
     learnerContext.trim()
       ? `## About the learner\nUse these facts to make the scene realistic. Do not recite them.\n\n${learnerContext.trim()}`
       : "## About the learner\nNo details were given. Ask about their life or work when it helps the scene.",

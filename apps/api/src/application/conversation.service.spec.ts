@@ -59,7 +59,7 @@ type Row = Session & { turns: ChatTurn[]; timing: SessionTiming | null };
 
 class FakeSessions implements SessionRepository {
   rows = new Map<string, Row>();
-  async create(input: { language: string; mode: Mode; startedAt?: Date; targets?: PracticeTarget[]; step?: SupportStep | null; track?: TrackState | null; memory?: TutorMemory }) {
+  async create(input: { language: string; mode: Mode; startedAt?: Date; targets?: PracticeTarget[]; step?: SupportStep | null; track?: TrackState | null; memory?: TutorMemory; missionId?: string | null }) {
     const id = `s${this.rows.size + 1}`;
     const session: Session = {
       id,
@@ -76,12 +76,16 @@ class FakeSessions implements SessionRepository {
       scaffold: null,
       track: input.track ?? null,
       memory: input.memory ?? NOTHING_REMEMBERED,
+      missionId: input.missionId ?? null,
     };
     this.rows.set(id, { ...session, turns: [], timing: null });
     return session;
   }
   async setProgress(id: string, progress: SessionProgress) {
     Object.assign(this.rows.get(id)!, progress);
+  }
+  async latestForMission(missionId: string) {
+    return [...this.rows.values()].filter((r) => r.missionId === missionId).pop() ?? null;
   }
   async get(id: string) {
     const row = this.rows.get(id);
@@ -332,8 +336,6 @@ beforeEach(() => {
   missionRows = [];
   const missions = {
     get: async (id: string) => missionRows.find((m) => m.id === id) ?? null,
-    linkSession: async (id: string, sessionId: string) => void (missionRows.find((m) => m.id === id)!.sessionId = sessionId),
-    forSession: async (sessionId: string) => missionRows.find((m) => m.sessionId === sessionId) ?? null,
   };
   service = new ConversationService(
     tutor,
@@ -371,14 +373,13 @@ describe("ConversationService.start in a daily mission", () => {
     listenedAt: null,
     expressionsDoneAt: null,
     reviewDoneAt: null,
-    sessionId: null,
     ...over,
   });
 
   it("links the conversation to the mission and gives the tutor its 3 expressions, all session long", async () => {
     missionRows.push(mission());
     const { session } = await service.start("daily", "en", "m1");
-    expect(missionRows[0].sessionId).toBe(session.id);
+    expect((await sessions.get(session.id))?.missionId).toBe("m1");
     const phrases = ["I'm still working on…", "I'm blocked by…", "By the end of the day, I'll…"];
     expect(tutor.opened[0].expressions).toEqual(phrases);
 

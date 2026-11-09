@@ -1,5 +1,5 @@
 ALTER TABLE "missions" ADD COLUMN "listened_at" timestamp with time zone;--> statement-breakpoint
 ALTER TABLE "missions" ADD COLUMN "expressions_done_at" timestamp with time zone;--> statement-breakpoint
 ALTER TABLE "missions" ADD COLUMN "review_done_at" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "missions" ADD COLUMN "session_id" uuid;--> statement-breakpoint
-ALTER TABLE "missions" ADD CONSTRAINT "missions_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "sessions" ADD COLUMN "mission_id" uuid;--> statement-breakpoint
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_mission_id_missions_id_fk" FOREIGN KEY ("mission_id") REFERENCES "public"."missions"("id") ON DELETE set null ON UPDATE no action;

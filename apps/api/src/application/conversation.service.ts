@@ -152,7 +152,7 @@ export class ConversationService {
     @Inject(LEVEL_REPOSITORY) private readonly levels: LevelRepository,
     private readonly reviews: ReviewScheduler,
     private readonly memory: LearnerMemoryService,
-    @Inject(MISSION_REPOSITORY) private readonly missions: Pick<MissionRepository, "get" | "linkSession" | "forSession">,
+    @Inject(MISSION_REPOSITORY) private readonly missions: Pick<MissionRepository, "get">,
   ) {}
 
   /** Starts a session; with `missionId`, it is that daily mission's step 3, with the model's 3 expressions to invite. */
@@ -172,9 +172,8 @@ export class ConversationService {
     const track = startTrack(step, goalsFor(mode)[0] ?? null);
     const startedAt = this.clock.now();
     const [learnerContext, memory] = await Promise.all([this.learnerContext.load(), this.memory.recall({ startedAt })]);
-    const created = await this.sessions.create({ mode, language, startedAt, targets, step, track, memory });
+    const created = await this.sessions.create({ mode, language, startedAt, targets, step, track, memory, missionId: mission?.id ?? null });
     const plan = track ? openingPlan(track, describeGoal) : null;
-    if (mission) await this.missions.linkSession(mission.id, created.id);
     const opening = await this.tutor.open(this.tutorContext(created, learnerContext, phrasesOf(mission)), plan);
     await this.sessions.appendTurn(created.id, { role: "assistant", content: opening.line });
     // In the guided track the opening already gives the first model sentence.
@@ -237,7 +236,7 @@ export class ConversationService {
       this.mistakes.patterns(session.language, KNOWN_PATTERNS_LIMIT),
       correctsMistakes(session.mode) ? this.mistakes.sessionPatterns(sessionId) : [],
       this.learnerContext.load(),
-      this.missions.forSession(sessionId),
+      session.missionId ? this.missions.get(session.missionId) : null,
     ]);
     const learnerTurn = history.filter((t) => t.role === "user").length + 1;
 

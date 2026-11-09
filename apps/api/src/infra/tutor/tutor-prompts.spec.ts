@@ -49,6 +49,13 @@ describe("buildSystemPrompt: a daily mission's conversation", () => {
     expect(prompt).toMatch(/never a hint or a correction/);
   });
 
+  it("lets the guided track build fuller answers, and its model sentences may use an expression", () => {
+    const prompt = buildSystemPrompt({ ...context, step: "build_light", expressions: ["I'm blocked by…"] }, "pt-BR");
+    expect(prompt).toMatch(/guided track already builds fuller answers/);
+    expect(prompt).not.toMatch(/invite a slightly fuller one/);
+    expect(prompt).toMatch(/a model sentence or a sentence start they ask for may use an expression/);
+  });
+
   it("says nothing about expressions outside a mission", () => {
     expect(buildSystemPrompt(context, "pt-BR")).not.toContain("Today's expressions");
   });

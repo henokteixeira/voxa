@@ -36,8 +36,12 @@ export interface SessionRepository {
     targets?: PracticeTarget[];
     step?: SupportStep | null;
     track?: TrackState | null;
+    /** The daily mission the session is step 3 of. */
+    missionId?: string | null;
   }): Promise<Session>;
   get(id: string): Promise<Session | null>;
+  /** The newest session started as the mission's step 3 (the learner may start over), or null. */
+  latestForMission(missionId: string): Promise<Session | null>;
   appendTurn(sessionId: string, turn: NewTurn): Promise<void>;
   history(sessionId: string): Promise<ChatTurn[]>;
   setPending(sessionId: string, pending: PendingCorrection | null): Promise<void>;
