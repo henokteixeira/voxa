@@ -7,6 +7,8 @@ import { ApiError, type ApiClient, type ApiErrorKind, MODES, type Mode, type Ses
 export interface SavedSession {
   sessionId: string;
   mode: Mode;
+  /** The daily mission this session is step 3 of; null for a free conversation. */
+  missionId: string | null;
   elapsedSeconds: number;
   timing: SessionTiming;
   /** When it was last saved (ms since epoch): the last moment the session was running. */
@@ -51,6 +53,7 @@ export function loadSavedSession(): SavedSession | null {
     return {
       sessionId: value.sessionId,
       mode: value.mode as Mode,
+      missionId: typeof value.missionId === "string" ? value.missionId : null,
       elapsedSeconds: Number.isFinite(value.elapsedSeconds) ? Number(value.elapsedSeconds) : 0,
       timing: readTiming(value.timing),
       // Unknown age: too old to pick up.

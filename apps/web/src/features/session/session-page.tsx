@@ -1,6 +1,6 @@
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { Link, Navigate, useParams } from "react-router";
+import { Link, Navigate, useParams, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { VoiceBall } from "@/components/voice-ball";
@@ -24,12 +24,14 @@ import { type AutoRetry, useVoiceSession } from "./use-voice-session";
 /** The live voice session: talk, get hints, see captions. Takes the whole screen. */
 export function SessionPage() {
   const { mode } = useParams();
+  // `?mission=` makes the session the daily mission's conversation (step 3).
+  const missionId = useSearchParams()[0].get("mission");
   if (!isMode(mode)) return <Navigate to="/" replace />;
-  return <LiveSession mode={mode} />;
+  return <LiveSession mode={mode} missionId={missionId} />;
 }
 
-function LiveSession({ mode }: { mode: Mode }) {
-  const session = useVoiceSession(mode);
+function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null }) {
+  const session = useVoiceSession(mode, missionId);
   const modes = useModeInfo();
   const { stage: stageCopy, page, parts } = useCopy(SESSION_COPY);
   const { state } = session;
@@ -70,7 +72,7 @@ function LiveSession({ mode }: { mode: Mode }) {
   if (state.phase === "ended") {
     return (
       <Screen>
-        <SummaryFlow mode={mode} elapsed={elapsed} summary={state.summary} />
+        <SummaryFlow mode={mode} elapsed={elapsed} summary={state.summary} missionId={missionId} />
       </Screen>
     );
   }

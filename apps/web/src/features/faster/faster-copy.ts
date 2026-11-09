@@ -3,7 +3,6 @@ import type { Copy } from "@/lib/i18n/locale";
 /** Copy for "say it faster": the same content told 3 times with less time, then how the pace changed. */
 export interface FasterCopy {
   title: string;
-  offer: string;
   subtitle: string;
   task: string;
   noCorrections: string;
@@ -29,7 +28,6 @@ export interface FasterCopy {
 export const FASTER_COPY: Copy<FasterCopy> = {
   en: {
     title: "Say it faster",
-    offer: "Say it faster",
     subtitle: "Same content, less time",
     task: "Tell what you said in the conversation again, in your own words.",
     noCorrections: "No corrections now. Just keep going.",
@@ -57,7 +55,6 @@ export const FASTER_COPY: Copy<FasterCopy> = {
   },
   "pt-BR": {
     title: "Repetir mais rápido",
-    offer: "Repetir mais rápido",
     subtitle: "O mesmo conteúdo, menos tempo",
     task: "Conte de novo o que você falou na conversa, com suas palavras.",
     noCorrections: "Sem correções agora. Só continue falando.",

@@ -1,28 +1,32 @@
 import { useId } from "react";
-import { Card } from "@/components/ui/card";
 import type { TodayProgress } from "@/lib/api";
 import { useCopy } from "@/lib/i18n/locale";
-import { GoalRing } from "./goal-ring";
 import { XP_COPY } from "./xp-copy";
 
-/** Today's goal in one line: a small ring, what is left, and the streak. Quiet: never a threat. */
+/** Today's goal as a thin bar with the XP, and the streak. Quiet: never a threat. */
 export function TodayGoalCard({ today }: { today: TodayProgress }) {
   const copy = useCopy(XP_COPY);
   const titleId = useId();
   const { earnedXp, goalXp, goalMet, streakDays } = today;
+  const share = goalXp > 0 ? Math.min(1, earnedXp / goalXp) : 0;
   return (
-    <Card role="region" aria-labelledby={titleId} className="flex-row items-center gap-3 px-4 py-2.5">
+    <section aria-labelledby={titleId} className="flex items-center gap-3 text-small font-bold text-taupe">
       <h2 id={titleId} className="sr-only">
         {copy.todayGoal}
       </h2>
-      <GoalRing value={earnedXp} goal={goalXp} size={40} label={copy.ringLabel(earnedXp, goalXp)} />
-      <span className="min-w-0 flex-1 text-small font-bold">{goalMet ? copy.goalMet : copy.toGo(goalXp - earnedXp)}</span>
+      <span role="img" aria-label={copy.ringLabel(earnedXp, goalXp)} className="block h-1.5 flex-1 overflow-hidden rounded-pill bg-sand">
+        <i className="block h-full rounded-pill bg-sage-strong" style={{ width: `${share * 100}%` }} />
+      </span>
+      <span aria-hidden="true" className="tabular-nums">
+        {copy.xpOf(earnedXp, goalXp)}
+      </span>
+      {goalMet && <span className="sr-only">{copy.goalMet}</span>}
       {streakDays > 0 && (
         <span className="shrink-0 text-caption text-honey-ink">
           <span aria-hidden="true">{copy.streakShort(streakDays)}</span>
           <span className="sr-only">{copy.streak(streakDays)}</span>
         </span>
       )}
-    </Card>
+    </section>
   );
 }

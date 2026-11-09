@@ -35,8 +35,10 @@ const api = {
   reviewCard: vi.fn(),
   answerReview: vi.fn(),
   transcribe: vi.fn(),
+  // The mission page, after step 3: it stays loading in these tests.
+  missionToday: vi.fn(() => new Promise(() => {})),
   voiceUrl: (id: string) => `ws://api/api/sessions/${id}/voice`,
-} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "resumeSession" | "fillerSpeech" | "todayProgress" | "reviewCard" | "answerReview" | "transcribe"]: ReturnType<typeof vi.fn> };
+} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "resumeSession" | "fillerSpeech" | "todayProgress" | "reviewCard" | "answerReview" | "transcribe" | "missionToday"]: ReturnType<typeof vi.fn> };
 
 const deps: VoiceDeps = {
   openMicrophone: vi.fn(async (handlers: MicrophoneHandlers) => {
@@ -102,8 +104,8 @@ const SHOW_TUTOR = /^(Show what the tutor said|Ver o que o tutor disse)$/;
 const opened = () => screen.findByRole("button", { name: SHOW_TUTOR });
 
 /** Starts a session and plays the opening line through to the learner's turn. */
-async function startAndListen(options: { withLocale?: boolean } = {}) {
-  renderSession("/session/daily", options);
+async function startAndListen(options: { withLocale?: boolean; path?: string } = {}) {
+  renderSession(options.path ?? "/session/daily", options);
   await opened();
   act(() => socketHandlers.onOpen());
   act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
@@ -237,7 +239,7 @@ describe("live session", () => {
 
   it("starts the session, speaks the opening line, then listens", async () => {
     await startAndListen();
-    expect(api.startSession).toHaveBeenCalledWith("daily");
+    expect(api.startSession).toHaveBeenCalledWith("daily", undefined, undefined);
     expect(deps.openVoiceSocket).toHaveBeenCalledWith("ws://api/api/sessions/s1/voice", expect.anything());
     expect(socket.speakLast).toHaveBeenCalled();
     expect(speaker.play).toHaveBeenCalled();
@@ -891,6 +893,21 @@ describe("session summary", () => {
     expect(screen.queryByText(/Every mistake today/)).toBeNull();
   });
 
+  it("as the mission's conversation, shows the takeaways once with no try, then goes back to the mission", async () => {
+    api.endSession.mockResolvedValue(summaryWith(patterned, { takeaways }));
+    await startAndListen({ path: "/session/daily?mission=m1" });
+    expect(api.startSession).toHaveBeenCalledWith("daily", undefined, "m1");
+    expect(JSON.parse(localStorage.getItem("voxa.liveSession") ?? "{}")).toMatchObject({ missionId: "m1" });
+    await endFromPause();
+
+    await userEvent.click(await screen.findByRole("button", { name: "See what to keep" }));
+    expect(screen.queryByRole("button", { name: "Try them · 1 min" })).toBeNull();
+    // Step 5 reviews them.
+    expect(JSON.parse(sessionStorage.getItem("voxa.missionTakeaways.m1") ?? "[]")).toEqual(takeaways.map((t) => t.patternId));
+    await userEvent.click(screen.getByRole("button", { name: "Continue mission" }));
+    expect(api.missionToday).toHaveBeenCalled();
+  });
+
   it("says what went better than in the last sessions, and never lists what went worse", async () => {
     api.endSession.mockResolvedValue(
       summaryWith([], {
@@ -1220,7 +1237,7 @@ describe("after a reload", () => {
     localStorage.setItem("voxa.liveSession", JSON.stringify(savedDaily));
     api.resumeSession.mockRejectedValue(error);
     await startAndListen();
-    expect(api.startSession).toHaveBeenCalledWith("daily");
+    expect(api.startSession).toHaveBeenCalledWith("daily", undefined, undefined);
   });
 
   it("ends a session left more than 2 hours ago and starts a new one", async () => {
@@ -1234,7 +1251,7 @@ describe("after a reload", () => {
     localStorage.setItem("voxa.liveSession", JSON.stringify(savedDaily));
     api.resumeSession.mockRejectedValue(new ApiError("ended", "This session has ended.", 409));
     await startAndListen();
-    expect(api.startSession).toHaveBeenCalledWith("daily");
+    expect(api.startSession).toHaveBeenCalledWith("daily", undefined, undefined);
   });
 
   it("closes a saved session of another meeting type and starts the one asked for", async () => {
@@ -1242,7 +1259,7 @@ describe("after a reload", () => {
     await startAndListen();
     expect(api.resumeSession).not.toHaveBeenCalled();
     expect(api.endSession).toHaveBeenCalledWith("old", savedDaily.timing);
-    expect(api.startSession).toHaveBeenCalledWith("daily");
+    expect(api.startSession).toHaveBeenCalledWith("daily", undefined, undefined);
   });
 });
 

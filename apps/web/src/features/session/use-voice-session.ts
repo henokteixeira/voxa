@@ -49,7 +49,7 @@ function useElapsedSeconds(running: boolean) {
 type OnOpen = Retry | { kind: "nothing" };
 
 /** Runs a live voice session: microphone → socket → tutor's voice, driven by sessionReducer. */
-export function useVoiceSession(mode: Mode) {
+export function useVoiceSession(mode: Mode, missionId: string | null = null) {
   const api = useApi();
   const deps = useContext(VoiceDepsContext);
   const [state, dispatch] = useReducer(sessionReducer, initialSessionState);
@@ -232,8 +232,8 @@ export function useVoiceSession(mode: Mode) {
         return;
       }
       const saved = takeSavedSession(api);
-      if (saved && saved.mode !== mode) {
-        // Another category was asked for: close the old session, best effort.
+      if (saved && (saved.mode !== mode || saved.missionId !== missionId)) {
+        // Another category (or a mission's conversation instead of a free one) was asked for: close the old session, best effort.
         clearSavedSession();
         void api.endSession(saved.sessionId, saved.timing).catch(() => {});
       } else if (saved) {
@@ -267,13 +267,13 @@ export function useVoiceSession(mode: Mode) {
         }
       }
       try {
-        const started = await api.startSession(mode);
+        const started = await api.startSession(mode, undefined, missionId ?? undefined);
         sessionId.current = started.sessionId;
         // The learner left or ended before the session existed: close it on the server too.
         if (cancelled || ended.current) return void api.endSession(started.sessionId).catch(() => {});
         speaker.current = deps.createSpeaker();
         fillerLanguage.current = started.language;
-        saveSession({ sessionId: started.sessionId, mode, elapsedSeconds: 0, timing: clock.current.timing() });
+        saveSession({ sessionId: started.sessionId, mode, missionId, elapsedSeconds: 0, timing: clock.current.timing() });
         dispatch({
           type: "started",
           sessionId: started.sessionId,
@@ -304,14 +304,14 @@ export function useVoiceSession(mode: Mode) {
       sessionId.current = null;
       resumedPending.current = false;
     };
-  }, [api, deps, mode, connect, attempt, setSeconds]);
+  }, [api, deps, mode, missionId, connect, attempt, setSeconds]);
 
   // Keeps what the server does not, so a reload can pick the session up again.
   useEffect(() => {
     const id = state.sessionId;
     if (!id || ended.current || state.phase === "ending" || state.phase === "ended") return;
-    saveSession({ sessionId: id, mode, elapsedSeconds: seconds, timing: clock.current.timing() });
-  }, [state.sessionId, state.phase, mode, seconds]);
+    saveSession({ sessionId: id, mode, missionId, elapsedSeconds: seconds, timing: clock.current.timing() });
+  }, [state.sessionId, state.phase, mode, missionId, seconds]);
 
   // The microphone listens only on the learner's turn (and not while typing), so it never hears the tutor.
   const listening = (state.phase === "listening" || state.phase === "hearing") && !typing;

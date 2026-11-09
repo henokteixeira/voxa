@@ -23,7 +23,13 @@ function renderApp(
     withLocale = false,
     level = vi.fn().mockResolvedValue(placedB1),
     reviewOverview = vi.fn().mockResolvedValue({ due: [], nextDueAt: null }),
-  }: { withLocale?: boolean; level?: ReturnType<typeof vi.fn>; reviewOverview?: ReturnType<typeof vi.fn> } = {},
+    missionToday = vi.fn().mockResolvedValue(mission()),
+  }: {
+    withLocale?: boolean;
+    level?: ReturnType<typeof vi.fn>;
+    reviewOverview?: ReturnType<typeof vi.fn>;
+    missionToday?: ReturnType<typeof vi.fn>;
+  } = {},
 ) {
   const api = {
     health,
@@ -32,6 +38,7 @@ function renderApp(
     practice: vi.fn().mockResolvedValue({ patterns: [], newWords: [], earlier: [] }),
     learnerFacts: vi.fn().mockResolvedValue([]),
     reviewOverview,
+    missionToday,
     todayProgress: vi.fn().mockResolvedValue(today(30)),
     signalsHistory: vi.fn().mockResolvedValue({ sessions: [] }),
     setDailyMinutes: vi.fn().mockImplementation(async (minutes: number) => today(minutes)),
@@ -53,6 +60,12 @@ afterEach(() => {
 
 function today(minutesPerDay: number) {
   return { day: "2026-11-07", minutesPerDay, goalXp: 40, earnedXp: 0, goalMet: false, streakDays: 0, points: {} };
+}
+
+function mission(done: Record<string, boolean | null> = {}) {
+  const steps = { checkIn: null, listen: false, expressions: false, task: false, faster: false, review: false, ...done };
+  const all = Object.values(steps).every((d) => d !== false);
+  return { id: "m1", language: "en", day: "2026-11-07", situation: "daily", steps, done: all, sessionId: null };
 }
 
 const up = () => vi.fn().mockResolvedValue({ status: "ok" });
@@ -117,11 +130,27 @@ describe("app shell", () => {
 });
 
 describe("Today", () => {
-  it("asks what to practice, with nothing picked for the learner", async () => {
+  it("does one thing: today's mission, with one button", async () => {
     renderApp("/", up());
-    expect(await screen.findByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Start" })).toBeNull();
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Good (morning|afternoon|evening)$/);
+    expect(await screen.findByRole("heading", { name: "Daily stand-up" })).toBeInTheDocument();
+    expect(screen.getByText("Today's mission")).toBeInTheDocument();
+    expect(screen.getByText("5 steps · 25 min")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Start" })).toHaveAttribute("href", "/mission");
+    // The date is the page's heading: no greeting.
+    expect(screen.getByRole("heading", { level: 1 })).not.toHaveTextContent(/Good (morning|afternoon|evening)/);
+  });
+
+  it("continues a mission done in parts from the step it is on", async () => {
+    renderApp("/", up(), { missionToday: vi.fn().mockResolvedValue(mission({ listen: true, expressions: true })) });
+    expect(await screen.findByText("Step 3 of 5")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Daily stand-up" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Continue" })).toHaveAttribute("href", "/mission");
+  });
+
+  it("starts with the check-in on its day", async () => {
+    renderApp("/", up(), { missionToday: vi.fn().mockResolvedValue(mission({ checkIn: false })) });
+    expect(await screen.findByText("Check-in · every 2 weeks")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Present your project" })).toBeInTheDocument();
   });
 
   it("opens the onboarding on the first run, before there is a level", async () => {
@@ -140,30 +169,35 @@ describe("Today", () => {
   it("waits for the level before offering a session", async () => {
     renderApp("/", up(), { level: vi.fn(() => new Promise(() => {})) });
     await screen.findByRole("button", { name: "Settings" });
-    expect(screen.queryByRole("heading", { name: "What do you want to practice now?" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Daily stand-up" })).toBeNull();
   });
 
-  it("offers the categories when the level can't be read", async () => {
+  it("shows the mission when the level can't be read", async () => {
     renderApp("/", up(), { level: vi.fn().mockRejectedValue(new ApiError("server", "boom")) });
-    expect(await screen.findByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Daily stand-up" })).toBeInTheDocument();
   });
 
-  it("shows the voice review on Today only when something is due", async () => {
+  it("once the mission is done, says see you tomorrow, offers more talk and the voice review when something is due", async () => {
     const due = { due: [{ subject: { kind: "pattern", id: "p1" } }, { subject: { kind: "pattern", id: "p2" } }], nextDueAt: null };
-    const router = renderApp("/", up(), { reviewOverview: vi.fn().mockResolvedValue(due) });
+    const done = mission({ listen: true, expressions: true, task: true, faster: true, review: true });
+    const router = renderApp("/", up(), { reviewOverview: vi.fn().mockResolvedValue(due), missionToday: vi.fn().mockResolvedValue(done) });
+    expect(await screen.findByRole("heading", { name: "See you tomorrow" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Talk more" })).toHaveAttribute("href", "/talk");
     await userEvent.click(await screen.findByRole("link", { name: /Review · 2 items/ }));
     expect(router.state.location.pathname).toBe("/review");
   });
 
-  it("sends the learner to Talk to pick a conversation", async () => {
-    const router = renderApp("/", up());
-    await userEvent.click(await screen.findByRole("link", { name: "Talk" , current: false }));
-    expect(router.state.location.pathname).toBe("/talk");
+  it("keeps the voice review off Today until the mission is done", async () => {
+    const due = { due: [{ subject: { kind: "pattern", id: "p1" } }], nextDueAt: null };
+    const reviewOverview = vi.fn().mockResolvedValue(due);
+    renderApp("/", up(), { reviewOverview });
+    await screen.findByRole("heading", { name: "Daily stand-up" });
+    expect(screen.queryByRole("link", { name: /Review · / })).toBeNull();
   });
 
   it("does not list the conversations on Today: they live in Talk", async () => {
     renderApp("/", up());
-    await screen.findByRole("heading", { name: "What do you want to practice now?" });
+    await screen.findByRole("heading", { name: "Daily stand-up" });
     expect(screen.queryByRole("navigation", { name: "Conversations" })).toBeNull();
   });
 });
@@ -190,22 +224,21 @@ describe("Today, more", () => {
 
   it("has no welcome text on Today: the app itself is the welcome", async () => {
     renderApp("/", up());
-    expect(await screen.findByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Daily stand-up" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Mistakes are welcome here" })).not.toBeInTheDocument();
   });
 
   it("starts in Portuguese and switches the interface to English", async () => {
     renderApp("/", up(), { withLocale: true });
-    expect(await screen.findByRole("heading", { name: "O que você quer treinar agora?" })).toBeInTheDocument();
+    expect(await screen.findByText("Missão de hoje")).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Principal" })).toHaveTextContent("HojeConversarRevisarProgresso");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^(Bom dia|Boa tarde|Boa noite)$/);
 
     // The language is a setting, not a switch on Today.
     await userEvent.click(screen.getByRole("button", { name: "Configurações" }));
     await userEvent.click(screen.getByRole("button", { name: "English" }));
     expect(screen.getByRole("button", { name: "English" })).toHaveAttribute("aria-pressed", "true");
     await userEvent.keyboard("{Escape}");
-    expect(await screen.findByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
+    expect(await screen.findByText("Today's mission")).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("en");
   });
 
@@ -252,7 +285,7 @@ describe("Today, more", () => {
 
     health.mockResolvedValue({ status: "ok" });
     await userEvent.click(screen.getByRole("button", { name: "Check again" }));
-    expect(await screen.findByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Daily stand-up" })).toBeInTheDocument();
     expect(health).toHaveBeenCalledTimes(2);
   });
 
@@ -280,7 +313,7 @@ describe("Today, more", () => {
     await screen.findByRole("heading", { name: "Voxa's server isn't running" });
     health.mockResolvedValue({ status: "ok" });
     window.dispatchEvent(new Event("online"));
-    expect(await screen.findByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Daily stand-up" })).toBeInTheDocument();
   });
 });
 
@@ -305,7 +338,7 @@ describe("a paused session on Today", () => {
     endSession.mockClear();
     save(121);
     renderApp("/", up());
-    expect(await screen.findByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Daily stand-up" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Continue session" })).toBeNull();
     expect(endSession).toHaveBeenCalledWith("s1", timing);
     await vi.waitFor(() => expect(localStorage.getItem("voxa.liveSession")).toBeNull());

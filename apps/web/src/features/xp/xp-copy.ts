@@ -4,7 +4,8 @@ import type { XpReason } from "@/lib/api";
 export interface XpCopy {
   todayGoal: string;
   ringLabel: (earned: number, goal: number) => string;
-  toGo: (xp: number) => string;
+  /** The XP on Today's goal bar. */
+  xpOf: (earned: number, goal: number) => string;
   goalMet: string;
   streak: (days: number) => string;
   /** The streak on Today's one-line goal. */
@@ -22,7 +23,7 @@ export const XP_COPY: Copy<XpCopy> = {
   en: {
     todayGoal: "Today's goal",
     ringLabel: (e, g) => `${e} of ${g} XP today`,
-    toGo: (xp) => `${xp} XP to today's goal.`,
+    xpOf: (e, g) => `${e} / ${g} XP`,
     goalMet: "Goal met for today.",
     streak: (d) => (d === 1 ? "1 day in a row" : `${d} days in a row`),
     streakShort: (d) => (d === 1 ? "1 day" : `${d} days`),
@@ -41,7 +42,7 @@ export const XP_COPY: Copy<XpCopy> = {
   "pt-BR": {
     todayGoal: "Meta de hoje",
     ringLabel: (e, g) => `${e} de ${g} XP hoje`,
-    toGo: (xp) => `Faltam ${xp} XP para a meta de hoje.`,
+    xpOf: (e, g) => `${e} / ${g} XP`,
     goalMet: "Meta de hoje batida.",
     streak: (d) => (d === 1 ? "1 dia seguido" : `${d} dias seguidos`),
     streakShort: (d) => (d === 1 ? "1 dia" : `${d} dias`),

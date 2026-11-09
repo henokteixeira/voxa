@@ -13,11 +13,11 @@ const today = (earnedXp: number, streakDays: number): TodayProgress => ({
   points: { goal_covered: 0, personal_record: 0, practice_minute: 0, self_corrected: 0 },
 });
 
-describe("Today's goal in one line", () => {
-  it("shows what is left and the streak, read in full by a screen reader", () => {
+describe("Today's goal as a bar", () => {
+  it("shows the XP and the streak, read in full by a screen reader", () => {
     render(<TodayGoalCard today={today(10, 3)} />);
     const goal = screen.getByRole("region", { name: "Today's goal" });
-    expect(goal).toHaveTextContent("30 XP to today's goal.");
+    expect(goal).toHaveTextContent("10 / 40 XP");
     expect(screen.getByRole("img", { name: "10 of 40 XP today" })).toBeInTheDocument();
     expect(goal).toHaveTextContent("3 days in a row");
   });

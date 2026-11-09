@@ -20,6 +20,7 @@ export interface ReflectionCopy {
   smallDetailsNote: string;
   tryThem: string;
   later: string;
+  continueMission: string;
   reviewSaved: string;
   reviewSavedNote: string;
   reviewXp: (xp: number) => string;
@@ -78,6 +79,7 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     smallDetailsNote: "They didn't get in the way. Saved for your practice.",
     tryThem: "Try them · 1 min",
     later: "Later",
+    continueMission: "Continue mission",
     reviewSaved: "Saved for your review",
     reviewSavedNote: "Mistakes are how you learn. These will come back a little later each time.",
     reviewXp: (xp) => `+${xp} XP toward today's goal`,
@@ -136,6 +138,7 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     smallDetailsNote: "Não atrapalharam. Guardados para a sua prática.",
     tryThem: "Tentar · 1 min",
     later: "Depois",
+    continueMission: "Continuar missão",
     reviewSaved: "Guardado para sua revisão",
     reviewSavedNote: "É errando que se aprende. Eles vão voltar, cada vez um pouco mais tarde.",
     reviewXp: (xp) => `+${xp} XP para a meta de hoje`,
