@@ -22,6 +22,11 @@ KOKORO_SAMPLE_RATE = 24000
 MIXED_PROMPT = "So, the planilha is ready and the diretoria wants to see it before the culto."
 DEFAULT_WHISPER_MODEL = "medium"
 
+# Greedy first, so the learner's mistakes survive. The hotter retries run only when a window
+# compresses too well, which is Whisper stuck repeating a word ("some some some ...").
+GREEDY_THEN_FALLBACK = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
+LOOP_COMPRESSION_RATIO = 2.4
+
 
 class EngineError(Exception):
     """A model failed to load or to run."""
@@ -92,7 +97,8 @@ class WhisperStt:
             segments, info = model.transcribe(
                 audio,
                 language=language,
-                temperature=0.0,
+                temperature=GREEDY_THEN_FALLBACK,
+                compression_ratio_threshold=LOOP_COMPRESSION_RATIO,
                 condition_on_previous_text=False,
                 initial_prompt=prompt,
             )
