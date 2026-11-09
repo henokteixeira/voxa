@@ -155,6 +155,13 @@
       "when": 1794076319125,
       "tag": "0021_session_memory",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794192547419,
+      "tag": "0022_faster_rounds",
+      "breakpoints": true
     }
   ]
 }

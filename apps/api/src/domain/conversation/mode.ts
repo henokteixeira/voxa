@@ -19,3 +19,8 @@ export function correctsMistakes(mode: Mode): boolean {
 export function rewardsGoals(mode: Mode): boolean {
   return mode !== "placement";
 }
+
+/** "Say it faster" retells a practice conversation; the placement interview is not practice. */
+export function hasFasterRounds(mode: Mode): boolean {
+  return mode !== "placement";
+}
