@@ -31,7 +31,7 @@ const told = (round: number, transcript = "I finished the login screen", speechM
 describe("FasterRoundsService", () => {
   it("stores each round in order and gives the result after the third", async () => {
     const { service, rounds } = setup();
-    expect(await service.view("s1")).toMatchObject({ rounds: [], nextRound: 1, nextLimitMs: 120_000, result: null });
+    expect(await service.view("s1")).toMatchObject({ language: "en", rounds: [], nextRound: 1, nextLimitMs: 120_000, result: null });
 
     const afterOne = await service.record("s1", told(1));
     expect(afterOne).toMatchObject({ nextRound: 2, nextLimitMs: 90_000, result: null });

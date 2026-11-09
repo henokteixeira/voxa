@@ -27,6 +27,8 @@ export interface ToldRound {
 }
 
 export interface FasterRoundsView {
+  /** The session's language: the rounds are told in it. */
+  language: string;
   rounds: FasterRound[];
   /** The round to tell next, or null when the 3 are told. */
   nextRound: number | null;
@@ -44,8 +46,8 @@ export class FasterRoundsService {
   ) {}
 
   async view(sessionId: string): Promise<FasterRoundsView> {
-    await this.practiceSession(sessionId);
-    return this.viewOf(sessionId);
+    const session = await this.practiceSession(sessionId);
+    return this.viewOf(session);
   }
 
   /** Stores the next round. Sending a round already stored again (a retry) changes nothing. */
@@ -57,7 +59,7 @@ export class FasterRoundsService {
       throw new InvalidInputError(`Round ${told.round} comes after round ${stored.length + 1}, which was not told yet.`);
     }
     // A round sent again (a retry) keeps what was stored first.
-    if (told.round <= stored.length) return this.viewOf(sessionId);
+    if (told.round <= stored.length) return this.viewOf(session);
     const timeLimitMs = roundLimitMs(told.round);
     if (told.speechMs > timeLimitMs + FASTER_ROUND_GRACE_MS) {
       throw new InvalidInputError(`Round ${told.round} has ${timeLimitMs / 1000} s; ${told.speechMs} ms of speech is too long.`);
@@ -73,11 +75,11 @@ export class FasterRoundsService {
       longPauses: told.longPausesMs.filter((ms) => ms >= LONG_PAUSE_MS).length,
       recordedAt: this.clock.now(),
     });
-    return this.viewOf(sessionId);
+    return this.viewOf(session);
   }
 
-  private async viewOf(sessionId: string): Promise<FasterRoundsView> {
-    const rounds: FasterRound[] = (await this.rounds.list(sessionId)).map(
+  private async viewOf(session: { id: string; language: string }): Promise<FasterRoundsView> {
+    const rounds: FasterRound[] = (await this.rounds.list(session.id)).map(
       ({ round, timeLimitMs, transcript, spokenWords, speechMs, longPauses }) => ({
         round,
         timeLimitMs,
@@ -89,6 +91,7 @@ export class FasterRoundsService {
     );
     const nextRound = rounds.length < FASTER_ROUNDS ? rounds.length + 1 : null;
     return {
+      language: session.language,
       rounds,
       nextRound,
       nextLimitMs: nextRound === null ? null : roundLimitMs(nextRound),
