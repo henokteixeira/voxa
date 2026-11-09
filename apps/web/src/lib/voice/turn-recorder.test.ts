@@ -57,7 +57,7 @@ describe("TurnRecorder", () => {
     feed(recorder, 0.001, 1000);
     feed(recorder, 0.2, 500);
     const end = feed(recorder, 0.001, 1500);
-    expect(end).toEqual([expect.objectContaining({ type: "turn", pausesMs: [1000] })]);
+    expect(end).toEqual([expect.objectContaining({ type: "turn", pausesMs: [1000], trailingSilenceMs: 1500 })]);
   });
 
   it("keeps the silences inside the turn when it is sent early", () => {
@@ -66,7 +66,9 @@ describe("TurnRecorder", () => {
     feed(recorder, 0.2, 500);
     feed(recorder, 0.001, 1000);
     feed(recorder, 0.2, 500);
-    expect(recorder.flush()?.pausesMs).toEqual([1000]);
+    feed(recorder, 0.001, 400);
+    // Sent early: the silence it ends with is only what was heard after the last word.
+    expect(recorder.flush()).toMatchObject({ pausesMs: [1000], trailingSilenceMs: 400 });
   });
 
   it("forgets the turn on discard", () => {
