@@ -87,9 +87,9 @@ export class MissionService {
     const used = await this.coach.usedExpression(mission.language, expression, said);
     if (used) {
       const now = this.clock.now();
-      if (await this.missions.markSaid(expressionId, now)) {
-        await this.reviews.learned(mission.language, { kind: "expression", id: expressionId }, now);
-      }
+      await this.missions.markSaid(expressionId, now);
+      // Always asked (it schedules only once): a failure after marking it said is mended by the next use.
+      await this.reviews.learned(mission.language, { kind: "expression", id: expressionId }, now);
     }
     return { used };
   }

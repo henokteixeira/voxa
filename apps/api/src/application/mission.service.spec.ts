@@ -125,9 +125,10 @@ describe("MissionService", () => {
     expect(reviews.learned).toHaveBeenCalledWith("en", { kind: "expression", id: first.id }, clock.at);
     expect((await service.model(id)).expressions[0].saidAt).toEqual(clock.at);
 
-    // Using it again is still checked, but it is in the review once.
+    // Using it again is still checked; the review schedules it only once, so asking again is safe.
     expect(await service.say(id, first.id, "Phrase 1 again")).toEqual({ used: true });
-    expect(reviews.learned).toHaveBeenCalledTimes(1);
+    expect(reviews.learned).toHaveBeenCalledTimes(2);
+    expect((await service.model(id)).expressions[0].saidAt).toEqual(clock.at);
   });
 
   it("refuses an expression of another mission or before the model", async () => {
