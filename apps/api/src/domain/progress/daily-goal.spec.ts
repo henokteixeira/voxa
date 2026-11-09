@@ -84,6 +84,14 @@ describe("xpForFasterRounds", () => {
     ]);
   });
 
+  it("lands on the day of the session's latest round, whatever the order", () => {
+    const rounds = [round("a", 60_000, "2026-11-10T02:59:00Z"), round("a", 60_000, "2026-11-10T03:01:00Z"), round("a", 60_000, "2026-11-10T03:00:00Z")];
+    // 03:01 UTC is just past midnight in São Paulo: the XP is the new day's.
+    const [award] = xpForFasterRounds(rounds);
+    expect(award.awardedAt).toEqual(new Date("2026-11-10T03:01:00Z"));
+    expect(localDay(award.awardedAt, "America/Sao_Paulo")).toBe("2026-11-10");
+  });
+
   it("has nothing without rounds", () => {
     expect(xpForFasterRounds([])).toEqual([]);
   });

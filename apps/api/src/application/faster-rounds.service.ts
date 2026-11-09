@@ -100,7 +100,7 @@ export class FasterRoundsService {
       nextRound,
       nextLimitMs: nextRound === null ? null : roundLimitMs(nextRound),
       result: fasterResult(rounds),
-      xp: xpForFasterRounds(stored)[0]?.total ?? 0,
+      xp: xpForFasterRounds(stored).reduce((sum, { total }) => sum + total, 0),
     };
   }
 
