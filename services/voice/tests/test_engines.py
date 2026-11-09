@@ -35,9 +35,16 @@ def test_whisper_decodes_literally_with_pinned_language():
     model = FakeWhisperModel()
     stt_with(model).transcribe("a.wav", "en")
     assert model.kwargs["language"] == "en"
-    assert model.kwargs["temperature"] == 0.0
+    assert model.kwargs["temperature"][0] == 0.0
     assert model.kwargs["condition_on_previous_text"] is False
     assert model.kwargs["initial_prompt"] is None
+
+
+def test_whisper_retries_hotter_when_greedy_decoding_loops():
+    model = FakeWhisperModel()
+    stt_with(model).transcribe("a.wav", "en")
+    assert model.kwargs["temperature"] == (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
+    assert model.kwargs["compression_ratio_threshold"] == 2.4
 
 
 def test_whisper_uses_configured_initial_prompt():

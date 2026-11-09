@@ -36,7 +36,8 @@ Read from the process environment (the root `.env` is not loaded here; export th
 | `VOICE_WARMUP` | `1` | `0` loads the models on first use instead of at startup |
 
 Whisper decodes literally on purpose (temperature 0, no conditioning on previous text): the tutor
-needs the learner's mistakes, not a cleaned-up sentence.
+needs the learner's mistakes, not a cleaned-up sentence. Only a window that loops on a repeated word
+is decoded again at a higher temperature.
 
 ## Evaluation (run on your PC)
 
