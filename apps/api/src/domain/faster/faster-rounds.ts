@@ -1,3 +1,5 @@
+import { wordsPerMinute } from "../conversation/fluency.js";
+
 /**
  * "Say it faster" (a shortened 4/3/2): after a conversation the learner tells the same content 3 times,
  * each time with less time, and with no correction. The app shows how his pace changed.
@@ -52,12 +54,7 @@ export function roundLimitMs(round: number): number {
 }
 
 export function roundPace(round: Pick<FasterRound, "round" | "spokenWords" | "speechMs" | "longPauses">): RoundPace {
-  const minutes = round.speechMs / 60_000;
-  return {
-    round: round.round,
-    wordsPerMinute: minutes > 0 && round.spokenWords > 0 ? Math.round(round.spokenWords / minutes) : null,
-    longPauses: round.longPauses,
-  };
+  return { round: round.round, wordsPerMinute: wordsPerMinute(round.spokenWords, round.speechMs), longPauses: round.longPauses };
 }
 
 /** The result of the 3 rounds (given in order), or null while some are missing. */
