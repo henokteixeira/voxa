@@ -6,8 +6,6 @@ type Problem = Extract<ApiStatus, "unreachable" | "error">;
 
 export interface TodayCopy {
   greeting: (hour: number) => string;
-  welcomeTitle: string;
-  welcomeBody: string;
   offlineTitle: string;
   offlineBody: string;
   problem: Record<Problem, { title: string; detail: ReactNode }>;
@@ -36,10 +34,6 @@ export const LANGUAGE_NAMES: Record<Locale, string> = { "pt-BR": "Português", e
 export const TODAY_COPY: Copy<TodayCopy> = {
   en: {
     greeting: (h) => (h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"),
-    welcomeTitle: "Mistakes are welcome here",
-    welcomeBody:
-      "This is a safe place to practice. Stuck on a word? Say it in Portuguese, and Voxa helps you say it in English. " +
-      "Voxa's AI makes mistakes too, and tells you when it doesn't know something.",
     offlineTitle: "Sessions need a connection",
     offlineBody: "Connect to the internet and Voxa checks again on its own.",
     problem: {
@@ -78,10 +72,6 @@ export const TODAY_COPY: Copy<TodayCopy> = {
   },
   "pt-BR": {
     greeting: (h) => (h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"),
-    welcomeTitle: "Aqui, errar faz parte",
-    welcomeBody:
-      "Este é um lugar seguro para praticar. Travou numa palavra? Diga em português e o Voxa ajuda você a dizer em inglês. " +
-      "A IA do Voxa também erra e avisa quando não sabe algo.",
     offlineTitle: "As sessões precisam de internet",
     offlineBody: "Conecte-se à internet e o Voxa verifica de novo sozinho.",
     problem: {

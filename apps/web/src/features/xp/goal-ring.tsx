@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 const RADIUS = 40;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
+/** A ring smaller than this shows no numbers: they would not fit. */
+const COMPACT_SIZE = 64;
+
 /** Today's XP against the daily goal. Fills from empty when it appears (only the colour with reduced motion). */
 export function GoalRing({ value, goal, size = 92, label }: { value: number; goal: number; size?: number; label: string }) {
   const share = goal > 0 ? Math.min(value, goal) / goal : 0;
@@ -31,12 +34,17 @@ export function GoalRing({ value, goal, size = 92, label }: { value: number; goa
           opacity={shown === 0 ? 0 : 1}
         />
       </svg>
-      <span aria-hidden="true" className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className={`font-serif tabular-nums leading-none ${met ? "text-sage-ink" : ""}`} style={{ fontSize: size * 0.24 }}>
-          {value}
+      {size >= COMPACT_SIZE && (
+        <span aria-hidden="true" className="absolute inset-0 flex flex-col items-center justify-center">
+          <span
+            className={`font-serif tabular-nums leading-none ${met ? "text-sage-ink" : ""}`}
+            style={{ fontSize: size * 0.24 }}
+          >
+            {value}
+          </span>
+          <span className="text-[11px] text-taupe tabular-nums">/ {goal}</span>
         </span>
-        <span className="text-[11px] text-taupe tabular-nums">/ {goal}</span>
-      </span>
+      )}
     </div>
   );
 }
