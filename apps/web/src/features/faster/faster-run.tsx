@@ -1,3 +1,4 @@
+import { BALL_RING_SPACE } from "@/components/ball-ring";
 import { useContext, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { VoiceBall } from "@/components/voice-ball";
@@ -186,7 +187,7 @@ export function FasterRun({ sessionId, onDone }: { sessionId: string; onDone: ()
       </div>
       <p className="m-0 text-body text-ink-soft">{copy.task}</p>
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <div className="relative">
+        <div className="relative inline-flex" style={{ padding: BALL_RING_SPACE }}>
           <VoiceBall state={step.kind === "saving" ? "thinking" : tellingStep ? "listening" : "idle"} size={BALL} />
           {tellingStep && <TimeRing ballSize={BALL} share={Math.max(0, leftMs) / limitMs} />}
         </div>
