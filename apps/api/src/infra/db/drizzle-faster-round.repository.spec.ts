@@ -35,4 +35,20 @@ describe("DrizzleFasterRoundRepository", () => {
 
     expect(await rounds.list(session.id)).toEqual([round(1, "first"), round(2, "second")]);
   });
+
+  it("lists the rounds told since a time, in one language", async () => {
+    const sessionRepo = new DrizzleSessionRepository(db);
+    const en = await sessionRepo.create({ language: "en", mode: "daily" });
+    const es = await sessionRepo.create({ language: "es", mode: "daily" });
+    const round = (sessionId: string, language: string, n: number, at: string): FasterRoundRecord => ({
+      sessionId, language, round: n, timeLimitMs: 120_000, transcript: "t", spokenWords: 1, speechMs: 60_000, longPauses: 0, recordedAt: new Date(at),
+    });
+    await rounds.saveOnce(round(en.id, "en", 1, "2026-11-08T10:00:00Z"));
+    await rounds.saveOnce(round(en.id, "en", 2, "2026-11-09T10:00:00Z"));
+    await rounds.saveOnce(round(es.id, "es", 1, "2026-11-09T10:00:00Z"));
+
+    expect(await rounds.toldSince("en", new Date("2026-11-09T00:00:00Z"))).toEqual([
+      { sessionId: en.id, speechMs: 60_000, recordedAt: new Date("2026-11-09T10:00:00Z") },
+    ]);
+  });
 });

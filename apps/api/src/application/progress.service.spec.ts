@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { SessionTiming } from "../domain/conversation/fluency.js";
 import type { Clock } from "../domain/ports/clock.port.js";
 import type { Database } from "../infra/db/db.module.js";
+import { DrizzleFasterRoundRepository } from "../infra/db/drizzle-faster-round.repository.js";
 import { DrizzleMistakeRepository } from "../infra/db/drizzle-mistake.repository.js";
 import { DrizzleProgressRepository } from "../infra/db/drizzle-progress.repository.js";
 import { DrizzleReviewRepository } from "../infra/db/drizzle-review.repository.js";
@@ -22,7 +23,7 @@ beforeEach(async () => {
   ({ db, close } = await createTestDatabase());
   sessions = new DrizzleSessionRepository(db);
   reviews = new DrizzleReviewRepository(db);
-  service = new ProgressService(new DrizzleProgressRepository(db), sessions, clock, reviews);
+  service = new ProgressService(new DrizzleProgressRepository(db), sessions, clock, reviews, new DrizzleFasterRoundRepository(db));
   now = new Date("2026-11-07T15:00:00Z");
 });
 afterEach(() => close());
@@ -129,6 +130,19 @@ describe("ProgressService.today", () => {
     await reviews.addCard(subject, { cue: "Qual é o prazo?", answer: "What is the deadline?" }); // never answered
 
     expect((await service.today("en", tz)).earnedXp).toBe(1);
+  });
+
+  it("adds 1 XP a minute of say-it-faster speech, the session's rounds added up", async () => {
+    const sessionId = await endedSession(null);
+    const rounds = new DrizzleFasterRoundRepository(db);
+    const told = (round: number, speechMs: number, at: string) =>
+      rounds.saveOnce({ sessionId, language: "en", round, timeLimitMs: 120_000, transcript: "I fixed the bug", spokenWords: 4, speechMs, longPauses: 0, recordedAt: new Date(at) });
+    await told(1, 110_000, "2026-11-07T14:00:00Z");
+    await told(2, 85_000, "2026-11-07T14:03:00Z");
+    await told(3, 58_000, "2026-11-07T14:05:00Z");
+
+    expect((await service.today("en", tz)).earnedXp).toBe(4);
+    expect((await service.today("es", tz)).earnedXp).toBe(0);
   });
 
   it("adds up today's XP in the learner's day and counts the streak", async () => {

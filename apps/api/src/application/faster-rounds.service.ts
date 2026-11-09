@@ -12,6 +12,7 @@ import {
   LONG_PAUSE_MS,
   roundLimitMs,
 } from "../domain/faster/faster-rounds.js";
+import { xpForFasterRounds } from "../domain/progress/daily-goal.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { FASTER_ROUND_REPOSITORY, type FasterRoundRepository } from "../domain/ports/faster-round.repository.js";
 import { SESSION_REPOSITORY, type SessionRepository } from "../domain/ports/session.repository.js";
@@ -34,6 +35,8 @@ export interface FasterRoundsView {
   nextRound: number | null;
   nextLimitMs: number | null;
   result: FasterResult | null;
+  /** XP the rounds earned so far, already counted in today's goal. */
+  xp: number;
 }
 
 /** "Say it faster": the rounds told after an ended practice session, and how the pace changed. */
@@ -79,7 +82,8 @@ export class FasterRoundsService {
   }
 
   private async viewOf(session: { id: string; language: string }): Promise<FasterRoundsView> {
-    const rounds: FasterRound[] = (await this.rounds.list(session.id)).map(
+    const stored = await this.rounds.list(session.id);
+    const rounds: FasterRound[] = stored.map(
       ({ round, timeLimitMs, transcript, spokenWords, speechMs, longPauses }) => ({
         round,
         timeLimitMs,
@@ -96,6 +100,7 @@ export class FasterRoundsService {
       nextRound,
       nextLimitMs: nextRound === null ? null : roundLimitMs(nextRound),
       result: fasterResult(rounds),
+      xp: xpForFasterRounds(stored)[0]?.total ?? 0,
     };
   }
 

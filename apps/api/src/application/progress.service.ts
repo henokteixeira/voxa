@@ -13,9 +13,11 @@ import {
   XP_POINTS,
   type XpAward,
   type XpReason,
+  xpForFasterRounds,
   xpForSession,
 } from "../domain/progress/daily-goal.js";
 import { rewardsGoals } from "../domain/conversation/mode.js";
+import { FASTER_ROUND_REPOSITORY, type FasterRoundRepository } from "../domain/ports/faster-round.repository.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { PROGRESS_REPOSITORY, type ProgressRepository } from "../domain/ports/progress.repository.js";
 import { REVIEW_REPOSITORY, type ReviewRepository } from "../domain/ports/review.repository.js";
@@ -69,18 +71,21 @@ export class ProgressService {
     @Inject(SESSION_REPOSITORY) private readonly sessions: Pick<SessionRepository, "get" | "outcome">,
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(REVIEW_REPOSITORY) private readonly reviews: Pick<ReviewRepository, "answeredSince">,
+    @Inject(FASTER_ROUND_REPOSITORY) private readonly fasterRounds: Pick<FasterRoundRepository, "toldSince">,
   ) {}
 
   async today(language: string, timeZone: string): Promise<TodayProgress> {
     const now = this.clock.now();
     const since = new Date(now.getTime() - STREAK_LOOKBACK_DAYS * 86_400_000);
-    const [history, sessionsEarned, reviewsAnswered] = await Promise.all([
+    const [history, sessionsEarned, reviewsAnswered, roundsTold] = await Promise.all([
       this.progress.dailyMinutesHistory(language),
       this.progress.earnedSince(language, since),
       this.reviews.answeredSince(language, since),
+      this.fasterRounds.toldSince(language, since),
     ]);
     const earned = [
       ...sessionsEarned,
+      ...xpForFasterRounds(roundsTold),
       ...cardsEarningXp(reviewsAnswered, timeZone).map(({ answeredAt }) => ({ total: XP_PER_REVIEW, awardedAt: answeredAt })),
     ];
 

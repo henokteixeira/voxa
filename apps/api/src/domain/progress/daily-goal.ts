@@ -61,6 +61,35 @@ export function cardsEarningXp<T extends { itemId: string; answeredAt: Date }>(a
   });
 }
 
+/** A "say it faster" round as XP needs it. */
+export interface ToldRoundTime {
+  sessionId: string;
+  /** The learner's speech in the round. */
+  speechMs: number;
+  recordedAt: Date;
+}
+
+/**
+ * XP for the "say it faster" rounds (decided on 2026-11-09): 1 XP a minute of speech, like the conversation.
+ * A session's rounds add up before rounding down, so 3 short rounds still earn their minutes. The XP lands on the
+ * day of the session's latest round.
+ */
+export function xpForFasterRounds(rounds: readonly ToldRoundTime[]): { sessionId: string; total: number; awardedAt: Date }[] {
+  const bySession = new Map<string, { speechMs: number; awardedAt: Date }>();
+  for (const { sessionId, speechMs, recordedAt } of rounds) {
+    const seen = bySession.get(sessionId);
+    bySession.set(sessionId, {
+      speechMs: (seen?.speechMs ?? 0) + speechMs,
+      awardedAt: seen && seen.awardedAt > recordedAt ? seen.awardedAt : recordedAt,
+    });
+  }
+  return [...bySession].map(([sessionId, { speechMs, awardedAt }]) => ({
+    sessionId,
+    total: Math.floor(speechMs / 60_000) * XP_POINTS.practice_minute,
+    awardedAt,
+  }));
+}
+
 /** XP earned in one session, by reason. */
 export interface XpAward {
   reason: XpReason;
