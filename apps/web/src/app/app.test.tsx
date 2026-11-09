@@ -171,7 +171,7 @@ describe("Today", () => {
   it("starts in Portuguese and switches the interface to English", async () => {
     renderApp("/", up(), { withLocale: true });
     expect(await screen.findByRole("heading", { name: "O que você quer treinar agora?" })).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "Categorias de treino" })).toHaveTextContent("Contar uma história");
+    expect(screen.getByRole("link", { name: /Contar uma história/ })).toHaveTextContent(/^Contar uma históriaCerca de 6 min$/);
     expect(screen.getByRole("navigation", { name: "Principal" })).toHaveTextContent("HojePraticarProgresso");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^(Bom dia|Boa tarde|Boa noite)$/);
 

@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { SegmentedSetting } from "@/components/ui/segmented";
 import { Sheet } from "@/components/ui/sheet";
 import { VoiceBall } from "@/components/voice-ball";
-import { lengthOf, useModeInfo } from "@/features/session/modes";
+import { useModeInfo } from "@/features/session/modes";
 import { MemoryLink } from "@/features/memory/memory-link";
 import { DailyGoalSetting, SoundSetting } from "@/features/settings/practice-settings";
 import { TodayGoalCard } from "@/features/xp/today-goal-card";
@@ -87,7 +87,7 @@ function CategoryGroup({ title, list }: { title: string; list: readonly Mode[] }
             className="flex min-h-[68px] flex-col justify-center gap-0.5 rounded-md bg-paper px-3.5 py-3 text-ink no-underline shadow-card transition-[transform,background-color] duration-150 hover:bg-sand-soft motion-safe:active:scale-[0.98]"
           >
             <b className="text-small leading-tight">{modes[mode].title}</b>
-            <span className="text-caption text-taupe">{lengthOf(modes[mode])}</span>
+            <span className="text-caption text-taupe">{modes[mode].length}</span>
           </Link>
         ))}
       </div>
