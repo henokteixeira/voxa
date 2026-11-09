@@ -106,7 +106,8 @@ describe("What Voxa knows about you", () => {
     renderMemory({ learnerFacts: vi.fn().mockResolvedValue([job, trip]), editLearnerFact: vi.fn().mockRejectedValue(gone) });
     await userEvent.click(await screen.findByRole("button", { name: "Edit: Works at Joqum." }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(await screen.findByRole("heading", { name: "What Voxa knows about you" })).toHaveFocus();
+    const title = await screen.findByRole("heading", { name: "What Voxa knows about you" });
+    await waitFor(() => expect(title).toHaveFocus());
     expect(screen.queryByText("Works at Joqum.")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
