@@ -15,6 +15,9 @@ export function CheckInComparison({ result }: { result: CheckInResult }) {
   const copy = useCopy(CHECK_IN_COPY);
   const date = useCheckInDate();
   const { checkIn, previous } = result;
+  // The button that ended the recording is gone: the title takes the focus, so the result is read out.
+  const title = useRef<HTMLHeadingElement>(null);
+  useEffect(() => title.current?.focus(), []);
   const rows = previous
     ? [
         {
@@ -28,7 +31,7 @@ export function CheckInComparison({ result }: { result: CheckInResult }) {
     : [];
   return (
     <>
-      <h1 className="m-0 font-serif text-[26px] leading-tight font-normal">
+      <h1 ref={title} tabIndex={-1} className="m-0 font-serif text-[26px] leading-tight font-normal outline-none">
         {previous ? copy.gainTitle(clearestGain(checkIn, previous)) : copy.firstTitle}
       </h1>
       {previous ? (

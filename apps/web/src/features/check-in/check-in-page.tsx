@@ -76,7 +76,11 @@ export function CheckInPage() {
       .then(([, overview]) => {
         if (cancelled) return;
         setLimitMs(overview.limitMs);
-        setStep(overview.due ? { kind: "ready" } : { kind: "ready", problem: "not_due" });
+        if (overview.due) return setStep({ kind: "ready" });
+        // Nothing to record: the microphone goes off.
+        mic.current?.stop();
+        mic.current = null;
+        setStep({ kind: "ready", problem: "not_due" });
       })
       .catch(
         (error: unknown) =>
@@ -111,7 +115,14 @@ export function CheckInPage() {
     if (speechMs === 0) return setStep({ kind: "ready", problem: "not_heard" });
     setStep({ kind: "saving" });
     try {
-      setStep({ kind: "result", result: await api.recordCheckIn(clip.current.wav(), { speechMs, pausesMs: longPausesMs }) });
+      const wav = clip.current.wav();
+      // The frames are in the WAV now: free them (about 4 MB for 2 minutes).
+      clip.current = new ClipRecorder();
+      const result = await api.recordCheckIn(wav, { speechMs, pausesMs: longPausesMs });
+      // Done for 2 weeks: the microphone goes off.
+      mic.current?.stop();
+      mic.current = null;
+      setStep({ kind: "result", result });
     } catch (error) {
       setStep({ kind: "ready", problem: error instanceof ApiError && error.kind === "invalid" ? "not_heard" : "failed" });
     }
@@ -165,6 +176,7 @@ export function CheckInPage() {
 
       {(step.kind === "ready" || step.kind === "recording" || step.kind === "saving") && (
         <>
+          <h1 className="sr-only">{copy.label}</h1>
           <section aria-label={copy.yourTask} className="flex flex-col gap-1.5 rounded-lg bg-paper px-5 py-4 shadow-card">
             <span className="text-label text-taupe">{copy.yourTask}</span>
             <span className="font-serif text-[22px] leading-snug">{copy.task}</span>

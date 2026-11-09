@@ -65,7 +65,7 @@ export const CHECK_IN_COPY: Copy<CheckInCopy> = {
         ? "You told it again. Listen to how it sounds now."
         : gain.kind === "pace"
           ? `Last time you said ${gain.before} words a minute. Today, ${gain.now}.`
-          : `Last time you paused ${gain.before} times. Today, ${gain.now}.`,
+          : `Last time you paused ${gain.before} ${gain.before === 1 ? "time" : "times"}. Today, ${gain.now}.`,
     today: "Today",
     wordsPerMinute: "Words per minute",
     longPauses: "Long pauses",
@@ -103,7 +103,7 @@ export const CHECK_IN_COPY: Copy<CheckInCopy> = {
         ? "Você contou de novo. Ouça como soa agora."
         : gain.kind === "pace"
           ? `Da última vez você falou ${gain.before} palavras por minuto. Hoje, ${gain.now}.`
-          : `Da última vez você pausou ${gain.before} vezes. Hoje, ${gain.now}.`,
+          : `Da última vez você pausou ${gain.before} ${gain.before === 1 ? "vez" : "vezes"}. Hoje, ${gain.now}.`,
     today: "Hoje",
     wordsPerMinute: "Palavras por minuto",
     longPauses: "Pausas longas",

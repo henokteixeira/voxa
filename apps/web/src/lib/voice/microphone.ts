@@ -8,9 +8,9 @@ import { type RecordedTurn, TurnRecorder } from "./turn-recorder";
 export interface MicrophoneHandlers {
   /** The learner started talking. */
   onSpeechStart(): void;
-  /** A finished turn, as 16 kHz WAV, with the silences inside it. */
   /** Every frame heard while listening, for a recording of the whole stretch (not only the turns). */
   onAudio?(frame: Float32Array, sampleRate: number): void;
+  /** A finished turn, as 16 kHz WAV, with the silences inside it and the silence it ended with. */
   onTurn(wav: ArrayBuffer, turn?: Pick<RecordedTurn, "pausesMs"> & Partial<Pick<RecordedTurn, "trailingSilenceMs">>): void;
 }
 
