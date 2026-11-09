@@ -1,4 +1,4 @@
-import type { Mission, MissionModel, MissionSituation } from "../mission/mission.js";
+import type { Mission, MissionModel, MissionSituation, NewMissionModel } from "../mission/mission.js";
 import type { LocalDay } from "../progress/daily-goal.js";
 
 export interface NewMission {
@@ -17,7 +17,7 @@ export interface MissionRepository {
   latestBefore(language: string, day: LocalDay): Promise<Mission | null>;
   get(id: string): Promise<Mission | null>;
   /** Keeps the mission's model once: when it already has one (two requests at once), that one is kept and returned. */
-  saveModel(id: string, model: MissionModel): Promise<MissionModel>;
+  saveModel(id: string, model: NewMissionModel): Promise<MissionModel>;
 }
 
 export const MISSION_REPOSITORY = Symbol("MISSION_REPOSITORY");

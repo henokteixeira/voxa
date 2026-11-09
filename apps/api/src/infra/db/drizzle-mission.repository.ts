@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { and, asc, desc, eq, isNull, lt } from "drizzle-orm";
-import { isMissionSituation, type Mission, type MissionModel } from "../../domain/mission/mission.js";
+import { isMissionSituation, type Mission, type MissionModel, type NewMissionModel } from "../../domain/mission/mission.js";
 import type { MissionRepository, NewMission } from "../../domain/ports/mission.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
 import { missionExpressions, missions } from "./schema.js";
@@ -41,7 +41,7 @@ export class DrizzleMissionRepository implements MissionRepository {
     return row ? this.toMission(row) : null;
   }
 
-  async saveModel(id: string, model: MissionModel): Promise<MissionModel> {
+  async saveModel(id: string, model: NewMissionModel): Promise<MissionModel> {
     await this.db.transaction(async (tx) => {
       const saved = await tx
         .update(missions)
@@ -61,7 +61,7 @@ export class DrizzleMissionRepository implements MissionRepository {
     const { modelSpeaker, modelText, ...mission } = row;
     if (modelSpeaker === null || modelText === null) return { ...mission, situation: row.situation, model: null };
     const expressions = await this.db
-      .select({ position: missionExpressions.position, phrase: missionExpressions.phrase, example: missionExpressions.example })
+      .select({ id: missionExpressions.id, position: missionExpressions.position, phrase: missionExpressions.phrase, example: missionExpressions.example })
       .from(missionExpressions)
       .where(eq(missionExpressions.missionId, row.id))
       .orderBy(asc(missionExpressions.position));

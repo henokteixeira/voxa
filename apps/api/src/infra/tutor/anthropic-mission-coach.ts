@@ -3,7 +3,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { z } from "zod";
 import type { Env } from "../../config/env.js";
-import { MISSION_EXPRESSIONS, type MissionModel } from "../../domain/mission/mission.js";
+import { MISSION_EXPRESSIONS, type NewMissionModel } from "../../domain/mission/mission.js";
 import type { MissionCoachPort, ModelRequest } from "../../domain/ports/mission-coach.port.js";
 import { TutorUnavailableError } from "../../domain/ports/tutor.port.js";
 import { ANTHROPIC_CLIENT, type AnthropicMessages } from "./anthropic-tutor.adapter.js";
@@ -36,7 +36,7 @@ export class AnthropicMissionCoach implements MissionCoachPort {
     this.effort = config.get("ANTHROPIC_EFFORT", { infer: true });
   }
 
-  async model(request: ModelRequest): Promise<MissionModel> {
+  async model(request: ModelRequest): Promise<NewMissionModel> {
     let response;
     try {
       response = await this.messages.parse({
@@ -60,7 +60,7 @@ export class AnthropicMissionCoach implements MissionCoachPort {
 }
 
 /** The trimmed model, or an error when its text or its 3 expressions are not usable. */
-function checked(output: z.infer<typeof ModelSchema>): MissionModel {
+function checked(output: z.infer<typeof ModelSchema>): NewMissionModel {
   const speaker = output.speaker.trim();
   const text = output.text.trim();
   const expressions = output.expressions.map((e, i) => ({ position: i + 1, phrase: e.phrase.trim(), example: e.example.trim() }));

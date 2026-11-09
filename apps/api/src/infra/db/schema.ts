@@ -369,6 +369,7 @@ export const missions = pgTable(
 export const missionExpressions = pgTable(
   "mission_expressions",
   {
+    id: uuid("id").primaryKey().defaultRandom(),
     missionId: uuid("mission_id")
       .notNull()
       .references(() => missions.id, { onDelete: "cascade" }),
@@ -376,5 +377,5 @@ export const missionExpressions = pgTable(
     phrase: text("phrase").notNull(),
     example: text("example").notNull(),
   },
-  (t) => [primaryKey({ columns: [t.missionId, t.position] }), check("mission_expressions_position", sql`${t.position} between 1 and 3`)],
+  (t) => [unique("mission_expressions_mission_position").on(t.missionId, t.position), check("mission_expressions_position", sql`${t.position} between 1 and 3`)],
 );

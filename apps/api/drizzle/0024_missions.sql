@@ -1,9 +1,10 @@
 CREATE TABLE "mission_expressions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"mission_id" uuid NOT NULL,
 	"position" smallint NOT NULL,
 	"phrase" text NOT NULL,
 	"example" text NOT NULL,
-	CONSTRAINT "mission_expressions_mission_id_position_pk" PRIMARY KEY("mission_id","position"),
+	CONSTRAINT "mission_expressions_mission_position" UNIQUE("mission_id","position"),
 	CONSTRAINT "mission_expressions_position" CHECK ("mission_expressions"."position" between 1 and 3)
 );
 --> statement-breakpoint

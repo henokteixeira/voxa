@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SpeakingLevel } from "../domain/level/speaking-level.js";
-import type { Mission, MissionModel } from "../domain/mission/mission.js";
+import type { Mission, MissionModel, NewMissionModel } from "../domain/mission/mission.js";
 import type { LevelRepository } from "../domain/ports/level.repository.js";
 import type { MissionRepository, NewMission } from "../domain/ports/mission.repository.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
@@ -24,18 +24,19 @@ class FakeMissions implements MissionRepository {
   async get(id: string) {
     return this.rows.find((m) => m.id === id) ?? null;
   }
-  async saveModel(id: string, model: MissionModel) {
+  async saveModel(id: string, model: NewMissionModel) {
     const row = this.rows.find((m) => m.id === id)!;
-    row.model ??= model;
+    row.model ??= { ...model, expressions: model.expressions.map((e) => ({ ...e, id: `${id}-e${e.position}` })) };
     return row.model;
   }
 }
 
-const model: MissionModel = {
+const model: NewMissionModel = {
   speaker: "Alex",
   text: "Yesterday I fixed the login bug.",
   expressions: [1, 2, 3].map((position) => ({ position, phrase: `Phrase ${position}…`, example: `Example ${position}.` })),
 };
+const stored = (id: string): MissionModel => ({ ...model, expressions: model.expressions.map((e) => ({ ...e, id: `${id}-e${e.position}` })) });
 
 function setup(level: SpeakingLevel["level"] | null = "A2") {
   const clock = { at: new Date("2026-11-09T12:00:00Z"), now: () => clock.at };
@@ -74,14 +75,14 @@ describe("MissionService", () => {
     coach.model.mockRejectedValueOnce(new TutorUnavailableError("down"));
     await expect(service.model(id)).rejects.toBeInstanceOf(TutorUnavailableError);
     expect((await missions.get(id))?.model).toBeNull();
-    expect(await service.model(id)).toEqual(model);
+    expect(await service.model(id)).toEqual(stored(id));
   });
 
   it("writes the model at the learner's level once, then keeps it", async () => {
     const { service, coach } = setup("A2");
     const { id } = await service.today("en", "UTC");
-    expect(await service.model(id)).toEqual(model);
-    expect(await service.model(id)).toEqual(model);
+    expect(await service.model(id)).toEqual(stored(id));
+    expect(await service.model(id)).toEqual(stored(id));
     expect(coach.model).toHaveBeenCalledTimes(1);
     expect(coach.model).toHaveBeenCalledWith({ situation: "daily", language: "en", step: "build_light", learnerContext: "Works at JOCUM." });
   });

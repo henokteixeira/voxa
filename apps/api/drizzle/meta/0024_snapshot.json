@@ -1,5 +1,5 @@
 {
-  "id": "07024099-ca98-447e-a0c3-53c0d8297838",
+  "id": "bacaa63f-dac9-4359-8874-093872245d23",
   "prevId": "e23e0720-3927-43fc-97a9-8267760836a3",
   "version": "7",
   "dialect": "postgresql",
@@ -383,6 +383,13 @@
       "name": "mission_expressions",
       "schema": "",
       "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
         "mission_id": {
           "name": "mission_id",
           "type": "uuid",
@@ -424,16 +431,17 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "mission_expressions_mission_id_position_pk": {
-          "name": "mission_expressions_mission_id_position_pk",
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "mission_expressions_mission_position": {
+          "name": "mission_expressions_mission_position",
+          "nullsNotDistinct": false,
           "columns": [
             "mission_id",
             "position"
           ]
         }
       },
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
         "mission_expressions_position": {

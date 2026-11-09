@@ -24,7 +24,7 @@ export function nextSituation(last: MissionSituation | null): MissionSituation {
 }
 
 /** A ready-made expression from the model, to say in a sentence of one's own. */
-export interface MissionExpression {
+export interface NewMissionExpression {
   /** 1 to 3. */
   position: number;
   /** The reusable chunk, e.g. "I'm blocked by…". */
@@ -33,12 +33,21 @@ export interface MissionExpression {
   example: string;
 }
 
+/** A stored expression: it can come back in the spaced review. */
+export interface MissionExpression extends NewMissionExpression {
+  id: string;
+}
+
 /** Step 1: someone does the situation's task first, at the learner's level. */
-export interface MissionModel {
+export interface NewMissionModel {
   /** Who speaks in the model, e.g. "Alex". */
   speaker: string;
   /** What they say, as one spoken text. */
   text: string;
+  expressions: NewMissionExpression[];
+}
+
+export interface MissionModel extends NewMissionModel {
   expressions: MissionExpression[];
 }
 
