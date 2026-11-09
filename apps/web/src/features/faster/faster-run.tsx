@@ -11,6 +11,7 @@ import { readPauseMs } from "@/lib/voice/pause-setting";
 import { DEFAULT_TURN_OPTIONS } from "@/lib/voice/turn-detector";
 import { FASTER_COPY } from "./faster-copy";
 import { RoundMeter } from "./round-meter";
+import { TimeRing } from "@/components/time-ring";
 
 type Result = NonNullable<FasterRoundsView["result"]>;
 type Step =
@@ -187,7 +188,7 @@ export function FasterRun({ sessionId, onDone }: { sessionId: string; onDone: ()
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
         <div className="relative">
           <VoiceBall state={step.kind === "saving" ? "thinking" : tellingStep ? "listening" : "idle"} size={BALL} />
-          {tellingStep && <TimeRing share={Math.max(0, leftMs) / limitMs} />}
+          {tellingStep && <TimeRing ballSize={BALL} share={Math.max(0, leftMs) / limitMs} />}
         </div>
         <span aria-hidden="true" className="text-label text-mist-ink tabular-nums">
           {tellingStep ? copy.left(clock(leftMs)) : ""}
@@ -229,35 +230,6 @@ function Heading() {
       <span className="text-label text-taupe">{copy.subtitle}</span>
       <h1 className="m-0 text-title">{copy.title}</h1>
     </div>
-  );
-}
-
-/** The ring around the ball empties with the round's time. */
-function TimeRing({ share }: { share: number }) {
-  const size = BALL + 26;
-  const radius = (size - 4) / 2;
-  const circumference = 2 * Math.PI * radius;
-  return (
-    <svg
-      aria-hidden="true"
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-90"
-    >
-      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" strokeWidth={4} className="stroke-sand" />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        strokeWidth={4}
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={circumference * (1 - share)}
-        className="stroke-honey transition-[stroke-dashoffset] duration-300 ease-linear"
-      />
-    </svg>
   );
 }
 

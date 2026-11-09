@@ -303,6 +303,29 @@ export interface FasterRoundsView {
   } | null;
 }
 
+/** One check-in's pace, as listed and compared. */
+export interface CheckInPace {
+  id: string;
+  recordedAt: string;
+  wordsPerMinute: number | null;
+  longPauses: number;
+}
+
+export interface CheckInOverview {
+  task: "present_project";
+  limitMs: number;
+  dueAt: string;
+  due: boolean;
+  /** Newest first. */
+  checkIns: CheckInPace[];
+}
+
+/** A check-in and the one before it (null the first time). */
+export interface CheckInResult {
+  checkIn: CheckInPace & { transcript: string };
+  previous: CheckInPace | null;
+}
+
 /** What earns XP. A mistake never takes XP away. */
 export type XpReason = "practice_minute" | "goal_covered" | "self_corrected" | "personal_record";
 
@@ -483,6 +506,14 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
       sessionId: string,
       round: { round: number; transcript: string; speechMs: number; longPausesMs: number[] },
     ) => request<FasterRoundsView>(`/sessions/${encodeURIComponent(sessionId)}/faster-rounds`, { method: "POST", body: round }),
+    checkIns: (language = "en") => request<CheckInOverview>(`/check-ins?language=${encodeURIComponent(language)}`),
+    /** The whole recording (WAV) with the speech time and the silences the app measured. */
+    recordCheckIn: (wav: ArrayBuffer, measure: { speechMs: number; pausesMs: number[] }, language = "en") => {
+      const query = new URLSearchParams({ language, speechMs: String(measure.speechMs), pausesMs: measure.pausesMs.join(",") });
+      return postAudio<CheckInResult>(`/check-ins?${query}`, wav);
+    },
+    checkIn: (id: string) => request<CheckInResult>(`/check-ins/${encodeURIComponent(id)}`),
+    checkInRecording: (id: string) => audio(`/check-ins/${encodeURIComponent(id)}/recording`),
     level: (language = "en") => request<LevelView>(`/level?language=${encodeURIComponent(language)}`),
     /** The learner corrects the estimated level by hand. */
     setLevel: (level: CefrLevel, language = "en") =>

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -23,7 +23,9 @@ function renderMemory(api: Partial<ApiClient>) {
 describe("What Voxa knows about you", () => {
   it("lists the facts by topic", async () => {
     renderMemory({ learnerFacts: vi.fn().mockResolvedValue([trip, job]) });
-    expect(await screen.findByRole("heading", { name: "What Voxa knows about you" })).toHaveFocus();
+    // The title shows while the facts load; it takes the focus once they are in.
+    const title = await screen.findByRole("heading", { name: "What Voxa knows about you" });
+    await waitFor(() => expect(title).toHaveFocus());
     const work = screen.getByRole("region", { name: "Work" });
     expect(within(work).getByText("Works at Joqum.")).toBeInTheDocument();
     expect(within(screen.getByRole("region", { name: "Life" })).getByText("Lives in Brazil.")).toBeInTheDocument();
