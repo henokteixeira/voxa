@@ -18,11 +18,10 @@ export interface TodayCopy {
   pausedTitle: string;
   pausedBody: (mode: string, elapsed: string) => string;
   continueSession: string;
-  categories: string;
-  everyday: string;
-  work: string;
   close: string;
   language: string;
+  languageHint: string;
+  talk: string;
   settings: string;
   pauseTitle: string;
   pauseHint: string;
@@ -55,16 +54,15 @@ export const TODAY_COPY: Copy<TodayCopy> = {
     placementTitle: "Let's start by finding your level",
     placementBody:
       "A relaxed 7-minute conversation about your work. No corrections: it only shows how much help your sessions should give.",
-    readyBody: "Pick a category below. Each session takes about 5 to 10 min.",
+    readyBody: "Pick a conversation in Talk. Each one takes about 5 to 10 min.",
     start: "Start",
     pausedTitle: "Your session is paused",
     pausedBody: (mode, elapsed) => `${mode} · ${elapsed}. Pick up where you left off.`,
     continueSession: "Continue session",
-    categories: "Practice categories",
-    everyday: "Everyday",
-    work: "Work",
     close: "Close",
-    language: "Language",
+    language: "Interface language",
+    languageHint: "Menus and help. The conversation stays in English.",
+    talk: "Talk",
     settings: "Settings",
     pauseTitle: "Pause before Voxa answers",
     pauseHint: "How long you can stay quiet before your turn is sent. Tap the ball to send sooner.",
@@ -93,16 +91,15 @@ export const TODAY_COPY: Copy<TodayCopy> = {
     placementTitle: "Vamos começar descobrindo seu nível",
     placementBody:
       "Uma conversa tranquila de 7 minutos sobre o seu trabalho. Sem correções: serve só para saber quanta ajuda as sessões devem dar.",
-    readyBody: "Escolha uma categoria abaixo. Cada sessão leva cerca de 5 a 10 min.",
+    readyBody: "Escolha uma conversa em Conversar. Cada uma leva cerca de 5 a 10 min.",
     start: "Começar",
     pausedTitle: "Sua sessão está pausada",
     pausedBody: (mode, elapsed) => `${mode} · ${elapsed}. Continue de onde parou.`,
     continueSession: "Continuar sessão",
-    categories: "Categorias de treino",
-    everyday: "Dia a dia",
-    work: "Trabalho",
     close: "Fechar",
-    language: "Idioma",
+    language: "Idioma da interface",
+    languageHint: "Menus e ajuda. A conversa continua em inglês.",
+    talk: "Conversar",
     settings: "Configurações",
     pauseTitle: "Pausa antes do Voxa responder",
     pauseHint: "Quanto tempo você pode ficar em silêncio antes da sua fala ser enviada. Toque na bolinha para enviar antes.",

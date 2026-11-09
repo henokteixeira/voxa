@@ -8,6 +8,7 @@ import { ReviewPage } from "@/features/practice/review-page";
 import { LevelPage } from "@/features/progress/level-page";
 import { ProgressPage } from "@/features/progress/progress-page";
 import { SessionPage } from "@/features/session/session-page";
+import { TalkPage } from "@/features/talk/talk-page";
 import { TodayPage } from "@/features/today/today-page";
 import { AppLayout } from "./app-layout";
 
@@ -16,6 +17,7 @@ export const routes: RouteObject[] = [
     element: <AppLayout />,
     children: [
       { index: true, element: <TodayPage /> },
+      { path: "talk", element: <TalkPage /> },
       { path: "mistakes", element: <PracticePage /> },
       { path: "mistakes/types/:typeId", element: <PracticePage /> },
       { path: "mistakes/patterns/:patternId", element: <PracticePage /> },

@@ -58,18 +58,18 @@ const up = () => vi.fn().mockResolvedValue({ status: "ok" });
 const down = () => vi.fn().mockRejectedValue(new ApiError("offline", "Can't reach the Voxa API."));
 
 describe("app shell", () => {
-  it("shows three tabs with Today active", async () => {
+  it("shows four tabs with Today active", async () => {
     renderApp("/", up());
     const nav = screen.getByRole("navigation", { name: "Main" });
-    expect(nav).toHaveTextContent("TodayPracticeProgress");
+    expect(nav).toHaveTextContent("TodayTalkReviewProgress");
     expect(screen.getByRole("link", { name: "Today" })).toHaveAttribute("aria-current", "page");
   });
 
   it("moves between tabs", async () => {
     renderApp("/", up());
-    await userEvent.click(screen.getByRole("link", { name: "Practice" }));
-    expect(screen.getByRole("heading", { name: "Practice" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Practice" })).toHaveAttribute("aria-current", "page");
+    await userEvent.click(screen.getByRole("link", { name: "Review" }));
+    expect(screen.getByRole("heading", { name: "Review" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Review" })).toHaveAttribute("aria-current", "page");
   });
 
   it("slides the active-tab indicator to the tab you pick", async () => {
@@ -77,12 +77,12 @@ describe("app shell", () => {
     const indicator = screen.getByTestId("tab-indicator");
     expect(indicator.style.transform).toBe("translateX(0%)");
     await userEvent.click(screen.getByRole("link", { name: "Progress" }));
-    expect(indicator.style.transform).toBe("translateX(200%)");
+    expect(indicator.style.transform).toBe("translateX(300%)");
   });
 
   it("keeps the indicator on a path with a trailing slash", async () => {
     renderApp("/progress/", up());
-    expect(screen.getByTestId("tab-indicator").style.transform).toBe("translateX(200%)");
+    expect(screen.getByTestId("tab-indicator").style.transform).toBe("translateX(300%)");
   });
 
   it("uses a side column instead of the bottom tab bar on wide screens", async () => {
@@ -94,14 +94,14 @@ describe("app shell", () => {
       renderApp("/mistakes", up());
       expect(screen.getByRole("banner")).toHaveTextContent("Voxa");
       expect(screen.getAllByRole("navigation")).toHaveLength(1);
-      expect(screen.getByTestId("tab-indicator").style.transform).toBe("translateY(100%)");
+      expect(screen.getByTestId("tab-indicator").style.transform).toBe("translateY(200%)");
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
   it("opens a session full screen, without the tab bar", async () => {
-    const router = renderApp("/", up());
+    const router = renderApp("/talk", up());
     await userEvent.click(await screen.findByRole("link", { name: /Daily stand-up/ }));
     expect(router.state.location.pathname).toBe("/session/daily");
     expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
@@ -131,7 +131,7 @@ describe("Today", () => {
 
   it("waits for the level before offering a session", async () => {
     renderApp("/", up(), { level: vi.fn(() => new Promise(() => {})) });
-    await screen.findByRole("navigation", { name: "Practice categories" });
+    await screen.findByRole("button", { name: "Settings" });
     expect(screen.queryByRole("heading", { name: "What do you want to practice now?" })).toBeNull();
   });
 
@@ -147,9 +147,24 @@ describe("Today", () => {
     expect(router.state.location.pathname).toBe("/review");
   });
 
-  it("lists the everyday and work categories at the bottom, and each one starts its session", async () => {
+  it("sends the learner to Talk to pick a conversation", async () => {
     const router = renderApp("/", up());
-    const categories = await screen.findByRole("navigation", { name: "Practice categories" });
+    await userEvent.click(await screen.findByRole("link", { name: "Talk" , current: false }));
+    expect(router.state.location.pathname).toBe("/talk");
+  });
+
+  it("does not list the conversations on Today: they live in Talk", async () => {
+    renderApp("/", up());
+    await screen.findByRole("heading", { name: "What do you want to practice now?" });
+    expect(screen.queryByRole("navigation", { name: "Conversations" })).toBeNull();
+  });
+});
+
+describe("Talk", () => {
+  it("lists the everyday and work conversations, and each one starts its session", async () => {
+    const router = renderApp("/talk", up());
+    expect(screen.getByRole("heading", { level: 1, name: "Talk" })).toBeInTheDocument();
+    const categories = await screen.findByRole("navigation", { name: "Conversations" });
     const everyday = within(categories).getByRole("region", { name: "Everyday" });
     expect(everyday).toHaveTextContent(/Free conversation.*Talk about your day.*Tell a story.*Give your opinion/);
     const work = within(categories).getByRole("region", { name: "Work" });
@@ -161,6 +176,9 @@ describe("Today", () => {
     await userEvent.click(within(everyday).getByRole("link", { name: /Tell a story/ }));
     expect(router.state.location.pathname).toBe("/session/story");
   });
+});
+
+describe("Today, more", () => {
 
   it("has no welcome text on Today: the app itself is the welcome", async () => {
     renderApp("/", up());
@@ -171,13 +189,15 @@ describe("Today", () => {
   it("starts in Portuguese and switches the interface to English", async () => {
     renderApp("/", up(), { withLocale: true });
     expect(await screen.findByRole("heading", { name: "O que você quer treinar agora?" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Contar uma história/ })).toHaveTextContent(/^Contar uma históriaCerca de 6 min$/);
-    expect(screen.getByRole("navigation", { name: "Principal" })).toHaveTextContent("HojePraticarProgresso");
+    expect(screen.getByRole("navigation", { name: "Principal" })).toHaveTextContent("HojeConversarRevisarProgresso");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^(Bom dia|Boa tarde|Boa noite)$/);
 
+    // The language is a setting, not a switch on Today.
+    await userEvent.click(screen.getByRole("button", { name: "Configurações" }));
     await userEvent.click(screen.getByRole("button", { name: "English" }));
-    expect(screen.getByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "English" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.keyboard("{Escape}");
+    expect(await screen.findByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("en");
   });
 
@@ -210,11 +230,10 @@ describe("Today", () => {
     renderApp("/", health);
 
     expect(await screen.findByRole("heading", { name: "Voxa's server isn't running" })).toBeInTheDocument();
-    expect(screen.queryByRole("navigation", { name: "Practice categories" })).toBeNull();
 
     health.mockResolvedValue({ status: "ok" });
     await userEvent.click(screen.getByRole("button", { name: "Check again" }));
-    expect(await screen.findByRole("navigation", { name: "Practice categories" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
     expect(health).toHaveBeenCalledTimes(2);
   });
 
@@ -242,7 +261,7 @@ describe("Today", () => {
     await screen.findByRole("heading", { name: "Voxa's server isn't running" });
     health.mockResolvedValue({ status: "ok" });
     window.dispatchEvent(new Event("online"));
-    expect(await screen.findByRole("navigation", { name: "Practice categories" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "What do you want to practice now?" })).toBeInTheDocument();
   });
 });
 
