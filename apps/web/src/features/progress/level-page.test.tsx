@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -32,7 +32,9 @@ function renderLevel(api: Partial<ApiClient>) {
 describe("Why A2?", () => {
   it("shows the learner's own lines, what they can do and the next step, as an estimate", async () => {
     renderLevel({ level: vi.fn().mockResolvedValue(placed) });
-    expect(await screen.findByRole("heading", { name: "What the tutor noticed" })).toHaveFocus();
+    // The title takes focus once the level has loaded, which can land just after the heading shows.
+    const title = await screen.findByRole("heading", { name: "What the tutor noticed" });
+    await waitFor(() => expect(title).toHaveFocus());
     expect(screen.getByText("“Yesterday I fix one bug in the upload”")).toBeInTheDocument();
     expect(screen.getByText(/routine and your work in short sentences/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Next step (B1)" })).toBeInTheDocument();
