@@ -1,10 +1,11 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lte, min, or, type SQL, sql } from "drizzle-orm";
 import { NEW_WORD_CATEGORY } from "../../domain/conversation/types.js";
+import { EXPRESSION_CATEGORY } from "../../domain/mission/mission.js";
 import type { AnsweredCard, ReviewItem, ReviewRepository, ReviewSchedule, ReviewSubject, StoredReviewCard } from "../../domain/ports/review.repository.js";
 import type { ReviewState } from "../../domain/review/review-schedule.js";
 import { DATABASE, type Database } from "./db.module.js";
-import { mistakes, patterns, reviewCards, reviewItems } from "./schema.js";
+import { missionExpressions, mistakes, patterns, reviewCards, reviewItems } from "./schema.js";
 
 /** How many of a pattern's sentences a review shows. */
 const EXAMPLES_PER_PATTERN = 3;
@@ -27,7 +28,7 @@ export class DrizzleReviewRepository implements ReviewRepository {
     await this.db
       .insert(reviewItems)
       .values({ language, ...subjectColumns(subject), ...values })
-      .onConflictDoUpdate({ target: subject.kind === "pattern" ? reviewItems.patternId : reviewItems.newWordId, set: values });
+      .onConflictDoUpdate({ target: subjectColumn(subject), set: values });
   }
 
   async due(language: string, now: Date, limit: number): Promise<ReviewItem[]> {
@@ -43,10 +44,11 @@ export class DrizzleReviewRepository implements ReviewRepository {
   /** The matching items, the longest overdue first, without dismissed words and patterns left with no mistakes. */
   private async items(where: SQL | undefined): Promise<ReviewItem[]> {
     const rows = await this.db
-      .select({ item: reviewItems, pattern: patterns, word: mistakes })
+      .select({ item: reviewItems, pattern: patterns, word: mistakes, expression: missionExpressions })
       .from(reviewItems)
       .leftJoin(patterns, eq(reviewItems.patternId, patterns.id))
       .leftJoin(mistakes, eq(reviewItems.newWordId, mistakes.id))
+      .leftJoin(missionExpressions, eq(reviewItems.expressionId, missionExpressions.id))
       .where(and(where, isNull(mistakes.dismissedAt)))
       .orderBy(asc(reviewItems.dueAt), asc(reviewItems.id));
 
@@ -60,7 +62,7 @@ export class DrizzleReviewRepository implements ReviewRepository {
       : [];
 
     const items: ReviewItem[] = [];
-    for (const { item, pattern, word } of rows) {
+    for (const { item, pattern, word, expression } of rows) {
       const base = { language: item.language, step: item.step, dueAt: item.dueAt };
       if (pattern) {
         const examples = sentences
@@ -73,6 +75,9 @@ export class DrizzleReviewRepository implements ReviewRepository {
       } else if (word) {
         const examples = [{ original: word.original, correction: word.correction }];
         items.push({ ...base, subject: { kind: "new_word", id: word.id }, category: NEW_WORD_CATEGORY, name: word.correction, rule: word.original, examples });
+      } else if (expression) {
+        const subject = { kind: "expression", id: expression.id } as const;
+        items.push({ ...base, subject, category: EXPRESSION_CATEGORY, name: expression.phrase, rule: expression.example, examples: [] });
       }
     }
     return items;
@@ -94,15 +99,13 @@ export class DrizzleReviewRepository implements ReviewRepository {
 
   async card(id: string): Promise<StoredReviewCard | null> {
     const [row] = await this.db
-      .select({ card: reviewCards, patternId: reviewItems.patternId, newWordId: reviewItems.newWordId })
+      .select({ card: reviewCards, patternId: reviewItems.patternId, newWordId: reviewItems.newWordId, expressionId: reviewItems.expressionId })
       .from(reviewCards)
       .innerJoin(reviewItems, eq(reviewCards.reviewItemId, reviewItems.id))
       .where(eq(reviewCards.id, id))
       .limit(1);
-    if (!row) return null;
-    const subject: ReviewSubject = row.patternId
-      ? { kind: "pattern", id: row.patternId }
-      : { kind: "new_word", id: row.newWordId! };
+    const subject = row ? subjectOf(row) : null;
+    if (!row || !subject) return null;
     return { id: row.card.id, subject, cue: row.card.cue, answer: row.card.answer, recalled: row.card.recalled };
   }
 
@@ -126,13 +129,18 @@ export class DrizzleReviewRepository implements ReviewRepository {
 
   async schedules(language: string): Promise<ReviewSchedule[]> {
     const rows = await this.db
-      .select({ patternId: reviewItems.patternId, newWordId: reviewItems.newWordId, step: reviewItems.step, dueAt: reviewItems.dueAt })
+      .select({
+        patternId: reviewItems.patternId,
+        newWordId: reviewItems.newWordId,
+        expressionId: reviewItems.expressionId,
+        step: reviewItems.step,
+        dueAt: reviewItems.dueAt,
+      })
       .from(reviewItems)
       .where(eq(reviewItems.language, language));
-    return rows.flatMap(({ patternId, newWordId, step, dueAt }): ReviewSchedule[] => {
-      // The table's check keeps exactly one of the two set.
-      if (patternId) return [{ subject: { kind: "pattern", id: patternId }, step, dueAt }];
-      return newWordId ? [{ subject: { kind: "new_word", id: newWordId }, step, dueAt }] : [];
+    return rows.flatMap((row): ReviewSchedule[] => {
+      const subject = subjectOf(row);
+      return subject ? [{ subject, step: row.step, dueAt: row.dueAt }] : [];
     });
   }
 
@@ -156,10 +164,35 @@ export class DrizzleReviewRepository implements ReviewRepository {
   }
 }
 
+function subjectColumn(subject: ReviewSubject) {
+  switch (subject.kind) {
+    case "pattern":
+      return reviewItems.patternId;
+    case "new_word":
+      return reviewItems.newWordId;
+    case "expression":
+      return reviewItems.expressionId;
+  }
+}
+
 function subjectColumns(subject: ReviewSubject) {
-  return subject.kind === "pattern" ? { patternId: subject.id } : { newWordId: subject.id };
+  switch (subject.kind) {
+    case "pattern":
+      return { patternId: subject.id };
+    case "new_word":
+      return { newWordId: subject.id };
+    case "expression":
+      return { expressionId: subject.id };
+  }
 }
 
 function subjectIs(subject: ReviewSubject) {
-  return subject.kind === "pattern" ? eq(reviewItems.patternId, subject.id) : eq(reviewItems.newWordId, subject.id);
+  return eq(subjectColumn(subject), subject.id);
+}
+
+/** The subject a row's columns name; the table's check keeps exactly one of them set. */
+function subjectOf(row: { patternId: string | null; newWordId: string | null; expressionId: string | null }): ReviewSubject | null {
+  if (row.patternId) return { kind: "pattern", id: row.patternId };
+  if (row.newWordId) return { kind: "new_word", id: row.newWordId };
+  return row.expressionId ? { kind: "expression", id: row.expressionId } : null;
 }

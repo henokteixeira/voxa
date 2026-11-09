@@ -1,17 +1,22 @@
 import type { ReviewState } from "../review/review-schedule.js";
 
-/** What a review asks for: a pattern from the bank, or one new word (a mistake row with category new_word). */
-export type ReviewSubject = { kind: "pattern"; id: string } | { kind: "new_word"; id: string };
+/**
+ * What a review asks for: a pattern from the bank, one new word (a mistake row with category new_word), or an
+ * expression the learner took from a daily mission's model.
+ */
+export type ReviewSubject = { kind: "pattern"; id: string } | { kind: "new_word"; id: string } | { kind: "expression"; id: string };
+
+export const REVIEW_SUBJECT_KINDS = ["pattern", "new_word", "expression"] as const satisfies readonly ReviewSubject["kind"][];
 
 /** One pattern or new word with its schedule and what a review needs to ask for it. */
 export interface ReviewItem {
   subject: ReviewSubject;
   language: string;
-  /** The mistake type, or new_word. */
+  /** The mistake type, new_word, or expression. */
   category: string;
-  /** The pattern's label, or the new word in the language being learned. */
+  /** The pattern's label, the new word in the language being learned, or the expression. */
   name: string;
-  /** The pattern's rule, or what the learner said in their first language. */
+  /** The pattern's rule, what the learner said in their first language, or the model's sentence with the expression. */
   rule: string;
   /** The learner's sentences that broke the pattern, most recent first (for a new word, the word itself). */
   examples: { original: string; correction: string }[];
@@ -43,7 +48,7 @@ export interface AnsweredCard {
   answeredAt: Date;
 }
 
-/** The review schedule of each pattern and new word. The concrete implementation lives in infra/. */
+/** The review schedule of each pattern, new word and expression. The concrete implementation lives in infra/. */
 export interface ReviewRepository {
   state(subject: ReviewSubject): Promise<ReviewState | null>;
   /** Creates or replaces the subject's schedule. */

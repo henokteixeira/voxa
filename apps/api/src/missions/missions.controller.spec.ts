@@ -7,7 +7,7 @@ import { applyHttpConventions } from "../common/http-app.js";
 import { MissionsController } from "./missions.controller.js";
 
 const id = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
-const service = { today: vi.fn(), model: vi.fn(), modelSpeech: vi.fn() };
+const service = { today: vi.fn(), model: vi.fn(), modelSpeech: vi.fn(), say: vi.fn() };
 let app: INestApplication;
 
 beforeEach(async () => {
@@ -38,6 +38,17 @@ describe("/missions", () => {
     service.model.mockRejectedValueOnce(new MissionNotFoundError(id));
     expect((await request(app.getHttpServer()).get(`/missions/${id}/model`)).status).toBe(404);
     expect((await request(app.getHttpServer()).get("/missions/nope/model")).status).toBe(400);
+  });
+
+  it("checks a sentence for an expression", async () => {
+    service.say.mockResolvedValue({ used: true });
+    const url = `/missions/${id}/expressions/${id}/attempts`;
+    const res = await request(app.getHttpServer()).post(url).send({ utterance: " I'm blocked by the review " });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ used: true });
+    expect(service.say).toHaveBeenCalledWith(id, id, "I'm blocked by the review");
+    expect((await request(app.getHttpServer()).post(url).send({ utterance: "  " })).status).toBe(400);
+    expect((await request(app.getHttpServer()).post(`/missions/${id}/expressions/x/attempts`).send({ utterance: "Hi" })).status).toBe(400);
   });
 
   it("serves the model as WAV", async () => {

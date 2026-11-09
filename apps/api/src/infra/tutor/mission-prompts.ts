@@ -1,5 +1,6 @@
 import type { SupportStep } from "../../domain/level/speaking-level.js";
 import type { MissionSituation } from "../../domain/mission/mission.js";
+import type { NewMissionExpression } from "../../domain/mission/mission.js";
 import type { ModelRequest } from "../../domain/ports/mission-coach.port.js";
 
 /** What the speaker of each situation's model does: the same task the learner does next. */
@@ -41,5 +42,24 @@ export function buildModelMessage({ situation, step, learnerContext }: ModelRequ
     `<task>\nThe speaker ${MODEL_TASKS[situation]}.\n</task>`,
     `<level>\n${MODEL_LEVELS[step]}\n</level>`,
     `<about_the_learner>\n${about}\n</about_the_learner>`,
+  ].join("\n");
+}
+
+export function buildUsedPrompt(language: string): string {
+  return [
+    `You check one spoken sentence from a learner of ${language} (BCP 47) who was asked to use a ready-made expression in a ` +
+      "sentence of their own.",
+    "The text comes from speech recognition: ignore punctuation, capitalization and filler words.",
+    "`used`: true when the sentence uses the expression (small changes such as a contraction or a different tense count) with " +
+      "words of the learner's own, even with other small mistakes. False when the expression is missing, the sentence only " +
+      "repeats the model's example, or it is mostly in another language.",
+  ].join("\n");
+}
+
+export function buildUsedMessage(expression: Pick<NewMissionExpression, "phrase" | "example">, utterance: string): string {
+  return [
+    `<expression>\n${expression.phrase}\n</expression>`,
+    `<model_example>\n${expression.example}\n</model_example>`,
+    `<learner_sentence>\n${utterance}\n</learner_sentence>`,
   ].join("\n");
 }

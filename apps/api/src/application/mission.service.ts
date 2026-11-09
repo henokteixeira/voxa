@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { sessionStep, STEP_WITHOUT_LEVEL } from "../domain/conversation/support.js";
-import { DomainError } from "../domain/errors.js";
+import { DomainError, InvalidInputError } from "../domain/errors.js";
 import { type Mission, type MissionModel, type MissionSituation, nextSituation } from "../domain/mission/mission.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { LEARNER_CONTEXT_PORT, type LearnerContextPort } from "../domain/ports/learner-context.port.js";
@@ -9,12 +9,21 @@ import { MISSION_COACH_PORT, type MissionCoachPort } from "../domain/ports/missi
 import { MISSION_REPOSITORY, type MissionRepository } from "../domain/ports/mission.repository.js";
 import { TTS_PORT, type TextToSpeechPort } from "../domain/ports/voice.port.js";
 import { localDay } from "../domain/progress/daily-goal.js";
+import { ReviewScheduler } from "./review-scheduler.js";
 
 export class MissionNotFoundError extends DomainError {
   readonly code = "not_found";
 
   constructor(id: string) {
     super(`Mission ${id} not found.`, "Mission not found.");
+  }
+}
+
+export class MissionExpressionNotFoundError extends DomainError {
+  readonly code = "not_found";
+
+  constructor(missionId: string, expressionId: string) {
+    super(`Mission ${missionId} has no expression ${expressionId}.`, "That expression is not in this mission.");
   }
 }
 
@@ -36,6 +45,7 @@ export class MissionService {
     @Inject(LEARNER_CONTEXT_PORT) private readonly learnerContext: LearnerContextPort,
     @Inject(TTS_PORT) private readonly tts: TextToSpeechPort,
     @Inject(CLOCK) private readonly clock: Clock,
+    private readonly reviews: ReviewScheduler,
   ) {}
 
   /** The mission of the learner's local day; the first request of a day creates it with the next situation. */
@@ -62,6 +72,26 @@ export class MissionService {
   async modelSpeech(id: string): Promise<Buffer> {
     const [mission, model] = await Promise.all([this.mission(id), this.model(id)]);
     return this.tts.synthesize(model.text, mission.language);
+  }
+
+  /**
+   * Step 2: whether the learner's sentence used the expression (no hint, no correction). The first time it is used,
+   * the expression joins the spaced review.
+   */
+  async say(id: string, expressionId: string, utterance: string): Promise<{ used: boolean }> {
+    const mission = await this.mission(id);
+    const expression = mission.model?.expressions.find((e) => e.id === expressionId);
+    if (!expression) throw new MissionExpressionNotFoundError(id, expressionId);
+    const said = utterance.trim();
+    if (!said) throw new InvalidInputError("The sentence is empty.");
+    const used = await this.coach.usedExpression(mission.language, expression, said);
+    if (used) {
+      const now = this.clock.now();
+      await this.missions.markSaid(expressionId, now);
+      // Always asked (it schedules only once): a failure after marking it said is mended by the next use.
+      await this.reviews.learned(mission.language, { kind: "expression", id: expressionId }, now);
+    }
+    return { used };
   }
 
   private async mission(id: string): Promise<Mission> {

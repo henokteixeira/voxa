@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, Res } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
 import { z } from "zod";
 import { MissionService } from "../application/mission.service.js";
@@ -6,6 +6,7 @@ import { Language, parse, TimeZone } from "../common/http.js";
 
 const TodayQuery = z.object({ language: Language, timeZone: TimeZone });
 const MissionId = z.uuid();
+const SayBody = z.object({ utterance: z.string().trim().min(1).max(2000) });
 
 /** The daily mission: today's situation, and step 1's model with its 3 expressions. */
 @Controller("missions")
@@ -23,6 +24,14 @@ export class MissionsController {
   @Get(":id/model")
   model(@Param("id") id: string) {
     return this.missions.model(parse(MissionId, id));
+  }
+
+  /** Step 2: whether the learner's sentence used the expression. */
+  @Post(":id/expressions/:expressionId/attempts")
+  @HttpCode(200)
+  say(@Param("id") id: string, @Param("expressionId") expressionId: string, @Body() body: unknown) {
+    const { utterance } = parse(SayBody, body);
+    return this.missions.say(parse(MissionId, id), parse(MissionId, expressionId), utterance);
   }
 
   /** The model as speech (WAV). */

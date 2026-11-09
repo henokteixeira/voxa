@@ -3,11 +3,11 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { z } from "zod";
 import type { Env } from "../../config/env.js";
-import { MISSION_EXPRESSIONS, type NewMissionModel } from "../../domain/mission/mission.js";
+import { MISSION_EXPRESSIONS, type NewMissionExpression, type NewMissionModel } from "../../domain/mission/mission.js";
 import type { MissionCoachPort, ModelRequest } from "../../domain/ports/mission-coach.port.js";
 import { TutorUnavailableError } from "../../domain/ports/tutor.port.js";
 import { ANTHROPIC_CLIENT, type AnthropicMessages } from "./anthropic-tutor.adapter.js";
-import { buildModelMessage, buildModelPrompt } from "./mission-prompts.js";
+import { buildModelMessage, buildModelPrompt, buildUsedMessage, buildUsedPrompt } from "./mission-prompts.js";
 
 /** About a minute and a half of speech at most; the voice engine takes up to 2000 characters. */
 export const MAX_MODEL_CHARS = 1500;
@@ -15,6 +15,8 @@ export const MAX_MODEL_CHARS = 1500;
 export const MIN_MODEL_CHARS = 200;
 
 const squash = (text: string) => text.replace(/\s+/g, " ").toLowerCase();
+
+const UsedSchema = z.object({ used: z.boolean() });
 
 const ModelSchema = z.object({
   speaker: z.string(),
@@ -37,25 +39,35 @@ export class AnthropicMissionCoach implements MissionCoachPort {
   }
 
   async model(request: ModelRequest): Promise<NewMissionModel> {
+    const output = await this.ask("mission_model", ModelSchema, 3000, buildModelPrompt(request.language), buildModelMessage(request));
+    return checked(output);
+  }
+
+  async usedExpression(language: string, expression: Pick<NewMissionExpression, "phrase" | "example">, utterance: string): Promise<boolean> {
+    const result = await this.ask("mission_expression", UsedSchema, 1000, buildUsedPrompt(language), buildUsedMessage(expression, utterance));
+    return result.used;
+  }
+
+  private async ask<T>(name: string, schema: z.ZodType<T>, maxTokens: number, system: string, content: string): Promise<T> {
     let response;
     try {
       response = await this.messages.parse({
         model: this.modelId,
-        max_tokens: 3000,
-        output_config: { effort: this.effort, format: zodOutputFormat(ModelSchema) },
-        system: buildModelPrompt(request.language),
-        messages: [{ role: "user", content: buildModelMessage(request) }],
+        max_tokens: maxTokens,
+        output_config: { effort: this.effort, format: zodOutputFormat(schema) },
+        system,
+        messages: [{ role: "user", content }],
       });
     } catch (error) {
       throw new TutorUnavailableError(`Claude API request failed: ${(error as Error).message}`, { cause: error });
     }
     if (response.usage) {
-      this.logger.log(`tutor usage call=mission_model input=${response.usage.input_tokens} output=${response.usage.output_tokens}`);
+      this.logger.log(`tutor usage call=${name} input=${response.usage.input_tokens} output=${response.usage.output_tokens}`);
     }
     if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens" || !response.parsed_output) {
-      throw new TutorUnavailableError("The mission model did not complete.");
+      throw new TutorUnavailableError(`The ${name.replace("_", " ")} call did not complete.`);
     }
-    return checked(response.parsed_output);
+    return response.parsed_output as T;
   }
 }
 

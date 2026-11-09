@@ -27,6 +27,12 @@ export class ReviewScheduler {
     await this.reviews.save(language, subject, state ? nextReview(state, "missed", now) : firstReview(now), null);
   }
 
+  /** Taken on purpose (a mission's expression, said once in a sentence of one's own): first review tomorrow, once. */
+  async learned(language: string, subject: ReviewSubject, now: Date): Promise<void> {
+    if (await this.reviews.state(subject)) return;
+    await this.reviews.save(language, subject, firstReview(now), null);
+  }
+
   /** Said right in a conversation, without a hint: counts as a review only once it is due. */
   async usedCorrectly(language: string, subject: ReviewSubject, now: Date): Promise<void> {
     const state = await this.reviews.state(subject);

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigserial,
   boolean,
   check,
@@ -111,7 +112,7 @@ export const mistakes = pgTable("mistakes", {
   dismissReason: varchar("dismiss_reason", { length: 32 }), // transcript_error | both_correct | not_needed
 });
 
-/** When each pattern, or each new word, comes back for review. Exactly one of the two subjects is set. */
+/** When each pattern, new word or expression comes back for review. Exactly one of the three subjects is set. */
 export const reviewItems = pgTable(
   "review_items",
   {
@@ -124,13 +125,17 @@ export const reviewItems = pgTable(
     newWordId: uuid("new_word_id")
       .unique()
       .references(() => mistakes.id, { onDelete: "cascade" }),
+    /** An expression from a daily mission's model. */
+    expressionId: uuid("expression_id")
+      .unique()
+      .references((): AnyPgColumn => missionExpressions.id, { onDelete: "cascade" }),
     /** Index in REVIEW_INTERVALS_DAYS of the wait before the next review. */
     step: smallint("step").notNull(),
     dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
     lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
   },
   (t) => [
-    check("review_items_one_subject", sql`(${t.patternId} is null) <> (${t.newWordId} is null)`),
+    check("review_items_one_subject", sql`num_nonnulls(${t.patternId}, ${t.newWordId}, ${t.expressionId}) = 1`),
     index("review_items_due").on(t.language, t.dueAt),
   ],
 );
@@ -376,6 +381,8 @@ export const missionExpressions = pgTable(
     position: smallint("position").notNull(), // 1 to MISSION_EXPRESSIONS (3); the check below must follow it
     phrase: text("phrase").notNull(),
     example: text("example").notNull(),
+    /** When the learner first used it in a sentence of their own (step 2). */
+    saidAt: timestamp("said_at", { withTimezone: true }),
   },
   (t) => [unique("mission_expressions_mission_position").on(t.missionId, t.position), check("mission_expressions_position", sql`${t.position} between 1 and 3`)],
 );
