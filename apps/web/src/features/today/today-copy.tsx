@@ -40,7 +40,7 @@ export const TODAY_COPY: Copy<TodayCopy> = {
         title: "Voxa's server isn't running",
         detail: (
           <>
-            Start the API on your PC (<code>pnpm dev:api</code>), then check again.
+            Start Voxa on your PC (<code>docker compose up</code>), then check again.
           </>
         ),
       },
@@ -77,7 +77,7 @@ export const TODAY_COPY: Copy<TodayCopy> = {
         title: "O servidor do Voxa não está rodando",
         detail: (
           <>
-            Inicie a API no seu PC (<code>pnpm dev:api</code>) e verifique de novo.
+            Inicie o Voxa no seu PC (<code>docker compose up</code>) e verifique de novo.
           </>
         ),
       },

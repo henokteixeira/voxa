@@ -1107,6 +1107,22 @@ describe("a safe place to speak", () => {
   });
 });
 
+describe("when the session can't start", () => {
+  it("says the tutor didn't answer when the session can't start for that, and how to check it", async () => {
+    api.startSession.mockRejectedValueOnce(new ApiError("tutor_unavailable", "The tutor is not available right now.", 502));
+    renderSession();
+    const alert = await screen.findByRole("alert", { name: "The tutor didn't answer" });
+    expect(within(alert).getByText("docker compose logs api")).toBeInTheDocument();
+  });
+
+  it("tells how to start the server when the session can't start for another reason", async () => {
+    api.startSession.mockRejectedValueOnce(new ApiError("offline", "Can't reach the Voxa API."));
+    renderSession();
+    const alert = await screen.findByRole("alert", { name: "The session didn't start" });
+    expect(within(alert).getByText("docker compose up")).toBeInTheDocument();
+  });
+});
+
 describe("after a reload", () => {
   const savedDaily = {
     sessionId: "s1",
@@ -1178,6 +1194,14 @@ describe("after a reload", () => {
     expect(socket.speakLast).toHaveBeenCalled();
     act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
     expect(speaker.play).toHaveBeenCalled();
+  });
+
+  it("says the tutor didn't answer when a saved session can't resume for that", async () => {
+    localStorage.setItem("voxa.liveSession", JSON.stringify(savedDaily));
+    api.resumeSession.mockRejectedValueOnce(new ApiError("tutor_unavailable", "The tutor is not available right now.", 502));
+    renderSession();
+    expect(await screen.findByRole("alert", { name: "The tutor didn't answer" })).toBeInTheDocument();
+    expect(api.startSession).not.toHaveBeenCalled();
   });
 
   it("keeps the saved session when the API can't be reached, and picks it up on Try again", async () => {

@@ -58,6 +58,13 @@ function today(minutesPerDay: number) {
 const up = () => vi.fn().mockResolvedValue({ status: "ok" });
 const down = () => vi.fn().mockRejectedValue(new ApiError("offline", "Can't reach the Voxa API."));
 
+describe("unknown addresses", () => {
+  it("go back to Today instead of an error page", async () => {
+    const router = renderApp("/settings", up());
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/"));
+  });
+});
+
 describe("app shell", () => {
   it("shows four tabs with Today active", async () => {
     renderApp("/", up());
