@@ -48,7 +48,7 @@ The daily mission is the next priority (approved on 2026-11-09), ahead of the re
 - **Other modes stay:** free talk and the other conversations remain available outside the mission.
 - **Delivery order:** say it faster (4), benchmark task, listen and take expressions (1 and 2), fuller answers in the task (3), then the mission on Today joining them. Screens are designed in the prototype and approved before building.
 - **Research basis:** Nation and Yamamoto 2012 (four strands); Arevart and Nation 1991 and Tran and Saito (4/3/2: faster speech and fewer pauses, carried over to a new topic, no accuracy gain); Boers et al. 2006 (formulaic sequences and perceived fluency); DeKeyser and Criado 2013 (skill acquisition stages).
-- **Open:** how the day's situation is picked (rotation or the learner's choice); whether the benchmark keeps audio (no audio is stored today, only transcripts); step times scale with the daily goal.
+- **Decided:** on 2026-11-09, the app picks the day's situation (rotation) and the benchmark keeps its audio (no audio is stored today, only transcripts); step times scale with the daily goal.
 
 ## Conversation modes
 
