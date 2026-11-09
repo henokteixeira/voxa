@@ -5,12 +5,12 @@ import { TodayGoalCard } from "./today-goal-card";
 
 const today = (earnedXp: number, streakDays: number): TodayProgress => ({
   day: "2026-11-09",
-  minutesPerDay: 10,
+  minutesPerDay: 15,
   goalXp: 40,
   earnedXp,
   goalMet: earnedXp >= 40,
   streakDays,
-  points: {},
+  points: { goal_covered: 0, personal_record: 0, practice_minute: 0, self_corrected: 0 },
 });
 
 describe("Today's goal in one line", () => {
