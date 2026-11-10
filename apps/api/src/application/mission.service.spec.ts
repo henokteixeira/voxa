@@ -73,8 +73,11 @@ function setup(level: SpeakingLevel["level"] | null = "A2") {
   } as never;
   const rounds = new Map<string, number>();
   const fasterRounds = { list: async (id: string) => Array.from({ length: rounds.get(id) ?? 0 }) } as never;
-  const checkIns: { recordedAt: Date }[] = [];
-  const checkInRepo = { list: async () => checkIns.slice(-1) } as never;
+  const checkIns: { task?: string; recordedAt: Date }[] = [];
+  const checkInRepo = {
+    list: async (_language: string, { kind }: { kind?: string } = {}) =>
+      checkIns.filter((c) => !kind || (kind === "benchmark") === ((c.task ?? "present_project") === "present_project")).slice(-1),
+  } as never;
   const service = new MissionService(missions, coach, levels, context, tts, clock, reviews as unknown as ReviewScheduler, sessions, fasterRounds, checkInRepo);
   return { clock, missions, coach, tts, reviews, service, ended, rounds, checkIns, linked };
 }
@@ -176,8 +179,10 @@ describe("MissionService", () => {
     expect((await service.today("en", "UTC")).steps.checkIn).toBe(false);
     checkIns.push({ recordedAt: clock.at });
     expect((await service.today("en", "UTC")).steps.checkIn).toBe(true);
+    // The topic task the next morning is not a new check-in: no step 0 that day either.
     // The next day has no step 0.
     clock.at = new Date("2026-11-20T08:00:00Z");
+    checkIns.push({ task: "last_weekend", recordedAt: clock.at });
     expect((await service.today("en", "UTC")).steps.checkIn).toBeNull();
   });
 

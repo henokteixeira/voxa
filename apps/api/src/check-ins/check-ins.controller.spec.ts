@@ -30,7 +30,9 @@ describe("/check-ins", () => {
       .set("content-type", "audio/wav")
       .send(audio);
     expect(res.status).toBe(201);
-    expect(service.record).toHaveBeenCalledWith("en", { mimeType: "audio/wav", audio }, { speechMs: 90_000, pausesMs: [1_200, 300] });
+    expect(service.record).toHaveBeenCalledWith("en", { mimeType: "audio/wav", audio }, { speechMs: 90_000, pausesMs: [1_200, 300] }, "present_project");
+    await request(app.getHttpServer()).post("/check-ins?speechMs=30000&task=last_weekend").set("content-type", "audio/wav").send(audio).expect(201);
+    expect(service.record).toHaveBeenLastCalledWith("en", { mimeType: "audio/wav", audio }, { speechMs: 30_000, pausesMs: [] }, "last_weekend");
   });
 
   it.each([
@@ -39,6 +41,7 @@ describe("/check-ins", () => {
     ["?speechMs=1000&pausesMs=a", "audio/wav"],
     ["?speechMs=1000&pausesMs=1500", "audio/wav"],
     ["?speechMs=0", "audio/wav"],
+    ["?speechMs=1000&task=unknown_topic", "audio/wav"],
   ])(
     "rejects %s as %s",
     async (query, type) => {

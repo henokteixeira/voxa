@@ -113,7 +113,7 @@ export class MissionService {
 
   private async view(mission: Mission, timeZone: string): Promise<MissionView> {
     const { id, language, day, situation } = mission;
-    const [[last], session] = await Promise.all([this.checkIns.list(language, 1), this.sessions.latestForMission(id)]);
+    const [[last], session] = await Promise.all([this.checkIns.list(language, { limit: 1, kind: "benchmark" }), this.sessions.latestForMission(id)]);
     const sessionId = session?.id ?? null;
     const rounds = sessionId ? await this.fasterRounds.list(sessionId) : [];
     const now = this.clock.now();

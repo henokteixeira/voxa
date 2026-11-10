@@ -1,0 +1,2 @@
+ALTER TABLE "check_ins" DROP CONSTRAINT "check_ins_task";--> statement-breakpoint
+ALTER TABLE "check_ins" ADD CONSTRAINT "check_ins_task" CHECK ("check_ins"."task" in ('present_project', 'last_weekend', 'problem_solved', 'explain_skill', 'change_wanted', 'place_remembered', 'person_admired', 'next_month', 'recommendation', 'childhood_memory', 'hard_decision'));

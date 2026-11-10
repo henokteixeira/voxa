@@ -1,7 +1,7 @@
 /** The prompt that reads a check-in's transcript for mistakes, after the recording (no correction is shown during it). */
 export function buildCheckInReadingPrompt(language: string): string {
   return [
-    `You read the transcript of a learner presenting their project for 2 minutes in ${language} (BCP 47 code). ` +
+    `You read the transcript of a learner speaking for one or two minutes, with no help, in ${language} (BCP 47 code). ` +
       "The transcript comes from speech recognition: ignore punctuation, capitalization, hesitation sounds (uh, hmm, er) and " +
       "self-corrections the learner already fixed.",
     [

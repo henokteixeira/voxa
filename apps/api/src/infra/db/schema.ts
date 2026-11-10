@@ -337,7 +337,7 @@ export const checkIns = pgTable(
     /** Insertion order. Timestamps can tie, so ordering never relies on them. */
     seq: bigserial("seq", { mode: "number" }).notNull(),
     language: varchar("language", { length: 16 }).notNull(),
-    task: varchar("task", { length: 32 }).notNull(), // present_project
+    task: varchar("task", { length: 32 }).notNull(), // present_project, or a topic of the second task
     recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
     transcript: text("transcript").notNull(),
     spokenWords: integer("spoken_words").notNull(),
@@ -349,7 +349,11 @@ export const checkIns = pgTable(
   },
   (t) => [
     index("check_ins_language_seq").on(t.language, t.seq),
-    check("check_ins_task", sql`${t.task} in ('present_project')`),
+    // The fixed task and the topics of CHECK_IN_TOPICS (domain/check-in/check-in.ts).
+    check(
+      "check_ins_task",
+      sql`${t.task} in ('present_project', 'last_weekend', 'problem_solved', 'explain_skill', 'change_wanted', 'place_remembered', 'person_admired', 'next_month', 'recommendation', 'childhood_memory', 'hard_decision')`,
+    ),
   ],
 );
 
