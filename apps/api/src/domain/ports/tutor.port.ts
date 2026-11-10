@@ -52,6 +52,11 @@ export interface TutorRequest extends TutorContext {
    * of them, so the learner uses it again (decided with the user on 2026-11-07).
    */
   bringBack: KnownPattern[];
+  /**
+   * The patterns whose small mistakes pause the talk for a hint this turn (see focusedVerdict), so the reply
+   * knows a hint follows it.
+   */
+  focusPatterns: KnownPattern[];
   utterance: string;
   /** Ids of the goals covered before this utterance. */
   coveredGoals: string[];

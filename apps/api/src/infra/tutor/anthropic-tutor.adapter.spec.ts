@@ -47,6 +47,7 @@ const request: TutorRequest = {
   knownMistakes: [],
   knownNewWords: [],
   knownPatterns: [],
+  focusPatterns: [],
   bringBack: [],
   utterance: "I fixed the upload.",
   goals: [],

@@ -1,4 +1,5 @@
 import { correctsMistakes, type Mode } from "./mode.js";
+import { cleanPattern } from "../mistakes/pattern.js";
 import type { Issue, NewWord, PendingCorrection } from "./types.js";
 
 /** After this many hints the tutor shows the correct form and asks the learner to repeat it. */
@@ -40,7 +41,7 @@ export interface PolicyDecision {
 
 /**
  * Hint-based correction rules:
- * - a serious mistake (hurts understanding or already in the bank) pauses the conversation with a hint;
+ * - a serious mistake (hurts understanding, or a known one in focus: see focusedVerdict) pauses the conversation with a hint;
  * - a minor mistake is only recorded, for the end-of-session summary;
  * - up to MAX_HINTS hints, then the correct form and a request to repeat it.
  */
@@ -104,6 +105,37 @@ export function safeHint(hint: string | null | undefined, target: { correction: 
     return `Let's try that once more. Look at the ${target.category.replaceAll("_", " ")} in that sentence.`;
   }
   return text;
+}
+
+/** Which known mistakes may pause the conversation in this turn. */
+export interface HintFocus {
+  /** The patterns the session works on (due for review, or behind a practice target): key to name. */
+  patterns: ReadonlyMap<string, string>;
+  /** Keys of the patterns already broken earlier in this session. */
+  brokenThisSession: ReadonlySet<string>;
+}
+
+/** The patterns whose small mistakes pause the talk now: in focus and not broken yet this session. */
+export function pausingPatterns(focus: HintFocus): { key: string; name: string }[] {
+  return [...focus.patterns].filter(([key]) => !focus.brokenThisSession.has(key)).map(([key, name]) => ({ key, name }));
+}
+
+/**
+ * A small mistake pauses the talk only when its pattern is in focus, and only the first time in the session;
+ * otherwise it is recorded for the summary and the review, also when it repeats one in the bank (decided on
+ * 2026-11-10, so a growing bank does not turn every conversation into a string of hints). A mistake that gets in
+ * the way of understanding always pauses.
+ */
+export function focusedVerdict(verdict: TutorVerdict, focus: HintFocus): TutorVerdict {
+  const pausing = new Set(pausingPatterns(focus).map((p) => p.key));
+  const inFocus = (issue: Issue) => {
+    const key = cleanPattern(issue.pattern)?.key;
+    return key !== undefined && pausing.has(key);
+  };
+  return {
+    ...verdict,
+    issues: verdict.issues.map((i) => (i.severity === "minor" ? { ...i, matchesKnownMistake: inFocus(i) } : i)),
+  };
 }
 
 /** Every mistake counts as minor, so none pauses the talk for a hint; they are still recorded. */

@@ -263,6 +263,7 @@ const article: Issue = {
   matchesKnownMistake: false,
   pattern: null,
 };
+const articlesPattern = { key: "articles_before_nouns", name: "Articles before nouns", rule: "Use a/the antes do substantivo." };
 const verdict = (v: Partial<TutorVerdict>): TutorVerdict => ({
   reply: "Nice. What happened next?",
   issues: [],
@@ -604,14 +605,73 @@ describe("ConversationService.respond", () => {
     expect(tutor.requests[1].knownPatterns).toEqual([{ key: "past_simple", name: "Past for finished actions" }]);
   });
 
-  it("pauses on a minor mistake that is already in the bank, and records it as serious", async () => {
-    const { session } = await service.start("daily", "en");
-    tutor.verdicts.push(verdict({ issues: [{ ...article, matchesKnownMistake: true }] }));
+  describe("a minor mistake that is already in the bank", () => {
+    const articles = { key: "articles_before_nouns", name: "Articles before nouns", rule: "Use a/the antes do substantivo." };
+    const known = { ...article, matchesKnownMistake: true, pattern: articles };
+    beforeEach(() => {
+      bankEntries = [entry({ original: "I opened PR", patternId: "p-articles", pattern: articles })];
+    });
 
-    const result = await service.respond(session.id, "I opened PR");
+    it("pauses with a hint when its pattern is due for review, and records it as serious", async () => {
+      reviews.items.set("pattern:p-articles", { language: "en", step: 1, dueAt: clock.now() });
+      const { session } = await service.start("daily", "en");
+      tutor.verdicts.push(verdict({ issues: [known] }));
 
-    expect(result.kind).toBe("hint");
-    expect(mistakes.events[0].severity).toBe("serious");
+      const result = await service.respond(session.id, "I opened PR");
+
+      expect(result.kind).toBe("hint");
+      expect(mistakes.events[0].severity).toBe("serious");
+    });
+
+    it("pauses when it is one of the session's practice targets", async () => {
+      const { session } = await service.start("daily", "en");
+      expect(session.targets.map((t) => t.original)).toEqual(["I opened PR"]);
+      tutor.verdicts.push(verdict({ issues: [known] }));
+
+      expect((await service.respond(session.id, "I opened PR")).kind).toBe("hint");
+    });
+
+    it("is only recorded when its pattern is not in focus", async () => {
+      bankEntries.push(entry({ id: "b2", original: "I goed", occurrences: 5 }), entry({ id: "b3", original: "more better", occurrences: 4 }));
+      const { session } = await service.start("daily", "en");
+      tutor.verdicts.push(verdict({ issues: [known] }));
+
+      const result = await service.respond(session.id, "I opened PR");
+
+      expect(result.kind).toBe("reply");
+      expect(mistakes.events[0].severity).toBe("minor");
+    });
+
+    it("tells the tutor which patterns pause, until the pattern is broken in the session", async () => {
+      reviews.items.set("pattern:p-articles", { language: "en", step: 1, dueAt: clock.now() });
+      const { session } = await service.start("daily", "en");
+      tutor.verdicts.push(verdict({ issues: [known] }), verdict({ pendingResolved: true }));
+      await service.respond(session.id, "I opened PR");
+      await service.respond(session.id, "I opened a PR");
+
+      expect(tutor.requests[0].focusPatterns).toEqual([{ key: "articles_before_nouns", name: "Articles before nouns" }]);
+      expect(tutor.requests[1].focusPatterns).toEqual([]);
+    });
+
+    it("still pauses on a serious mistake of a pattern already broken in the session", async () => {
+      reviews.items.set("pattern:p-articles", { language: "en", step: 1, dueAt: clock.now() });
+      const { session } = await service.start("daily", "en");
+      tutor.verdicts.push(verdict({ issues: [known] }), verdict({ pendingResolved: true }), verdict({ issues: [{ ...known, severity: "serious", original: "I merged PR" }] }));
+      await service.respond(session.id, "I opened PR");
+      await service.respond(session.id, "I opened a PR");
+
+      expect((await service.respond(session.id, "I merged PR")).kind).toBe("hint");
+    });
+
+    it("pauses only the first time in the session", async () => {
+      reviews.items.set("pattern:p-articles", { language: "en", step: 1, dueAt: clock.now() });
+      const { session } = await service.start("daily", "en");
+      tutor.verdicts.push(verdict({ issues: [known] }), verdict({ pendingResolved: true }), verdict({ issues: [{ ...known, original: "I merged PR", correction: "I merged a PR" }] }));
+      await service.respond(session.id, "I opened PR");
+      await service.respond(session.id, "I opened a PR");
+
+      expect((await service.respond(session.id, "I merged PR")).kind).toBe("reply");
+    });
   });
 
   it("passes history, the pending correction and known mistakes to the tutor", async () => {
@@ -679,8 +739,10 @@ describe("ConversationService.respond", () => {
     const { session } = await service.start("daily", "en");
     tutor.verdicts.push(
       verdict({ issues: [goed] }),
-      verdict({ issues: [goed, { ...article, matchesKnownMistake: true }] }),
+      verdict({ issues: [goed, { ...article, matchesKnownMistake: true, pattern: articlesPattern }] }),
     );
+    bankEntries = [entry({ original: "I opened PR", patternId: "p-articles", pattern: articlesPattern })];
+    reviews.items.set("pattern:p-articles", { language: "en", step: 1, dueAt: clock.now() });
     await service.respond(session.id, "I goed to the meeting");
 
     await service.respond(session.id, "I goed to the meeting and I opened PR");
