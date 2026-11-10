@@ -49,4 +49,25 @@ describe("ClaudeClient", () => {
       await expect(ask(client(response).claude)).rejects.toBeInstanceOf(TutorUnavailableError);
     }
   });
+
+  it("records every call with its task, model, effort, tokens and time, and whether it failed", async () => {
+    const modelCall = vi.fn().mockResolvedValue(undefined);
+    const usage = { input_tokens: 10, cache_read_input_tokens: 200, cache_creation_input_tokens: 30, output_tokens: 40 };
+    const parse = vi
+      .fn()
+      .mockResolvedValueOnce({ stop_reason: "end_turn", parsed_output: { ok: true }, usage })
+      .mockResolvedValueOnce({ stop_reason: "max_tokens", parsed_output: null, usage })
+      .mockRejectedValueOnce(new Error("down"));
+    const claude = new ClaudeClient({ parse } as unknown as AnthropicMessages, testConfig({ ANTHROPIC_MODEL: "claude-x" }), { voiceTurn: vi.fn(), modelCall });
+
+    await ask(claude);
+    await ask(claude).catch(() => {});
+    await ask(claude).catch(() => {});
+
+    expect(modelCall.mock.calls.map(([call]) => call)).toEqual([
+      { task: "review_check", model: "claude-x", effort: "low", inputTokens: 10, cacheReadTokens: 200, cacheWriteTokens: 30, outputTokens: 40, durationMs: expect.any(Number), failed: false },
+      expect.objectContaining({ failed: true, outputTokens: 40 }),
+      expect.objectContaining({ failed: true, inputTokens: 0, outputTokens: 0 }),
+    ]);
+  });
 });

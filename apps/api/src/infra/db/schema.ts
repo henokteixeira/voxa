@@ -396,3 +396,40 @@ export const missionExpressions = pgTable(
   },
   (t) => [unique("mission_expressions_mission_position").on(t.missionId, t.position), check("mission_expressions_position", sql`${t.position} between 1 and 3`)],
 );
+
+/** How long each stage of a voice turn took (measurements, not learning records). */
+export const voiceTurnTimings = pgTable(
+  "voice_turn_timings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    /** Null for a typed turn. */
+    sttMs: integer("stt_ms"),
+    tutorMs: integer("tutor_ms").notNull(),
+    ttsMs: integer("tts_ms").notNull(),
+    totalMs: integer("total_ms").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("voice_turn_timings_recorded_at").on(t.recordedAt)],
+);
+
+/** Every call to the AI model: tokens and time, to weigh models and efforts by cost and speed. */
+export const modelCalls = pgTable(
+  "model_calls",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    task: varchar("task", { length: 32 }).notNull(),
+    model: varchar("model", { length: 64 }).notNull(),
+    effort: varchar("effort", { length: 8 }).notNull(),
+    inputTokens: integer("input_tokens").notNull(),
+    cacheReadTokens: integer("cache_read_tokens").notNull(),
+    cacheWriteTokens: integer("cache_write_tokens").notNull(),
+    outputTokens: integer("output_tokens").notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    failed: boolean("failed").notNull(),
+    calledAt: timestamp("called_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("model_calls_task_called_at").on(t.task, t.calledAt)],
+);
