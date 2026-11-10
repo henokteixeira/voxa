@@ -103,7 +103,7 @@ The report is printed and saved to `apps/api/eval-results/` (gitignored). The sc
 
 ## Running without Docker
 
-Requirements: Node 22+, pnpm 10+, Python 3.10–3.12 (Kokoro does not support 3.13 yet), Docker (for Postgres).
+Requirements: Node 22.12+, pnpm 10+, Python 3.10–3.12 (Kokoro does not support 3.13 yet), Docker (for Postgres).
 
 ```bash
 cp .env.example .env          # fill in ANTHROPIC_API_KEY

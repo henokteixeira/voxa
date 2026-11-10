@@ -10,5 +10,8 @@
     "test": "pnpm -r test",
     "db:up": "docker compose up -d postgres",
     "db:migrate": "pnpm --filter @voxa/api db:migrate"
+  },
+  "engines": {
+    "node": ">=22.12"
   }
 }
