@@ -1,5 +1,7 @@
 import { mistakeStatus } from "../mistakes/mistake-status.js";
 import type { BankEntry } from "../ports/mistake-bank.repository.js";
+import type { HintFocus } from "./correction-policy.js";
+import type { KnownPattern } from "../mistakes/pattern.js";
 import { sameText } from "./text.js";
 import { NEW_WORD_CATEGORY, type PendingCorrection, type PracticeTarget } from "./types.js";
 
@@ -49,4 +51,25 @@ export function metTargetsAfter(turn: {
         turn.alreadyMet.includes(original) ||
         (turn.correctUses.some((u) => sameText(u, original)) && !(pending && sameText(pending.original, original))),
     );
+}
+
+/**
+ * The patterns a session works on (due for review, or behind one of its targets), and those already broken in it:
+ * together they decide which small known mistakes pause the talk for a hint.
+ */
+export function hintFocus(input: {
+  entries: readonly BankEntry[];
+  duePatterns: ReadonlySet<string>;
+  targets: readonly PracticeTarget[];
+  sessionPatterns: readonly KnownPattern[];
+}): HintFocus {
+  const { entries, duePatterns, targets, sessionPatterns } = input;
+  const patternKeys = new Set(
+    entries.flatMap((e) =>
+      e.pattern && e.patternId && (duePatterns.has(e.patternId) || targets.some((t) => sameText(t.original, e.original)))
+        ? [e.pattern.key]
+        : [],
+    ),
+  );
+  return { patternKeys, brokenThisSession: new Set(sessionPatterns.map((p) => p.key)) };
 }

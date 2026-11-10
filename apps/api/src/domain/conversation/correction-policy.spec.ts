@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decide, safeHint, type TutorVerdict, verdictForMode } from "./correction-policy.js";
+import { decide, focusedVerdict, safeHint, type TutorVerdict, verdictForMode } from "./correction-policy.js";
 import type { Issue, PendingCorrection } from "./types.js";
 
 const issue = (over: Partial<Issue> = {}): Issue => ({
@@ -160,5 +160,42 @@ describe("verdictForMode", () => {
     const observed = verdictForMode("placement", v);
     expect(observed.issues).toEqual([{ ...serious, severity: "minor", matchesKnownMistake: false }]);
     expect(decide(null, observed).kind).toBe("reply");
+  });
+});
+
+describe("focusedVerdict", () => {
+  const pattern = { key: "articles_before_nouns", name: "Articles before nouns", rule: "Use a/the antes do substantivo." };
+  const known = issue({ severity: "minor", matchesKnownMistake: true, pattern });
+  const focus = (keys: string[], broken: string[] = []) => ({ patternKeys: new Set(keys), brokenThisSession: new Set(broken) });
+
+  it("pauses on a small known mistake when its pattern is in focus and was not broken yet this session", () => {
+    const focused = focusedVerdict(verdict({ issues: [known] }), focus(["articles_before_nouns"]));
+    expect(decide(null, focused).kind).toBe("hint");
+  });
+
+  it("only records a small known mistake whose pattern is not in focus", () => {
+    const focused = focusedVerdict(verdict({ issues: [known] }), focus(["past_simple"]));
+    expect(focused.issues[0].matchesKnownMistake).toBe(false);
+    expect(decide(null, focused).kind).toBe("reply");
+  });
+
+  it("pauses once per pattern per session: the second time it is only recorded", () => {
+    const focused = focusedVerdict(verdict({ issues: [known] }), focus(["articles_before_nouns"], ["articles_before_nouns"]));
+    expect(decide(null, focused).kind).toBe("reply");
+  });
+
+  it("matches the pattern key as it is stored", () => {
+    const messy = issue({ severity: "minor", matchesKnownMistake: true, pattern: { ...pattern, key: "Articles Before Nouns" } });
+    expect(decide(null, focusedVerdict(verdict({ issues: [messy] }), focus(["articles_before_nouns"]))).kind).toBe("hint");
+  });
+
+  it("only records a small known mistake without a pattern", () => {
+    const bare = issue({ severity: "minor", matchesKnownMistake: true, pattern: null });
+    expect(decide(null, focusedVerdict(verdict({ issues: [bare] }), focus(["articles_before_nouns"]))).kind).toBe("reply");
+  });
+
+  it("always pauses on a mistake that gets in the way of understanding", () => {
+    const serious = issue({ severity: "serious", matchesKnownMistake: true, pattern });
+    expect(decide(null, focusedVerdict(verdict({ issues: [serious] }), focus([], ["articles_before_nouns"]))).kind).toBe("hint");
   });
 });

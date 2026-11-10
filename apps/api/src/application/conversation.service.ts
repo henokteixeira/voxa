@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { decide, notedOnly, type TurnKind, verdictForMode } from "../domain/conversation/correction-policy.js";
+import { decide, focusedVerdict, notedOnly, type TurnKind, verdictForMode } from "../domain/conversation/correction-policy.js";
 import {
   givesWords,
   nextGoalAfter,
@@ -26,7 +26,7 @@ import {
 } from "../domain/conversation/session-goals.js";
 import { keptScaffold, sessionStep, wasAssisted } from "../domain/conversation/support.js";
 import { type ChatTurn, NEW_WORD_CATEGORY, type PracticeTarget, type Session } from "../domain/conversation/types.js";
-import { choosePracticeTargets, metTargetsAfter } from "../domain/conversation/practice-targets.js";
+import { choosePracticeTargets, hintFocus, metTargetsAfter } from "../domain/conversation/practice-targets.js";
 import { sameText, safeSupport } from "../domain/conversation/text.js";
 import { DomainError, InvalidInputError } from "../domain/errors.js";
 import type { SpeakingLevel } from "../domain/level/speaking-level.js";
@@ -229,14 +229,17 @@ export class ConversationService {
    */
   async respond(sessionId: string, utterance: string, onReply?: (reply: TurnResult) => void): Promise<TurnResult> {
     const session = await this.openSession(sessionId);
-    const [history, known, knownPatterns, sessionPatterns, learnerContext, mission] = await Promise.all([
+    const corrects = correctsMistakes(session.mode);
+    const [history, known, knownPatterns, sessionPatterns, learnerContext, mission, entries, duePatterns] = await Promise.all([
       this.sessions.history(sessionId),
       // Twice the limit, so new words don't push real mistakes out of the list.
       this.mistakes.mostFrequent(session.language, KNOWN_MISTAKES_LIMIT * 2),
       this.mistakes.patterns(session.language, KNOWN_PATTERNS_LIMIT),
-      correctsMistakes(session.mode) ? this.mistakes.sessionPatterns(sessionId) : [],
+      corrects ? this.mistakes.sessionPatterns(sessionId) : [],
       this.learnerContext.load(),
       session.missionId ? this.missions.get(session.missionId) : null,
+      corrects ? this.bank.list(session.language) : [],
+      corrects ? this.reviews.duePatterns(session.language, this.clock.now()) : new Set<string>(),
     ]);
     const learnerTurn = history.filter((t) => t.role === "user").length + 1;
 
@@ -248,6 +251,7 @@ export class ConversationService {
       ...knownMistakes.map(toKnown),
       ...session.targets.filter((t) => !knownMistakes.some((m) => sameText(m.original, t.original))),
     ];
+    const focus = hintFocus({ entries, duePatterns, targets: session.targets, sessionPatterns });
     const outcomes = this.trackOutcomes(session, utterance);
     const early = { reply: null as string | null };
     const handOver =
@@ -281,6 +285,7 @@ export class ConversationService {
         // The reply asks for the learner's next turn. Not while a hint is pending or the guided track gives the
         // next line: the reply has another job then.
         bringBack: session.pending || session.track ? [] : patternsToBringBack(sessionPatterns, learnerTurn + 1),
+        focusPatterns: [...focus.patternKeys].filter((key) => !focus.brokenThisSession.has(key)),
         utterance,
         coveredGoals: session.coveredGoals,
         scaffold: session.scaffold,
@@ -290,7 +295,7 @@ export class ConversationService {
     );
     // The placement interview only observes: every mistake is recorded as minor, so none stops it with a hint.
     // In the guided track, saying the words given (the model, the longer sentence) never stops for a hint either.
-    const byMode = verdictForMode(session.mode, verdict);
+    const byMode = verdictForMode(session.mode, focusedVerdict(verdict, focus));
     const observed = session.track && !pausesForHints(session.track.stage) ? notedOnly(byMode) : byMode;
     const decision = decide(session.pending, observed);
     // The track moves on a plain reply only: while a hint is pending, the learner retries the same answer.

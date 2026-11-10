@@ -67,7 +67,7 @@ In the work modes the tutor uses the user's professional context (role, organiza
 
 The tutor corrects with hints, at once, only when a mistake matters; the user confirmed these rules on 2026-11-06.
 
-1. **Serious mistake** (it gets in the way of understanding, or it is already in the mistake bank): the tutor pauses the conversation and gives a hint so the user corrects himself. It does not just say the correct sentence.
+1. **Serious mistake** (it gets in the way of understanding): the tutor pauses the conversation and gives a hint so the user corrects himself. It does not just say the correct sentence. A small mistake that repeats one in the mistake bank also pauses, but only when its pattern is in focus (due for review, or behind one of the session's practice targets) and only the first time in the session (changed on 2026-11-10, so a growing bank does not fill every conversation with hints).
 2. **Small mistake** (does not get in the way): recorded silently and shown in the end-of-session summary, so fluency is not broken.
 3. **Attempts:** up to 2 hints. After the second miss, the tutor gives the correct form and asks the user to repeat it, then the conversation resumes.
 
@@ -78,7 +78,7 @@ The tutor corrects with hints, at once, only when a mistake matters; the user co
 Every mistake the tutor detects, serious or small, becomes a record in the mistake bank, and every session ends with a summary of that session's mistakes.
 
 - **Record:** language (BCP 47), what the user said, the correct form, category (grammar, vocabulary, pronunciation, ...), occurrences, first and last seen, the session it came from.
-- **Repeat detection:** a mistake that matches an existing record increases its count instead of creating a new one; a mistake already in the bank counts as serious (see Correction rules).
+- **Repeat detection:** a mistake that matches an existing record increases its count instead of creating a new one; it counts as serious only when its pattern is in focus (see Correction rules).
 - **Status:** Open, Improving or Mastered (approved in the prototype). Open: new, or made again. Improving: the correct form was used in a later session. Mastered: correct in 3 different sessions without the mistake again. Making it again sends it back to Open (confirmed on 2026-11-06).
 - **"This isn't a mistake":** the user can dismiss a record, for example when the speech-to-text misheard him; it leaves the bank and does not count again.
 - **Summary at the end of a session:** the mistakes of the session (serious and small) with their correct forms, plus the 4 fluency signals: self-correction rate, mistakes per 100 words, pause before answering, pace (words a minute of the learner's own speech, with long pauses of 1 s or more inside an answer). Pace replaced the share of speaking time on 2026-11-07, which mostly measured how much the tutor talked.
@@ -121,7 +121,7 @@ Each criterion below becomes at least one automated test; voice criteria are als
 **Correction**
 
 - [ ] A serious mistake makes the tutor reply with a hint, never with the corrected sentence.
-- [ ] A mistake already in the bank is treated as serious.
+- [ ] A small mistake already in the bank pauses for a hint only when its pattern is due or a practice target, once per session.
 - [ ] After 2 failed hints the tutor gives the correct form and asks the user to repeat it, then resumes.
 - [ ] A small mistake gets no interruption and is stored for the summary.
 

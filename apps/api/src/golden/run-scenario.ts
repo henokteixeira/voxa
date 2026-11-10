@@ -87,6 +87,7 @@ export async function runScenario(tutor: TutorPort, scenario: Scenario, learnerC
       knownMistakes: scenario.knownMistakes ?? [],
       knownNewWords: scenario.knownNewWords ?? [],
       knownPatterns: [],
+      focusPatterns: [],
       bringBack: [],
       utterance,
       coveredGoals,
