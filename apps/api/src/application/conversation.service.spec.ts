@@ -110,8 +110,18 @@ class FakeSessions implements SessionRepository {
   async setPending(id: string, pending: PendingCorrection | null) {
     this.rows.get(id)!.pending = pending;
   }
-  async end(id: string, timing: SessionTiming | null) {
-    Object.assign(this.rows.get(id)!, { endedAt: new Date(), timing });
+  async saveTiming(id: string, timing: SessionTiming) {
+    const row = this.rows.get(id);
+    if (!row || row.endedAt) return false;
+    row.timing = timing;
+    return true;
+  }
+  async idle() {
+    return [];
+  }
+  async end(id: string, timing: SessionTiming | null, endedAt = new Date()) {
+    const row = this.rows.get(id)!;
+    Object.assign(row, { endedAt, timing: timing ?? row.timing });
   }
   async outcome(id: string) {
     const row = this.rows.get(id);
@@ -1298,6 +1308,23 @@ describe("ConversationService.end", () => {
       wordsPerAnswer: 7,
       unaidedShare: 1,
     });
+  });
+
+  it("uses the timing saved during the session when it ends without one, at the time given", async () => {
+    const { session } = await service.start("daily", "en");
+    await service.saveTiming(session.id, { learnerSpeechMs: 60_000, tutorSpeechMs: 1000, pausesMs: [], spokenWords: 90 });
+    const lastActive = new Date("2026-11-10T08:00:00Z");
+    const summary = await service.end(session.id, null, lastActive);
+    expect(summary.signals.wordsPerMinute).toBe(90);
+    expect((await sessions.get(session.id))?.endedAt).toEqual(lastActive);
+  });
+
+  it("does not save the timing of a session that ended", async () => {
+    const { session } = await service.start("daily", "en");
+    await service.end(session.id);
+    const timing = { learnerSpeechMs: 1000, tutorSpeechMs: 1000, pausesMs: [] };
+    await expect(service.saveTiming(session.id, timing)).rejects.toBeInstanceOf(SessionEndedError);
+    await expect(service.saveTiming("missing", timing)).rejects.toBeInstanceOf(SessionNotFoundError);
   });
 
   it("can be called twice, keeping the first timing", async () => {

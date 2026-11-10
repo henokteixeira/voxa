@@ -187,6 +187,8 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
               .catch(() => {});
           }
           dispatch({ type: "done" });
+          // The server keeps the timing so far, so a session left open still has it when it is closed.
+          void api.saveTiming(id, clock.current.timing()).catch(() => {});
         },
       });
       socket.current = ws;

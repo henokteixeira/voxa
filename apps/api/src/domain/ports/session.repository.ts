@@ -23,6 +23,12 @@ export interface SessionProgress {
   track: TrackState | null;
 }
 
+/** An open session nothing has happened in for a while. */
+export interface IdleSession {
+  id: string;
+  lastActiveAt: Date;
+}
+
 export type TurnClaim = "claimed" | "taken" | "ended";
 
 /** A turn to store. `assisted` (learner turns only): the learner answered words the tutor gave, or used the first language. */
@@ -50,12 +56,18 @@ export interface SessionRepository {
    * saved since its history was read), "ended" when it ended meanwhile.
    */
   claimTurn(sessionId: string, turnsSeen: number): Promise<TurnClaim>;
+  /** Also marks the session active now. */
   appendTurn(sessionId: string, turn: NewTurn): Promise<void>;
   history(sessionId: string): Promise<ChatTurn[]>;
   setPending(sessionId: string, pending: PendingCorrection | null): Promise<void>;
   /** Stores the goals covered so far, when the tutor last asked whether to stop, the targets met and the help given. */
   setProgress(sessionId: string, progress: SessionProgress): Promise<void>;
-  end(sessionId: string, timing: SessionTiming | null): Promise<void>;
+  /** The timing the web app measured so far, saved while the session is open. False when it has ended. */
+  saveTiming(sessionId: string, timing: SessionTiming): Promise<boolean>;
+  /** Up to `limit` open sessions with nothing done since `before`, the longest idle first. */
+  idle(before: Date, limit: number): Promise<IdleSession[]>;
+  /** `endedAt` defaults to now. Without a timing, the one saved during the session stays. */
+  end(sessionId: string, timing: SessionTiming | null, endedAt?: Date): Promise<void>;
   outcome(sessionId: string): Promise<SessionOutcome | null>;
 }
 

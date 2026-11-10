@@ -9,12 +9,13 @@ import {
   SessionNotFoundError,
 } from "../application/conversation.service.js";
 import { ProgressService } from "../application/progress.service.js";
+import { SessionEndService } from "../application/session-end.service.js";
 import { SignalsService } from "../application/signals.service.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import { SessionsController } from "./sessions.controller.js";
 
 const id = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
-const service = { start: vi.fn(), resume: vi.fn(), respond: vi.fn(), end: vi.fn() };
+const service = { start: vi.fn(), resume: vi.fn(), respond: vi.fn(), saveTiming: vi.fn(), end: vi.fn() };
 const progress = { awardSession: vi.fn() };
 const signals = { recordSession: vi.fn() };
 let app: INestApplication;
@@ -27,6 +28,7 @@ beforeEach(async () => {
       { provide: ConversationService, useValue: service },
       { provide: ProgressService, useValue: progress },
       { provide: SignalsService, useValue: signals },
+      SessionEndService,
     ],
   }).compile();
   app = applyHttpConventions(mod.createNestApplication());
@@ -128,6 +130,28 @@ describe("POST /sessions/:id/turns", () => {
   });
 });
 
+describe("PUT /sessions/:id/timing", () => {
+  const timing = { learnerSpeechMs: 12_000, tutorSpeechMs: 9000, pausesMs: [700], longPausesMs: [], spokenWords: 20 };
+
+  it("saves the timing so far", async () => {
+    const res = await request(app.getHttpServer()).put(`/sessions/${id}/timing`).send(timing);
+    expect(res.status).toBe(204);
+    expect(service.saveTiming).toHaveBeenCalledWith(id, timing);
+  });
+
+  it("rejects a bad timing", async () => {
+    const res = await request(app.getHttpServer()).put(`/sessions/${id}/timing`).send({ ...timing, pausesMs: [-1] });
+    expect(res.status).toBe(400);
+    expect(service.saveTiming).not.toHaveBeenCalled();
+  });
+
+  it("answers 409 for a session that ended", async () => {
+    service.saveTiming.mockRejectedValue(new SessionEndedError(id));
+    const res = await request(app.getHttpServer()).put(`/sessions/${id}/timing`).send(timing);
+    expect(res.status).toBe(409);
+  });
+});
+
 describe("POST /sessions/:id/end", () => {
   const summary = {
     sessionId: id,
@@ -153,7 +177,7 @@ describe("POST /sessions/:id/end", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ...summary, xp, comparison });
     expect(signals.recordSession).toHaveBeenCalledWith(summary);
-    expect(service.end).toHaveBeenCalledWith(id, null);
+    expect(service.end).toHaveBeenCalledWith(id, null, undefined);
     expect(progress.awardSession).toHaveBeenCalledWith({
       sessionId: id,
       goalsCovered: 1,
@@ -174,7 +198,7 @@ describe("POST /sessions/:id/end", () => {
     };
     const res = await request(app.getHttpServer()).post(`/sessions/${id}/end`).send({ timing });
     expect(res.status).toBe(200);
-    expect(service.end).toHaveBeenCalledWith(id, timing);
+    expect(service.end).toHaveBeenCalledWith(id, timing, undefined);
   });
 
   it.each([

@@ -25,48 +25,55 @@ import type { TutorMemory } from "../../domain/memory/learner-fact.js";
 
 // Every record carries its language (BCP 47 code, e.g. "en") to support other languages.
 
-export const sessions = pgTable("sessions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  language: varchar("language", { length: 16 }).notNull(),
-  mode: varchar("mode", { length: 32 }).notNull(), // a Mode: free_talk, my_day, story, opinion, presentation, daily, review or placement
-  /** The serious mistake the conversation is paused on, if any. */
-  pending: jsonb("pending").$type<PendingCorrection>(),
-  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
-  endedAt: timestamp("ended_at", { withTimezone: true }),
-  /** Speaking time and pauses measured by the web app; null when the session ended without them. */
-  timing: jsonb("timing").$type<SessionTiming>(),
-  /** Goals of the mode the learner has covered so far. */
-  coveredGoals: jsonb("covered_goals").$type<string[]>().notNull().default([]),
-  /** When the tutor last asked whether to stop or keep going. */
-  lastCheckInAt: timestamp("last_check_in_at", { withTimezone: true }),
-  /** Mistakes from the bank the learner practices in this session. */
-  targets: jsonb("targets").$type<PracticeTarget[]>().notNull().default([]),
-  /** The `original` of each target the learner said correctly in this session. */
-  metTargets: jsonb("met_targets").$type<string[]>().notNull().default([]),
-  /** How much help the session gives (build_full | build_light | supported | conversation | demanding); null in placement. */
-  supportStep: varchar("support_step", { length: 16 }),
-  /** Words the tutor's last line gave the learner to say (a model sentence or a sentence start). */
-  scaffold: text("scaffold"),
-  /** The guided track (A1–A2): the stage (model | swap | extend | answer | again), null outside the track. */
-  trackStage: varchar("track_stage", { length: 16 }),
-  /** The goal the track is building (a goal id of the mode), null in free talk. */
-  trackGoal: varchar("track_goal", { length: 32 }),
-  /** Extra tries at the current stage. */
-  trackTries: smallint("track_tries").notNull().default(0),
-  /** The learner was stuck at the current goal's answer, so it was built from the model. */
-  trackHelped: boolean("track_helped").notNull().default(false),
-  /** Goals in a row answered alone, and stuck at the answer: they move the step between A1 and A2. */
-  trackUnaidedStreak: smallint("track_unaided_streak").notNull().default(0),
-  trackStuckStreak: smallint("track_stuck_streak").notNull().default(0),
-  /** What the tutor remembered when the session started. */
-  memory: jsonb("memory").$type<TutorMemory>().notNull().default({ facts: [], recentSessions: [] }),
-  /** When what the learner said about themselves was saved to memory; null until then. */
-  rememberedAt: timestamp("remembered_at", { withTimezone: true }),
-  /** One sentence on what the learner talked about, for later sessions; null when there is nothing to recall. */
-  recap: text("recap"),
-  /** The daily mission this session is step 3 of; null outside a mission. */
-  missionId: uuid("mission_id").references((): AnyPgColumn => missions.id, { onDelete: "set null" }),
-});
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    language: varchar("language", { length: 16 }).notNull(),
+    mode: varchar("mode", { length: 32 }).notNull(), // a Mode: free_talk, my_day, story, opinion, presentation, daily, review or placement
+    /** The serious mistake the conversation is paused on, if any. */
+    pending: jsonb("pending").$type<PendingCorrection>(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    /** When the learner last did something in the session (a turn, or the web app saving the timing). */
+    lastActiveAt: timestamp("last_active_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Speaking time and pauses measured by the web app; null when the session ended without them. */
+    timing: jsonb("timing").$type<SessionTiming>(),
+    /** Goals of the mode the learner has covered so far. */
+    coveredGoals: jsonb("covered_goals").$type<string[]>().notNull().default([]),
+    /** When the tutor last asked whether to stop or keep going. */
+    lastCheckInAt: timestamp("last_check_in_at", { withTimezone: true }),
+    /** Mistakes from the bank the learner practices in this session. */
+    targets: jsonb("targets").$type<PracticeTarget[]>().notNull().default([]),
+    /** The `original` of each target the learner said correctly in this session. */
+    metTargets: jsonb("met_targets").$type<string[]>().notNull().default([]),
+    /** How much help the session gives (build_full | build_light | supported | conversation | demanding); null in placement. */
+    supportStep: varchar("support_step", { length: 16 }),
+    /** Words the tutor's last line gave the learner to say (a model sentence or a sentence start). */
+    scaffold: text("scaffold"),
+    /** The guided track (A1–A2): the stage (model | swap | extend | answer | again), null outside the track. */
+    trackStage: varchar("track_stage", { length: 16 }),
+    /** The goal the track is building (a goal id of the mode), null in free talk. */
+    trackGoal: varchar("track_goal", { length: 32 }),
+    /** Extra tries at the current stage. */
+    trackTries: smallint("track_tries").notNull().default(0),
+    /** The learner was stuck at the current goal's answer, so it was built from the model. */
+    trackHelped: boolean("track_helped").notNull().default(false),
+    /** Goals in a row answered alone, and stuck at the answer: they move the step between A1 and A2. */
+    trackUnaidedStreak: smallint("track_unaided_streak").notNull().default(0),
+    trackStuckStreak: smallint("track_stuck_streak").notNull().default(0),
+    /** What the tutor remembered when the session started. */
+    memory: jsonb("memory").$type<TutorMemory>().notNull().default({ facts: [], recentSessions: [] }),
+    /** When what the learner said about themselves was saved to memory; null until then. */
+    rememberedAt: timestamp("remembered_at", { withTimezone: true }),
+    /** One sentence on what the learner talked about, for later sessions; null when there is nothing to recall. */
+    recap: text("recap"),
+    /** The daily mission this session is step 3 of; null outside a mission. */
+    missionId: uuid("mission_id").references((): AnyPgColumn => missions.id, { onDelete: "set null" }),
+  },
+  // Open sessions by last activity: the ones left idle are closed.
+  (t) => [index("sessions_open_last_active_at").on(t.lastActiveAt).where(sql`${t.endedAt} is null`)],
+);
 
 export const turns = pgTable("turns", {
   id: uuid("id").primaryKey().defaultRandom(),

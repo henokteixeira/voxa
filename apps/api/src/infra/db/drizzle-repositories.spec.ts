@@ -3,7 +3,8 @@ import type { PendingCorrection } from "../../domain/conversation/types.js";
 import type { Database } from "./db.module.js";
 import { DrizzleMistakeRepository } from "./drizzle-mistake.repository.js";
 import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
-import { mistakeCorrectUses, mistakeOccurrences, turns } from "./schema.js";
+import { eq } from "drizzle-orm";
+import { mistakeCorrectUses, mistakeOccurrences, sessions as sessionRows, turns } from "./schema.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
@@ -137,6 +138,42 @@ describe("DrizzleSessionRepository", () => {
     const timing = { learnerSpeechMs: 61_000, tutorSpeechMs: 42_500, pausesMs: [1200, 800] };
     await sessions.end(id, timing);
     expect((await sessions.outcome(id))?.timing).toEqual(timing);
+  });
+
+  it("keeps the timing saved during the session when it ends without one", async () => {
+    const { id } = await sessions.create({ language: "en", mode: "daily" });
+    const timing = { learnerSpeechMs: 30_000, tutorSpeechMs: 20_000, pausesMs: [900] };
+    expect(await sessions.saveTiming(id, timing)).toBe(true);
+    const endedAt = new Date("2026-11-10T09:00:00Z");
+    await sessions.end(id, null, endedAt);
+    expect((await sessions.outcome(id))?.timing).toEqual(timing);
+    expect((await sessions.get(id))?.endedAt).toEqual(endedAt);
+    expect(await sessions.saveTiming(id, { ...timing, learnerSpeechMs: 1 })).toBe(false);
+    expect((await sessions.outcome(id))?.timing).toEqual(timing);
+  });
+
+  it("lists open sessions idle since a time, the longest idle first, and a turn makes one active", async () => {
+    const lastActive = async (id: string, at: string) =>
+      db.update(sessionRows).set({ lastActiveAt: new Date(at) }).where(eq(sessionRows.id, id));
+    const older = await sessions.create({ language: "en", mode: "daily" });
+    const old = await sessions.create({ language: "en", mode: "daily" });
+    const recent = await sessions.create({ language: "en", mode: "daily" });
+    const ended = await sessions.create({ language: "en", mode: "daily" });
+    await lastActive(older.id, "2026-11-10T06:00:00Z");
+    await lastActive(old.id, "2026-11-10T07:00:00Z");
+    await lastActive(recent.id, "2026-11-10T11:00:00Z");
+    await lastActive(ended.id, "2026-11-10T05:00:00Z");
+    await sessions.end(ended.id, null);
+    const before = new Date("2026-11-10T10:00:00Z");
+
+    expect(await sessions.idle(before, 10)).toEqual([
+      { id: older.id, lastActiveAt: new Date("2026-11-10T06:00:00Z") },
+      { id: old.id, lastActiveAt: new Date("2026-11-10T07:00:00Z") },
+    ]);
+    expect((await sessions.idle(before, 1)).map((s) => s.id)).toEqual([older.id]);
+
+    await sessions.appendTurn(older.id, { role: "user", content: "I'm back." });
+    expect((await sessions.idle(before, 10)).map((s) => s.id)).toEqual([old.id]);
   });
 
   it("has no outcome for an unknown session", async () => {

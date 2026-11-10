@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import { isTrackStage, type TrackState } from "../../domain/conversation/guided-track.js";
 import { isMode } from "../../domain/conversation/mode.js";
@@ -7,6 +7,7 @@ import { isSupportStep, type SupportStep } from "../../domain/level/speaking-lev
 import type { TutorMemory } from "../../domain/memory/learner-fact.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget, Session } from "../../domain/conversation/types.js";
 import type {
+  IdleSession,
   NewTurn,
   SessionOutcome,
   SessionProgress,
@@ -121,6 +122,7 @@ export class DrizzleSessionRepository implements SessionRepository {
     await this.db
       .insert(turns)
       .values({ sessionId, role: turn.role, content: turn.content, assisted: turn.assisted ?? false });
+    await this.db.update(sessions).set({ lastActiveAt: new Date() }).where(eq(sessions.id, sessionId));
   }
 
   async history(sessionId: string): Promise<ChatTurn[]> {
@@ -143,8 +145,30 @@ export class DrizzleSessionRepository implements SessionRepository {
       .where(eq(sessions.id, sessionId));
   }
 
-  async end(sessionId: string, timing: SessionTiming | null): Promise<void> {
-    await this.db.update(sessions).set({ endedAt: new Date(), timing }).where(eq(sessions.id, sessionId));
+  async saveTiming(sessionId: string, timing: SessionTiming): Promise<boolean> {
+    const saved = await this.db
+      .update(sessions)
+      .set({ timing, lastActiveAt: new Date() })
+      .where(and(eq(sessions.id, sessionId), isNull(sessions.endedAt)))
+      .returning({ id: sessions.id });
+    return saved.length > 0;
+  }
+
+  async idle(before: Date, limit: number): Promise<IdleSession[]> {
+    return this.db
+      .select({ id: sessions.id, lastActiveAt: sessions.lastActiveAt })
+      .from(sessions)
+      .where(and(isNull(sessions.endedAt), lt(sessions.lastActiveAt, before)))
+      .orderBy(asc(sessions.lastActiveAt))
+      .limit(limit);
+  }
+
+  async end(sessionId: string, timing: SessionTiming | null, endedAt = new Date()): Promise<void> {
+    await this.db
+      .update(sessions)
+      // Without a timing, the one saved during the session stays.
+      .set({ endedAt, ...(timing && { timing }) })
+      .where(eq(sessions.id, sessionId));
   }
 
   async outcome(sessionId: string): Promise<SessionOutcome | null> {

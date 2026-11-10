@@ -23,6 +23,7 @@ const api = {
   startSession: vi.fn(),
   sendTurn: vi.fn(),
   endSession: vi.fn(),
+  saveTiming: vi.fn(),
   resumeSession: vi.fn(),
   fillerSpeech: vi.fn(),
   // A learner who already has a level: without one, Today opens the onboarding.
@@ -38,7 +39,7 @@ const api = {
   // The mission page, after step 3: it stays loading in these tests.
   missionToday: vi.fn(() => new Promise(() => {})),
   voiceUrl: (id: string) => `ws://api/api/sessions/${id}/voice`,
-} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "resumeSession" | "fillerSpeech" | "todayProgress" | "reviewCard" | "answerReview" | "transcribe" | "missionToday"]: ReturnType<typeof vi.fn> };
+} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "saveTiming" | "resumeSession" | "fillerSpeech" | "todayProgress" | "reviewCard" | "answerReview" | "transcribe" | "missionToday"]: ReturnType<typeof vi.fn> };
 
 const deps: VoiceDeps = {
   openMicrophone: vi.fn(async (handlers: MicrophoneHandlers) => {
@@ -118,6 +119,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   api.health.mockResolvedValue({ status: "ok" });
   api.endSession.mockResolvedValue(summaryWith([]));
+  api.saveTiming.mockResolvedValue(undefined);
   api.fillerSpeech.mockResolvedValue([]);
   api.todayProgress.mockResolvedValue(todayWith(20));
   api.startSession.mockResolvedValue({
@@ -1013,6 +1015,23 @@ describe("fluency timing", () => {
       "s1",
       expect.objectContaining({ tutorSpeechMs: 3000, pausesMs: [1500], learnerSpeechMs: 4000 }),
     );
+    now.mockRestore();
+  });
+
+  it("saves the timing so far after each turn, and goes on when that fails", async () => {
+    const now = vi.spyOn(performance, "now");
+    now.mockReturnValue(0);
+    await startAndListen();
+    now.mockReturnValue(1000);
+    act(() => micHandlers.onSpeechStart());
+    now.mockReturnValue(4000);
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTranscript("I fixed it"));
+    api.saveTiming.mockRejectedValueOnce(new Error("offline"));
+    act(() => socketHandlers.onTutor({ kind: "reply", message: "Nice.", selfCorrected: false }));
+    act(() => socketHandlers.onDone());
+
+    expect(api.saveTiming).toHaveBeenLastCalledWith("s1", expect.objectContaining({ spokenWords: 3 }));
     now.mockRestore();
   });
 
