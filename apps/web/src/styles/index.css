@@ -167,6 +167,9 @@
 .vx-s-speaking { animation: vx-squish 0.55s ease-in-out infinite; }
 .vx-s-hint { animation: vx-sag 2.2s ease-in-out infinite; }
 .vx-s-success { animation: vx-bounce 1.6s cubic-bezier(0.3, 1.4, 0.5, 1) infinite; }
+/* Beside a ring (BallRing) the ball breathes evenly, so it stays round and centred in it. */
+@keyframes vx-round { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.025); } }
+:has(> [data-ring="on"]) > * > [class*="vx-s-"] { animation: vx-round 1.6s ease-in-out infinite; }
 .vx-blink { transform-box: fill-box; transform-origin: 50% 50%; animation: vx-blink 3.8s infinite; }
 .vx-talk { transform-box: fill-box; transform-origin: 50% 0; animation: vx-talk 0.22s ease-in-out infinite alternate; }
 @media (prefers-reduced-motion: reduce) {

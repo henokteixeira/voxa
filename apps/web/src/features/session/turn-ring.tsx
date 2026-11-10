@@ -38,7 +38,7 @@ export function TurnRing({ ballSize }: { ballSize: number }) {
         filled={progress}
         data-testid="turn-ring"
         data-shown={shown}
-        className={`transition-opacity duration-700 ${shown ? "opacity-100" : "opacity-0"}`}
+        visible={shown}
       />
       <span aria-live="polite" className="sr-only">
         {shown ? page.turnLimit(clockText(MAX_TURN_MS)) : ""}
