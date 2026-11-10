@@ -4,12 +4,15 @@ import type { MistakePattern } from "../mistakes/pattern.js";
 import type { TrackState } from "./guided-track.js";
 import type { Mode } from "./mode.js";
 
+export const TURN_ROLES = ["user", "assistant"] as const;
+
 export interface ChatTurn {
-  role: "user" | "assistant";
+  role: (typeof TURN_ROLES)[number];
   content: string;
 }
 
-export type Severity = "serious" | "minor";
+export const SEVERITIES = ["serious", "minor"] as const;
+export type Severity = (typeof SEVERITIES)[number];
 
 /** Bank category for words the learner said in their first language: a word to learn, not a mistake. */
 export const NEW_WORD_CATEGORY = "new_word";

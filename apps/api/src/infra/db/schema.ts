@@ -21,12 +21,15 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
-import type { PendingCorrection, PracticeTarget } from "../../domain/conversation/types.js";
+import { type PendingCorrection, type PracticeTarget, SEVERITIES, TURN_ROLES } from "../../domain/conversation/types.js";
 import { SUPPORT_STEPS } from "../../domain/level/speaking-level.js";
 import type { TutorMemory } from "../../domain/memory/learner-fact.js";
 
 /** `column in (...)`, from the list the code uses, so a value the code does not know cannot be saved. */
 function oneOf(column: SQL | AnyPgColumn, values: readonly string[]): SQL {
+  // Written into the DDL as is (DDL takes no parameters): only plain identifiers.
+  const bad = values.find((value) => !/^[A-Za-z0-9_]+$/.test(value));
+  if (bad !== undefined) throw new Error(`Not a plain value for a check: "${bad}"`);
   return sql`${column} in (${sql.raw(values.map((value) => `'${value}'`).join(", "))})`;
 }
 
@@ -98,7 +101,7 @@ export const turns = pgTable("turns", {
   /** Learner turns: answered words the tutor gave, or used the first language. Always false for the tutor's turns. */
   assisted: boolean("assisted").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index("turns_session_id_seq").on(t.sessionId, t.seq), check("turns_role", oneOf(t.role, ["user", "assistant"]))]);
+}, (t) => [index("turns_session_id_seq").on(t.sessionId, t.seq), check("turns_role", oneOf(t.role, TURN_ROLES))]);
 
 /** The rules mistakes break. Many mistakes share one pattern; the learner reviews the pattern. */
 export const patterns = pgTable(
@@ -194,7 +197,7 @@ export const mistakeOccurrences = pgTable("mistake_occurrences", {
 }, (t) => [
   index("mistake_occurrences_mistake_id").on(t.mistakeId),
   index("mistake_occurrences_session_id").on(t.sessionId),
-  check("mistake_occurrences_severity", oneOf(t.severity, ["serious", "minor"])),
+  check("mistake_occurrences_severity", oneOf(t.severity, SEVERITIES)),
 ]);
 
 /**
