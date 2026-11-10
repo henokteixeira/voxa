@@ -13,6 +13,22 @@ Both models load at startup (the first run downloads them: Whisper `medium` ~1.5
 so the server answers only once they are ready. `VOICE_WARMUP=0` loads them lazily instead, but then
 the first request can exceed the API's timeout. Kokoro may also need `espeak-ng` installed on the system.
 
+## Dependencies
+
+`requirements.txt` lists what the service needs; `requirements.lock` pins every package the Docker image
+installs, so each build gets the same versions. PyTorch is left out of the lock: the image installs the
+CPU-only build first (`torch==` in the `Dockerfile`), and the lock leaves out the CUDA packages the default
+Linux wheel would pull. After changing `requirements.txt`, regenerate the lock (with [uv](https://docs.astral.sh/uv/))
+and keep the `torch==` version in the `Dockerfile` equal to the one uv resolves:
+
+```bash
+uv pip compile requirements.txt --python-version 3.12 --python-platform x86_64-manylinux_2_28 \
+  --no-emit-package torch --no-emit-package triton \
+  $(uv pip compile requirements.txt --python-version 3.12 --python-platform x86_64-manylinux_2_28 -q 2>/dev/null \
+    | grep -oE '^(nvidia-[a-z0-9-]+|cuda-[a-z-]+)' | sed 's/^/--no-emit-package /') \
+  --custom-compile-command "uv pip compile requirements.txt (see the README)" -o requirements.lock
+```
+
 ## Endpoints
 
 | Endpoint | Input | Output |
