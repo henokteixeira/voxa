@@ -3,11 +3,10 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyHttpConventions } from "../common/http-app.js";
-import {
-  ConversationService,
-  SessionEndedError,
-  SessionNotFoundError,
-} from "../application/conversation.service.js";
+import { SessionStartService } from "../application/session-start.service.js";
+import { SessionSummaryService } from "../application/session-summary.service.js";
+import { TurnService } from "../application/turn.service.js";
+import { SessionEndedError, SessionNotFoundError } from "../domain/conversation/session-errors.js";
 import { ProgressService } from "../application/progress.service.js";
 import { SessionEndService } from "../application/session-end.service.js";
 import { SignalsService } from "../application/signals.service.js";
@@ -25,7 +24,10 @@ beforeEach(async () => {
   const mod = await Test.createTestingModule({
     controllers: [SessionsController],
     providers: [
-      { provide: ConversationService, useValue: service },
+      // One mock for the three services: each method belongs to one of them.
+      { provide: SessionStartService, useValue: service },
+      { provide: TurnService, useValue: service },
+      { provide: SessionSummaryService, useValue: service },
       { provide: ProgressService, useValue: progress },
       { provide: SignalsService, useValue: signals },
       SessionEndService,

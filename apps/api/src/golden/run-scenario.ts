@@ -46,7 +46,7 @@ export interface Transcript {
 
 /**
  * Plays a scripted conversation against a tutor, keeping history and the pending correction
- * the same way ConversationService does, but without a database.
+ * the same way TurnService does, but without a database.
  */
 export async function runScenario(tutor: TutorPort, scenario: Scenario, learnerContext: string): Promise<Transcript> {
   const context = {

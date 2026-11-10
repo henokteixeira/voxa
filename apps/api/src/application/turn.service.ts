@@ -9,12 +9,9 @@ import {
   verdictForMode,
 } from "../domain/conversation/correction-policy.js";
 import {
-  givesWords,
   nextGoalAfter,
-  openingPlan,
   pausesForHints,
   resolveTrackTurn,
-  startTrack,
   type TrackOutcomes,
   trackOutcomes,
   type TrackView,
@@ -22,73 +19,30 @@ import {
   turnPlan,
   usesTrack,
 } from "../domain/conversation/guided-track.js";
-import { fluencySignals, type SessionTiming } from "../domain/conversation/fluency.js";
-import { correctsMistakes, type Mode } from "../domain/conversation/mode.js";
-import {
-  checkInDue,
-  checkInLine,
-  describeGoal,
-  GOAL_DESCRIPTIONS,
-  goalsFor,
-  mergeCovered,
-} from "../domain/conversation/session-goals.js";
-import { keptScaffold, sessionStep, wasAssisted } from "../domain/conversation/support.js";
-import { type ChatTurn, NEW_WORD_CATEGORY, type PracticeTarget, type Session } from "../domain/conversation/types.js";
-import { choosePracticeTargets, hintFocus, metTargetsAfter } from "../domain/conversation/practice-targets.js";
+import { correctsMistakes } from "../domain/conversation/mode.js";
+import { checkInDue, checkInLine, describeGoal, goalsFor, mergeCovered } from "../domain/conversation/session-goals.js";
+import { SessionEndedError, TurnConflictError } from "../domain/conversation/session-errors.js";
+import { keptScaffold, wasAssisted } from "../domain/conversation/support.js";
+import { NEW_WORD_CATEGORY, type PracticeTarget, type Session } from "../domain/conversation/types.js";
+import { hintFocus, metTargetsAfter } from "../domain/conversation/practice-targets.js";
 import { sameText, safeSupport } from "../domain/conversation/text.js";
-import { DomainError, InvalidInputError } from "../domain/errors.js";
-import type { SpeakingLevel } from "../domain/level/speaking-level.js";
-import { type SessionSignals, unaidedShare } from "../domain/progress/signal-trend.js";
+import { patternsToBringBack } from "../domain/mistakes/bring-back.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
-import { MISTAKE_BANK_REPOSITORY, type MistakeBankRepository } from "../domain/ports/mistake-bank.repository.js";
 import { LEARNER_CONTEXT_PORT, type LearnerContextPort } from "../domain/ports/learner-context.port.js";
 import { MISSION_REPOSITORY, type MissionRepository } from "../domain/ports/mission.repository.js";
-import type { Mission } from "../domain/mission/mission.js";
-import { MissionNotFoundError } from "../domain/mission/mission-errors.js";
-import { LEVEL_ASSESSOR_PORT, type LevelAssessorPort } from "../domain/ports/level-assessor.port.js";
-import { LEVEL_REPOSITORY, type LevelRepository } from "../domain/ports/level.repository.js";
-import { MISTAKE_REPOSITORY, type MistakeRepository, type SessionMistake } from "../domain/ports/mistake.repository.js";
-import {
-  SESSION_REPOSITORY,
-  type SessionRepository,
-} from "../domain/ports/session.repository.js";
-import { type TutorContext, TUTOR_PORT, type TutorPort, type TutorRequest } from "../domain/ports/tutor.port.js";
+import { MISTAKE_BANK_REPOSITORY, type MistakeBankRepository } from "../domain/ports/mistake-bank.repository.js";
+import { MISTAKE_REPOSITORY, type MistakeRepository } from "../domain/ports/mistake.repository.js";
+import { SESSION_REPOSITORY, type SessionRepository } from "../domain/ports/session.repository.js";
+import { TUTOR_PORT, type TutorPort, type TutorRequest } from "../domain/ports/tutor.port.js";
 import { UNIT_OF_WORK, type TransactionStores, type UnitOfWork } from "../domain/ports/unit-of-work.port.js";
-import { LearnerMemoryService } from "./learner-memory.service.js";
 import { ReviewScheduler } from "./review-scheduler.js";
+import { openSession, phrasesOf, tutorContext } from "./session-context.js";
 import { recordTurnLearning } from "./turn-learning.js";
-import { patternsToBringBack } from "../domain/mistakes/bring-back.js";
-import { chooseTakeaways, type Takeaway } from "../domain/mistakes/takeaways.js";
 
 /** How many of the learner's most frequent mistakes the tutor watches for. */
 export const KNOWN_MISTAKES_LIMIT = 20;
 /** How many of the bank's patterns the tutor sees, so a mistake that breaks one of them reuses its key. */
 export const KNOWN_PATTERNS_LIMIT = 30;
-
-export class SessionNotFoundError extends DomainError {
-  readonly code = "not_found";
-
-  constructor(sessionId: string) {
-    super(`Session ${sessionId} not found.`, "Session not found.");
-  }
-}
-
-export class SessionEndedError extends DomainError {
-  readonly code = "ended";
-
-  constructor(sessionId: string) {
-    super(`Session ${sessionId} has ended.`, "This session has ended.");
-  }
-}
-
-/** Another turn of the session was saved while this one was being answered (two tabs, or a retry racing the first try). */
-export class TurnConflictError extends DomainError {
-  readonly code = "conflict";
-
-  constructor(sessionId: string) {
-    super(`Session ${sessionId} got another turn while this one was answered.`, "Voxa was still saving your last turn.");
-  }
-}
 
 export interface TurnResult {
   kind: TurnKind;
@@ -112,133 +66,22 @@ export interface TurnResult {
   scaffold: string | null;
 }
 
-export interface SessionStart {
-  session: Session;
-  message: string;
-  goals: readonly string[];
-}
-
-/** What the app needs to pick an open session up again, e.g. after the page reloads. */
-export interface SessionResume {
-  sessionId: string;
-  mode: Mode;
-  language: string;
-  startedAt: Date;
-  /** The conversation so far, in order. */
-  turns: ChatTurn[];
-  goals: readonly string[];
-  coveredGoals: string[];
-  /** The serious mistake the conversation is paused on, without its correction (the hints must not give it away). */
-  hint: {
-    hintsGiven: number;
-    revealed: boolean;
-    mistake: string;
-    mistakeType: string;
-    /** Only once the correct form was given: the rule it breaks. */
-    rule: { name: string; rule: string } | null;
-  } | null;
-  track: TrackView | null;
-  scaffold: string | null;
-}
-
-export interface SessionSummary {
-  sessionId: string;
-  mode: Mode;
-  language: string;
-  mistakes: SessionMistake[];
-  selfCorrections: number;
-  signals: SessionSignals;
-  goals: { id: string; covered: boolean }[];
-  /** The mistakes practiced in this session; `met` when the learner said the correct form. */
-  targets: (PracticeTarget & { met: boolean })[];
-  /** Up to three patterns from the session for the learner to take away and try saying. */
-  takeaways: Takeaway[];
-  /** After a placement interview: the level it gave, or null when the learner said nothing. Null in other modes. */
-  level: SpeakingLevel | null;
-}
-
+/** One learner turn: the tutor's answer, what the turn taught, and the session's progress, saved together. */
 @Injectable()
-export class ConversationService {
-  private readonly logger = new Logger(ConversationService.name);
+export class TurnService {
+  private readonly logger = new Logger(TurnService.name);
 
   constructor(
-    @Inject(TUTOR_PORT) private readonly tutor: TutorPort,
-    @Inject(SESSION_REPOSITORY) private readonly sessions: SessionRepository,
-    @Inject(MISTAKE_REPOSITORY) private readonly mistakes: MistakeRepository,
+    @Inject(TUTOR_PORT) private readonly tutor: Pick<TutorPort, "evaluate">,
+    @Inject(SESSION_REPOSITORY) private readonly sessions: Pick<SessionRepository, "get" | "history">,
+    @Inject(MISTAKE_REPOSITORY) private readonly mistakes: Pick<MistakeRepository, "mostFrequent" | "patterns" | "sessionPatterns">,
     @Inject(LEARNER_CONTEXT_PORT) private readonly learnerContext: LearnerContextPort,
     @Inject(MISTAKE_BANK_REPOSITORY) private readonly bank: Pick<MistakeBankRepository, "list">,
     @Inject(CLOCK) private readonly clock: Clock,
-    @Inject(LEVEL_ASSESSOR_PORT) private readonly assessor: LevelAssessorPort,
-    @Inject(LEVEL_REPOSITORY) private readonly levels: LevelRepository,
     private readonly reviews: ReviewScheduler,
-    private readonly memory: LearnerMemoryService,
     @Inject(MISSION_REPOSITORY) private readonly missions: Pick<MissionRepository, "get">,
     @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
   ) {}
-
-  /** Starts a session; with `missionId`, it is that daily mission's step 3, with the model's 3 expressions to invite. */
-  async start(mode: Mode, language: string, missionId?: string): Promise<SessionStart> {
-    const mission = missionId ? await this.missionFor(missionId, mode, language) : null;
-    // Picks up sessions a failed or interrupted run left unremembered, in the background.
-    void this.memory.sweep();
-    const [targets, level] = await Promise.all([
-      correctsMistakes(mode)
-        ? Promise.all([this.bank.list(language), this.reviews.duePatterns(language, this.clock.now())]).then(([bank, due]) =>
-            choosePracticeTargets(bank, due),
-          )
-        : [],
-      this.levels.current(language),
-    ]);
-    const step = sessionStep(mode, level?.level ?? null);
-    const track = startTrack(step, goalsFor(mode)[0] ?? null);
-    const startedAt = this.clock.now();
-    const [learnerContext, memory] = await Promise.all([this.learnerContext.load(), this.memory.recall({ startedAt })]);
-    const created = await this.sessions.create({ mode, language, startedAt, targets, step, track, memory, missionId: mission?.id ?? null });
-    const plan = track ? openingPlan(track, describeGoal) : null;
-    const opening = await this.tutor.open(this.tutorContext(created, learnerContext, phrasesOf(mission)), plan);
-    await this.sessions.appendTurn(created.id, { role: "assistant", content: opening.line });
-    // In the guided track the opening already gives the first model sentence.
-    const scaffold = track && givesWords(track.stage) ? opening.scaffold : null;
-    const session = { ...created, scaffold };
-    if (scaffold) {
-      await this.sessions.setProgress(created.id, {
-        coveredGoals: [],
-        lastCheckInAt: null,
-        metTargets: [],
-        scaffold,
-        step,
-        track,
-      });
-    }
-    return { session, message: opening.line, goals: goalsFor(mode) };
-  }
-
-  /** The state of an open session, so the learner can go on where they left off. */
-  async resume(sessionId: string): Promise<SessionResume> {
-    const session = await this.openSession(sessionId);
-    const turns = await this.sessions.history(sessionId);
-    const { pending } = session;
-    return {
-      sessionId: session.id,
-      mode: session.mode,
-      language: session.language,
-      startedAt: session.startedAt,
-      turns,
-      goals: goalsFor(session.mode),
-      coveredGoals: session.coveredGoals,
-      hint: pending
-        ? {
-            hintsGiven: pending.hintsGiven,
-            revealed: pending.revealed,
-            mistake: pending.original,
-            mistakeType: pending.category,
-            rule: pending.revealed ? (pending.pattern ?? null) : null,
-          }
-        : null,
-      track: trackView(session.track),
-      scaffold: session.scaffold,
-    };
-  }
 
   /**
    * The tutor's answer to one learner turn.
@@ -249,7 +92,7 @@ export class ConversationService {
    * While a hint is pending the reply may not be said, so the answer always comes in one piece.
    */
   async respond(sessionId: string, utterance: string, onReply?: (reply: TurnResult) => void): Promise<TurnResult> {
-    const session = await this.openSession(sessionId);
+    const session = await openSession(this.sessions, sessionId);
     const corrects = correctsMistakes(session.mode);
     const turnAt = this.clock.now();
     const [history, known, knownPatterns, sessionPatterns, learnerContext, mission, entries, duePatterns, dueExpressions] = await Promise.all([
@@ -298,7 +141,7 @@ export class ConversationService {
           }
         : undefined;
     const request: TutorRequest = {
-      ...this.tutorContext(session, learnerContext, phrasesOf(mission)),
+      ...tutorContext(session, learnerContext, phrasesOf(mission)),
       history,
       pending: session.pending,
       knownMistakes: watched,
@@ -456,67 +299,6 @@ export class ConversationService {
     }
   }
 
-  /** Ends the session (once: ending it again keeps the first timing) and returns its summary. */
-  /** Keeps the timing the web app measured so far, so a session left open still has it when it is closed. */
-  async saveTiming(sessionId: string, timing: SessionTiming): Promise<void> {
-    if (!(await this.sessions.saveTiming(sessionId, timing))) await this.openSession(sessionId);
-  }
-
-  /** `endedAt` defaults to now; a session closed for being left idle ends at its last activity. */
-  async end(sessionId: string, timing: SessionTiming | null = null, endedAt?: Date): Promise<SessionSummary> {
-    const session = await this.sessions.get(sessionId);
-    if (!session) throw new SessionNotFoundError(sessionId);
-    const history = await this.sessions.history(sessionId);
-    let level: SpeakingLevel | null = null;
-    if (session.mode === "placement") {
-      // Assessed before the session is marked ended: if the tutor is down, ending again retries it.
-      level = (await this.levels.forSession(sessionId)) ?? (session.endedAt ? null : await this.assessPlacement(session, history));
-    }
-    if (!session.endedAt) await this.sessions.end(sessionId, timing, endedAt);
-    // Off the summary's path. It saves once, so ending again does not add anything twice.
-    void this.memory.rememberLater(sessionId);
-    const [mistakes, outcome] = await Promise.all([
-      this.mistakes.forSession(sessionId),
-      this.sessions.outcome(sessionId),
-    ]);
-    return {
-      sessionId,
-      mode: session.mode,
-      language: session.language,
-      mistakes,
-      selfCorrections: mistakes.filter((m) => m.selfCorrected).length,
-      signals: {
-        ...fluencySignals({
-          // New words are not mistakes.
-          mistakes: mistakes.filter((m) => m.category !== NEW_WORD_CATEGORY),
-          learnerUtterances: history.filter((t) => t.role === "user").map((t) => t.content),
-          timing: outcome?.timing ?? null,
-        }),
-        unaidedShare: unaidedShare(outcome?.learnerTurns ?? { total: 0, assisted: 0 }),
-      },
-      goals: goalsFor(session.mode).map((id) => ({ id, covered: session.coveredGoals.includes(id) })),
-      targets: session.targets.map((t) => ({ ...t, met: session.metTargets.includes(t.original) })),
-      // The placement interview only observes: nothing to take away.
-      takeaways: session.mode === "placement" ? [] : chooseTakeaways(mistakes),
-      level,
-    };
-  }
-
-  /** Estimates and stores the level from the interview. No level when the learner said nothing. */
-  private async assessPlacement(session: Session, history: ChatTurn[]): Promise<SpeakingLevel | null> {
-    if (!history.some((t) => t.role === "user")) return null;
-    const { level, evidence } = await this.assessor.assess({ language: session.language, turns: history });
-    const placed: SpeakingLevel = {
-      language: session.language,
-      level,
-      source: "placement",
-      evidence,
-      assessedAt: this.clock.now(),
-    };
-    // Two ends at once can both assess; the session still keeps one level.
-    return this.levels.addForSession(session.id, placed);
-  }
-
   /** In the guided track, the two ways this turn can move it (stuck or not), so the tutor can follow either. */
   private trackOutcomes(session: Session, utterance: string): TrackOutcomes | null {
     const { track, step } = session;
@@ -524,39 +306,4 @@ export class ConversationService {
     const nextGoal = nextGoalAfter(goalsFor(session.mode), track.goal, session.coveredGoals);
     return trackOutcomes({ track, step, model: session.scaffold, utterance, nextGoal });
   }
-
-  private async missionFor(id: string, mode: Mode, language: string): Promise<Mission> {
-    const mission = await this.missions.get(id);
-    if (!mission) throw new MissionNotFoundError(id);
-    if (mission.situation !== mode || mission.language !== language) {
-      throw new InvalidInputError(`Mission ${id} is a ${mission.situation} in ${mission.language}, not a ${mode} in ${language}.`);
-    }
-    return mission;
-  }
-
-  private tutorContext(session: Session, learnerContext: string, expressions?: string[]): TutorContext {
-    return {
-      ...(expressions?.length ? { expressions } : {}),
-      mode: session.mode,
-      language: session.language,
-      learnerContext,
-      memory: session.memory,
-      goals: goalsFor(session.mode).map((id) => ({ id, description: GOAL_DESCRIPTIONS[id] })),
-      targets: session.targets,
-      step: session.step,
-    };
-  }
-
-  private async openSession(sessionId: string): Promise<Session> {
-    const session = await this.sessions.get(sessionId);
-    if (!session) throw new SessionNotFoundError(sessionId);
-    if (session.endedAt) throw new SessionEndedError(sessionId);
-    return session;
-  }
-}
-
-
-/** The mission's expressions for the tutor to invite; none outside a mission or before its model. */
-function phrasesOf(mission: Mission | null): string[] | undefined {
-  return mission?.model?.expressions.map((e) => e.phrase);
 }

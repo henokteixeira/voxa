@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Session } from "../domain/conversation/types.js";
 import type { FasterRoundRecord, FasterRoundRepository } from "../domain/ports/faster-round.repository.js";
-import { SessionNotFoundError } from "./conversation.service.js";
+import { SessionNotFoundError } from "../domain/conversation/session-errors.js";
 import { FasterRoundsService } from "./faster-rounds.service.js";
 
 class FakeRounds implements FasterRoundRepository {
