@@ -29,6 +29,7 @@ describe("check-in", () => {
       longPauses: 9,
       mistakesPer100Words: 3.7,
       otherLanguageWords: 2,
+      linkingWords: 0,
     });
   });
 

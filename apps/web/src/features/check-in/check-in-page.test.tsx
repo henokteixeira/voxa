@@ -68,6 +68,7 @@ describe("Check-in", () => {
     expect(screen.getByRole("row", { name: "Long pauses 9 4" })).toBeInTheDocument();
     // The earlier check-in wasn't read for mistakes: no mistake rows to compare.
     expect(screen.queryByRole("row", { name: /^Mistakes per 100 words/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /^Linking words/ })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /^Hear .+, then today$/ }));
     expect(checkInRecording.mock.calls.map(([id]) => id)).toEqual(["c1", "c2"]);
@@ -81,6 +82,7 @@ describe("Check-in", () => {
       ...pace(id, at, wpm, 4),
       mistakesPer100Words: mistakes,
       otherLanguageWords: words,
+      linkingWords: words + 3,
     });
     const recordCheckIn = vi.fn().mockResolvedValue({
       checkIn: { ...read("c2", "2026-11-23T10:00:00Z", 81, 3.5, 2), transcript: "My project…" },
@@ -93,6 +95,7 @@ describe("Check-in", () => {
 
     expect(await screen.findByRole("row", { name: "Mistakes per 100 words 6.2 3.5" })).toBeInTheDocument();
     expect(screen.getByRole("row", { name: "Words in Portuguese 2 2" })).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: "Linking words (because, so, but…) 5 5" })).toBeInTheDocument();
   });
 
   it("asks again when nothing was said", async () => {

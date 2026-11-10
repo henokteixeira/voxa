@@ -40,6 +40,7 @@ export function CheckInComparison({
         // Shown only when both check-ins were read for mistakes (older ones weren't): fewer is better.
         ...fewerIsBetter(copy.mistakesPer100Words, previous.mistakesPer100Words, checkIn.mistakesPer100Words),
         ...fewerIsBetter(copy.otherLanguageWords, previous.otherLanguageWords, checkIn.otherLanguageWords),
+        ...moreIsBetter(copy.linkingWords, previous.linkingWords, checkIn.linkingWords),
       ]
     : [];
   return (
@@ -91,6 +92,11 @@ export function CheckInComparison({
 function fewerIsBetter(label: string, before: number | null | undefined, now: number | null | undefined) {
   if (before == null || now == null) return [];
   return [{ label, before, now, better: now < before }];
+}
+
+function moreIsBetter(label: string, before: number | null | undefined, now: number | null | undefined) {
+  if (before == null || now == null) return [];
+  return [{ label, before, now, better: now > before }];
 }
 
 /** Plays the recordings one after the other (the old one first). */
