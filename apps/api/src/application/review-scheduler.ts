@@ -26,12 +26,8 @@ export class ReviewScheduler {
 
   /** The expressions due for review now, so a conversation can count one the learner uses as its review. */
   async dueExpressions(language: string, now: Date): Promise<{ id: string; phrase: string }[]> {
-    // Expressions come after the mistakes in a review: look far enough down the list to reach them.
-    const due = await this.reviews.due(language, now, DUE_EXPRESSIONS_WATCHED * 10);
-    return due
-      .filter((item) => item.subject.kind === "expression")
-      .slice(0, DUE_EXPRESSIONS_WATCHED)
-      .map((item) => ({ id: item.subject.id, phrase: item.name }));
+    const due = await this.reviews.due(language, now, DUE_EXPRESSIONS_WATCHED, "expression");
+    return due.map((item) => ({ id: item.subject.id, phrase: item.name }));
   }
 
   /** The mistake was made (or the word said in the first language): first review tomorrow, or one step back. */

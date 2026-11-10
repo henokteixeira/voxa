@@ -31,7 +31,7 @@ import type { NewTurn, SessionProgress, SessionRepository } from "../domain/port
 import type { TrackPlan, TutorContext, TutorPort, TutorRequest } from "../domain/ports/tutor.port.js";
 import { NEW_WORD_CATEGORY } from "../domain/conversation/types.js";
 import type { TrackState } from "../domain/conversation/guided-track.js";
-import { ConversationService, SessionEndedError, SessionNotFoundError, type TurnResult } from "./conversation.service.js";
+import { ConversationService, SessionEndedError, SessionNotFoundError, TurnConflictError, type TurnResult } from "./conversation.service.js";
 
 class FakeTutor implements TutorPort {
   verdicts: TutorVerdict[] = [];
@@ -95,6 +95,11 @@ class FakeSessions implements SessionRepository {
   }
   /** Whether each learner turn was helped, in order. */
   assisted = new Map<string, boolean[]>();
+  async claimTurn(id: string, turnsSeen: number) {
+    const row = this.rows.get(id)!;
+    if (row.endedAt) return "ended" as const;
+    return row.turns.length === turnsSeen ? ("claimed" as const) : ("taken" as const);
+  }
   async appendTurn(id: string, { assisted, ...turn }: NewTurn) {
     this.rows.get(id)!.turns.push(turn);
     if (turn.role === "user") this.assisted.set(id, [...(this.assisted.get(id) ?? []), assisted ?? false]);
@@ -123,9 +128,9 @@ class FakeReviews implements Pick<ReviewRepository, "state" | "save" | "schedule
   items = new Map<string, ReviewState & { language: string }>();
   /** Expressions by id, for the items of kind expression. */
   phrases = new Map<string, string>();
-  async due(language: string, now: Date, limit: number) {
+  async due(language: string, now: Date, limit: number, kind?: string) {
     return [...this.items]
-      .filter(([key, item]) => item.language === language && item.dueAt <= now && key.startsWith("expression:"))
+      .filter(([key, item]) => item.language === language && item.dueAt <= now && kind === "expression" && key.startsWith("expression:"))
       .map(([key, { step, dueAt }]) => {
         const id = key.slice("expression:".length);
         return { subject: { kind: "expression" as const, id }, language, category: "expression", name: this.phrases.get(id) ?? id, rule: "", examples: [], step, dueAt };
@@ -363,6 +368,19 @@ beforeEach(() => {
     new ReviewScheduler(reviews),
     memory as unknown as LearnerMemoryService,
     missions,
+    // Rolls the fakes back when the work fails, like a transaction (the database test checks the real one).
+    {
+      run: async (work) => {
+        const saved = structuredClone({ rows: sessions.rows, assisted: sessions.assisted, events: mistakes.events, bank: mistakes.bank });
+        try {
+          return await work({ sessions, mistakes, reviews: reviews as unknown as ReviewRepository });
+        } catch (error) {
+          Object.assign(sessions, { rows: saved.rows, assisted: saved.assisted });
+          Object.assign(mistakes, { events: saved.events, bank: saved.bank });
+          throw error;
+        }
+      },
+    },
   );
 });
 
@@ -952,6 +970,22 @@ describe("ConversationService.respond: expressions due for review", () => {
     expect(reviews.items.get("expression:e2")?.step).toBe(1);
   });
 
+  it("does not count an expression said back from words the tutor gave", async () => {
+    reviews.items.set("expression:e1", { language: "en", step: 1, dueAt: clock.now() });
+    reviews.phrases.set("e1", "I'm still working on…");
+    levels.rows.push({ language: "en", level: "B1", source: "manual", evidence: [], assessedAt: clock.now() });
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(
+      verdict({ stuck: true, scaffold: "You could start with: I'm still working on..." }),
+      verdict({ usedExpressions: ["I'm still working on..."] }),
+    );
+    await service.respond(session.id, "I don't know");
+
+    await service.respond(session.id, "I'm still working on the upload");
+
+    expect(reviews.items.get("expression:e1")?.step).toBe(1);
+  });
+
   it("watches no expressions in the placement interview", async () => {
     reviews.items.set("expression:e1", { language: "en", step: 1, dueAt: clock.now() });
     const { session } = await service.start("placement", "en");
@@ -1531,5 +1565,76 @@ describe("ConversationService, placement interview", () => {
     const { session } = await service.start("daily", "en");
     expect((await service.end(session.id)).level).toBeNull();
     expect(assessor.calls).toEqual([]);
+  });
+});
+
+describe("ConversationService.respond: saving the turn", () => {
+  it("keeps a reply already handed over when reading the rest of the turn fails, so it can be said again", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.evaluate = async (_request, onReply) => {
+      onReply?.("Nice. What happened next?");
+      throw new TutorUnavailableError("The stream stopped.");
+    };
+
+    await expect(service.respond(session.id, "I opened PR", () => {})).rejects.toBeInstanceOf(TutorUnavailableError);
+
+    expect((await sessions.history(session.id)).slice(-2)).toEqual([
+      { role: "user", content: "I opened PR" },
+      { role: "assistant", content: "Nice. What happened next?" },
+    ]);
+    expect(mistakes.events).toEqual([]);
+  });
+
+  it("saves nothing when the tutor fails before any reply", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.evaluate = async () => {
+      throw new TutorUnavailableError("Down.");
+    };
+
+    await expect(service.respond(session.id, "I opened PR", () => {})).rejects.toBeInstanceOf(TutorUnavailableError);
+
+    expect(await sessions.history(session.id)).toHaveLength(1);
+  });
+
+  it("refuses a turn when another one of the session was saved while it was answered, and records nothing", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    const evaluate = tutor.evaluate.bind(tutor);
+    tutor.evaluate = async (request, onReply) => {
+      await sessions.appendTurn(session.id, { role: "user", content: "Sent from another tab." });
+      return evaluate(request, onReply);
+    };
+
+    await expect(service.respond(session.id, "I goed to the meeting")).rejects.toBeInstanceOf(TurnConflictError);
+
+    expect(mistakes.events).toEqual([]);
+    expect((await sessions.get(session.id))?.pending).toBeNull();
+  });
+
+  it("refuses a turn of a session that ended while it was answered", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    const evaluate = tutor.evaluate.bind(tutor);
+    tutor.evaluate = async (request, onReply) => {
+      await sessions.end(session.id, null);
+      return evaluate(request, onReply);
+    };
+
+    await expect(service.respond(session.id, "I goed to the meeting")).rejects.toBeInstanceOf(SessionEndedError);
+    expect(mistakes.events).toEqual([]);
+  });
+
+  it("keeps a reply already handed over when saving the analysed turn fails", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    const setPending = vi.spyOn(sessions, "setPending").mockRejectedValueOnce(new Error("Connection lost."));
+
+    await expect(service.respond(session.id, "I goed to the meeting", () => {})).rejects.toThrow("Connection lost.");
+
+    setPending.mockRestore();
+    expect((await sessions.history(session.id)).slice(-2)).toEqual([
+      { role: "user", content: "I goed to the meeting" },
+      { role: "assistant", content: "Nice. What happened next?" },
+    ]);
   });
 });

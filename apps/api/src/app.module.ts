@@ -45,6 +45,8 @@ import { DrizzleMistakeRepository } from "./infra/db/drizzle-mistake.repository.
 import { DrizzleProgressRepository } from "./infra/db/drizzle-progress.repository.js";
 import { DrizzleSessionRepository } from "./infra/db/drizzle-session.repository.js";
 import { DrizzleSignalsRepository } from "./infra/db/drizzle-signals.repository.js";
+import { DrizzleUnitOfWork } from "./infra/db/drizzle-unit-of-work.js";
+import { UNIT_OF_WORK } from "./domain/ports/unit-of-work.port.js";
 import { AnthropicMemoryExtractor } from "./infra/tutor/anthropic-memory-extractor.js";
 import { AnthropicCheckInReader } from "./infra/tutor/anthropic-check-in-reader.js";
 import { AnthropicLevelAssessor } from "./infra/tutor/anthropic-level-assessor.js";
@@ -110,6 +112,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
     { provide: MISSION_REPOSITORY, useClass: DrizzleMissionRepository },
     { provide: MISSION_COACH_PORT, useClass: AnthropicMissionCoach },
     { provide: REVIEW_REPOSITORY, useClass: DrizzleReviewRepository },
+    { provide: UNIT_OF_WORK, useClass: DrizzleUnitOfWork },
     DrizzleMistakeRepository,
     { provide: MISTAKE_REPOSITORY, useExisting: DrizzleMistakeRepository },
     { provide: MISTAKE_BANK_REPOSITORY, useExisting: DrizzleMistakeRepository },

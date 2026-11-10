@@ -1,5 +1,5 @@
 import { isSerious, type TutorVerdict } from "../domain/conversation/correction-policy.js";
-import { sameText } from "../domain/conversation/text.js";
+import { samePhrase, sameText } from "../domain/conversation/text.js";
 import { NEW_WORD_CATEGORY, type PendingCorrection, type PracticeTarget } from "../domain/conversation/types.js";
 import { cleanPattern } from "../domain/mistakes/pattern.js";
 import type { Mistake, MistakeRepository } from "../domain/ports/mistake.repository.js";
@@ -16,7 +16,7 @@ export interface TurnLearning {
   verdict: Pick<TutorVerdict, "issues" | "correctUses" | "newWords" | "usedExpressions">;
   /** Mistakes the tutor was watching for: the bank's most frequent ones and the session's targets. */
   watched: readonly Pick<PracticeTarget, "original">[];
-  /** Expressions due for review the tutor watched for: one used counts as its review. */
+  /** Expressions due for review the tutor watched for: one used counts as its review. Empty on a helped turn. */
   dueExpressions: readonly { id: string; phrase: string }[];
   /** The learner fixed the pending mistake alone. */
   selfCorrected: boolean;
@@ -65,7 +65,7 @@ export async function recordTurnLearning(
   }
   // A due expression used in a sentence of one's own is recalled, as in a review.
   for (const used of verdict.usedExpressions) {
-    const expression = turn.dueExpressions.find((e) => sameText(e.phrase, used));
+    const expression = turn.dueExpressions.find((e) => samePhrase(e.phrase, used));
     if (expression) await reviews.usedCorrectly(language, { kind: "expression", id: expression.id }, now);
   }
   // A new word is never a mistake: skip one the tutor also listed as an issue, the pending one, or a repeat.

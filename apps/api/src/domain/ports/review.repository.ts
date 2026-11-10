@@ -54,7 +54,7 @@ export interface ReviewRepository {
   /** Creates or replaces the subject's schedule. */
   save(language: string, subject: ReviewSubject, state: ReviewState, reviewedAt: Date | null): Promise<void>;
   /** Items due at `now`, the longest overdue first; dismissed mistakes and patterns left with none are skipped. */
-  due(language: string, now: Date, limit: number): Promise<ReviewItem[]>;
+  due(language: string, now: Date, limit: number, kind?: ReviewSubject["kind"]): Promise<ReviewItem[]>;
   /** One item, due or not; null when it has no schedule, or its mistakes were all dismissed. */
   item(subject: ReviewSubject): Promise<ReviewItem | null>;
   /** Keeps a cue given for the subject's item. */

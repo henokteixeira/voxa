@@ -23,6 +23,8 @@ export interface SessionProgress {
   track: TrackState | null;
 }
 
+export type TurnClaim = "claimed" | "taken" | "ended";
+
 /** A turn to store. `assisted` (learner turns only): the learner answered words the tutor gave, or used the first language. */
 export type NewTurn = ChatTurn & { assisted?: boolean };
 
@@ -42,6 +44,12 @@ export interface SessionRepository {
   get(id: string): Promise<Session | null>;
   /** The newest session started as the mission's step 3 (the learner may start over), or null. */
   latestForMission(missionId: string): Promise<Session | null>;
+  /**
+   * Inside a unit of work: holds the session until the transaction ends, so two turns of one session are
+   * saved one after the other. "taken" when the session has more than `turnsSeen` turns (another turn was
+   * saved since its history was read), "ended" when it ended meanwhile.
+   */
+  claimTurn(sessionId: string, turnsSeen: number): Promise<TurnClaim>;
   appendTurn(sessionId: string, turn: NewTurn): Promise<void>;
   history(sessionId: string): Promise<ChatTurn[]>;
   setPending(sessionId: string, pending: PendingCorrection | null): Promise<void>;
