@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { Session } from "../domain/conversation/types.js";
+import { METRICS_RECORDER, type MetricsRecorder } from "../domain/ports/metrics.port.js";
 import { SESSION_REPOSITORY, type SessionRepository } from "../domain/ports/session.repository.js";
 import { STT_PORT, type SpeechToTextPort, TTS_PORT, type TextToSpeechPort } from "../domain/ports/voice.port.js";
 import { ConversationService, SessionEndedError, SessionNotFoundError, type TurnResult } from "./conversation.service.js";
@@ -39,6 +40,7 @@ export class VoiceConversationService {
     @Inject(SESSION_REPOSITORY) private readonly sessions: Pick<SessionRepository, "get" | "history">,
     @Inject(STT_PORT) private readonly stt: SpeechToTextPort,
     @Inject(TTS_PORT) private readonly tts: TextToSpeechPort,
+    @Inject(METRICS_RECORDER) private readonly metrics: Pick<MetricsRecorder, "voiceTurn">,
   ) {}
 
   /** Returns the tutor's spoken answer (WAV), or null when the audio held no speech. */
@@ -57,13 +59,17 @@ export class VoiceConversationService {
     events.transcript(text);
     if (events.cancelled()) return null;
 
-    const report = (answered: number, spoken: number) =>
-      events.timing?.({
+    const report = (answered: number, spoken: number) => {
+      const timing: TurnTiming = {
         sttMs: "text" in input ? null : Math.round(heard - started),
         tutorMs: Math.round(answered - heard),
         ttsMs: Math.round(spoken - answered),
         totalMs: Math.round(spoken - started),
-      });
+      };
+      events.timing?.(timing);
+      // Kept to decide on speed with data; never delays the turn.
+      void this.metrics.voiceTurn({ sessionId, ...timing });
+    };
 
     // The reply is spoken while the tutor still analyses the turn.
     const reply: { spoken: Promise<void> | null } = { spoken: null };
