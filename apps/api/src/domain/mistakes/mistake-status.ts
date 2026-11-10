@@ -1,5 +1,6 @@
-export const MISTAKE_STATUSES = ["open", "improving", "mastered"] as const;
-export type MistakeStatus = (typeof MISTAKE_STATUSES)[number];
+import { MISTAKE_STATUSES, type MistakeStatus } from "@voxa/contracts";
+
+export { MISTAKE_STATUSES, type MistakeStatus };
 
 /** Sessions with the correct form, without the mistake, for a mistake to count as mastered. */
 export const MASTERED_SESSIONS = 3;

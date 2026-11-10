@@ -1,3 +1,4 @@
+import { DAILY_MINUTES, type DailyMinutes, isTimeZone, XP_REASONS, type XpReason } from "@voxa/contracts";
 /**
  * XP, the daily goal and the streak (design approved on 2026-11-07: "Voxa: XP, daily goal and sounds").
  * The numbers are design choices to tune with real use, not research findings.
@@ -5,8 +6,7 @@
  */
 
 /** How long the learner wants to practice each day. */
-export const DAILY_MINUTES = [15, 30, 45, 60] as const;
-export type DailyMinutes = (typeof DAILY_MINUTES)[number];
+export { DAILY_MINUTES, type DailyMinutes };
 export const DEFAULT_DAILY_MINUTES: DailyMinutes = 30;
 
 /**
@@ -26,8 +26,7 @@ export function dailyGoalXp(minutes: DailyMinutes): number {
 }
 
 /** What earns XP. */
-export const XP_REASONS = ["practice_minute", "goal_covered", "self_corrected", "personal_record"] as const;
-export type XpReason = (typeof XP_REASONS)[number];
+export { XP_REASONS, type XpReason };
 
 export function parseXpReason(value: string): XpReason {
   if (!(XP_REASONS as readonly string[]).includes(value)) throw new Error(`Unknown XP reason: ${value}.`);
@@ -148,14 +147,7 @@ export function localDay(at: Date, timeZone: string): LocalDay {
   return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
 }
 
-export function isTimeZone(value: string): boolean {
-  try {
-    new Intl.DateTimeFormat("en", { timeZone: value });
-    return true;
-  } catch {
-    return false;
-  }
-}
+export { isTimeZone };
 
 /**
  * The goal a day is judged by: the newest setting made by the end of that day, or the default.

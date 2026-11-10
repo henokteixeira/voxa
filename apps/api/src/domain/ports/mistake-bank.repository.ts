@@ -1,9 +1,9 @@
+import { DISMISS_REASONS, type DismissReason } from "@voxa/contracts";
 import type { MistakePattern } from "../mistakes/pattern.js";
 import type { Mistake } from "./mistake.repository.js";
 
 /** Why the learner says a record is not a mistake. */
-export const DISMISS_REASONS = ["transcript_error", "both_correct", "not_needed"] as const;
-export type DismissReason = (typeof DISMISS_REASONS)[number];
+export { DISMISS_REASONS, type DismissReason };
 
 /** A mistake in the bank, with what happened each time it showed up. */
 export interface BankEntry extends Mistake {

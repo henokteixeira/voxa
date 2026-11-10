@@ -1,16 +1,15 @@
+import { FACT_TOPICS, type FactTopic, MAX_FACT_LENGTH } from "@voxa/contracts";
 import type { Mode } from "../conversation/mode.js";
 
 /** What a fact is about. Speaking practice covers life in general, not only work. */
-export const FACT_TOPICS = ["work", "projects", "people", "interests", "life", "goals"] as const;
-
-export type FactTopic = (typeof FACT_TOPICS)[number];
+export { FACT_TOPICS, type FactTopic };
 
 export function isFactTopic(value: unknown): value is FactTopic {
   return typeof value === "string" && (FACT_TOPICS as readonly string[]).includes(value);
 }
 
 /** Longest statement kept: a fact is one short sentence. */
-export const MAX_FACT_LENGTH = 200;
+export { MAX_FACT_LENGTH };
 
 /** Something true about the learner, said by them in a session. The tutor brings it up in later sessions. */
 export interface LearnerFact {

@@ -1,3 +1,4 @@
+import { TRACK_STAGES, type TrackStage } from "@voxa/contracts";
 import type { SupportStep } from "../level/speaking-level.js";
 
 /**
@@ -11,8 +12,7 @@ import type { SupportStep } from "../level/speaking-level.js";
  * At A1 (build_full) a goal starts at `model`; at A2 (build_light) it starts at `answer`, and the model comes only
  * when the learner is stuck there. The thresholds below are design choices, to tune with real use.
  */
-export const TRACK_STAGES = ["model", "swap", "extend", "answer", "again"] as const;
-export type TrackStage = (typeof TRACK_STAGES)[number];
+export { TRACK_STAGES, type TrackStage };
 
 export function isTrackStage(value: unknown): value is TrackStage {
   return typeof value === "string" && (TRACK_STAGES as readonly string[]).includes(value);

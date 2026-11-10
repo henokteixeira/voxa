@@ -2,11 +2,9 @@ import { Body, Controller, Get, HttpCode, Post, Put, Query } from "@nestjs/commo
 import { z } from "zod";
 import { LevelService } from "../application/level.service.js";
 import { Language, parse } from "../common/http.js";
-import { CEFR_LEVELS } from "../domain/level/speaking-level.js";
+import { SetLevelBody, StepChangeBody } from "@voxa/contracts";
 
 const LevelQuery = z.object({ language: Language });
-const SetLevelBody = z.object({ language: Language, level: z.enum(CEFR_LEVELS) });
-const StepChangeBody = z.object({ language: Language, to: z.enum(CEFR_LEVELS) });
 
 @Controller("level")
 export class LevelsController {
