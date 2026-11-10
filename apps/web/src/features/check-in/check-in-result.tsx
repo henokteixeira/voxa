@@ -53,7 +53,7 @@ export function CheckInComparison({
       <h1 ref={title} tabIndex={-1} className="m-0 font-serif text-[26px] leading-tight font-normal outline-none">
         {topic
           ? previous
-            ? copy.topicGainTitle(clearestGain(checkIn, previous))
+            ? copy.topicGainTitle(clearestGain(checkIn, previous), day)
             : copy.topicFirstTitle
           : previous
             ? copy.gainTitle(clearestGain(checkIn, previous), day)

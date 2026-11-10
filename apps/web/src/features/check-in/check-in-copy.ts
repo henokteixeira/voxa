@@ -54,7 +54,7 @@ export interface CheckInCopy {
   topicLater: string;
   topicFirstTitle: string;
   topicFirstBody: string;
-  topicGainTitle: (gain: { kind: "pace" | "pauses"; before: number; now: number } | null) => string;
+  topicGainTitle: (gain: { kind: "pace" | "pauses"; before: number; now: number } | null, day: string | null) => string;
 }
 
 export const CHECK_IN_COPY: Copy<CheckInCopy> = {
@@ -124,11 +124,11 @@ export const CHECK_IN_COPY: Copy<CheckInCopy> = {
     topicLater: "Not now",
     topicFirstTitle: "Your first new topic is saved.",
     topicFirstBody: "Each check-in brings a topic you haven't prepared, so you see how you talk off the cuff.",
-    topicGainTitle: (gain) => {
+    topicGainTitle: (gain, day) => {
       if (!gain) return "A new topic, with nothing prepared. Listen to how it sounds.";
       return gain.kind === "pace"
-        ? `On the last new topic you said ${gain.before} words a minute. Today, ${gain.now}.`
-        : `On the last new topic you paused ${gain.before} ${gain.before === 1 ? "time" : "times"}. Today, ${gain.now}.`;
+        ? `On the last new topic you said ${gain.before} words a minute. ${day ? `On ${day}` : "Today"}, ${gain.now}.`
+        : `On the last new topic you paused ${gain.before} ${gain.before === 1 ? "time" : "times"}. ${day ? `On ${day}` : "Today"}, ${gain.now}.`;
     },
   },
   "pt-BR": {
@@ -197,11 +197,11 @@ export const CHECK_IN_COPY: Copy<CheckInCopy> = {
     topicLater: "Agora não",
     topicFirstTitle: "Seu primeiro tema novo está salvo.",
     topicFirstBody: "Cada check-in traz um tema que você não preparou, para ver como você fala de improviso.",
-    topicGainTitle: (gain) => {
+    topicGainTitle: (gain, day) => {
       if (!gain) return "Um tema novo, sem nada preparado. Ouça como soa.";
       return gain.kind === "pace"
-        ? `No último tema novo você falou ${gain.before} palavras por minuto. Hoje, ${gain.now}.`
-        : `No último tema novo você pausou ${gain.before} ${gain.before === 1 ? "vez" : "vezes"}. Hoje, ${gain.now}.`;
+        ? `No último tema novo você falou ${gain.before} palavras por minuto. ${day ? `Em ${day}` : "Hoje"}, ${gain.now}.`
+        : `No último tema novo você pausou ${gain.before} ${gain.before === 1 ? "vez" : "vezes"}. ${day ? `Em ${day}` : "Hoje"}, ${gain.now}.`;
     },
   },
 };

@@ -88,7 +88,9 @@ export function CheckInPage() {
     Promise.all([opening, api.checkIns()])
       .then(([, overview]) => {
         if (cancelled) return;
-        const offered = overview.topic ? { task: overview.topic.task, limitMs: overview.topic.limitMs } : null;
+        const offered =
+          overview.topic && isCheckInTopic(overview.topic.task)
+            ? { task: overview.topic.task, limitMs: overview.topic.limitMs } : null;
         setTopic(offered);
         if (overview.due) {
           setTask({ topic: null, limitMs: overview.limitMs });
@@ -222,7 +224,7 @@ export function CheckInPage() {
           <section aria-label={copy.yourTask} className="flex flex-col gap-1.5 rounded-lg bg-paper px-5 py-4 shadow-card">
             <span className="text-label text-taupe">{task.topic === null ? copy.yourTask : copy.topicLabel}</span>
             <span className="font-serif text-[22px] leading-snug">
-              {task.topic === null ? copy.task : isCheckInTopic(task.topic) ? copy.topics[task.topic] : copy.task}
+              {task.topic !== null && isCheckInTopic(task.topic) ? copy.topics[task.topic] : copy.task}
             </span>
           </section>
           <div className="flex flex-1 flex-col items-center justify-center gap-3">
@@ -244,7 +246,7 @@ export function CheckInPage() {
           )}
           <p className="m-0 text-center text-caption text-taupe">{copy.noHelp}</p>
           {step.kind === "ready" && step.problem !== "not_due" && (
-            <Button block onClick={start}>
+            <Button block autoFocus={task.topic !== null} onClick={start}>
               {step.problem ? copy.retry : copy.begin(clock(limitMs))}
             </Button>
           )}

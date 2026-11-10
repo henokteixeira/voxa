@@ -48,7 +48,7 @@ function renderCheckIn(api: Partial<ApiClient>) {
     handlers!.onSpeechStart();
     handlers!.onTurn(new ArrayBuffer(8), { pausesMs: [], trailingSilenceMs: 0 });
   };
-  return { speak, speaker, router };
+  return { speak, speaker, router, mic };
 }
 
 describe("Check-in", () => {
@@ -138,12 +138,14 @@ describe("Check-in", () => {
         checkIn: { ...pace("t2", "2026-11-23T10:05:00Z", 70, 2), task: "last_weekend", transcript: "…" },
         previous: { ...pace("t1", "2026-11-09T10:05:00Z", 60, 3), task: "hard_decision" },
       });
-    const { speak } = renderCheckIn({ checkIns: vi.fn().mockResolvedValue(overview(true)), recordCheckIn, checkInRecording: vi.fn() });
+    const { speak, mic } = renderCheckIn({ checkIns: vi.fn().mockResolvedValue(overview(true)), recordCheckIn, checkInRecording: vi.fn() });
     await userEvent.click(await screen.findByRole("button", { name: "Start · 2:00" }));
     speak();
     await userEvent.click(screen.getByRole("button", { name: "I'm done" }));
     expect(await screen.findByRole("heading", { name: "Your first check-in is saved." })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Not now" })).toBeInTheDocument();
+    // The microphone stays open for the topic task.
+    expect(mic.stop).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole("button", { name: "One more minute: a new topic" }));
     expect(screen.getByRole("region", { name: "Your task" })).toHaveTextContent("A new topic · 1 minute");
@@ -159,11 +161,35 @@ describe("Check-in", () => {
     // Nothing follows the topic task.
     expect(screen.queryByRole("button", { name: "One more minute: a new topic" })).toBeNull();
     expect(screen.getByRole("link", { name: "Done" })).toBeInTheDocument();
+    expect(mic.stop).toHaveBeenCalled();
+  });
+
+  it("offers no topic task when the API does not send one", async () => {
+    const recordCheckIn = vi.fn().mockResolvedValue({ checkIn: { ...pace("c2", "2026-11-23T10:00:00Z", 81, 4), transcript: "…" }, previous: null });
+    const { topic: _topic, ...older } = overview(true);
+    const { speak, mic } = renderCheckIn({ checkIns: vi.fn().mockResolvedValue(older), recordCheckIn, checkInRecording: vi.fn() });
+    await userEvent.click(await screen.findByRole("button", { name: "Start · 2:00" }));
+    speak();
+    await userEvent.click(screen.getByRole("button", { name: "I'm done" }));
+    expect(await screen.findByRole("heading", { name: "Your first check-in is saved." })).toBeInTheDocument();
+    expect(recordCheckIn).toHaveBeenCalledWith(expect.any(ArrayBuffer), expect.any(Object), "en", undefined);
+    expect(screen.getByRole("link", { name: "Done" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "One more minute: a new topic" })).toBeNull();
+    expect(mic.stop).toHaveBeenCalled();
   });
 
   it("opens on the topic task when the fixed one was just done and the topic is still open", async () => {
-    renderCheckIn({ checkIns: vi.fn().mockResolvedValue(overview(false, true)) });
-    expect(await screen.findByRole("button", { name: "Start · 1:00" })).toBeInTheDocument();
+    const recordCheckIn = vi.fn().mockResolvedValue({
+      checkIn: { ...pace("t1", "2026-11-23T10:05:00Z", 70, 2), task: "last_weekend", transcript: "…" },
+      previous: null,
+    });
+    const { speak } = renderCheckIn({ checkIns: vi.fn().mockResolvedValue(overview(false, true)), recordCheckIn, checkInRecording: vi.fn() });
+    await userEvent.click(await screen.findByRole("button", { name: "Start · 1:00" }));
     expect(screen.getByRole("region", { name: "Your task" })).toHaveTextContent("Tell me about something you did last weekend.");
+    speak();
+    await userEvent.click(screen.getByRole("button", { name: "I'm done" }));
+    expect(await screen.findByRole("heading", { name: "Your first new topic is saved." })).toBeInTheDocument();
+    expect(recordCheckIn).toHaveBeenCalledWith(expect.any(ArrayBuffer), expect.any(Object), "en", "last_weekend");
+    expect(screen.queryByRole("button", { name: "One more minute: a new topic" })).toBeNull();
   });
 });
