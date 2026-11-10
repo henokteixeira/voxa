@@ -112,7 +112,7 @@ export const mistakes = pgTable("mistakes", {
   /** Set when the learner says "This isn't a mistake": the record then leaves the bank for good. */
   dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
   dismissReason: varchar("dismiss_reason", { length: 32 }), // transcript_error | both_correct | not_needed
-});
+}, (t) => [unique("mistakes_language_original").on(t.language, t.original)]);
 
 /** When each pattern, new word or expression comes back for review. Exactly one of the three subjects is set. */
 export const reviewItems = pgTable(
