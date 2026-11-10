@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { Logger } from "@nestjs/common";
 import { scriptConfig } from "../config/env.js";
 import { afterAll, describe, test } from "vitest";
-import { AnthropicTutorAdapter, anthropicClientProvider } from "../infra/tutor/anthropic-tutor.adapter.js";
+import { AnthropicTutorAdapter } from "../infra/tutor/anthropic-tutor.adapter.js";
+import { anthropicClientProvider, ClaudeClient } from "../infra/tutor/claude-client.js";
 import { runScenario } from "../golden/run-scenario.js";
 import { ALL_SCENARIOS, GOLDEN_LEARNER_CONTEXT, type Scenario } from "../golden/scenarios.js";
 import { meteredMessages, timedTutor, type TurnTiming } from "./metering.js";
@@ -64,7 +65,7 @@ async function evaluateModel(model: string, effort: string): Promise<ModelResult
   });
   const config = scriptConfig({ ...process.env, ANTHROPIC_MODEL: model, ANTHROPIC_EFFORT: effort });
   const timings: TurnTiming[] = [];
-  const tutor = timedTutor(new AnthropicTutorAdapter(messages, config), (t) => timings.push(t));
+  const tutor = timedTutor(new AnthropicTutorAdapter(new ClaudeClient(messages, config), config), (t) => timings.push(t));
 
   const jobs: Scenario[] = Array.from({ length: runs }, () => ALL_SCENARIOS).flat();
   const scenarios: ScenarioResult[] = [];

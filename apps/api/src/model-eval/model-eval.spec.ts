@@ -3,7 +3,7 @@ import type { TutorVerdict } from "../domain/conversation/correction-policy.js";
 import type { TutorPort } from "../domain/ports/tutor.port.js";
 import type { TurnRecord } from "../golden/run-scenario.js";
 import { ALL_SCENARIOS, SCENARIOS } from "../golden/scenarios.js";
-import type { AnthropicMessages } from "../infra/tutor/anthropic-tutor.adapter.js";
+import type { AnthropicMessages } from "../infra/tutor/claude-client.js";
 import { meteredMessages, timedTutor } from "./metering.js";
 import { costOf } from "./pricing.js";
 import { categoryOf, formatReport, type ModelResult, percentile, scoreTurn, summarize } from "./score.js";

@@ -1,6 +1,6 @@
 import type { TutorVerdict } from "../domain/conversation/correction-policy.js";
 import type { TutorPort, TutorRequest } from "../domain/ports/tutor.port.js";
-import type { AnthropicMessages } from "../infra/tutor/anthropic-tutor.adapter.js";
+import type { AnthropicMessages } from "../infra/tutor/claude-client.js";
 import type { Usage } from "./pricing.js";
 
 export type CallKind = "open" | "evaluate";

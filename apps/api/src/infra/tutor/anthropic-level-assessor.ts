@@ -1,13 +1,10 @@
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { Inject, Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import type { Env } from "../../config/env.js";
+import { Injectable } from "@nestjs/common";
 import { z } from "zod";
 import type { ChatTurn } from "../../domain/conversation/types.js";
 import { CEFR_LEVELS } from "../../domain/level/speaking-level.js";
 import type { LevelAssessment, LevelAssessorPort } from "../../domain/ports/level-assessor.port.js";
 import { TutorUnavailableError } from "../../domain/ports/tutor.port.js";
-import { ANTHROPIC_CLIENT, type AnthropicMessages } from "./anthropic-tutor.adapter.js";
+import { ClaudeClient } from "./claude-client.js";
 import { buildAssessmentPrompt, buildTranscript } from "./level-prompts.js";
 
 const AssessmentSchema = z.object({
@@ -33,42 +30,21 @@ function saidByLearner(quote: string, lines: string[]): boolean {
 
 @Injectable()
 export class AnthropicLevelAssessor implements LevelAssessorPort {
-  private readonly logger = new Logger(AnthropicLevelAssessor.name);
-  private readonly model: string;
-
-  constructor(
-    @Inject(ANTHROPIC_CLIENT) private readonly messages: AnthropicMessages,
-    config: ConfigService<Env, true>,
-  ) {
-    this.model = config.get("ANTHROPIC_MODEL", { infer: true });
-  }
+  constructor(private readonly claude: ClaudeClient) {}
 
   async assess({ language, turns }: { language: string; turns: ChatTurn[] }): Promise<LevelAssessment> {
-    let response;
-    try {
-      response = await this.messages.parse({
-        model: this.model,
-        max_tokens: 4000,
-        // Runs once, after the interview: worth more thought than a spoken turn.
-        output_config: { effort: "medium", format: zodOutputFormat(AssessmentSchema) },
-        system: buildAssessmentPrompt(language),
-        messages: [{ role: "user", content: `<transcript>\n${buildTranscript(turns)}\n</transcript>` }],
-      });
-    } catch (error) {
-      throw new TutorUnavailableError(`Claude API request failed: ${(error as Error).message}`, { cause: error });
-    }
-    if (response.usage) {
-      this.logger.log(`tutor usage call=assess input=${response.usage.input_tokens} output=${response.usage.output_tokens}`);
-    }
-    if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens" || !response.parsed_output) {
-      throw new TutorUnavailableError("The level assessment did not complete.");
-    }
+    const assessment = await this.claude.parse("assess", {
+      schema: AssessmentSchema,
+      maxTokens: 4000,
+      system: buildAssessmentPrompt(language),
+      messages: [{ role: "user", content: `<transcript>\n${buildTranscript(turns)}\n</transcript>` }],
+    });
     // Only the learner's own lines count as evidence.
     const said = turns.filter((t) => t.role === "user").map((t) => loose(t.content));
-    const evidence = response.parsed_output.evidence
+    const evidence = assessment.evidence
       .map((e) => e.trim())
       .filter((e) => saidByLearner(e, said))
       .slice(0, MAX_EVIDENCE);
-    return { level: response.parsed_output.level, evidence };
+    return { level: assessment.level, evidence };
   }
 }
