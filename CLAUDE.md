@@ -1,7 +1,8 @@
 # Voxa — instructions for Claude
 
 - Everything in this repository is written in English: code, comments, docs, commit messages and PRs.
-- pnpm monorepo: `apps/web` (React + Vite PWA), `apps/api` (NestJS), `services/voice` (FastAPI, Python).
+- pnpm monorepo: `apps/web` (React + Vite PWA), `apps/api` (NestJS), `services/voice` (FastAPI, Python),
+  `packages/contracts` (what the API and the web exchange; put shared request schemas and values there, not in either app).
 - Ports and adapters: use cases depend only on the interfaces in `apps/api/src/domain/ports`.
   No vendor SDK (Anthropic, Supabase, etc.) outside `apps/api/src/infra`.
 - Every learning record carries `language` (BCP 47) so other languages can be supported.

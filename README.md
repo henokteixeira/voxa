@@ -10,6 +10,7 @@ spaced repetition and progress tracking.
 | `apps/web` | PWA in React + Vite |
 | `apps/api` | NestJS API (TypeScript), Postgres via Drizzle |
 | `services/voice` | Local Python service: Whisper (speech-to-text) + Kokoro (text-to-speech) |
+| `packages/contracts` | What the API and the web app exchange: shared values and request schemas (zod). Built on `pnpm install` |
 
 The API depends only on interfaces (`apps/api/src/domain/ports`). Concrete implementations
 (Claude, local voice, Postgres) live in `apps/api/src/infra` and are wired in `app.module.ts`.
