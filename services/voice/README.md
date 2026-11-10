@@ -64,7 +64,7 @@ python -m eval.mixed_language --models small medium --out eval/results/mixed.md
   tutor's voice being ready: `turn timing stt=2500ms tutor=4000ms tts=800ms total=7300ms` (`stt=-` for a
   typed turn: leave those out of a voice baseline; `tutor` includes Claude and the database). Read them with `docker compose logs api | grep "turn timing"`.
 - **Tutor cost:** the API also logs the tokens of each Claude call:
-  `tutor usage call=evaluate input=120 cache_read=3000 cache_write=400 output=250`.
+  `tutor usage call=tutor_turn input=120 cache_read=3000 cache_write=400 output=250`.
   Read them with `docker compose logs api | grep "tutor usage"`.
 
 Recordings and results stay out of git.

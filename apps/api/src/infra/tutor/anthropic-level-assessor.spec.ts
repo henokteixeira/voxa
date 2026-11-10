@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testConfig } from "../../config/testing.js";
 import { TutorUnavailableError } from "../../domain/ports/tutor.port.js";
 import { AnthropicLevelAssessor } from "./anthropic-level-assessor.js";
-import type { AnthropicMessages } from "./anthropic-tutor.adapter.js";
+import { type AnthropicMessages, ClaudeClient } from "./claude-client.js";
 import { buildAssessmentPrompt, buildTranscript } from "./level-prompts.js";
 
 const config = testConfig();
@@ -16,7 +16,7 @@ const turns = [
 
 function assessorReturning(response: object) {
   const parse = vi.fn().mockResolvedValue(response);
-  const assessor = new AnthropicLevelAssessor({ parse } as unknown as AnthropicMessages, config);
+  const assessor = new AnthropicLevelAssessor(new ClaudeClient({ parse } as unknown as AnthropicMessages, config));
   return { assessor, parse };
 }
 
@@ -66,8 +66,7 @@ describe("AnthropicLevelAssessor", () => {
 
   it("fails as unavailable when the request fails or the answer is cut off", async () => {
     const failing = new AnthropicLevelAssessor(
-      { parse: vi.fn().mockRejectedValue(new Error("down")) } as unknown as AnthropicMessages,
-      config,
+      new ClaudeClient({ parse: vi.fn().mockRejectedValue(new Error("down")) } as unknown as AnthropicMessages, config),
     );
     await expect(failing.assess({ language: "en", turns })).rejects.toBeInstanceOf(TutorUnavailableError);
     const { assessor } = assessorReturning({ stop_reason: "max_tokens", parsed_output: null });

@@ -2,7 +2,8 @@ import { Logger } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 import { testConfig } from "../../config/testing.js";
 import { type TutorRequest, TutorUnavailableError } from "../../domain/ports/tutor.port.js";
-import { type AnthropicMessages, AnthropicTutorAdapter, leadingReply } from "./anthropic-tutor.adapter.js";
+import { AnthropicTutorAdapter, leadingReply } from "./anthropic-tutor.adapter.js";
+import { type AnthropicMessages, ClaudeClient } from "./claude-client.js";
 import { OPENING_REQUEST } from "./tutor-prompts.js";
 
 const config = testConfig;
@@ -62,7 +63,7 @@ const request: TutorRequest = {
 describe("AnthropicTutorAdapter.open", () => {
   it("asks for the opening line as structured output, so it never comes back as raw JSON text", async () => {
     const { messages, parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: { reply: " Morning! ", scaffold: null } });
-    const adapter = new AnthropicTutorAdapter(messages, config({ ANTHROPIC_MODEL: "claude-test" }));
+    const adapter = new AnthropicTutorAdapter(new ClaudeClient(messages, config({ ANTHROPIC_MODEL: "claude-test" })), config({ ANTHROPIC_MODEL: "claude-test" }));
 
     await expect(adapter.open({ mode: "daily", language: "en", learnerContext: "", goals: [], targets: [], step: null })).resolves.toEqual({
       line: "Morning!",
@@ -82,7 +83,7 @@ describe("AnthropicTutorAdapter.open", () => {
       stop_reason: "end_turn",
       parsed_output: { reply: "Hi! Repeat after me: Yesterday I worked on the login screen.", scaffold: " Yesterday I worked on the login screen. " },
     });
-    const adapter = new AnthropicTutorAdapter(messages, config());
+    const adapter = new AnthropicTutorAdapter(new ClaudeClient(messages, config()), config());
     const step = { stage: "model" as const, retry: false, goal: null };
     const opening = await adapter.open({ ...request, step: "build_full" }, { otherwise: step, ifStuck: step, hintsPause: false });
     expect(opening.scaffold).toBe("Yesterday I worked on the login screen.");
@@ -91,13 +92,13 @@ describe("AnthropicTutorAdapter.open", () => {
 
   it("fails on an empty opening line", async () => {
     const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: { reply: "  ", scaffold: null } });
-    const adapter = new AnthropicTutorAdapter(messages, config());
+    const adapter = new AnthropicTutorAdapter(new ClaudeClient(messages, config()), config());
     await expect(adapter.open(request)).rejects.toBeInstanceOf(TutorUnavailableError);
   });
 
   it("fails when the opening line does not match the schema", async () => {
     const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: null });
-    const adapter = new AnthropicTutorAdapter(messages, config());
+    const adapter = new AnthropicTutorAdapter(new ClaudeClient(messages, config()), config());
     await expect(adapter.open(request)).rejects.toBeInstanceOf(TutorUnavailableError);
   });
 });
@@ -109,7 +110,7 @@ describe("AnthropicTutorAdapter.evaluate", () => {
     let settled = false;
     const handed: { reply: string; settled: boolean }[] = [];
 
-    const result = await new AnthropicTutorAdapter(messages, config())
+    const result = await new AnthropicTutorAdapter(new ClaudeClient(messages, config()), config())
       .evaluate(request, (reply) => handed.push({ reply, settled }))
       .finally(() => {
         settled = true;
@@ -121,20 +122,20 @@ describe("AnthropicTutorAdapter.evaluate", () => {
 
   it("limits the whole stream, not only the wait for its first byte", async () => {
     const { messages, stream } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
-    await new AnthropicTutorAdapter(messages, config()).evaluate(request);
+    await new AnthropicTutorAdapter(new ClaudeClient(messages, config()), config()).evaluate(request);
     expect(stream.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("still fails when the answer is refused after the line was written", async () => {
     const { messages } = fakeMessages({ stop_reason: "refusal", parsed_output: verdict });
     const onReply = vi.fn();
-    await expect(new AnthropicTutorAdapter(messages, config()).evaluate(request, onReply)).rejects.toBeInstanceOf(TutorUnavailableError);
+    await expect(new AnthropicTutorAdapter(new ClaudeClient(messages, config()), config()).evaluate(request, onReply)).rejects.toBeInstanceOf(TutorUnavailableError);
     expect(onReply).toHaveBeenCalledWith("Nice.");
   });
 
   it("sends the history after the opening request, then the turn, and returns the parsed verdict", async () => {
     const { messages, stream } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
-    const adapter = new AnthropicTutorAdapter(messages, config({ ANTHROPIC_EFFORT: "medium" }));
+    const adapter = new AnthropicTutorAdapter(new ClaudeClient(messages, config({ ANTHROPIC_EFFORT: "medium" })), config({ ANTHROPIC_EFFORT: "medium" }));
 
     await expect(adapter.evaluate(request)).resolves.toEqual(verdict);
 
@@ -147,7 +148,7 @@ describe("AnthropicTutorAdapter.evaluate", () => {
 
   it("caches the conversation up to the last saved turn, so the next turn reads it from the cache", async () => {
     const { messages, stream } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
-    const adapter = new AnthropicTutorAdapter(messages, config());
+    const adapter = new AnthropicTutorAdapter(new ClaudeClient(messages, config()), config());
     const history = [
       { role: "assistant" as const, content: "Morning! What did you do yesterday?" },
       { role: "user" as const, content: "I fixed the upload." },
@@ -174,13 +175,13 @@ describe("AnthropicTutorAdapter.evaluate", () => {
     ["the context window is full", { stop_reason: "model_context_window_exceeded", parsed_output: null }],
   ])("fails when %s", async (_, response) => {
     const { messages } = fakeMessages(response);
-    const adapter = new AnthropicTutorAdapter(messages, config());
+    const adapter = new AnthropicTutorAdapter(new ClaudeClient(messages, config()), config());
     await expect(adapter.evaluate(request)).rejects.toBeInstanceOf(TutorUnavailableError);
   });
 
   it("wraps API errors", async () => {
     const stream = vi.fn((_params: any) => fakeStream({}, new Error("529 overloaded")));
-    const adapter = new AnthropicTutorAdapter({ create: vi.fn(), parse: vi.fn(), stream } as unknown as AnthropicMessages, config());
+    const adapter = new AnthropicTutorAdapter(new ClaudeClient({ create: vi.fn(), parse: vi.fn(), stream } as unknown as AnthropicMessages, config()), config());
     await expect(adapter.evaluate(request)).rejects.toThrow(/529 overloaded/);
   });
 });
@@ -191,14 +192,14 @@ describe("AnthropicTutorAdapter.open when the context window is full", () => {
       stop_reason: "model_context_window_exceeded",
       content: [{ type: "text", text: "Morn" }],
     });
-    const adapter = new AnthropicTutorAdapter(messages, config());
+    const adapter = new AnthropicTutorAdapter(new ClaudeClient(messages, config()), config());
     await expect(adapter.open(request)).rejects.toBeInstanceOf(TutorUnavailableError);
   });
 
   it("tells the tutor the learner's first language (pt-BR unless configured)", async () => {
     const { messages, stream: parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
-    await new AnthropicTutorAdapter(messages, config()).evaluate(request);
-    await new AnthropicTutorAdapter(messages, config({ LEARNER_FIRST_LANGUAGE: "es" })).evaluate(request);
+    await new AnthropicTutorAdapter(new ClaudeClient(messages, config()), config()).evaluate(request);
+    await new AnthropicTutorAdapter(new ClaudeClient(messages, config({ LEARNER_FIRST_LANGUAGE: "es" })), config({ LEARNER_FIRST_LANGUAGE: "es" })).evaluate(request);
     expect(parse.mock.calls[0][0].system[0].text).toContain("The learner's first language is pt-BR");
     expect(parse.mock.calls[1][0].system[0].text).toContain("The learner's first language is es");
   });
@@ -209,11 +210,11 @@ describe("AnthropicTutorAdapter usage log", () => {
     const log = vi.spyOn(Logger.prototype, "log").mockImplementation(() => {});
     const usage = { input_tokens: 120, cache_read_input_tokens: 3000, cache_creation_input_tokens: 400, output_tokens: 250 };
     const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict, usage });
-    const adapter = new AnthropicTutorAdapter(messages, config());
+    const adapter = new AnthropicTutorAdapter(new ClaudeClient(messages, config()), config());
 
     await adapter.evaluate(request);
 
-    expect(log).toHaveBeenCalledWith("tutor usage call=evaluate input=120 cache_read=3000 cache_write=400 output=250");
+    expect(log).toHaveBeenCalledWith("tutor usage call=tutor_turn input=120 cache_read=3000 cache_write=400 output=250");
     log.mockRestore();
   });
 
@@ -221,7 +222,7 @@ describe("AnthropicTutorAdapter usage log", () => {
     const log = vi.spyOn(Logger.prototype, "log").mockImplementation(() => {});
     const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: verdict });
 
-    await new AnthropicTutorAdapter(messages, config()).evaluate(request);
+    await new AnthropicTutorAdapter(new ClaudeClient(messages, config()), config()).evaluate(request);
 
     expect(log).not.toHaveBeenCalled();
     log.mockRestore();

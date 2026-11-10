@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testConfig } from "../../config/testing.js";
 import { TutorUnavailableError } from "../../domain/ports/tutor.port.js";
 import { AnthropicCheckInReader } from "./anthropic-check-in-reader.js";
-import type { AnthropicMessages } from "./anthropic-tutor.adapter.js";
+import { type AnthropicMessages, ClaudeClient } from "./claude-client.js";
 import { buildCheckInReadingPrompt } from "./check-in-prompts.js";
 
 const config = testConfig();
@@ -11,7 +11,7 @@ const transcript = "My project help volunteers to find um lugar to serve. It wor
 
 function readerReturning(response: object) {
   const parse = vi.fn().mockResolvedValue(response);
-  return { reader: new AnthropicCheckInReader({ parse } as unknown as AnthropicMessages, config), parse };
+  return { reader: new AnthropicCheckInReader(new ClaudeClient({ parse } as unknown as AnthropicMessages, config)), parse };
 }
 
 beforeEach(() => {
@@ -39,7 +39,7 @@ describe("AnthropicCheckInReader", () => {
   });
 
   it("fails as unavailable when the request fails or the answer is cut off", async () => {
-    const failing = new AnthropicCheckInReader({ parse: vi.fn().mockRejectedValue(new Error("down")) } as unknown as AnthropicMessages, config);
+    const failing = new AnthropicCheckInReader(new ClaudeClient({ parse: vi.fn().mockRejectedValue(new Error("down")) } as unknown as AnthropicMessages, config));
     await expect(failing.read({ language: "en", transcript })).rejects.toBeInstanceOf(TutorUnavailableError);
     const { reader } = readerReturning({ stop_reason: "max_tokens", parsed_output: null });
     await expect(reader.read({ language: "en", transcript })).rejects.toBeInstanceOf(TutorUnavailableError);

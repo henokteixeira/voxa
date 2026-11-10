@@ -3,7 +3,7 @@ import { testConfig } from "../../config/testing.js";
 import type { ModelRequest } from "../../domain/ports/mission-coach.port.js";
 import { TutorUnavailableError } from "../../domain/ports/tutor.port.js";
 import { AnthropicMissionCoach } from "./anthropic-mission-coach.js";
-import type { AnthropicMessages } from "./anthropic-tutor.adapter.js";
+import { type AnthropicMessages, ClaudeClient } from "./claude-client.js";
 
 const request: ModelRequest = { situation: "daily", language: "en", step: "build_light", learnerContext: "Works on Oral Collector." };
 const text =
@@ -17,7 +17,7 @@ const expressions = [
 
 function coach(parsed_output: object | null, stop_reason = "end_turn") {
   const parse = vi.fn().mockResolvedValue({ stop_reason, parsed_output });
-  return { coach: new AnthropicMissionCoach({ parse } as unknown as AnthropicMessages, testConfig()), parse };
+  return { coach: new AnthropicMissionCoach(new ClaudeClient({ parse } as unknown as AnthropicMessages, testConfig())), parse };
 }
 
 describe("AnthropicMissionCoach.usedExpression", () => {
