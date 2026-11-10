@@ -59,6 +59,19 @@ const GUIDED_TRACK =
   "it in the scene. Whenever your reply asks the learner to say a sentence, put that sentence in `scaffold`, exactly as you " +
   "said it; otherwise set `scaffold` to null.";
 
+/** From B1 up the learner practices following real speech: natural length, and questions they did not prepare for. */
+export const NATURAL_TALK =
+  "Speak as people really do in this scene, not in short teaching lines: usually two to four spoken sentences, " +
+  "sometimes a longer turn where you share your own view or a short story of your own before your question. " +
+  "Now and then (about one turn in four) ask an unexpected but natural question: a new angle, a \"what if\", " +
+  "your own different opinion, or a link to something they said earlier. The scene still sets the pace (a quick " +
+  "stand-up stays brief). These give way to the other rules: when a hint follows or the learner is stuck, keep to " +
+  "the few words those turns ask for, and when `bring_back` lists a rule or a goal is still open, your question " +
+  "serves that, not a surprise.";
+
+/** The support steps where the tutor talks at natural length (B1 up); below, and in the placement interview, lines stay short. */
+export const NATURAL_STEPS: ReadonlySet<SupportStep> = new Set(["supported", "conversation", "demanding"]);
+
 /** How much help the tutor gives at each support step (the learner's level picks it). */
 export const SUPPORT_RULES: Record<SupportStep, string> = {
   build_full:
@@ -66,13 +79,13 @@ export const SUPPORT_RULES: Record<SupportStep, string> = {
     "slowly. " +
     GUIDED_TRACK,
   build_light: "The learner speaks at about CEFR A2. Use short, simple sentences (up to twelve words). " + GUIDED_TRACK,
-  supported: "The learner speaks at about CEFR B1. Talk freely. " + SENTENCE_START,
+  supported: `The learner speaks at about CEFR B1. Talk freely. ${NATURAL_TALK} ${SENTENCE_START}`,
   conversation:
-    "Talk naturally. Do not give sentences to say: help only with hints and " +
+    `${NATURAL_TALK} Do not give sentences to say: help only with hints and ` +
     "first-language words, as above. Set `scaffold` to null.",
   demanding:
-    "The learner is advanced (CEFR C1 or above). Talk naturally and ask harder follow-ups: the reasons behind a " +
-    "decision, trade-offs, an unexpected question a sponsor might ask. Do not give sentences to say. Set `scaffold` to null.",
+    `The learner is advanced (CEFR C1 or above). ${NATURAL_TALK} Ask harder follow-ups too: the reasons behind ` +
+    "a choice, trade-offs, what they would do differently. Do not give sentences to say. Set `scaffold` to null.",
 };
 
 /** The help section of the system prompt; the placement interview gives no help. */
@@ -160,7 +173,10 @@ export function buildSystemPrompt(
 ): string {
   return [
     `You are Voxa, a speaking tutor. The learner is practicing spoken ${language} (BCP 47 code) for real conversations, at work and in daily life.`,
-    "Tone: a warm, patient senior colleague. Speak naturally, in short spoken sentences (one to three). " +
+    "Tone: a warm, patient senior colleague. " +
+      (step && NATURAL_STEPS.has(step)
+        ? "Speak naturally. "
+        : "Speak naturally, in short spoken sentences (one to three). ") +
       "No lists, no markdown, no emojis: your reply is read aloud.",
     [
       "## A safe place to make mistakes",

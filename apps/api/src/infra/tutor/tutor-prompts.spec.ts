@@ -10,6 +10,8 @@ import {
   PLACEMENT_RULES,
   SCENES,
   strategiesSection,
+  NATURAL_STEPS,
+  NATURAL_TALK,
   SUPPORT_RULES,
 } from "./tutor-prompts.js";
 
@@ -173,6 +175,23 @@ describe("buildSystemPrompt: help by support step", () => {
     expect(SUPPORT_RULES.supported).toMatch(/only the start of a sentence/);
     expect(SUPPORT_RULES.supported).toMatch(/Never the whole answer/);
     expect(SUPPORT_RULES.supported).toMatch(/serious mistake .* give no sentence start/);
+  });
+
+  it("talks at natural length and asks unexpected questions from B1 up, and keeps lines short below", () => {
+    expect([...NATURAL_STEPS]).toEqual(["supported", "conversation", "demanding"]);
+    for (const step of SUPPORT_STEPS) {
+      const natural = NATURAL_STEPS.has(step);
+      expect(prompt(step).includes(NATURAL_TALK)).toBe(natural);
+      expect(prompt(step).includes("short spoken sentences (one to three)")).toBe(!natural);
+    }
+    // The placement interview (no step) keeps short lines.
+    expect(prompt(null)).not.toContain(NATURAL_TALK);
+    expect(prompt(null)).toMatch(/short spoken sentences \(one to three\)/);
+    expect(NATURAL_TALK).toMatch(/unexpected/);
+    // It never stretches a hint turn or a stuck turn, and never takes the question a rule or goal needs.
+    expect(NATURAL_TALK).toMatch(/when a hint follows or the learner is stuck, keep to the few words/);
+    expect(NATURAL_TALK).toMatch(/when `bring_back` lists a rule or a goal is still open, your question serves that/);
+    expect(SUPPORT_RULES.demanding).not.toMatch(/sponsor/);
   });
 
   it("follows the guided track at A1–A2", () => {

@@ -95,7 +95,7 @@ Approved on 2026-11-07 (leveling and guided track design).
 
 - **Placement interview:** a short OPI-style conversation that only observes and never corrects; it estimates a CEFR level with the user's own lines as evidence. A new one is suggested every 4 weeks.
 - **Level:** shown in the Progress tab, where the user can also set it by hand.
-- **Support step by level,** inside the existing modes: A1 a full guided track (repeat a model sentence, with the sentence hidden until tapped; say it with his own information; add a piece; answer alone; say the answer again); A2 the model only when he is stuck; B1 free talk plus the start of a sentence when stuck; B2 conversation as before; C1–C2 more demanding.
+- **Support step by level,** inside the existing modes: A1 a full guided track (repeat a model sentence, with the sentence hidden until tapped; say it with his own information; add a piece; answer alone; say the answer again); A2 the model only when he is stuck; B1 free talk plus the start of a sentence when stuck; B2 conversation as before; C1–C2 more demanding. From B1 up the tutor talks as people really do (usually two to four sentences, sometimes its own view or a short story) and about one turn in four asks an unexpected but natural question (a new angle, a "what if", a different opinion), so the learner practices following real speech and answering what they did not prepare; below B1 its lines stay short (one to three sentences).
 - **Step changes in a session:** two goals answered without help skip the model; stuck twice brings it back.
 
 ## Voice loop
