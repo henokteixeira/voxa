@@ -71,4 +71,14 @@ describe("POST /reviews/answers", () => {
     await request(app.getHttpServer()).post("/reviews/answers").send({ utterance: "hi", timeZone: "America/Sao_Paulo" }).expect(400);
     await request(app.getHttpServer()).post("/reviews/answers").send({ cardId: subject.id, utterance: "hi" }).expect(400);
   });
+
+  it("rejects a start delay that is not a whole number of ms from 0 to 10 minutes", async () => {
+    for (const startDelayMs of [-1, 600_001, 1.5, "2400"]) {
+      await request(app.getHttpServer())
+        .post("/reviews/answers")
+        .send({ cardId: subject.id, utterance: "hi", timeZone: "America/Sao_Paulo", startDelayMs })
+        .expect(400);
+    }
+    expect(service.answer).not.toHaveBeenCalled();
+  });
 });
