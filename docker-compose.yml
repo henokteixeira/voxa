@@ -1,5 +1,7 @@
 # Whole app: `docker compose up --build`, then open http://localhost:5173.
 # The microphone stays in the browser on the host; containers only see the audio the web app sends.
+# Ports listen on this computer only. VOXA_HOST=0.0.0.0 in .env opens the web app and the API to the local
+# network (e.g. to try it on a phone); the database and the voice service always stay local.
 services:
   postgres:
     image: postgres:17
@@ -8,7 +10,7 @@ services:
       POSTGRES_PASSWORD: voxa
       POSTGRES_DB: voxa
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - voxa-pg:/var/lib/postgresql/data
     healthcheck:
@@ -41,7 +43,7 @@ services:
       # The repository root, read-only, so the API finds the optional tutor-context.md.
       - ./:/config:ro
     ports:
-      - "3000:3000"
+      - "${VOXA_HOST:-127.0.0.1}:3000:3000"
     depends_on:
       migrate: { condition: service_completed_successfully }
 
@@ -59,7 +61,7 @@ services:
       - ./services/voice/eval/recordings:/app/eval/recordings
       - ./services/voice/eval/results:/app/eval/results
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
       interval: 10s
@@ -74,9 +76,36 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
     ports:
-      - "5173:80"
+      - "${VOXA_HOST:-127.0.0.1}:5173:80"
     depends_on:
       - api
+
+  # A dump of the database when it starts and every day after, in ./backups (gitignored).
+  # Dumps older than 14 days are removed. Restore: see README ("Backups").
+  backup:
+    image: postgres:17
+    environment:
+      PGHOST: postgres
+      PGUSER: voxa
+      PGPASSWORD: voxa
+      PGDATABASE: voxa
+    volumes:
+      - ./backups:/backups
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        while true; do
+          name=voxa-$$(date -u +%Y%m%dT%H%M%SZ).dump
+          if pg_dump --format=custom --file=/backups/.$$name && mv /backups/.$$name /backups/$$name; then
+            echo "backup saved: $$name"
+          else
+            echo "backup failed" >&2
+          fi
+          find /backups -maxdepth 1 -name 'voxa-*.dump' -mtime +14 -delete
+          sleep 86400
+        done
+    depends_on:
+      migrate: { condition: service_completed_successfully }
 
 volumes:
   voxa-pg:

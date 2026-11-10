@@ -18,3 +18,5 @@ services/voice/eval/recordings/
 services/voice/eval/results/
 # Tutor model eval reports
 apps/api/eval-results/
+# Database backups (personal data)
+backups/

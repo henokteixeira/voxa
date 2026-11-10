@@ -22,38 +22,52 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
 
   async record(m: NewMistake, occurrence: Occurrence): Promise<Mistake | null> {
     return this.db.transaction(async (tx) => {
-      const [existing] = await tx
-        .select()
-        .from(mistakes)
-        .where(and(eq(mistakes.language, m.language), eq(mistakes.original, m.original)))
-        .limit(1);
+      const { pattern, ...fields } = m;
+      // Locked, so two turns that make the same mistake count it one after the other.
+      const find = async () =>
+        (
+          await tx
+            .select()
+            .from(mistakes)
+            .where(and(eq(mistakes.language, m.language), eq(mistakes.original, m.original)))
+            .limit(1)
+            .for("update")
+        )[0];
+      let existing = await find();
+      if (!existing) {
+        const patternId = pattern ? await this.patternId(tx, m.language, m.category, pattern) : null;
+        const [inserted] = await tx.insert(mistakes).values({ ...fields, patternId }).onConflictDoNothing().returning();
+        if (inserted) return this.occurred(tx, inserted, m.language, occurrence);
+        // Another turn saved it first: count this one on that row.
+        existing = await find();
+      }
 
       // A dismissed mistake left the bank for good: it does not count again.
-      if (existing?.dismissedAt) return null;
+      if (existing.dismissedAt) return null;
 
-      const { pattern, ...fields } = m;
       // A mistake keeps the first pattern it was given: later ones may word the same rule differently.
-      const patternId = existing?.patternId ?? (pattern ? await this.patternId(tx, m.language, m.category, pattern) : null);
-      const [saved] = existing
-        ? await tx
-            .update(mistakes)
-            .set({
-              occurrences: sql`${mistakes.occurrences} + 1`,
-              lastSeenAt: new Date(),
-              correction: m.correction,
-              // The newest reading wins, so an older, broader category (grammar) gives way to the type.
-              category: m.category,
-              patternId,
-            })
-            .where(eq(mistakes.id, existing.id))
-            .returning()
-        : await tx.insert(mistakes).values({ ...fields, patternId }).returning();
-
-      await tx.insert(mistakeOccurrences).values({ mistakeId: saved.id, language: m.language, ...occurrence });
-      // Making it again sends it back to Open.
-      await tx.delete(mistakeCorrectUses).where(eq(mistakeCorrectUses.mistakeId, saved.id));
-      return toMistake(saved);
+      const patternId = existing.patternId ?? (pattern ? await this.patternId(tx, m.language, m.category, pattern) : null);
+      const [saved] = await tx
+        .update(mistakes)
+        .set({
+          occurrences: sql`${mistakes.occurrences} + 1`,
+          lastSeenAt: new Date(),
+          correction: m.correction,
+          // The newest reading wins, so an older, broader category (grammar) gives way to the type.
+          category: m.category,
+          patternId,
+        })
+        .where(eq(mistakes.id, existing.id))
+        .returning();
+      return this.occurred(tx, saved, m.language, occurrence);
     });
+  }
+
+  /** Adds the occurrence; making a mistake again sends it back to Open. */
+  private async occurred(tx: Transaction, saved: typeof mistakes.$inferSelect, language: string, occurrence: Occurrence): Promise<Mistake> {
+    await tx.insert(mistakeOccurrences).values({ mistakeId: saved.id, language, ...occurrence });
+    await tx.delete(mistakeCorrectUses).where(eq(mistakeCorrectUses.mistakeId, saved.id));
+    return toMistake(saved);
   }
 
   /** The pattern's id, saved the first time it shows up; later mistakes with the same key join it as it is. */
