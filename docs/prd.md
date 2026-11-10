@@ -41,7 +41,7 @@ The daily mission is the next priority (approved on 2026-11-09), ahead of the re
 | 1 | Listen | Meaning-focused input | about 4 min | The tutor does the task first, at the learner's level. Audio only; the text shows when tapped. |
 | 2 | Take 3 expressions | Language-focused learning | about 3 min | 3 ready-made expressions from the model; the learner says each aloud in a sentence of his own. They join the spaced review. |
 | 3 | Do the task | Meaning-focused output | about 10 min | The conversation with hints, as today. The tutor invites the 3 expressions and, when answers stay very simple, asks for a slightly fuller one (an invitation, never a correction). |
-| 4 | Say it faster | Fluency development | about 5 min | The learner tells the same content 3 times, in 2, 1.5 and 1 minute (a shortened 4/3/2), with no correction. The app shows how the pace changed. |
+| 4 | Say it faster | Fluency development | about 5 min | The learner tells the same content 3 times, in 2, 1.5 and 1 minute (a shortened 4/3/2; half that at A1–A2, whose answers don't fill 2 minutes), with no correction. The app shows how the pace changed. |
 | 5 | Review | Retrieval practice | about 3 min | The existing voice review. |
 
 - **Benchmark task every 2 weeks:** always the same prompt (for example, present your project in 2 minutes), compared with earlier runs: pace, pauses, mistakes per 100 words, and the old recording to listen to.

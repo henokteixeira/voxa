@@ -16,6 +16,7 @@ import { xpForFasterRounds } from "../domain/progress/daily-goal.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { FASTER_ROUND_REPOSITORY, type FasterRoundRepository } from "../domain/ports/faster-round.repository.js";
 import { SESSION_REPOSITORY, type SessionRepository } from "../domain/ports/session.repository.js";
+import type { Session } from "../domain/conversation/types.js";
 import { SessionNotFoundError } from "./conversation.service.js";
 
 /** A told round as the web app sends it. */
@@ -63,7 +64,7 @@ export class FasterRoundsService {
     }
     // A round sent again (a retry) keeps what was stored first.
     if (told.round <= stored.length) return this.viewOf(session);
-    const timeLimitMs = roundLimitMs(told.round);
+    const timeLimitMs = roundLimitMs(told.round, session.step);
     if (told.speechMs > timeLimitMs + FASTER_ROUND_GRACE_MS) {
       throw new InvalidInputError(`Round ${told.round} has ${timeLimitMs / 1000} s; ${told.speechMs} ms of speech is too long.`);
     }
@@ -81,7 +82,7 @@ export class FasterRoundsService {
     return this.viewOf(session);
   }
 
-  private async viewOf(session: { id: string; language: string }): Promise<FasterRoundsView> {
+  private async viewOf(session: Pick<Session, "id" | "language" | "step">): Promise<FasterRoundsView> {
     const stored = await this.rounds.list(session.id);
     const rounds: FasterRound[] = stored.map(
       ({ round, timeLimitMs, transcript, spokenWords, speechMs, longPauses }) => ({
@@ -98,7 +99,7 @@ export class FasterRoundsService {
       language: session.language,
       rounds,
       nextRound,
-      nextLimitMs: nextRound === null ? null : roundLimitMs(nextRound),
+      nextLimitMs: nextRound === null ? null : roundLimitMs(nextRound, session.step),
       result: fasterResult(rounds),
       xp: xpForFasterRounds(stored).reduce((sum, { total }) => sum + total, 0),
     };

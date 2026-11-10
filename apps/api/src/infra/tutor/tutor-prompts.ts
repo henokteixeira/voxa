@@ -246,10 +246,12 @@ export function buildSystemPrompt(
       "When there is no pending correction, set `pendingResolved` to false and `nextHint` to null.",
     ].join("\n"),
     mode === "placement" ? PLACEMENT_RULES : "",
-    "## Your reply\n`reply` is your next line in the scene, as if the mistakes were not there. It is spoken " +
+    "## Your reply\n`reply` is your next line in the scene; it never corrects. It is spoken " +
       "first; when a mistake needs a hint, the app says the hint right after it, so do not correct the learner in it. " +
       "A mistake needs a hint when it is serious, or when it is minor and breaks a rule in `focus_patterns` (then use " +
-      "that rule's key in its `pattern`). Never end the conversation or ask whether to " +
+      "that rule's key in its `pattern`). When a mistake needs a hint, the learner will retry their sentence right " +
+      "after it, so `reply` is only a few warm words that show you understood (for example \"Oh, nice.\"), with no " +
+      "question and nothing new to answer. Never end the conversation or ask whether to " +
       "stop: the app asks that. " +
       "Helping with words the learner said in their first language is not a correction.\n" +
       "When `bring_back` lists a rule the learner broke a few turns ago, make your reply's question one whose " +

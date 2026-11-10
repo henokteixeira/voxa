@@ -32,7 +32,7 @@ const clock = (ms: number) => {
 };
 
 /**
- * "Say it faster" after a session: the learner tells the same content 3 times in 2:00, 1:30 and 1:00,
+ * "Say it faster" after a session: the learner tells the same content 3 times in 2:00, 1:30 and 1:00 (half that at A1–A2),
  * with no correction, then sees how his pace changed. A round may take several microphone turns;
  * it ends when the time is up or on "I'm done". `onDone` is called when he continues or skips.
  */
