@@ -3,13 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiProvider } from "@/app/api-context";
-import { routes } from "@/app/router";
+import { routes as lazyRoutes } from "@/app/router";
+import { eagerRoutes } from "@/test/eager-routes";
 import { ApiError, type ApiClient } from "@/lib/api";
 import { type MicrophoneHandlers, MicrophoneUnavailableError } from "@/lib/voice/microphone";
 import { savePauseMs } from "@/lib/voice/pause-setting";
 import type { VoiceSocketHandlers } from "@/lib/voice/voice-socket";
 import { LocaleProvider } from "@/lib/i18n/locale-provider";
 import { type VoiceDeps, VoiceDepsContext } from "./voice-deps";
+
+const routes = await eagerRoutes(lazyRoutes);
 
 let micHandlers: MicrophoneHandlers;
 let socketHandlers: VoiceSocketHandlers;

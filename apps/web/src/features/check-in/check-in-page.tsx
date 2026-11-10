@@ -18,7 +18,6 @@ import { CHECK_IN_COPY } from "./check-in-copy";
 import { CheckInComparison } from "./check-in-result";
 import { ClipRecorder } from "./clip-recorder";
 
-export const CHECK_IN_PATH = "/check-in";
 
 type Step =
   | { kind: "loading" }

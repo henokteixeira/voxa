@@ -6,7 +6,7 @@ import { useCopy } from "@/lib/i18n/locale";
 import { cn } from "@/lib/utils";
 import { CHECK_IN_COPY } from "./check-in-copy";
 import { useCheckInDate } from "./check-in-format";
-import { CHECK_IN_PATH } from "./check-in-page";
+import { CHECK_IN_PATH } from "./paths";
 
 /** The last check-ins shown in Progress. */
 const SHOWN = 6;

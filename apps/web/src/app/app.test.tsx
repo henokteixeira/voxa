@@ -7,7 +7,10 @@ import { ApiError } from "@/lib/api";
 import { LocaleProvider } from "@/lib/i18n/locale-provider";
 import { readPauseMs } from "@/lib/voice/pause-setting";
 import { ApiProvider } from "./api-context";
-import { routes } from "./router";
+import { routes as lazyRoutes } from "./router";
+import { eagerRoutes } from "@/test/eager-routes";
+
+const routes = await eagerRoutes(lazyRoutes);
 
 const endSession = vi.fn().mockResolvedValue({});
 
