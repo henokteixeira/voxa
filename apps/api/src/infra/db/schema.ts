@@ -1,4 +1,5 @@
-import { sql } from "drizzle-orm";
+import { CEFR_LEVELS, DISMISS_REASONS, LEVEL_SOURCES, MODES, TRACK_STAGES } from "@voxa/contracts";
+import { type SQL, sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   bigserial,
@@ -21,7 +22,13 @@ import {
 } from "drizzle-orm/pg-core";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import type { PendingCorrection, PracticeTarget } from "../../domain/conversation/types.js";
+import { SUPPORT_STEPS } from "../../domain/level/speaking-level.js";
 import type { TutorMemory } from "../../domain/memory/learner-fact.js";
+
+/** `column in (...)`, from the list the code uses, so a value the code does not know cannot be saved. */
+function oneOf(column: SQL | AnyPgColumn, values: readonly string[]): SQL {
+  return sql`${column} in (${sql.raw(values.map((value) => `'${value}'`).join(", "))})`;
+}
 
 // Every record carries its language (BCP 47 code, e.g. "en") to support other languages.
 
@@ -71,8 +78,14 @@ export const sessions = pgTable(
     /** The daily mission this session is step 3 of; null outside a mission. */
     missionId: uuid("mission_id").references((): AnyPgColumn => missions.id, { onDelete: "set null" }),
   },
-  // Open sessions by last activity: the ones left idle are closed.
-  (t) => [index("sessions_open_last_active_at").on(t.lastActiveAt).where(sql`${t.endedAt} is null`)],
+  (t) => [
+    // Open sessions by last activity: the ones left idle are closed.
+    index("sessions_open_last_active_at").on(t.lastActiveAt).where(sql`${t.endedAt} is null`),
+    index("sessions_mission_id").on(t.missionId),
+    check("sessions_mode", oneOf(t.mode, MODES)),
+    check("sessions_support_step", oneOf(t.supportStep, SUPPORT_STEPS)),
+    check("sessions_track_stage", oneOf(t.trackStage, TRACK_STAGES)),
+  ],
 );
 
 export const turns = pgTable("turns", {
@@ -85,7 +98,7 @@ export const turns = pgTable("turns", {
   /** Learner turns: answered words the tutor gave, or used the first language. Always false for the tutor's turns. */
   assisted: boolean("assisted").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [index("turns_session_id_seq").on(t.sessionId, t.seq), check("turns_role", oneOf(t.role, ["user", "assistant"]))]);
 
 /** The rules mistakes break. Many mistakes share one pattern; the learner reviews the pattern. */
 export const patterns = pgTable(
@@ -119,7 +132,7 @@ export const mistakes = pgTable("mistakes", {
   /** Set when the learner says "This isn't a mistake": the record then leaves the bank for good. */
   dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
   dismissReason: varchar("dismiss_reason", { length: 32 }), // transcript_error | both_correct | not_needed
-}, (t) => [unique("mistakes_language_original").on(t.language, t.original)]);
+}, (t) => [unique("mistakes_language_original").on(t.language, t.original), check("mistakes_dismiss_reason", oneOf(t.dismissReason, DISMISS_REASONS))]);
 
 /** When each pattern, new word or expression comes back for review. Exactly one of the three subjects is set. */
 export const reviewItems = pgTable(
@@ -178,7 +191,11 @@ export const mistakeOccurrences = pgTable("mistake_occurrences", {
   /** The learner's turn in the session (1 = first answer); null for rows saved before it was kept. */
   learnerTurn: integer("learner_turn"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("mistake_occurrences_mistake_id").on(t.mistakeId),
+  index("mistake_occurrences_session_id").on(t.sessionId),
+  check("mistake_occurrences_severity", oneOf(t.severity, ["serious", "minor"])),
+]);
 
 /**
  * Sessions in which the learner used the correct form of a mistake, after the latest time they made it.
@@ -210,7 +227,7 @@ export const speakingLevels = pgTable("speaking_levels", {
   sessionId: uuid("session_id")
     .unique()
     .references(() => sessions.id, { onDelete: "set null" }),
-});
+}, (t) => [check("speaking_levels_level", oneOf(t.level, CEFR_LEVELS)), check("speaking_levels_source", oneOf(t.source, LEVEL_SOURCES))]);
 
 /** Every daily practice time the learner chose, per language. A day is judged by the newest choice made by its end. */
 export const dailyGoalSettings = pgTable(
