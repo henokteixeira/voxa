@@ -71,6 +71,8 @@ The tutor corrects with hints, at once, only when a mistake matters; the user co
 2. **Small mistake** (does not get in the way): recorded silently and shown in the end-of-session summary, so fluency is not broken.
 3. **Attempts:** up to 2 hints. After the second miss, the tutor gives the correct form and asks the user to repeat it, then the conversation resumes.
 
+4. **Keeping the conversation going:** asking to repeat, checking a word, buying time or saying something another way is a success, never a mistake or being stuck; the tutor answers it as a good partner would, and when the user is stuck the written help may offer one such phrase (2026-11-10; communication strategies, Dörnyei and Scott 1997).
+
 **Research basis:** prompts (hints that push self-correction) had larger effects than recasts in Lyster and Saito's 2010 meta-analysis; immediate correction was more effective than delayed in several studies, but two found no difference. The serious/small split and the number 2 are design choices, not research findings.
 
 ## Mistake bank and end-of-session summary
