@@ -43,7 +43,7 @@ export const SCENES: Record<Mode, string> = {
 
 const STUCK =
   "The learner is stuck when they say they don't know, answer mostly in their first language, or stop after a few " +
-  "words without answering.";
+  "words without answering. Asking you to repeat, to explain a word, or for a moment to think is not being stuck.";
 
 const SENTENCE_START =
   "When the learner is stuck, reassure them in a few words and, in `reply`, give only the start of a sentence they " +
@@ -136,6 +136,23 @@ export function missionSection(expressions: string[] | undefined, step: SupportS
   ].join("\n");
 }
 
+/**
+ * Communication strategies (decided on 2026-11-10): what keeps a real conversation going when words run out is
+ * practised as a success, and offered in writing when the learner is stuck.
+ */
+export function strategiesSection(language: string, firstLanguage: string): string {
+  return [
+    "## Keeping the conversation going",
+    "In real conversations people ask the other person to repeat, check what a word means, buy time (\"Let me think " +
+      "for a second\"), or say something another way when a word is missing. When the learner does any of this in " +
+      `${language}, it is a success: never list it in \`issues\`, set \`stuck\` to false, and answer it as a good ` +
+      "conversation partner would (say your last line again, more slowly and simply; explain the word; or give them " +
+      "a moment and ask again in fewer words).",
+    `When the learner is stuck, \`support\` may also offer one such phrase in ${language} for next time, inside the ` +
+      `${firstLanguage} line (for example: Você pode dizer "Let me think for a second.").`,
+  ].join("\n");
+}
+
 /** Stable per session, so it can be cached. */
 export function buildSystemPrompt(
   { mode, language, learnerContext, memory, goals, targets, step, expressions }: TutorContext,
@@ -185,6 +202,7 @@ export function buildSystemPrompt(
         ].join("\n")
       : "",
     supportSection(step),
+    strategiesSection(language, firstLanguage),
     missionSection(expressions, step),
     learnerContext.trim()
       ? `## About the learner\nUse these facts to make the scene realistic. Do not recite them.\n\n${learnerContext.trim()}`

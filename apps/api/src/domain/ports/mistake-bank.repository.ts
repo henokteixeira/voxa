@@ -9,6 +9,8 @@ export type DismissReason = (typeof DISMISS_REASONS)[number];
 export interface BankEntry extends Mistake {
   /** Sessions, after the latest time the mistake was made, in which the learner used the correct form. */
   sessionsCorrect: number;
+  /** Times it came up as a mistake that got in the way of understanding (a hint paused the talk for it). */
+  seriousOccurrences: number;
   /** The rule it breaks; null for new words and for mistakes saved before patterns. */
   pattern: MistakePattern | null;
 }

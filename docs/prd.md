@@ -71,6 +71,8 @@ The tutor corrects with hints, at once, only when a mistake matters; the user co
 2. **Small mistake** (does not get in the way): recorded silently and shown in the end-of-session summary, so fluency is not broken.
 3. **Attempts:** up to 2 hints. After the second miss, the tutor gives the correct form and asks the user to repeat it, then the conversation resumes.
 
+4. **Keeping the conversation going:** asking to repeat, checking a word, buying time or saying something another way is a success, never a mistake or being stuck; the tutor answers it as a good partner would, and when the user is stuck the written help may offer one such phrase (2026-11-10; communication strategies, Dörnyei and Scott 1997).
+
 **Research basis:** prompts (hints that push self-correction) had larger effects than recasts in Lyster and Saito's 2010 meta-analysis; immediate correction was more effective than delayed in several studies, but two found no difference. The serious/small split and the number 2 are design choices, not research findings.
 
 ## Mistake bank and end-of-session summary
@@ -79,6 +81,7 @@ Every mistake the tutor detects, serious or small, becomes a record in the mista
 
 - **Record:** language (BCP 47), what the user said, the correct form, category (grammar, vocabulary, pronunciation, ...), occurrences, first and last seen, the session it came from.
 - **Repeat detection:** a mistake that matches an existing record increases its count instead of creating a new one; it counts as serious only when its pattern is in focus (see Correction rules).
+- **Practice targets:** each session practices 2 mistakes from the bank: patterns due for review first, then mistakes not mastered yet; within each, the ones that got in the way of understanding come before more frequent small slips (2026-11-10).
 - **Status:** Open, Improving or Mastered (approved in the prototype). Open: new, or made again. Improving: the correct form was used in a later session. Mastered: correct in 3 different sessions without the mistake again. Making it again sends it back to Open (confirmed on 2026-11-06).
 - **"This isn't a mistake":** the user can dismiss a record, for example when the speech-to-text misheard him; it leaves the bank and does not count again.
 - **Summary at the end of a session:** the mistakes of the session (serious and small) with their correct forms, plus the 4 fluency signals: self-correction rate, mistakes per 100 words, pause before answering, pace (words a minute of the learner's own speech, with long pauses of 1 s or more inside an answer). Pace replaced the share of speaking time on 2026-11-07, which mostly measured how much the tutor talked.

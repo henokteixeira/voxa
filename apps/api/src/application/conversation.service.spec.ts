@@ -297,6 +297,7 @@ const entry = (over: Partial<BankEntry>): BankEntry => ({
   occurrences: 1,
   lastSeenAt: new Date(),
   sessionsCorrect: 0,
+  seriousOccurrences: 0,
   pattern: null,
   patternId: null,
   ...over,

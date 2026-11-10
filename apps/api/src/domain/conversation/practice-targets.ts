@@ -9,13 +9,15 @@ import { NEW_WORD_CATEGORY, type PendingCorrection, type PracticeTarget } from "
 export const PRACTICE_TARGETS = 2;
 
 /**
- * Patterns due for review first (decided with the user on 2026-11-07): one sentence each, the one said most
- * often. Then the most frequent mistakes the learner has not mastered yet. New words are not mistakes.
+ * Patterns due for review first (decided with the user on 2026-11-07): one sentence each. Then the mistakes the
+ * learner has not mastered yet. Within each, mistakes that got in the way of understanding come before the ones
+ * that did not, and then the most frequent (2026-11-10: the most frequent small slips, such as articles, matter
+ * least to being understood). New words are not mistakes.
  */
 export function choosePracticeTargets(entries: readonly BankEntry[], duePatterns: ReadonlySet<string> = new Set()): PracticeTarget[] {
   const open = entries
     .filter((m) => m.category !== NEW_WORD_CATEGORY && mistakeStatus(m.sessionsCorrect) !== "mastered")
-    .toSorted((a, b) => b.occurrences - a.occurrences);
+    .toSorted((a, b) => Number(b.seriousOccurrences > 0) - Number(a.seriousOccurrences > 0) || b.occurrences - a.occurrences);
   const chosen: BankEntry[] = [];
   const patterns = new Set<string>();
   for (const m of open) {

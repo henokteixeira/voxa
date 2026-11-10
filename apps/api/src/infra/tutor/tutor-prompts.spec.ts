@@ -9,6 +9,7 @@ import {
   buildTurnMessage,
   PLACEMENT_RULES,
   SCENES,
+  strategiesSection,
   SUPPORT_RULES,
 } from "./tutor-prompts.js";
 
@@ -222,6 +223,15 @@ describe("buildTrackInstruction", () => {
       /<guided_track>\nAsk the scene's question for the goal, with no model sentence\. Goal: a short topic/,
     );
     expect(buildTurnMessage({ ...base, plan: null })).not.toContain("<guided_track>");
+  });
+});
+
+describe("strategiesSection", () => {
+  it("counts asking to repeat or for time as a success, and offers such a phrase when the learner is stuck", () => {
+    const text = strategiesSection("en", "pt-BR");
+    expect(text).toMatch(/ask the other person to repeat/);
+    expect(text).toMatch(/it is a success: never list it in `issues`, set `stuck` to false/);
+    expect(text).toMatch(/When the learner is stuck, `support` may also offer one such phrase in en/);
   });
 });
 
