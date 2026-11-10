@@ -1,10 +1,10 @@
 import { Logger } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
-import type { CheckIn } from "../domain/check-in/check-in.js";
+import { type CheckIn, type CheckInKind, checkInKind } from "../domain/check-in/check-in.js";
 import type { CheckInReaderPort } from "../domain/ports/check-in-reader.port.js";
 import type { CheckInRecording, CheckInRepository } from "../domain/ports/check-in.repository.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
-import { CheckInNotDueError, CheckInNotFoundError, CheckInService } from "./check-in.service.js";
+import { CheckInNotDueError, CheckInNotFoundError, CheckInService, CheckInTopicNotDueError } from "./check-in.service.js";
 
 class FakeCheckIns implements CheckInRepository {
   rows: (CheckIn & { recording: CheckInRecording })[] = [];
@@ -17,16 +17,20 @@ class FakeCheckIns implements CheckInRepository {
   async get(id: string) {
     return (await this.list()).find((c) => c.id === id) ?? null;
   }
-  async list(language = "en", limit?: number) {
+  async list(language = "en", { limit, kind }: { limit?: number; kind?: CheckInKind } = {}) {
     return this.rows
-      .filter((r) => r.language === language)
+      .filter((r) => r.language === language && (!kind || checkInKind(r.task) === kind))
       .map(({ recording: _r, ...c }) => c)
       .reverse()
       .slice(0, limit);
   }
   async previous(id: string) {
     const index = this.rows.findIndex((r) => r.id === id);
-    const before = this.rows.slice(0, Math.max(index, 0)).filter((r) => r.language === this.rows[index]?.language).pop();
+    const own = this.rows[index];
+    const before = this.rows
+      .slice(0, Math.max(index, 0))
+      .filter((r) => r.language === own?.language && checkInKind(r.task) === checkInKind(own.task))
+      .pop();
     if (!before) return null;
     const { recording: _r, ...checkIn } = before;
     return checkIn;
@@ -48,7 +52,13 @@ const wav = { mimeType: "audio/wav", audio: Buffer.from([1, 2, 3]) };
 describe("CheckInService", () => {
   it("is due at once the first time and 2 weeks after the last one", async () => {
     const { service, clock } = setup();
-    expect(await service.overview("en")).toMatchObject({ task: "present_project", limitMs: 120_000, due: true, checkIns: [] });
+    expect(await service.overview("en")).toMatchObject({
+      task: "present_project",
+      limitMs: 120_000,
+      due: true,
+      topic: { task: "last_weekend", limitMs: 60_000, due: false },
+      checkIns: [],
+    });
 
     await service.record("en", wav, { speechMs: 6_000, pausesMs: [] });
     clock.at = new Date("2026-11-22T10:00:00Z");
@@ -93,5 +103,31 @@ describe("CheckInService", () => {
     await expect(setup("").service.record("en", wav, { speechMs: 1_000, pausesMs: [] })).rejects.toMatchObject({ code: "invalid" });
     await expect(setup().service.record("en", wav, { speechMs: 130_000, pausesMs: [] })).rejects.toMatchObject({ code: "invalid" });
     await expect(setup().service.result("nope")).rejects.toBeInstanceOf(CheckInNotFoundError);
+  });
+
+  it("offers 1 minute on a new topic right after the fixed task, compared only with earlier topics", async () => {
+    const { service, clock } = setup();
+    // Not before the fixed task.
+    await expect(service.record("en", wav, { speechMs: 6_000, pausesMs: [] }, "last_weekend")).rejects.toBeInstanceOf(
+      CheckInTopicNotDueError,
+    );
+    const fixed = await service.record("en", wav, { speechMs: 12_000, pausesMs: [] });
+    expect((await service.overview("en")).topic).toEqual({ task: "last_weekend", limitMs: 60_000, due: true });
+    // Only the topic it offers, and at most about a minute.
+    await expect(service.record("en", wav, { speechMs: 6_000, pausesMs: [] }, "problem_solved")).rejects.toBeInstanceOf(
+      CheckInTopicNotDueError,
+    );
+    await expect(service.record("en", wav, { speechMs: 70_000, pausesMs: [] }, "last_weekend")).rejects.toMatchObject({ code: "invalid" });
+    const topic = await service.record("en", wav, { speechMs: 6_000, pausesMs: [] }, "last_weekend");
+    expect(topic).toMatchObject({ checkIn: { task: "last_weekend" }, previous: null });
+    // Once per check-in; the next one gets a new topic, compared with the last topic task.
+    const overview = await service.overview("en");
+    expect(overview.topic).toEqual({ task: "problem_solved", limitMs: 60_000, due: false });
+    expect(overview.checkIns.map((c) => c.id)).toEqual([fixed.checkIn.id]);
+    clock.at = new Date("2026-11-23T10:00:00Z");
+    const fixed2 = await service.record("en", wav, { speechMs: 12_000, pausesMs: [] });
+    expect(fixed2.previous?.id).toBe(fixed.checkIn.id);
+    const topic2 = await service.record("en", wav, { speechMs: 6_000, pausesMs: [] }, "problem_solved");
+    expect(topic2.previous?.id).toBe(topic.checkIn.id);
   });
 });

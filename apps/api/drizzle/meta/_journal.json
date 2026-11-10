@@ -225,6 +225,13 @@
       "when": 1794333477788,
       "tag": "0031_session_last_active",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794336033749,
+      "tag": "0032_check_in_topics",
+      "breakpoints": true
     }
   ]
 }

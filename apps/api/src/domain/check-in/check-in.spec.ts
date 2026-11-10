@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type CheckIn, checkInDueAt, checkInPace } from "./check-in.js";
+import { CHECK_IN_TOPICS, type CheckIn, checkInDueAt, checkInPace, nextCheckInTopic, topicTaskDue } from "./check-in.js";
 
 const now = new Date("2026-11-09T10:00:00Z");
 
@@ -24,6 +24,7 @@ describe("check-in", () => {
     };
     expect(checkInPace(checkIn)).toEqual({
       id: "c1",
+      task: "present_project",
       recordedAt: now,
       wordsPerMinute: 68,
       longPauses: 9,
@@ -39,5 +40,21 @@ describe("check-in", () => {
       longPauses: 0, mistakes: null, otherLanguageWords: null,
     };
     expect(checkInPace(checkIn)).toMatchObject({ mistakesPer100Words: null, otherLanguageWords: null });
+  });
+
+  it("gives each topic once, in order, then the one given longest ago", () => {
+    expect(nextCheckInTopic([])).toBe("last_weekend");
+    expect(nextCheckInTopic(["problem_solved", "last_weekend"])).toBe("explain_skill");
+    const all = [...CHECK_IN_TOPICS].reverse(); // newest first: the first topic was given longest ago
+    expect(nextCheckInTopic(all)).toBe("last_weekend");
+    expect(nextCheckInTopic(["last_weekend", ...all.slice(0, -1)])).toBe("problem_solved");
+  });
+
+  it("offers the topic task right after a fixed check-in, once, and only for a day", () => {
+    const fixed = { task: "present_project", recordedAt: now };
+    expect(topicTaskDue([], now)).toBe(false);
+    expect(topicTaskDue([fixed], new Date("2026-11-10T09:00:00Z"))).toBe(true);
+    expect(topicTaskDue([fixed], new Date("2026-11-10T11:00:00Z"))).toBe(false);
+    expect(topicTaskDue([{ task: "last_weekend", recordedAt: now }, fixed], now)).toBe(false);
   });
 });

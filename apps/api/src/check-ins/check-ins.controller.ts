@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import { CheckInService } from "../application/check-in.service.js";
 import { Language, parse, readRawBody } from "../common/http.js";
+import { CHECK_IN_TASK, CHECK_IN_TOPICS } from "../domain/check-in/check-in.js";
 import { InvalidInputError } from "../domain/errors.js";
 
 /** About 3 minutes of 16 kHz 16-bit mono WAV: a 2-minute check-in with room to spare. */
@@ -14,6 +15,8 @@ const LanguageQuery = z.object({ language: Language });
 const RecordQuery = z
   .object({
     language: Language,
+    /** The fixed task (the default) or the topic task due right after it. */
+    task: z.enum([CHECK_IN_TASK, ...CHECK_IN_TOPICS]).default(CHECK_IN_TASK),
     speechMs: Ms.refine((ms) => ms > 0, "A check-in needs speech."),
     pausesMs: z
       .string()
@@ -33,7 +36,7 @@ const AudioType = z
   .pipe(z.enum(["audio/wav", "audio/x-wav", "audio/wave"], "The body must be a WAV recording."));
 const CheckInId = z.uuid();
 
-/** The check-in every 2 weeks: the same 2-minute task, its recording, and how it compares. */
+/** The check-in every 2 weeks: the same 2-minute task, then 1 minute on a new topic; their recordings and how they compare. */
 @Controller("check-ins")
 export class CheckInsController {
   constructor(private readonly checkIns: CheckInService) {}
@@ -46,14 +49,14 @@ export class CheckInsController {
   /** The raw recording is the body (e.g. audio/wav). */
   @Post()
   async record(@Query() query: unknown, @Headers("content-type") contentType: string | undefined, @Req() req: Request) {
-    const { language, speechMs, pausesMs } = parse(RecordQuery, query);
+    const { language, task, speechMs, pausesMs } = parse(RecordQuery, query);
     const mimeType = parse(AudioType, contentType?.split(";")[0]?.trim());
     if (Number(req.headers["content-length"]) > MAX_CHECK_IN_BYTES) {
       req.resume();
       throw new InvalidInputError(`The recording is over ${MAX_CHECK_IN_BYTES} bytes.`);
     }
     const audio = await readRawBody(req, MAX_CHECK_IN_BYTES);
-    return this.checkIns.record(language, { mimeType, audio }, { speechMs, pausesMs });
+    return this.checkIns.record(language, { mimeType, audio }, { speechMs, pausesMs }, task);
   }
 
   @Get(":id")
