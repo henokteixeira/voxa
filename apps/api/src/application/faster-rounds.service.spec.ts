@@ -65,6 +65,14 @@ describe("FasterRoundsService", () => {
     expect(view.xp).toBe(3);
   });
 
+  it("gives half the time at the guided track's steps (A1–A2)", async () => {
+    const { service, rounds } = setup({ step: "build_light" });
+    expect(await service.view("s1")).toMatchObject({ nextLimitMs: 60_000 });
+    expect(await service.record("s1", told(1))).toMatchObject({ nextLimitMs: 45_000 });
+    expect(rounds.rows[0].timeLimitMs).toBe(60_000);
+    await expect(service.record("s1", told(2, "words", 51_000))).rejects.toMatchObject({ code: "invalid" });
+  });
+
   it("refuses speech longer than the round allows", async () => {
     const { service } = setup();
     await expect(service.record("s1", told(1, "words", 126_000))).rejects.toMatchObject({ code: "invalid" });

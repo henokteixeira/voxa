@@ -12,7 +12,10 @@ const round = (n: number, spokenWords: number, speechMs: number, longPauses: num
 
 describe("say it faster", () => {
   it("gives each round less time: 2:00, 1:30, 1:00", () => {
-    expect([1, 2, 3].map(roundLimitMs)).toEqual([120_000, 90_000, 60_000]);
+    expect([1, 2, 3].map((n) => roundLimitMs(n))).toEqual([120_000, 90_000, 60_000]);
+    expect([1, 2, 3].map((n) => roundLimitMs(n, "supported"))).toEqual([120_000, 90_000, 60_000]);
+    expect([1, 2, 3].map((n) => roundLimitMs(n, "build_full"))).toEqual([60_000, 45_000, 30_000]);
+    expect([1, 2, 3].map((n) => roundLimitMs(n, "build_light"))).toEqual([60_000, 45_000, 30_000]);
     expect(() => roundLimitMs(4)).toThrow(RangeError);
   });
 

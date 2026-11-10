@@ -226,6 +226,13 @@ describe("buildTrackInstruction", () => {
   });
 });
 
+describe("the reply before a hint", () => {
+  it("asks for a few warm words with no question, so the learner has one thing to do", () => {
+    const text = buildSystemPrompt({ mode: "daily", language: "en", learnerContext: "", goals: [], targets: [], step: "conversation" }, "pt-BR");
+    expect(text).toMatch(/When a mistake needs a hint, the learner will retry .* with no question and nothing new to answer/);
+  });
+});
+
 describe("strategiesSection", () => {
   it("counts asking to repeat or for time as a success, and offers such a phrase when the learner is stuck", () => {
     const text = strategiesSection("en", "pt-BR");
