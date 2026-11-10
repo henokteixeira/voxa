@@ -3,9 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { ApiProvider } from "@/app/api-context";
-import { routes } from "@/app/router";
+import { routes as lazyRoutes } from "@/app/router";
+import { eagerRoutes } from "@/test/eager-routes";
 import { MemoryLink } from "./memory-link";
 import { ApiError, type ApiClient, type LearnerFact } from "@/lib/api";
+
+const routes = await eagerRoutes(lazyRoutes);
 
 const job: LearnerFact = { id: "f1", topic: "work", statement: "Works at Joqum.", learnedAt: "2026-11-07T10:00:00Z", updatedAt: "2026-11-07T10:00:00Z" };
 const trip: LearnerFact = { id: "f2", topic: "life", statement: "Lives in Brazil.", learnedAt: "2026-11-07T10:00:00Z", updatedAt: "2026-11-07T10:00:00Z" };

@@ -2,7 +2,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { Link, Navigate, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { VoiceBall } from "@/components/voice-ball";
-import { CHECK_IN_PATH } from "@/features/check-in/check-in-page";
+import { CHECK_IN_PATH } from "@/features/check-in/paths";
 import { FasterRun } from "@/features/faster/faster-run";
 import { ReviewRun } from "@/features/practice/review-run";
 import { useModeInfo } from "@/features/session/modes";

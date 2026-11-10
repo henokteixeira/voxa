@@ -3,8 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { ApiProvider } from "@/app/api-context";
-import { routes } from "@/app/router";
+import { routes as lazyRoutes } from "@/app/router";
+import { eagerRoutes } from "@/test/eager-routes";
 import type { ApiClient, LevelView } from "@/lib/api";
+
+const routes = await eagerRoutes(lazyRoutes);
 
 const placed: LevelView = {
   current: {
