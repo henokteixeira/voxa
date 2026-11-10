@@ -3,7 +3,7 @@ import { testConfig } from "../../config/testing.js";
 import type { ReviewItem } from "../../domain/ports/review.repository.js";
 import { TutorUnavailableError } from "../../domain/ports/tutor.port.js";
 import { AnthropicReviewCoach } from "./anthropic-review-coach.js";
-import type { AnthropicMessages } from "./anthropic-tutor.adapter.js";
+import { type AnthropicMessages, ClaudeClient } from "./claude-client.js";
 
 const item: ReviewItem = {
   subject: { kind: "pattern", id: "p1" },
@@ -18,7 +18,7 @@ const item: ReviewItem = {
 
 function coach(response: object) {
   const parse = vi.fn().mockResolvedValue(response);
-  return { coach: new AnthropicReviewCoach({ parse } as unknown as AnthropicMessages, testConfig()), parse };
+  return { coach: new AnthropicReviewCoach(new ClaudeClient({ parse } as unknown as AnthropicMessages, testConfig()), testConfig()), parse };
 }
 
 describe("AnthropicReviewCoach", () => {

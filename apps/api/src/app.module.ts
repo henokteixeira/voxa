@@ -50,7 +50,8 @@ import { UNIT_OF_WORK } from "./domain/ports/unit-of-work.port.js";
 import { AnthropicMemoryExtractor } from "./infra/tutor/anthropic-memory-extractor.js";
 import { AnthropicCheckInReader } from "./infra/tutor/anthropic-check-in-reader.js";
 import { AnthropicLevelAssessor } from "./infra/tutor/anthropic-level-assessor.js";
-import { AnthropicTutorAdapter, anthropicClientProvider } from "./infra/tutor/anthropic-tutor.adapter.js";
+import { AnthropicTutorAdapter } from "./infra/tutor/anthropic-tutor.adapter.js";
+import { anthropicClientProvider, ClaudeClient } from "./infra/tutor/claude-client.js";
 import { FileLearnerContext } from "./infra/tutor/file-learner-context.js";
 import { LocalVoiceAdapter } from "./infra/voice/local-voice.adapter.js";
 import { LevelsController } from "./levels/levels.controller.js";
@@ -95,6 +96,7 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
     SignalsService,
     VoiceSocketServer,
     anthropicClientProvider,
+    ClaudeClient,
     { provide: CLOCK, useValue: systemClock },
     { provide: TUTOR_PORT, useClass: AnthropicTutorAdapter },
     { provide: LEVEL_ASSESSOR_PORT, useClass: AnthropicLevelAssessor },

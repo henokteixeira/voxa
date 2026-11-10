@@ -4,7 +4,7 @@ import { testConfig } from "../../config/testing.js";
 import type { LearnerFact } from "../../domain/memory/learner-fact.js";
 import { TutorUnavailableError } from "../../domain/ports/tutor.port.js";
 import { AnthropicMemoryExtractor } from "./anthropic-memory-extractor.js";
-import type { AnthropicMessages } from "./anthropic-tutor.adapter.js";
+import { type AnthropicMessages, ClaudeClient } from "./claude-client.js";
 import { buildMemoryPrompt } from "./memory-prompts.js";
 
 const turns = [
@@ -23,7 +23,7 @@ const known: LearnerFact = {
 
 function extractorReturning(response: object) {
   const parse = vi.fn().mockResolvedValue(response);
-  return { extractor: new AnthropicMemoryExtractor({ parse } as unknown as AnthropicMessages, testConfig()), parse };
+  return { extractor: new AnthropicMemoryExtractor(new ClaudeClient({ parse } as unknown as AnthropicMessages, testConfig())), parse };
 }
 
 beforeEach(() => {

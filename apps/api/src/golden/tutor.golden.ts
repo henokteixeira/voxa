@@ -1,7 +1,8 @@
 import { join } from "node:path";
 import { scriptConfig } from "../config/env.js";
 import { describe, test } from "vitest";
-import { AnthropicTutorAdapter, anthropicClientProvider } from "../infra/tutor/anthropic-tutor.adapter.js";
+import { AnthropicTutorAdapter } from "../infra/tutor/anthropic-tutor.adapter.js";
+import { anthropicClientProvider, ClaudeClient } from "../infra/tutor/claude-client.js";
 import { checkSpoken, checkTurn } from "./checks.js";
 import { formatTranscript, runScenario } from "./run-scenario.js";
 import { GOLDEN_LEARNER_CONTEXT, SCENARIOS } from "./scenarios.js";
@@ -16,7 +17,8 @@ try {
 }
 if (!process.env.ANTHROPIC_API_KEY) throw new Error("Golden sessions call Claude: set ANTHROPIC_API_KEY (see .env.example).");
 
-const tutor = new AnthropicTutorAdapter(anthropicClientProvider.useFactory(), scriptConfig(process.env));
+const config = scriptConfig(process.env);
+const tutor = new AnthropicTutorAdapter(new ClaudeClient(anthropicClientProvider.useFactory(), config), config);
 
 describe("golden sessions", () => {
   test.concurrent.for(SCENARIOS.map((s) => [s.name, s] as const))("%s", async ([, scenario], { expect }) => {

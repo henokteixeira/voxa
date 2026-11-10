@@ -1,12 +1,9 @@
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { Inject, Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { Injectable } from "@nestjs/common";
 import { z } from "zod";
-import type { Env } from "../../config/env.js";
 import { MISSION_EXPRESSIONS, type NewMissionExpression, type NewMissionModel } from "../../domain/mission/mission.js";
 import type { MissionCoachPort, ModelRequest } from "../../domain/ports/mission-coach.port.js";
 import { TutorUnavailableError } from "../../domain/ports/tutor.port.js";
-import { ANTHROPIC_CLIENT, type AnthropicMessages } from "./anthropic-tutor.adapter.js";
+import { ClaudeClient } from "./claude-client.js";
 import { buildModelMessage, buildModelPrompt, buildUsedMessage, buildUsedPrompt } from "./mission-prompts.js";
 
 /** About a minute and a half of speech at most; the voice engine takes up to 2000 characters. */
@@ -26,17 +23,7 @@ const ModelSchema = z.object({
 
 @Injectable()
 export class AnthropicMissionCoach implements MissionCoachPort {
-  private readonly logger = new Logger(AnthropicMissionCoach.name);
-  private readonly modelId: string;
-  private readonly effort: Env["ANTHROPIC_EFFORT"];
-
-  constructor(
-    @Inject(ANTHROPIC_CLIENT) private readonly messages: AnthropicMessages,
-    config: ConfigService<Env, true>,
-  ) {
-    this.modelId = config.get("ANTHROPIC_MODEL", { infer: true });
-    this.effort = config.get("ANTHROPIC_EFFORT", { infer: true });
-  }
+  constructor(private readonly claude: ClaudeClient) {}
 
   async model(request: ModelRequest): Promise<NewMissionModel> {
     const output = await this.ask("mission_model", ModelSchema, 3000, buildModelPrompt(request.language), buildModelMessage(request));
@@ -48,27 +35,10 @@ export class AnthropicMissionCoach implements MissionCoachPort {
     return result.used;
   }
 
-  private async ask<T>(name: string, schema: z.ZodType<T>, maxTokens: number, system: string, content: string): Promise<T> {
-    let response;
-    try {
-      response = await this.messages.parse({
-        model: this.modelId,
-        max_tokens: maxTokens,
-        output_config: { effort: this.effort, format: zodOutputFormat(schema) },
-        system,
-        messages: [{ role: "user", content }],
-      });
-    } catch (error) {
-      throw new TutorUnavailableError(`Claude API request failed: ${(error as Error).message}`, { cause: error });
-    }
-    if (response.usage) {
-      this.logger.log(`tutor usage call=${name} input=${response.usage.input_tokens} output=${response.usage.output_tokens}`);
-    }
-    if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens" || !response.parsed_output) {
-      throw new TutorUnavailableError(`The ${name.replace("_", " ")} call did not complete.`);
-    }
-    return response.parsed_output as T;
+  private ask<T>(task: "mission_model" | "mission_expression", schema: z.ZodType<T>, maxTokens: number, system: string, content: string): Promise<T> {
+    return this.claude.parse(task, { schema, system, maxTokens, messages: [{ role: "user", content }] });
   }
+
 }
 
 /** The trimmed model, or an error when its text or its 3 expressions are not usable. */

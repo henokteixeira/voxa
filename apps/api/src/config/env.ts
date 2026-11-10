@@ -4,6 +4,42 @@ import { z } from "zod";
 /** `KEY=` in a .env file means "not set", so the default applies. */
 const optional = <T extends z.ZodType>(schema: T) => z.preprocess((value) => (value === "" ? undefined : value), schema);
 
+/** Each kind of Claude call. ANTHROPIC_TASKS can give any of them its own model or effort. */
+export const CLAUDE_TASKS = [
+  "tutor_open",
+  "tutor_turn",
+  "review_cue",
+  "review_check",
+  "mission_model",
+  "mission_expression",
+  "memory",
+  "check_in",
+  "assess",
+] as const;
+export type ClaudeTask = (typeof CLAUDE_TASKS)[number];
+
+const EFFORTS = ["low", "medium", "high"] as const;
+export type Effort = (typeof EFFORTS)[number];
+
+/** `task=model@effort` pairs, comma-separated; either side of `@` may be empty to keep the default. */
+const TaskOverrides = z
+  .string()
+  .default("")
+  .transform((value, ctx) => {
+    const overrides: Partial<Record<ClaudeTask, { model?: string; effort?: Effort }>> = {};
+    for (const entry of value.split(",").map((e) => e.trim()).filter(Boolean)) {
+      const match = /^([a-z_]+)=([^@\s]*)(?:@([a-z]*))?$/.exec(entry);
+      const task = match?.[1] as ClaudeTask | undefined;
+      const effort = match?.[3] || undefined;
+      if (!match || !task || !CLAUDE_TASKS.includes(task) || (effort && !EFFORTS.includes(effort as Effort))) {
+        ctx.addIssue({ code: "custom", message: `Not a task=model@effort pair with a known task and effort: "${entry}"` });
+        continue;
+      }
+      overrides[task] = { ...(match[2] ? { model: match[2] } : {}), ...(effort ? { effort: effort as Effort } : {}) };
+    }
+    return overrides;
+  });
+
 /** Every setting the API reads, with its default. Documented in .env.example. */
 export const EnvSchema = z.object({
   API_PORT: optional(z.coerce.number().int().min(1).max(65535).default(3000)),
@@ -12,7 +48,9 @@ export const EnvSchema = z.object({
   ANTHROPIC_API_KEY: optional(z.string().optional()),
   ANTHROPIC_MODEL: optional(z.string().default("claude-opus-5-5")),
   /** Thinking effort per turn. Low keeps spoken turns fast. */
-  ANTHROPIC_EFFORT: optional(z.enum(["low", "medium", "high"]).default("low")),
+  ANTHROPIC_EFFORT: optional(z.enum(EFFORTS).default("low")),
+  /** Per-task model or effort, e.g. "review_check=claude-haiku-5-5@low". Unlisted tasks keep their default. */
+  ANTHROPIC_TASKS: optional(TaskOverrides),
   /** BCP 47. The tutor writes on-screen help in it. */
   LEARNER_FIRST_LANGUAGE: optional(z.string().default("pt-BR")),
   /** Relative to the API's working directory. Gitignored: it holds personal data. */
