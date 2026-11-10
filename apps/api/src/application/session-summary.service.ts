@@ -40,7 +40,8 @@ export class SessionSummaryService {
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(LEVEL_ASSESSOR_PORT) private readonly assessor: LevelAssessorPort,
     @Inject(LEVEL_REPOSITORY) private readonly levels: Pick<LevelRepository, "forSession" | "addForSession">,
-    private readonly memory: Pick<LearnerMemoryService, "rememberLater">,
+    // The class itself (not a Pick): Nest injects by the parameter's runtime type.
+    private readonly memory: LearnerMemoryService,
   ) {}
 
   /** Keeps the timing the web app measured so far, so a session left open still has it when it is closed. */

@@ -59,7 +59,8 @@ export class SessionStartService {
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(LEVEL_REPOSITORY) private readonly levels: Pick<LevelRepository, "current">,
     private readonly reviews: ReviewScheduler,
-    private readonly memory: Pick<LearnerMemoryService, "sweep" | "recall">,
+    // The class itself (not a Pick): Nest injects by the parameter's runtime type.
+    private readonly memory: LearnerMemoryService,
     @Inject(MISSION_REPOSITORY) private readonly missions: Pick<MissionRepository, "get">,
   ) {}
 
