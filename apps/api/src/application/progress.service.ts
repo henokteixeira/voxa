@@ -49,6 +49,8 @@ export interface EndedSession {
   goalsCovered: number;
   selfCorrections: number;
   wordsPerMinute: number | null;
+  /** When the XP counts, now by default: a session the server closed counts on the day it was left. */
+  awardedAt?: Date;
 }
 
 /**
@@ -127,7 +129,7 @@ export class ProgressService {
       this.sessions.outcome(ended.sessionId),
     ]);
     if (!session?.endedAt) throw new SessionNotEndedError(ended.sessionId);
-    const awardedAt = this.clock.now();
+    const awardedAt = ended.awardedAt ?? this.clock.now();
     const awards = xpForSession({
       conversationMs: conversationMs(outcome?.timing ?? null, session.endedAt.getTime() - session.startedAt.getTime()),
       goalsCovered: rewardsGoals(session.mode) ? ended.goalsCovered : 0,

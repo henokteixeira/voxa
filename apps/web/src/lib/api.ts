@@ -562,6 +562,9 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     resumeSession: (sessionId: string) => request<ResumedSession>(`/sessions/${encodeURIComponent(sessionId)}`),
     sendTurn: (sessionId: string, text: string) =>
       request<TurnResult>(`/sessions/${encodeURIComponent(sessionId)}/turns`, { method: "POST", body: { text } }),
+    /** The timing so far, after each turn. */
+    saveTiming: (sessionId: string, timing: SessionTiming) =>
+      request<void>(`/sessions/${encodeURIComponent(sessionId)}/timing`, { method: "PUT", body: timing }),
     endSession: (sessionId: string, timing?: SessionTiming) =>
       request<SessionSummary>(`/sessions/${encodeURIComponent(sessionId)}/end`, {
         method: "POST",

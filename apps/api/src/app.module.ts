@@ -2,6 +2,8 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { validateEnv } from "./config/env.js";
 import { ConversationService } from "./application/conversation.service.js";
+import { IdleSessionsService } from "./application/idle-sessions.service.js";
+import { SessionEndService } from "./application/session-end.service.js";
 import { CheckInService } from "./application/check-in.service.js";
 import { MissionService } from "./application/mission.service.js";
 import { FasterRoundsService } from "./application/faster-rounds.service.js";
@@ -82,6 +84,8 @@ import { VoiceSocketServer } from "./voice/voice-socket.server.js";
   controllers: [HealthController, SessionsController, MistakesController, FillersController, LevelsController, ProgressController, ReviewsController, TranscriptionsController, PracticeController, MemoryController, FasterRoundsController, CheckInsController, MissionsController],
   providers: [
     ConversationService,
+    SessionEndService,
+    IdleSessionsService,
     MistakeBankService,
     ReviewScheduler,
     ReviewService,

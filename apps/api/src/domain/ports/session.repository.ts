@@ -23,6 +23,13 @@ export interface SessionProgress {
   track: TrackState | null;
 }
 
+/** A session left open, or ended without its XP (the end stopped half way): the server finishes it. */
+export interface UnfinishedSession {
+  id: string;
+  /** When it ended, or its last activity when it is still open: the time it ends at. */
+  endsAt: Date;
+}
+
 export type TurnClaim = "claimed" | "taken" | "ended";
 
 /** A turn to store. `assisted` (learner turns only): the learner answered words the tutor gave, or used the first language. */
@@ -50,12 +57,22 @@ export interface SessionRepository {
    * saved since its history was read), "ended" when it ended meanwhile.
    */
   claimTurn(sessionId: string, turnsSeen: number): Promise<TurnClaim>;
+  /** Also marks the session active now. */
   appendTurn(sessionId: string, turn: NewTurn): Promise<void>;
   history(sessionId: string): Promise<ChatTurn[]>;
   setPending(sessionId: string, pending: PendingCorrection | null): Promise<void>;
   /** Stores the goals covered so far, when the tutor last asked whether to stop, the targets met and the help given. */
   setProgress(sessionId: string, progress: SessionProgress): Promise<void>;
-  end(sessionId: string, timing: SessionTiming | null): Promise<void>;
+  /** The timing the web app measured so far, saved while the session is open. False when it has ended. */
+  saveTiming(sessionId: string, timing: SessionTiming): Promise<boolean>;
+  /**
+   * Up to `limit` unfinished sessions, earliest `endsAt` first, after `after` when given (to page): the open ones
+   * with nothing done since `idleBefore`, and the ended ones with no XP whose end was saved between `endedAfter`
+   * and `idleBefore`.
+   */
+  unfinished(query: { idleBefore: Date; endedAfter: Date; limit: number; after?: UnfinishedSession }): Promise<UnfinishedSession[]>;
+  /** `endedAt` defaults to now; the end counts as the session's last change. Without a timing, the one saved during the session stays. */
+  end(sessionId: string, timing: SessionTiming | null, endedAt?: Date): Promise<void>;
   outcome(sessionId: string): Promise<SessionOutcome | null>;
 }
 

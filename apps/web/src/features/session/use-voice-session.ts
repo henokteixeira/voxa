@@ -19,6 +19,9 @@ const SOCKET_FAILURES: FailureCode[] = ["disconnected", "in_use"];
 /** Failures that often pass on their own (a slow or restarting server): retried by themselves first. */
 const AUTO_RETRY_FAILURES: FailureCode[] = ["voice_unavailable", "tutor_unavailable", "server", "disconnected"];
 /** The waits before each automatic retry; after the last one the learner decides. */
+/** How often an open session saves its timing on the server, besides after each turn. */
+const TIMING_HEARTBEAT_MS = 5 * 60 * 1000;
+
 export const AUTO_RETRY_DELAYS_MS = [2_000, 5_000, 10_000];
 /** Expected along the way (no speech, a frame dropped while busy): nothing to report. */
 const QUIET_ERRORS = new Set(["bad_audio", "busy", "too_long"]);
@@ -187,6 +190,8 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
               .catch(() => {});
           }
           dispatch({ type: "done" });
+          // The server keeps the timing so far, so a session left open still has it when it is closed.
+          void api.saveTiming(id, clock.current.timing()).catch(() => {});
         },
       });
       socket.current = ws;
@@ -244,6 +249,8 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
           speaker.current = deps.createSpeaker();
           fillerLanguage.current = resumed.language;
           clock.current = FluencyClock.from(saved.timing);
+          // Picked up again: the server counts it as active from now.
+          void api.saveTiming(resumed.sessionId, saved.timing).catch(() => {});
           setSeconds(saved.elapsedSeconds);
           resumedPending.current = true;
           dispatch({
@@ -313,6 +320,17 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
     if (!id || ended.current || state.phase === "ending" || state.phase === "ended") return;
     saveSession({ sessionId: id, mode, missionId, elapsedSeconds: seconds, timing: clock.current.timing() });
   }, [state.sessionId, state.phase, mode, missionId, seconds]);
+
+  // While the session is open here (paused too), the server hears from it at least this often, so it never
+  // closes a session this tab can still go on with.
+  const openId = state.phase === "ending" || state.phase === "ended" ? null : state.sessionId;
+  useEffect(() => {
+    if (!openId) return;
+    const timer = setInterval(() => {
+      if (!ended.current) void api.saveTiming(openId, clock.current.timing()).catch(() => {});
+    }, TIMING_HEARTBEAT_MS);
+    return () => clearInterval(timer);
+  }, [api, openId]);
 
   // The microphone listens only on the learner's turn (and not while typing), so it never hears the tutor.
   const listening = (state.phase === "listening" || state.phase === "hearing") && !typing;
