@@ -187,6 +187,16 @@ describe("sessionReducer", () => {
     expect(state).toMatchObject({ phase: "listening", missed: true, failure: null });
   });
 
+  it("offers to send the same words again when the turn was not saved for a conflict", () => {
+    const state = run(
+      started,
+      { type: "sent", request: "audio", audio: WAV },
+      { type: "transcript", text: "I fixed it" },
+      { type: "failed", code: "conflict" },
+    );
+    expect(state).toMatchObject({ phase: "failed", failure: "conflict", retry: { kind: "text", text: "I fixed it" } });
+  });
+
   it.each([
     ["before the transcript", [] as SessionAction[], { kind: "audio", audio: WAV }],
     ["after the transcript", [{ type: "transcript", text: "I fixed it" }] as SessionAction[], { kind: "text", text: "I fixed it" }],

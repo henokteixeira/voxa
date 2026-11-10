@@ -18,6 +18,7 @@ const STATUS: Record<ErrorCode, number> = {
   bad_audio: HttpStatus.UNPROCESSABLE_ENTITY,
   tutor_unavailable: HttpStatus.BAD_GATEWAY,
   voice_unavailable: HttpStatus.SERVICE_UNAVAILABLE,
+  conflict: HttpStatus.CONFLICT,
 };
 
 /** HTTP errors raised by Nest itself (unknown route, malformed JSON), mapped to the closest code. */

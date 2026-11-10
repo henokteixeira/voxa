@@ -137,6 +137,7 @@ const FAILURE_EN: Record<FailureCode, FailureCopy> = {
   server: { title: "Something went wrong", body: "Your session is saved up to your last sentence.", action: "Try again" },
   bad_audio: { title: "Didn't catch that", body: "Try saying it again.", action: "Try again" },
   busy: { title: "Still answering", body: "Wait for the tutor, then speak.", action: "Try again" },
+  conflict: { title: "Say that again", body: "Your last sentence wasn't saved.", action: "Try again" },
   invalid: { title: "Something went wrong", body: "Try again.", action: "Try again" },
   too_long: { title: "That turn was too long", body: "Keep each turn under a minute.", action: "Try again" },
 };
@@ -186,6 +187,7 @@ const FAILURE_PT: Record<FailureCode, FailureCopy> = {
   server: { title: "Algo deu errado", body: "Sua sessão está salva até a sua última frase.", action: "Tentar de novo" },
   bad_audio: { title: "Não deu para entender", body: "Tente dizer de novo.", action: "Tentar de novo" },
   busy: { title: "Ainda respondendo", body: "Espere o tutor terminar e depois fale.", action: "Tentar de novo" },
+  conflict: { title: "Diga de novo", body: "Sua última frase não foi salva.", action: "Tentar de novo" },
   invalid: { title: "Algo deu errado", body: "Tente de novo.", action: "Tentar de novo" },
   too_long: { title: "Essa fala ficou longa demais", body: "Fale menos de um minuto por vez.", action: "Tentar de novo" },
 };

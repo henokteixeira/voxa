@@ -1,5 +1,13 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { decide, focusedVerdict, notedOnly, pausingPatterns, type TurnKind, verdictForMode } from "../domain/conversation/correction-policy.js";
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import {
+  decide,
+  focusedVerdict,
+  notedOnly,
+  pausingPatterns,
+  type TurnKind,
+  type TutorVerdict,
+  verdictForMode,
+} from "../domain/conversation/correction-policy.js";
 import {
   givesWords,
   nextGoalAfter,
@@ -44,7 +52,8 @@ import {
   SESSION_REPOSITORY,
   type SessionRepository,
 } from "../domain/ports/session.repository.js";
-import { type TutorContext, TUTOR_PORT, type TutorPort } from "../domain/ports/tutor.port.js";
+import { type TutorContext, TUTOR_PORT, type TutorPort, type TutorRequest } from "../domain/ports/tutor.port.js";
+import { UNIT_OF_WORK, type TransactionStores, type UnitOfWork } from "../domain/ports/unit-of-work.port.js";
 import { LearnerMemoryService } from "./learner-memory.service.js";
 import { ReviewScheduler } from "./review-scheduler.js";
 import { recordTurnLearning } from "./turn-learning.js";
@@ -69,6 +78,15 @@ export class SessionEndedError extends DomainError {
 
   constructor(sessionId: string) {
     super(`Session ${sessionId} has ended.`, "This session has ended.");
+  }
+}
+
+/** Another turn of the session was saved while this one was being answered (two tabs, or a retry racing the first try). */
+export class TurnConflictError extends DomainError {
+  readonly code = "conflict";
+
+  constructor(sessionId: string) {
+    super(`Session ${sessionId} got another turn while this one was answered.`, "Voxa was still saving your last turn.");
   }
 }
 
@@ -141,6 +159,8 @@ export interface SessionSummary {
 
 @Injectable()
 export class ConversationService {
+  private readonly logger = new Logger(ConversationService.name);
+
   constructor(
     @Inject(TUTOR_PORT) private readonly tutor: TutorPort,
     @Inject(SESSION_REPOSITORY) private readonly sessions: SessionRepository,
@@ -153,6 +173,7 @@ export class ConversationService {
     private readonly reviews: ReviewScheduler,
     private readonly memory: LearnerMemoryService,
     @Inject(MISSION_REPOSITORY) private readonly missions: Pick<MissionRepository, "get">,
+    @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
   ) {}
 
   /** Starts a session; with `missionId`, it is that daily mission's step 3, with the model's 3 expressions to invite. */
@@ -274,25 +295,30 @@ export class ConversationService {
             });
           }
         : undefined;
-    const verdict = await this.tutor.evaluate(
-      {
-        ...this.tutorContext(session, learnerContext, phrasesOf(mission)),
-        history,
-        pending: session.pending,
-        knownMistakes: watched,
-        knownNewWords: knownNewWords.map(toKnown),
-        knownPatterns,
-        // The reply asks for the learner's next turn. Not while a hint is pending or the guided track gives the
-        // next line: the reply has another job then.
-        bringBack: session.pending || session.track ? [] : patternsToBringBack(sessionPatterns, learnerTurn + 1),
-        focusPatterns: pausingPatterns(focus),
-        utterance,
-        coveredGoals: session.coveredGoals,
-        scaffold: session.scaffold,
-        plan: outcomes && session.track ? turnPlan(session.track, outcomes, describeGoal) : null,
-      },
-      handOver,
-    );
+    const request: TutorRequest = {
+      ...this.tutorContext(session, learnerContext, phrasesOf(mission)),
+      history,
+      pending: session.pending,
+      knownMistakes: watched,
+      knownNewWords: knownNewWords.map(toKnown),
+      knownPatterns,
+      // The reply asks for the learner's next turn. Not while a hint is pending or the guided track gives the
+      // next line: the reply has another job then.
+      bringBack: session.pending || session.track ? [] : patternsToBringBack(sessionPatterns, learnerTurn + 1),
+      focusPatterns: pausingPatterns(focus),
+      utterance,
+      coveredGoals: session.coveredGoals,
+      scaffold: session.scaffold,
+      plan: outcomes && session.track ? turnPlan(session.track, outcomes, describeGoal) : null,
+    };
+    let verdict: TutorVerdict;
+    try {
+      verdict = await this.tutor.evaluate(request, handOver);
+    } catch (error) {
+      // The reply may already be on its way to the learner's ears: keep it, so the conversation goes on from it.
+      if (early.reply !== null) await this.keepSpokenReply(session, history.length, utterance, early.reply);
+      throw error;
+    }
     // The placement interview only observes: every mistake is recorded as minor, so none stops it with a hint.
     // In the guided track, saying the words given (the model, the longer sentence) never stops for a hint either.
     const byMode = verdictForMode(session.mode, focusedVerdict(verdict, focus));
@@ -306,7 +332,8 @@ export class ConversationService {
     const move = inTrack?.move ?? null;
 
     const pending = session.pending;
-    await recordTurnLearning(this.mistakes, this.reviews, {
+    const now = this.clock.now();
+    const learning = {
       sessionId,
       language: session.language,
       pending,
@@ -315,8 +342,8 @@ export class ConversationService {
       watched: [...known, ...session.targets],
       selfCorrected: decision.selfCorrected,
       learnerTurn,
-      now: this.clock.now(),
-    });
+      now,
+    };
 
     // Goals and the stop-or-keep-going question, only on a turn where the conversation goes on.
     // In the guided track a goal is covered by the learner's own answer, not by repeating the words given.
@@ -327,7 +354,6 @@ export class ConversationService {
       correctUses: verdict.correctUses,
       pending,
     });
-    const now = this.clock.now();
     const checkIn =
       decision.kind === "reply"
         ? checkInDue({
@@ -351,17 +377,28 @@ export class ConversationService {
     const assisted = wasAssisted({ scaffoldBefore: session.scaffold, usedFirstLanguage: verdict.newWords.length > 0 });
     // Words to say only come with a plain reply: a hint or the correct form asks for the learner's own sentence.
     const scaffold = inTrack ? inTrack.scaffold : decision.kind === "reply" ? keptScaffold(session.step, verdict) : null;
-    await this.sessions.appendTurn(sessionId, { role: "user", content: utterance, assisted });
-    await this.sessions.appendTurn(sessionId, { role: "assistant", content: said });
-    await this.sessions.setPending(sessionId, decision.nextPending);
-    await this.sessions.setProgress(sessionId, {
-      coveredGoals,
-      lastCheckInAt: checkIn ? now : session.lastCheckInAt,
-      metTargets,
-      scaffold,
-      step: move?.step ?? session.step,
-      track: move?.track ?? session.track,
-    });
+    // Everything the turn changes is saved together: a failure halfway leaves no mistake counted for a turn that was never saved.
+    try {
+      await this.saveTurn(sessionId, history.length, async (stores) => {
+        await recordTurnLearning(stores.mistakes, new ReviewScheduler(stores.reviews), learning);
+        await stores.sessions.appendTurn(sessionId, { role: "user", content: utterance, assisted });
+        await stores.sessions.appendTurn(sessionId, { role: "assistant", content: said });
+        await stores.sessions.setPending(sessionId, decision.nextPending);
+        await stores.sessions.setProgress(sessionId, {
+          coveredGoals,
+          lastCheckInAt: checkIn ? now : session.lastCheckInAt,
+          metTargets,
+          scaffold,
+          step: move?.step ?? session.step,
+          track: move?.track ?? session.track,
+        });
+      });
+    } catch (error) {
+      // Saving failed after the reply was spoken: keep at least the reply. Not after a conflict or an end, which won.
+      const lost = !(error instanceof TurnConflictError || error instanceof SessionEndedError);
+      if (lost && early.reply !== null) await this.keepSpokenReply(session, history.length, utterance, early.reply);
+      throw error;
+    }
 
     return {
       kind: decision.kind,
@@ -376,6 +413,42 @@ export class ConversationService {
       track: trackView(move?.track ?? session.track),
       scaffold,
     };
+  }
+
+  /** Saves one turn's writes in a single transaction, after checking no other turn of the session was saved meanwhile. */
+  private saveTurn(sessionId: string, turnsSeen: number, write: (stores: TransactionStores) => Promise<void>): Promise<void> {
+    return this.unitOfWork.run(async (stores) => {
+      const claim = await stores.sessions.claimTurn(sessionId, turnsSeen);
+      if (claim === "ended") throw new SessionEndedError(sessionId);
+      if (claim === "taken") throw new TurnConflictError(sessionId);
+      await write(stores);
+    });
+  }
+
+  /**
+   * The tutor's reply was handed over (and is being spoken) but reading the rest of the turn failed. The two
+   * lines are saved without what the turn taught, so "Try again" says that reply again instead of the one before.
+   * Best effort: the tutor's failure is what the learner hears about.
+   */
+  private async keepSpokenReply(session: Session, turnsSeen: number, utterance: string, reply: string): Promise<void> {
+    try {
+      await this.saveTurn(session.id, turnsSeen, async ({ sessions }) => {
+        const assisted = wasAssisted({ scaffoldBefore: session.scaffold, usedFirstLanguage: false });
+        await sessions.appendTurn(session.id, { role: "user", content: utterance, assisted });
+        await sessions.appendTurn(session.id, { role: "assistant", content: reply });
+        // The words given were for this turn; the reply asks for a new one.
+        await sessions.setProgress(session.id, {
+          coveredGoals: session.coveredGoals,
+          lastCheckInAt: session.lastCheckInAt,
+          metTargets: session.metTargets,
+          scaffold: null,
+          step: session.step,
+          track: session.track,
+        });
+      });
+    } catch (error) {
+      this.logger.error(`Could not keep the spoken reply of session ${session.id}: ${(error as Error).message}`, (error as Error).stack);
+    }
   }
 
   /** Ends the session (once: ending it again keeps the first timing) and returns its summary. */

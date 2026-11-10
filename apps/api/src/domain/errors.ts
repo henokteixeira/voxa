@@ -1,5 +1,5 @@
 /** Stable, machine-readable codes for expected failures. Clients branch on these, never on messages. */
-export const ERROR_CODES = ["invalid", "not_found", "ended", "bad_audio", "tutor_unavailable", "voice_unavailable"] as const;
+export const ERROR_CODES = ["invalid", "not_found", "ended", "bad_audio", "tutor_unavailable", "voice_unavailable", "conflict"] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
 /**
