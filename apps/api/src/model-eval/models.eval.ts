@@ -63,7 +63,7 @@ async function evaluateModel(model: string, effort: string): Promise<ModelResult
       turnCost = turnCost === null || cost === null ? null : turnCost + cost;
     }
   });
-  const config = scriptConfig({ ...process.env, ANTHROPIC_MODEL: model, ANTHROPIC_EFFORT: effort });
+  const config = scriptConfig({ ...process.env, ANTHROPIC_MODEL: model, ANTHROPIC_EFFORT: effort, ANTHROPIC_TASKS: "" });
   const timings: TurnTiming[] = [];
   const tutor = timedTutor(new AnthropicTutorAdapter(new ClaudeClient(messages, config), config), (t) => timings.push(t));
 
