@@ -21,7 +21,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
-import { type PendingCorrection, type PracticeTarget, SEVERITIES, TURN_ROLES } from "../../domain/conversation/types.js";
+import { type PendingCorrection, SEVERITIES, TURN_ROLES } from "../../domain/conversation/types.js";
 import { SUPPORT_STEPS } from "../../domain/level/speaking-level.js";
 import type { TutorMemory } from "../../domain/memory/learner-fact.js";
 
@@ -53,10 +53,6 @@ export const sessions = pgTable(
     coveredGoals: jsonb("covered_goals").$type<string[]>().notNull().default([]),
     /** When the tutor last asked whether to stop or keep going. */
     lastCheckInAt: timestamp("last_check_in_at", { withTimezone: true }),
-    /** Mistakes from the bank the learner practices in this session. */
-    targets: jsonb("targets").$type<PracticeTarget[]>().notNull().default([]),
-    /** The `original` of each target the learner said correctly in this session. */
-    metTargets: jsonb("met_targets").$type<string[]>().notNull().default([]),
     /** How much help the session gives (build_full | build_light | supported | conversation | demanding); null in placement. */
     supportStep: varchar("support_step", { length: 16 }),
     /** Words the tutor's last line gave the learner to say (a model sentence or a sentence start). */
@@ -89,6 +85,22 @@ export const sessions = pgTable(
     check("sessions_support_step", oneOf(t.supportStep, SUPPORT_STEPS)),
     check("sessions_track_stage", oneOf(t.trackStage, TRACK_STAGES)),
   ],
+);
+
+/** Mistakes from the bank the learner practices in a session, in the order they were chosen. */
+export const sessionTargets = pgTable(
+  "session_targets",
+  {
+    sessionId: uuid("session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
+    position: smallint("position").notNull(),
+    language: varchar("language", { length: 16 }).notNull(),
+    original: text("original").notNull(),
+    correction: text("correction").notNull(),
+    category: varchar("category", { length: 32 }).notNull(),
+    /** The learner said it correctly in this session. */
+    met: boolean("met").notNull().default(false),
+  },
+  (t) => [primaryKey({ columns: [t.sessionId, t.position] }), unique("session_targets_session_original").on(t.sessionId, t.original)],
 );
 
 export const turns = pgTable("turns", {
