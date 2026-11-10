@@ -4,7 +4,7 @@ import type { Database } from "./db.module.js";
 import { DrizzleMistakeRepository } from "./drizzle-mistake.repository.js";
 import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
 import { eq } from "drizzle-orm";
-import { mistakeCorrectUses, mistakeOccurrences, sessions as sessionRows, turns } from "./schema.js";
+import { mistakeCorrectUses, mistakeOccurrences, sessions as sessionRows, sessionXp, turns } from "./schema.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
@@ -152,28 +152,33 @@ describe("DrizzleSessionRepository", () => {
     expect((await sessions.outcome(id))?.timing).toEqual(timing);
   });
 
-  it("lists open sessions idle since a time, the longest idle first, and a turn makes one active", async () => {
-    const lastActive = async (id: string, at: string) =>
-      db.update(sessionRows).set({ lastActiveAt: new Date(at) }).where(eq(sessionRows.id, id));
-    const older = await sessions.create({ language: "en", mode: "daily" });
-    const old = await sessions.create({ language: "en", mode: "daily" });
-    const recent = await sessions.create({ language: "en", mode: "daily" });
-    const ended = await sessions.create({ language: "en", mode: "daily" });
-    await lastActive(older.id, "2026-11-10T06:00:00Z");
-    await lastActive(old.id, "2026-11-10T07:00:00Z");
-    await lastActive(recent.id, "2026-11-10T11:00:00Z");
-    await lastActive(ended.id, "2026-11-10T05:00:00Z");
-    await sessions.end(ended.id, null);
-    const before = new Date("2026-11-10T10:00:00Z");
+  it("lists the sessions left open and the ends that stopped before the XP, earliest first, page by page", async () => {
+    const set = async (id: string, values: Partial<typeof sessionRows.$inferInsert>) =>
+      db.update(sessionRows).set(values).where(eq(sessionRows.id, id));
+    const create = () => sessions.create({ language: "en", mode: "daily" });
+    const [older, old, recent, endedNoXp, endedWithXp, endedLongAgo, endedJustNow] = await Promise.all(
+      Array.from({ length: 7 }, create),
+    );
+    await set(older.id, { lastActiveAt: new Date("2026-11-10T06:00:00Z") });
+    await set(old.id, { lastActiveAt: new Date("2026-11-10T07:00:00Z") });
+    await set(recent.id, { lastActiveAt: new Date("2026-11-10T11:00:00Z") });
+    await set(endedNoXp.id, { endedAt: new Date("2026-11-10T06:30:00Z") });
+    await set(endedWithXp.id, { endedAt: new Date("2026-11-10T06:30:00Z") });
+    await db.insert(sessionXp).values({ sessionId: endedWithXp.id, language: "en", total: 0, awardedAt: new Date() });
+    await set(endedLongAgo.id, { endedAt: new Date("2026-11-08T06:00:00Z") });
+    await set(endedJustNow.id, { endedAt: new Date("2026-11-10T11:30:00Z") });
+    const query = { idleBefore: new Date("2026-11-10T10:00:00Z"), endedAfter: new Date("2026-11-09T12:00:00Z"), limit: 10 };
 
-    expect(await sessions.idle(before, 10)).toEqual([
-      { id: older.id, lastActiveAt: new Date("2026-11-10T06:00:00Z") },
-      { id: old.id, lastActiveAt: new Date("2026-11-10T07:00:00Z") },
+    expect(await sessions.unfinished(query)).toEqual([
+      { id: older.id, endsAt: new Date("2026-11-10T06:00:00Z") },
+      { id: endedNoXp.id, endsAt: new Date("2026-11-10T06:30:00Z") },
+      { id: old.id, endsAt: new Date("2026-11-10T07:00:00Z") },
     ]);
-    expect((await sessions.idle(before, 1)).map((s) => s.id)).toEqual([older.id]);
+    const [first] = await sessions.unfinished({ ...query, limit: 1 });
+    expect((await sessions.unfinished({ ...query, after: first })).map((s) => s.id)).toEqual([endedNoXp.id, old.id]);
 
     await sessions.appendTurn(older.id, { role: "user", content: "I'm back." });
-    expect((await sessions.idle(before, 10)).map((s) => s.id)).toEqual([old.id]);
+    expect((await sessions.unfinished(query)).map((s) => s.id)).toEqual([endedNoXp.id, old.id]);
   });
 
   it("has no outcome for an unknown session", async () => {

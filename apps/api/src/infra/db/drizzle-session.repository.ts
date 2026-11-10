@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, count, desc, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import { isTrackStage, type TrackState } from "../../domain/conversation/guided-track.js";
 import { isMode } from "../../domain/conversation/mode.js";
@@ -7,15 +7,15 @@ import { isSupportStep, type SupportStep } from "../../domain/level/speaking-lev
 import type { TutorMemory } from "../../domain/memory/learner-fact.js";
 import type { ChatTurn, PendingCorrection, PracticeTarget, Session } from "../../domain/conversation/types.js";
 import type {
-  IdleSession,
   NewTurn,
   SessionOutcome,
   SessionProgress,
   SessionRepository,
   TurnClaim,
+  UnfinishedSession,
 } from "../../domain/ports/session.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
-import { sessions, turns } from "./schema.js";
+import { sessions, sessionXp, turns } from "./schema.js";
 
 type SessionRow = typeof sessions.$inferSelect;
 
@@ -154,13 +154,33 @@ export class DrizzleSessionRepository implements SessionRepository {
     return saved.length > 0;
   }
 
-  async idle(before: Date, limit: number): Promise<IdleSession[]> {
-    return this.db
-      .select({ id: sessions.id, lastActiveAt: sessions.lastActiveAt })
+  async unfinished(query: {
+    idleBefore: Date;
+    endedAfter: Date;
+    limit: number;
+    after?: UnfinishedSession;
+  }): Promise<UnfinishedSession[]> {
+    const endsAt = sql<Date>`coalesce(${sessions.endedAt}, ${sessions.lastActiveAt})`;
+    const rows = await this.db
+      .select({ id: sessions.id, endsAt: sql<Date | string>`${endsAt}` })
       .from(sessions)
-      .where(and(isNull(sessions.endedAt), lt(sessions.lastActiveAt, before)))
-      .orderBy(asc(sessions.lastActiveAt))
-      .limit(limit);
+      .leftJoin(sessionXp, eq(sessionXp.sessionId, sessions.id))
+      .where(
+        and(
+          or(
+            and(isNull(sessions.endedAt), lt(sessions.lastActiveAt, query.idleBefore)),
+            and(
+              isNull(sessionXp.sessionId),
+              gt(sessions.endedAt, query.endedAfter),
+              lt(sessions.endedAt, query.idleBefore),
+            ),
+          ),
+          query.after && sql`(${endsAt}, ${sessions.id}) > (${query.after.endsAt.toISOString()}::timestamptz, ${query.after.id}::uuid)`,
+        ),
+      )
+      .orderBy(asc(endsAt), asc(sessions.id))
+      .limit(query.limit);
+    return rows.map((row) => ({ id: row.id, endsAt: new Date(row.endsAt) }));
   }
 
   async end(sessionId: string, timing: SessionTiming | null, endedAt = new Date()): Promise<void> {

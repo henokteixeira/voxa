@@ -177,7 +177,7 @@ describe("POST /sessions/:id/end", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ...summary, xp, comparison });
     expect(signals.recordSession).toHaveBeenCalledWith(summary);
-    expect(service.end).toHaveBeenCalledWith(id, null, undefined);
+    expect(service.end).toHaveBeenCalledWith(id, null);
     expect(progress.awardSession).toHaveBeenCalledWith({
       sessionId: id,
       goalsCovered: 1,
@@ -198,7 +198,7 @@ describe("POST /sessions/:id/end", () => {
     };
     const res = await request(app.getHttpServer()).post(`/sessions/${id}/end`).send({ timing });
     expect(res.status).toBe(200);
-    expect(service.end).toHaveBeenCalledWith(id, timing, undefined);
+    expect(service.end).toHaveBeenCalledWith(id, timing);
   });
 
   it.each([

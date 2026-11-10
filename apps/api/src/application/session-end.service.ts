@@ -16,17 +16,28 @@ export class SessionEndService {
     private readonly signals: SignalsService,
   ) {}
 
-  async end(sessionId: string, timing: SessionTiming | null, endedAt?: Date): Promise<EndedSessionView> {
-    const summary = await this.conversation.end(sessionId, timing, endedAt);
-    const [xp, comparison] = await Promise.all([
-      this.progress.awardSession({
-        sessionId,
-        goalsCovered: summary.goals.filter((goal) => goal.covered).length,
-        selfCorrections: summary.selfCorrections,
-        wordsPerMinute: summary.signals.wordsPerMinute,
-      }),
-      this.signals.recordSession(summary),
-    ]);
+  async end(sessionId: string, timing: SessionTiming | null): Promise<EndedSessionView> {
+    const summary = await this.conversation.end(sessionId, timing);
+    const [xp, comparison] = await Promise.all([this.award(summary), this.signals.recordSession(summary)]);
     return { ...summary, xp, comparison };
+  }
+
+  /**
+   * Finishes a session the learner left (or whose end stopped half way) at `endsAt`, with the timing saved during
+   * it. Its XP counts on that day. Its signals are not recorded: the history is in the order sessions are
+   * recorded, and one closed hours later would come after sessions done since.
+   */
+  async close(sessionId: string, endsAt: Date): Promise<void> {
+    await this.award(await this.conversation.end(sessionId, null, endsAt), endsAt);
+  }
+
+  private award(summary: SessionSummary, awardedAt?: Date): Promise<SessionXp> {
+    return this.progress.awardSession({
+      sessionId: summary.sessionId,
+      goalsCovered: summary.goals.filter((goal) => goal.covered).length,
+      selfCorrections: summary.selfCorrections,
+      wordsPerMinute: summary.signals.wordsPerMinute,
+      ...(awardedAt && { awardedAt }),
+    });
   }
 }

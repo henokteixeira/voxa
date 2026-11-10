@@ -1207,6 +1207,8 @@ describe("after a reload", () => {
     const sheet = await screen.findByRole("dialog", { name: "Paused" });
     expect(sheet).toHaveTextContent("1:05");
     expect(api.resumeSession).toHaveBeenCalledWith("s1");
+    // The server counts it as active again.
+    expect(api.saveTiming).toHaveBeenCalledWith("s1", expect.objectContaining({ learnerSpeechMs: expect.any(Number) }));
     expect(api.startSession).not.toHaveBeenCalled();
     expect(deps.openVoiceSocket).not.toHaveBeenCalled();
     // The hint the learner was working on is still there.

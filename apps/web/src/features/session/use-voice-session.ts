@@ -19,6 +19,9 @@ const SOCKET_FAILURES: FailureCode[] = ["disconnected", "in_use"];
 /** Failures that often pass on their own (a slow or restarting server): retried by themselves first. */
 const AUTO_RETRY_FAILURES: FailureCode[] = ["voice_unavailable", "tutor_unavailable", "server", "disconnected"];
 /** The waits before each automatic retry; after the last one the learner decides. */
+/** How often a running session saves its timing on the server besides after each turn (seconds). */
+const TIMING_HEARTBEAT_SECONDS = 5 * 60;
+
 export const AUTO_RETRY_DELAYS_MS = [2_000, 5_000, 10_000];
 /** Expected along the way (no speech, a frame dropped while busy): nothing to report. */
 const QUIET_ERRORS = new Set(["bad_audio", "busy", "too_long"]);
@@ -246,6 +249,8 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
           speaker.current = deps.createSpeaker();
           fillerLanguage.current = resumed.language;
           clock.current = FluencyClock.from(saved.timing);
+          // Picked up again: the server counts it as active from now.
+          void api.saveTiming(resumed.sessionId, saved.timing).catch(() => {});
           setSeconds(saved.elapsedSeconds);
           resumedPending.current = true;
           dispatch({
@@ -314,7 +319,9 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
     const id = state.sessionId;
     if (!id || ended.current || state.phase === "ending" || state.phase === "ended") return;
     saveSession({ sessionId: id, mode, missionId, elapsedSeconds: seconds, timing: clock.current.timing() });
-  }, [state.sessionId, state.phase, mode, missionId, seconds]);
+    // While it runs, the server hears from it at least this often, so it never closes a session still open here.
+    if (seconds > 0 && seconds % TIMING_HEARTBEAT_SECONDS === 0) void api.saveTiming(id, clock.current.timing()).catch(() => {});
+  }, [api, state.sessionId, state.phase, mode, missionId, seconds]);
 
   // The microphone listens only on the learner's turn (and not while typing), so it never hears the tutor.
   const listening = (state.phase === "listening" || state.phase === "hearing") && !typing;

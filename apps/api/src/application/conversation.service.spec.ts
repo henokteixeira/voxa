@@ -116,7 +116,7 @@ class FakeSessions implements SessionRepository {
     row.timing = timing;
     return true;
   }
-  async idle() {
+  async unfinished() {
     return [];
   }
   async end(id: string, timing: SessionTiming | null, endedAt = new Date()) {

@@ -23,10 +23,11 @@ export interface SessionProgress {
   track: TrackState | null;
 }
 
-/** An open session nothing has happened in for a while. */
-export interface IdleSession {
+/** A session left open, or ended without its XP (the end stopped half way): the server finishes it. */
+export interface UnfinishedSession {
   id: string;
-  lastActiveAt: Date;
+  /** When it ended, or its last activity when it is still open: the time it ends at. */
+  endsAt: Date;
 }
 
 export type TurnClaim = "claimed" | "taken" | "ended";
@@ -64,8 +65,11 @@ export interface SessionRepository {
   setProgress(sessionId: string, progress: SessionProgress): Promise<void>;
   /** The timing the web app measured so far, saved while the session is open. False when it has ended. */
   saveTiming(sessionId: string, timing: SessionTiming): Promise<boolean>;
-  /** Up to `limit` open sessions with nothing done since `before`, the longest idle first. */
-  idle(before: Date, limit: number): Promise<IdleSession[]>;
+  /**
+   * Up to `limit` unfinished sessions, earliest `endsAt` first, after `after` when given (to page): the open ones
+   * with nothing done since `idleBefore`, and the ones that ended between `endedAfter` and `idleBefore` with no XP.
+   */
+  unfinished(query: { idleBefore: Date; endedAfter: Date; limit: number; after?: UnfinishedSession }): Promise<UnfinishedSession[]>;
   /** `endedAt` defaults to now. Without a timing, the one saved during the session stays. */
   end(sessionId: string, timing: SessionTiming | null, endedAt?: Date): Promise<void>;
   outcome(sessionId: string): Promise<SessionOutcome | null>;
