@@ -7,7 +7,7 @@ const target = (original: string) => ({ original, correction: `${original}!`, ca
 describe("choosePracticeTargets", () => {
   it("takes the two most frequent mistakes not mastered yet, never new words", () => {
     const entry = (original: string, occurrences: number, extra: Partial<BankEntry> = {}) =>
-      ({ ...target(original), occurrences, sessionsCorrect: 0, ...extra }) as BankEntry;
+      ({ ...target(original), occurrences, sessionsCorrect: 0, seriousOccurrences: 0, ...extra }) as BankEntry;
     const chosen = choosePracticeTargets([
       entry("rare", 1),
       entry("word", 9, { category: "new_word" }),
@@ -18,9 +18,18 @@ describe("choosePracticeTargets", () => {
     expect(chosen.map((t) => t.original)).toEqual(["often", "sometimes"]);
   });
 
+  it("puts mistakes that got in the way of understanding before more frequent small slips", () => {
+    const entry = (original: string, occurrences: number, seriousOccurrences: number, patternId: string | null = null) =>
+      ({ ...target(original), occurrences, sessionsCorrect: 0, seriousOccurrences, patternId }) as BankEntry;
+    const entries = [entry("article", 9, 0), entry("tense", 2, 1), entry("order", 3, 2), entry("due slip", 5, 0, "p-due"), entry("due serious", 1, 1, "p-due")];
+
+    expect(choosePracticeTargets(entries).map((t) => t.original)).toEqual(["order", "tense"]);
+    expect(choosePracticeTargets(entries, new Set(["p-due"])).map((t) => t.original)).toEqual(["due serious", "order"]);
+  });
+
   it("starts with patterns due for review, one sentence each, then one per other pattern", () => {
     const entry = (original: string, occurrences: number, patternId: string | null) =>
-      ({ ...target(original), occurrences, sessionsCorrect: 0, patternId }) as BankEntry;
+      ({ ...target(original), occurrences, sessionsCorrect: 0, seriousOccurrences: 0, patternId }) as BankEntry;
     const entries = [entry("often", 9, "p-not-due"), entry("also often", 8, "p-not-due"), entry("due a", 2, "p-due"), entry("due b", 3, "p-due")];
 
     expect(choosePracticeTargets(entries, new Set(["p-due"])).map((t) => t.original)).toEqual(["due b", "often"]);

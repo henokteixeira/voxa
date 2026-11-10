@@ -12,6 +12,7 @@ const entry = (id: string, sessionsCorrect: number): BankEntry => ({
   occurrences: 1,
   lastSeenAt: seen,
   sessionsCorrect,
+  seriousOccurrences: 0,
   pattern: null,
   patternId: null,
 });

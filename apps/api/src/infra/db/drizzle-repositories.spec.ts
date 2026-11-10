@@ -302,7 +302,8 @@ describe("DrizzleMistakeRepository as the mistake bank", () => {
       ["I goed", 2],
       ["more better", 1],
     ]);
-    expect(list[0]).toMatchObject({ language: "en", correction: "I went", category: "grammar" });
+    expect(list[0]).toMatchObject({ language: "en", correction: "I went", category: "grammar", seriousOccurrences: 2 });
+    expect(list[1].seriousOccurrences).toBe(0);
     expect(list[0].lastSeenAt).toBeInstanceOf(Date);
   });
 

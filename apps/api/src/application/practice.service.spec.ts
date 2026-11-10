@@ -18,6 +18,7 @@ const entry = (id: string, over: Partial<BankEntry> = {}): BankEntry => ({
   lastSeenAt: seen,
   patternId: null,
   sessionsCorrect: 0,
+  seriousOccurrences: 0,
   pattern: null,
   ...over,
 });

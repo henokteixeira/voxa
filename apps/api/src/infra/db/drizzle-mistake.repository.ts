@@ -200,10 +200,25 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
       )
       .groupBy(mistakeCorrectUses.mistakeId);
     const correct = new Map(uses.map((u) => [u.mistakeId, Number(u.sessions)]));
+    const serious = await this.db
+      .select({ mistakeId: mistakeOccurrences.mistakeId, times: count() })
+      .from(mistakeOccurrences)
+      .where(
+        and(
+          inArray(
+            mistakeOccurrences.mistakeId,
+            rows.map((r) => r.mistake.id),
+          ),
+          eq(mistakeOccurrences.severity, "serious"),
+        ),
+      )
+      .groupBy(mistakeOccurrences.mistakeId);
+    const seriousTimes = new Map(serious.map((s) => [s.mistakeId, Number(s.times)]));
 
     return rows.map(({ mistake, patternKey, patternName, patternRule }) => ({
       ...toMistake(mistake),
       sessionsCorrect: correct.get(mistake.id) ?? 0,
+      seriousOccurrences: seriousTimes.get(mistake.id) ?? 0,
       pattern: toPattern(patternKey, patternName, patternRule),
     }));
   }
