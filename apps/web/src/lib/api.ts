@@ -1,17 +1,14 @@
+import { type CefrLevel, CEFR_LEVELS, type Mode, MODES, type SessionTiming } from "@voxa/contracts";
 import { reportError } from "./report-error";
 
 /** Typed client for the Voxa API. Every call fails with ApiError, never a raw fetch error. */
 
-/** Every session mode: the practice categories, plus the placement interview that estimates the speaking level. */
-export const MODES = ["free_talk", "my_day", "story", "opinion", "presentation", "daily", "review", "placement"] as const;
-export type Mode = (typeof MODES)[number];
+// Shared with the API: the session modes, the speaking levels and the timing a session measures.
+export { type CefrLevel, CEFR_LEVELS, type Mode, MODES, type SessionTiming };
 
 /** The categories the learner picks from, by group (the placement interview is offered on its own). */
 export const EVERYDAY_MODES = ["free_talk", "my_day", "story", "opinion"] as const satisfies readonly Mode[];
 export const WORK_MODES = ["daily", "presentation", "review"] as const satisfies readonly Mode[];
-
-export const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
-export type CefrLevel = (typeof CEFR_LEVELS)[number];
 
 /** The learner's speaking level, an estimate that picks how much help sessions give. */
 export interface SpeakingLevel {
@@ -272,16 +269,6 @@ export interface PracticeView {
 }
 
 /** Timing measured during a live session (see features/session/fluency-clock.ts). */
-export interface SessionTiming {
-  learnerSpeechMs: number;
-  tutorSpeechMs: number;
-  pausesMs: number[];
-  /** Silences of at least 1 s inside the learner's spoken answers. Missing in a timing saved before they were measured. */
-  longPausesMs?: number[];
-  /** Words the learner spoke (typed turns do not count). Missing in a timing saved before they were measured. */
-  spokenWords?: number;
-}
-
 /** The fluency signals. Null when the session gave nothing to measure. */
 export interface FluencySignals {
   /** 0–1: of the mistakes that got a hint, the share the learner fixed alone. */

@@ -10,6 +10,7 @@ spaced repetition and progress tracking.
 | `apps/web` | PWA in React + Vite |
 | `apps/api` | NestJS API (TypeScript), Postgres via Drizzle |
 | `services/voice` | Local Python service: Whisper (speech-to-text) + Kokoro (text-to-speech) |
+| `packages/contracts` | What the API and the web app exchange: shared values and request schemas (zod). Built on `pnpm install` |
 
 The API depends only on interfaces (`apps/api/src/domain/ports`). Concrete implementations
 (Claude, local voice, Postgres) live in `apps/api/src/infra` and are wired in `app.module.ts`.
@@ -31,7 +32,7 @@ service name, so `DATABASE_URL` and `VOICE_SERVICE_URL` in `.env` are ignored th
 
 By default this is development mode (`docker-compose.override.yml`): the source is mounted into the
 containers, so web changes hot-reload in the browser, API changes restart the server and new migrations
-apply on the next start. After a `git pull`, nothing to rebuild unless dependencies or config files changed;
+apply on the next start. After a `git pull`, nothing to rebuild unless dependencies, config files or `packages/contracts` changed;
 then run `docker compose up --build -V` (`-V` refreshes the installed packages).
 The production build (nginx, compiled API) runs with `docker compose -f docker-compose.yml up --build`.
 
@@ -102,7 +103,7 @@ The report is printed and saved to `apps/api/eval-results/` (gitignored). The sc
 
 ## Running without Docker
 
-Requirements: Node 22+, pnpm 10+, Python 3.10–3.12 (Kokoro does not support 3.13 yet), Docker (for Postgres).
+Requirements: Node 22.12+, pnpm 10+, Python 3.10–3.12 (Kokoro does not support 3.13 yet), Docker (for Postgres).
 
 ```bash
 cp .env.example .env          # fill in ANTHROPIC_API_KEY
