@@ -1,3 +1,4 @@
+import { MARKED_STEPS, type MarkedStep } from "@voxa/contracts";
 import type { Mode } from "../conversation/mode.js";
 import { FASTER_ROUNDS } from "../faster/faster-rounds.js";
 import type { LocalDay } from "../progress/daily-goal.js";
@@ -58,8 +59,7 @@ export interface MissionModel extends NewMissionModel {
 }
 
 /** The steps whose end the learner marks; the task and "say it faster" are read from the session. */
-export const MARKED_STEPS = ["listen", "expressions", "review"] as const;
-export type MarkedStep = (typeof MARKED_STEPS)[number];
+export { MARKED_STEPS, type MarkedStep };
 
 export interface Mission {
   id: string;

@@ -1,21 +1,10 @@
 import { Body, Controller, Get, HttpCode, Post, Query } from "@nestjs/common";
 import { z } from "zod";
 import { ReviewService } from "../application/review.service.js";
-import { Language, parse, TimeZone } from "../common/http.js";
-import { REVIEW_SUBJECT_KINDS } from "../domain/ports/review.repository.js";
+import { Language, parse } from "../common/http.js";
+import { ReviewAnswerBody, ReviewCardBody } from "@voxa/contracts";
 
 const OverviewQuery = z.object({ language: Language });
-const Subject = z.object({ kind: z.enum(REVIEW_SUBJECT_KINDS), id: z.uuid() });
-const CardBody = z.object({ subject: Subject });
-const AnswerBody = z.object({
-  cardId: z.uuid(),
-  /** What the learner said; null when they chose "I don't know". */
-  utterance: z.string().max(2000).nullable(),
-  /** The learner's time zone: an item earns XP once per local day. */
-  timeZone: TimeZone,
-  /** From the cue showing to the learner starting to speak; missing or null for a typed answer. */
-  startDelayMs: z.number().int().min(0).max(600_000).nullable().optional(),
-});
 
 @Controller("reviews")
 export class ReviewsController {
@@ -32,7 +21,7 @@ export class ReviewsController {
   @Post("cards")
   @HttpCode(200)
   async card(@Body() body: unknown) {
-    const { subject } = parse(CardBody, body);
+    const { subject } = parse(ReviewCardBody, body);
     return this.reviews.card(subject);
   }
 
@@ -40,7 +29,7 @@ export class ReviewsController {
   @Post("answers")
   @HttpCode(200)
   async answer(@Body() body: unknown) {
-    const { cardId, utterance, timeZone, startDelayMs } = parse(AnswerBody, body);
+    const { cardId, utterance, timeZone, startDelayMs } = parse(ReviewAnswerBody, body);
     return this.reviews.answer(cardId, utterance, timeZone, startDelayMs ?? null);
   }
 }

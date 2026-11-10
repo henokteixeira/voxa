@@ -1,16 +1,11 @@
 import { Body, Controller, Get, Put, Query } from "@nestjs/common";
+import { DailyGoalBody } from "@voxa/contracts";
 import { z } from "zod";
 import { ProgressService } from "../application/progress.service.js";
 import { SignalsService } from "../application/signals.service.js";
 import { Language, parse, TimeZone } from "../common/http.js";
-import { DAILY_MINUTES } from "../domain/progress/daily-goal.js";
 const TodayQuery = z.object({ language: Language, timeZone: TimeZone });
 const SignalsQuery = z.object({ language: Language });
-const DailyGoalBody = z.object({
-  language: Language,
-  timeZone: TimeZone,
-  minutesPerDay: z.union(DAILY_MINUTES.map((minutes) => z.literal(minutes))),
-});
 
 @Controller("progress")
 export class ProgressController {

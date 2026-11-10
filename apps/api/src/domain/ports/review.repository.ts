@@ -1,3 +1,4 @@
+import { REVIEW_SUBJECT_KINDS } from "@voxa/contracts";
 import type { ReviewState } from "../review/review-schedule.js";
 
 /**
@@ -6,7 +7,9 @@ import type { ReviewState } from "../review/review-schedule.js";
  */
 export type ReviewSubject = { kind: "pattern"; id: string } | { kind: "new_word"; id: string } | { kind: "expression"; id: string };
 
-export const REVIEW_SUBJECT_KINDS = ["pattern", "new_word", "expression"] as const satisfies readonly ReviewSubject["kind"][];
+export { REVIEW_SUBJECT_KINDS };
+// The shared kinds and this union stay the same.
+REVIEW_SUBJECT_KINDS satisfies readonly ReviewSubject["kind"][];
 
 /** One pattern or new word with its schedule and what a review needs to ask for it. */
 export interface ReviewItem {
