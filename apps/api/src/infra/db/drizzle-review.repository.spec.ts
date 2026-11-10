@@ -99,6 +99,17 @@ describe("DrizzleReviewRepository", () => {
     expect(await reviews.due("es", now, 5)).toEqual([]);
   });
 
+  it("asks for mistakes and new words before expressions, and can list one kind", async () => {
+    const { goed } = await bank();
+    const taken = await expression();
+    await reviews.save("en", { kind: "expression", id: taken.id }, { step: 0, dueAt: day(-3) }, null);
+    await reviews.save("en", { kind: "pattern", id: goed.patternId! }, { step: 0, dueAt: day(-1) }, null);
+
+    expect((await reviews.due("en", now, 1)).map((d) => d.subject.kind)).toEqual(["pattern"]);
+    expect((await reviews.due("en", now, 5)).map((d) => d.subject.kind)).toEqual(["pattern", "expression"]);
+    expect((await reviews.due("en", now, 5, "expression")).map((d) => d.subject.id)).toEqual([taken.id]);
+  });
+
   it("skips what is not due yet, dismissed words and patterns left without mistakes", async () => {
     const { goed, fix, word } = await bank();
     await reviews.save("en", { kind: "pattern", id: goed.patternId! }, { step: 0, dueAt: day(-1) }, null);

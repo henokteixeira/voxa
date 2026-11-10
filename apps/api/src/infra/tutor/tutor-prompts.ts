@@ -234,6 +234,9 @@ export function buildSystemPrompt(
       "List in `correctUses` each known mistake the learner avoided (the utterance says the same thing correctly), " +
         `and each new word they now said in ${language}. Copy its \`original\` text from the known mistakes or new ` +
         "words list exactly. Leave the list empty when none applies.",
+      "List in `usedExpressions` each expression from `review_expressions` the learner used correctly in this " +
+        "utterance, in a sentence of their own (small changes such as a contraction or another tense count). Copy it " +
+        "exactly as listed. Leave the list empty when none applies; never ask the learner to use one.",
     ].join("\n"),
     [
       "## Pending correction",
@@ -315,6 +318,7 @@ export function buildTurnMessage(
     | "knownPatterns"
     | "bringBack"
     | "focusPatterns"
+    | "reviewExpressions"
     | "coveredGoals"
     | "scaffold"
     | "plan"
@@ -340,6 +344,7 @@ export function buildTurnMessage(
     `<known_patterns>\n${patterns}\n</known_patterns>`,
     `<bring_back>\n${request.bringBack.length ? request.bringBack.map((p) => `- ${p.key}: ${p.name}`).join("\n") : "none"}\n</bring_back>`,
     `<focus_patterns>\n${request.focusPatterns.length ? request.focusPatterns.map((p) => `- ${p.key}: ${p.name}`).join("\n") : "none"}\n</focus_patterns>`,
+    `<review_expressions>\n${request.reviewExpressions.length ? request.reviewExpressions.map((e) => `- "${e}"`).join("\n") : "none"}\n</review_expressions>`,
     `<pending_correction>\n${pending}\n</pending_correction>`,
     `<covered_goals>\n${request.coveredGoals.length ? request.coveredGoals.join(", ") : "none"}\n</covered_goals>`,
     // The learner may be finishing these words: that is not stuck, and not a mistake in itself.

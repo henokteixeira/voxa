@@ -16,6 +16,8 @@ export interface TutorVerdict {
   nextHint: string | null;
   /** Known mistakes (by their `original`) the learner said correctly in this utterance, without a hint. */
   correctUses: string[];
+  /** Expressions from the review list the learner used correctly, copied exactly as listed. */
+  usedExpressions: string[];
   /** Words the learner said in their first language: saved to learn, never counted as mistakes. */
   newWords: NewWord[];
   /** A short line in the learner's first language, shown on screen only (never spoken), or null. */

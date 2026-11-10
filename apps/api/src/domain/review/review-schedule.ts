@@ -45,3 +45,12 @@ export function reviewStatus(step: number): ReviewStatus {
   if (step >= MASTERED_STEP) return "mastered";
   return step > 0 ? "improving" : "new";
 }
+
+/**
+ * The order of a review (2026-11-10): the learner's own mistakes and new words before the expressions taken from
+ * a model, each the longest overdue first, so the expressions that join every day never crowd out real mistakes.
+ */
+export function byReviewPriority<T extends { subject: { kind: string }; dueAt: Date }>(items: readonly T[]): T[] {
+  const late = (item: T) => Number(item.subject.kind === "expression");
+  return items.toSorted((a, b) => late(a) - late(b) || a.dueAt.getTime() - b.dueAt.getTime());
+}

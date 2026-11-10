@@ -1,14 +1,21 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, gt, gte, inArray, isNull, lte, min, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, min, or, type SQL, sql } from "drizzle-orm";
 import { NEW_WORD_CATEGORY } from "../../domain/conversation/types.js";
 import { EXPRESSION_CATEGORY } from "../../domain/mission/mission.js";
 import type { AnsweredCard, ReviewItem, ReviewRepository, ReviewSchedule, ReviewSubject, StoredReviewCard } from "../../domain/ports/review.repository.js";
-import type { ReviewState } from "../../domain/review/review-schedule.js";
+import { byReviewPriority, type ReviewState } from "../../domain/review/review-schedule.js";
 import { DATABASE, type Database } from "./db.module.js";
 import { missionExpressions, mistakes, patterns, reviewCards, reviewItems } from "./schema.js";
 
 /** How many of a pattern's sentences a review shows. */
 const EXAMPLES_PER_PATTERN = 3;
+
+/** The column that holds each kind of subject. */
+const KIND_COLUMN = {
+  pattern: reviewItems.patternId,
+  new_word: reviewItems.newWordId,
+  expression: reviewItems.expressionId,
+} as const satisfies Record<ReviewSubject["kind"], unknown>;
 
 @Injectable()
 export class DrizzleReviewRepository implements ReviewRepository {
@@ -31,9 +38,11 @@ export class DrizzleReviewRepository implements ReviewRepository {
       .onConflictDoUpdate({ target: subjectColumn(subject), set: values });
   }
 
-  async due(language: string, now: Date, limit: number): Promise<ReviewItem[]> {
-    const items = await this.items(and(eq(reviewItems.language, language), lte(reviewItems.dueAt, now)));
-    return items.slice(0, limit);
+  async due(language: string, now: Date, limit: number, kind?: ReviewSubject["kind"]): Promise<ReviewItem[]> {
+    const items = await this.items(
+      and(eq(reviewItems.language, language), lte(reviewItems.dueAt, now), kind ? isNotNull(KIND_COLUMN[kind]) : undefined),
+    );
+    return byReviewPriority(items).slice(0, limit);
   }
 
   async item(subject: ReviewSubject): Promise<ReviewItem | null> {

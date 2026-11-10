@@ -124,8 +124,19 @@ class FakeSessions implements SessionRepository {
   }
 }
 
-class FakeReviews implements Pick<ReviewRepository, "state" | "save" | "schedules"> {
+class FakeReviews implements Pick<ReviewRepository, "state" | "save" | "schedules" | "due"> {
   items = new Map<string, ReviewState & { language: string }>();
+  /** Expressions by id, for the items of kind expression. */
+  phrases = new Map<string, string>();
+  async due(language: string, now: Date, limit: number, kind?: string) {
+    return [...this.items]
+      .filter(([key, item]) => item.language === language && item.dueAt <= now && kind === "expression" && key.startsWith("expression:"))
+      .map(([key, { step, dueAt }]) => {
+        const id = key.slice("expression:".length);
+        return { subject: { kind: "expression" as const, id }, language, category: "expression", name: this.phrases.get(id) ?? id, rule: "", examples: [], step, dueAt };
+      })
+      .slice(0, limit);
+  }
   async state(subject: ReviewSubject) {
     const item = this.items.get(`${subject.kind}:${subject.id}`);
     return item ? { step: item.step, dueAt: item.dueAt } : null;
@@ -137,7 +148,7 @@ class FakeReviews implements Pick<ReviewRepository, "state" | "save" | "schedule
     return [...this.items]
       .filter(([, item]) => item.language === language)
       .map(([key, { step, dueAt }]) => {
-        const [kind, id] = key.split(":") as ["pattern" | "new_word", string];
+        const [kind, id] = key.split(":") as ["pattern" | "new_word" | "expression", string];
         return { subject: { kind, id }, step, dueAt };
       });
   }
@@ -275,6 +286,7 @@ const verdict = (v: Partial<TutorVerdict>): TutorVerdict => ({
   pendingResolved: false,
   nextHint: null,
   correctUses: [],
+  usedExpressions: [],
   newWords: [],
   support: null,
   coveredGoals: [],
@@ -939,6 +951,47 @@ describe("ConversationService.respond: the reply first, the analysis after", () 
     expect(lines).toEqual([]);
     expect(result.message).toBe("Check the past tense of 'go'.");
     expect((await sessions.history(session.id)).at(-1)?.content).toBe("Check the past tense of 'go'.");
+  });
+});
+
+describe("ConversationService.respond: expressions due for review", () => {
+  it("shows the tutor the due expressions and counts one used in the conversation as recalled", async () => {
+    reviews.items.set("expression:e1", { language: "en", step: 1, dueAt: clock.now() });
+    reviews.phrases.set("e1", "I'm still working on…");
+    reviews.items.set("expression:e2", { language: "en", step: 1, dueAt: new Date(clock.now().getTime() + 86_400_000) });
+    reviews.phrases.set("e2", "The main reason is…");
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ usedExpressions: ["I'm still working on…", "Not listed…"] }));
+
+    await service.respond(session.id, "I'm still working on the upload");
+
+    expect(tutor.requests[0].reviewExpressions).toEqual(["I'm still working on…"]);
+    expect(reviews.items.get("expression:e1")?.step).toBe(2);
+    expect(reviews.items.get("expression:e2")?.step).toBe(1);
+  });
+
+  it("does not count an expression said back from words the tutor gave", async () => {
+    reviews.items.set("expression:e1", { language: "en", step: 1, dueAt: clock.now() });
+    reviews.phrases.set("e1", "I'm still working on…");
+    levels.rows.push({ language: "en", level: "B1", source: "manual", evidence: [], assessedAt: clock.now() });
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(
+      verdict({ stuck: true, scaffold: "You could start with: I'm still working on..." }),
+      verdict({ usedExpressions: ["I'm still working on..."] }),
+    );
+    await service.respond(session.id, "I don't know");
+
+    await service.respond(session.id, "I'm still working on the upload");
+
+    expect(reviews.items.get("expression:e1")?.step).toBe(1);
+  });
+
+  it("watches no expressions in the placement interview", async () => {
+    reviews.items.set("expression:e1", { language: "en", step: 1, dueAt: clock.now() });
+    const { session } = await service.start("placement", "en");
+    tutor.verdicts.push(verdict({}));
+    await service.respond(session.id, "Hi");
+    expect(tutor.requests[0].reviewExpressions).toEqual([]);
   });
 });
 

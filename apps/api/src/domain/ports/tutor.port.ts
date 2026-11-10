@@ -57,6 +57,8 @@ export interface TutorRequest extends TutorContext {
    * knows a hint follows it.
    */
   focusPatterns: KnownPattern[];
+  /** Ready-made expressions due for review: one used in the conversation counts as its review. */
+  reviewExpressions: string[];
   utterance: string;
   /** Ids of the goals covered before this utterance. */
   coveredGoals: string[];
