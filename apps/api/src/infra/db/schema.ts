@@ -274,6 +274,7 @@ export const sessionSignals = pgTable(
     averagePauseMs: integer("average_pause_ms"),
     mistakesPer100Words: doublePrecision("mistakes_per_100_words"),
     selfCorrectionRate: doublePrecision("self_correction_rate"),
+    wordsPerAnswer: doublePrecision("words_per_answer"),
   },
   (t) => [index("session_signals_language_seq").on(t.language, t.seq)],
 );

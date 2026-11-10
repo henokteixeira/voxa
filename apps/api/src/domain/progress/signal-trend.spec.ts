@@ -8,6 +8,7 @@ const none: SessionSignals = {
   averagePauseMs: null,
   mistakesPer100Words: null,
   selfCorrectionRate: null,
+  wordsPerAnswer: null,
 };
 const s = (over: Partial<SessionSignals>): SessionSignals => ({ ...none, ...over });
 

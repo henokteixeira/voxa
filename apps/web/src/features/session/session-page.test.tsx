@@ -739,7 +739,7 @@ describe("session summary", () => {
 
     const signals = await screen.findByLabelText("Fluency signals");
     expect(signals).toHaveTextContent("Pace92words a minute · 1.3 long pauses a minute");
-    expect(signals).toHaveTextContent("Fixed yourself1 of 2after a hint");
+    expect(signals).toHaveTextContent("Fixed with a hint1 of 2after a hint");
     expect(signals).toHaveTextContent("Pause before answering1.8 saverage");
     expect(signals).toHaveTextContent("Mistakes4.3per 100 words");
 
@@ -893,7 +893,7 @@ describe("session summary", () => {
     await startAndListen();
     await endFromPause();
 
-    expect(await screen.findByLabelText("Fluency signals")).toHaveTextContent("Fixed yourself–no hints needed");
+    expect(await screen.findByLabelText("Fluency signals")).toHaveTextContent("Fixed with a hint–no hints needed");
     expect(screen.getByLabelText("Fluency signals")).toHaveTextContent("Pace–not measured");
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByText("Your session is saved.")).toBeInTheDocument();

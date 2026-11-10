@@ -26,6 +26,11 @@ export interface FluencySignals {
   wordsPerMinute: number | null;
   /** Long silences inside his answers per minute of his own speech. */
   longPausesPerMinute: number | null;
+  /**
+   * Average words in one of his answers: a measure of how much he dares to say, so the other signals can't improve
+   * just by saying less (complexity, accuracy and fluency trade off).
+   */
+  wordsPerAnswer: number | null;
 }
 
 export function countWords(text: string): number {
@@ -45,7 +50,8 @@ export function fluencySignals(input: {
   const { mistakes, learnerUtterances, timing } = input;
   // Serious mistakes are the ones the tutor stops for with a hint.
   const hinted = mistakes.filter((m) => m.severity === "serious");
-  const words = learnerUtterances.reduce((sum, text) => sum + countWords(text), 0);
+  const answers = learnerUtterances.filter((text) => countWords(text) > 0);
+  const words = answers.reduce((sum, text) => sum + countWords(text), 0);
   const pauses = timing?.pausesMs ?? [];
   // Words and long pauses are measured from 2026-11-07 on; older sessions have no rate.
   const minutes = timing ? timing.learnerSpeechMs / 60_000 : 0;
@@ -58,5 +64,6 @@ export function fluencySignals(input: {
     averagePauseMs: pauses.length ? Math.round(pauses.reduce((a, b) => a + b, 0) / pauses.length) : null,
     wordsPerMinute: minutes && spokenWords !== undefined ? Math.round(spokenWords / minutes) : null,
     longPausesPerMinute: minutes && longPauses ? longPauses.length / minutes : null,
+    wordsPerAnswer: answers.length ? words / answers.length : null,
   };
 }

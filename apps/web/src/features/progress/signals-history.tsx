@@ -6,7 +6,14 @@ import { useCopy, useLocale } from "@/lib/i18n/locale";
 import { SIGNALS_COPY, type SignalKey } from "./signals-copy";
 
 /** The signals shown over time, in this order. Self-correction is left out: most sessions have no hint to fix. */
-const SHOWN: SignalKey[] = ["unaidedShare", "wordsPerMinute", "longPausesPerMinute", "averagePauseMs", "mistakesPer100Words"];
+const SHOWN: SignalKey[] = [
+  "unaidedShare",
+  "wordsPerMinute",
+  "wordsPerAnswer",
+  "longPausesPerMinute",
+  "averagePauseMs",
+  "mistakesPer100Words",
+];
 
 /** Fewer sessions than this say nothing about a trend: the tab shows the empty state instead. */
 const MIN_SESSIONS = 2;

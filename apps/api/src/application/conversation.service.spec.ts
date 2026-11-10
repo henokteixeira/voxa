@@ -1295,6 +1295,7 @@ describe("ConversationService.end", () => {
       averagePauseMs: 1500,
       wordsPerMinute: 28,
       longPausesPerMinute: 2,
+      wordsPerAnswer: 7,
       unaidedShare: 1,
     });
   });

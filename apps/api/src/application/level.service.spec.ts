@@ -92,6 +92,7 @@ describe("LevelService", () => {
       averagePauseMs: null,
       mistakesPer100Words: null,
       selfCorrectionRate: null,
+      wordsPerAnswer: null,
     };
     signals.rows.push({
       sessionId: `s${signals.rows.length + 1}`,

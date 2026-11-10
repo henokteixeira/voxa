@@ -16,6 +16,7 @@ export type SignalName = keyof SessionSignals;
 /** Whether a higher value is better, and how big a change must be to count (a design choice, to tune with use). */
 const SIGNALS: Record<SignalName, { higherIsBetter: boolean; tolerance: { kind: "relative" | "absolute"; value: number } }> = {
   wordsPerMinute: { higherIsBetter: true, tolerance: { kind: "relative", value: 0.1 } },
+  wordsPerAnswer: { higherIsBetter: true, tolerance: { kind: "relative", value: 0.1 } },
   longPausesPerMinute: { higherIsBetter: false, tolerance: { kind: "relative", value: 0.1 } },
   averagePauseMs: { higherIsBetter: false, tolerance: { kind: "relative", value: 0.1 } },
   mistakesPer100Words: { higherIsBetter: false, tolerance: { kind: "relative", value: 0.1 } },
@@ -28,6 +29,7 @@ const SIGNALS: Record<SignalName, { higherIsBetter: boolean; tolerance: { kind: 
 export const SIGNAL_NAMES: readonly SignalName[] = [
   "unaidedShare",
   "wordsPerMinute",
+  "wordsPerAnswer",
   "longPausesPerMinute",
   "averagePauseMs",
   "mistakesPer100Words",
