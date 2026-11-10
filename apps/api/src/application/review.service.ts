@@ -11,6 +11,7 @@ import {
   type StoredReviewCard,
 } from "../domain/ports/review.repository.js";
 import { cardsEarningXp, XP_PER_REVIEW } from "../domain/progress/daily-goal.js";
+import { recallOutcome } from "../domain/review/review-schedule.js";
 import { ReviewScheduler } from "./review-scheduler.js";
 
 /** How far back to look for an item's earlier answers the same day; also covers a retried answer. */
@@ -93,9 +94,10 @@ export class ReviewService {
 
   /**
    * Checks the spoken answer to a card (null: the learner said they don't know) and moves the item's schedule.
+   * `startDelayMs`: from the cue showing to the learner starting to speak; a right answer after a long search is slow.
    * A card is answered once: sending the same answer again (a retried request) returns the first result.
    */
-  async answer(cardId: string, utterance: string | null, timeZone: string): Promise<ReviewAnswer> {
+  async answer(cardId: string, utterance: string | null, timeZone: string, startDelayMs: number | null = null): Promise<ReviewAnswer> {
     const card = await this.reviews.card(cardId);
     if (!card) throw new ReviewCardNotFoundError(cardId);
     const item = await this.find(card.subject);
@@ -108,7 +110,7 @@ export class ReviewService {
       const first = await this.reviews.card(card.id);
       return this.result(first?.recalled ?? recalled, card, await this.find(card.subject), timeZone);
     }
-    const next = await this.scheduler.answered(item.language, card.subject, recalled ? "recalled" : "missed", now);
+    const next = await this.scheduler.answered(item.language, card.subject, recallOutcome(recalled, startDelayMs), now);
     return { recalled, answer: card.answer, rule: item.rule, nextDueAt: next.dueAt, xp: await this.xpFor(card.id, item.language, timeZone) };
   }
 

@@ -55,7 +55,7 @@ export class ReviewScheduler {
    */
   async answered(language: string, subject: ReviewSubject, outcome: ReviewOutcome, now: Date): Promise<ReviewState> {
     const state = (await this.reviews.state(subject)) ?? firstReview(now);
-    if (outcome === "recalled" && !countsAsReview(state, now)) return state;
+    if (outcome !== "missed" && !countsAsReview(state, now)) return state;
     const next = nextReview(state, outcome, now);
     await this.reviews.save(language, subject, next, now);
     return next;

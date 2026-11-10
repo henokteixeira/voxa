@@ -8,7 +8,21 @@ export const REVIEW_INTERVALS_DAYS = [1, 3, 7, 14, 30] as const;
 /** Steps reached with the right answer for a pattern to count as mastered (the 7-day review, recalled 3 times). */
 export const MASTERED_STEP = 3;
 
-export type ReviewOutcome = "recalled" | "missed";
+/** "slow": said right, but only after a long search; it stays at its step instead of moving forward. */
+export type ReviewOutcome = "recalled" | "slow" | "missed";
+
+/**
+ * Starting to speak later than this after the cue shows counts as a slow recall (decided on 2026-11-10: in a
+ * conversation the words have to come fast, so a long search is not yet automatic). The cue is a short sentence to
+ * read first, so the bar is generous; to tune with use.
+ */
+export const SLOW_RECALL_MS = 6_000;
+
+/** The outcome of a spoken answer: missed, recalled, or recalled slowly (null delay: typed, or not measured). */
+export function recallOutcome(recalled: boolean, startDelayMs: number | null): ReviewOutcome {
+  if (!recalled) return "missed";
+  return startDelayMs !== null && startDelayMs > SLOW_RECALL_MS ? "slow" : "recalled";
+}
 
 export interface ReviewState {
   /** Index in REVIEW_INTERVALS_DAYS of the wait before the next review. */
@@ -30,7 +44,8 @@ export function firstReview(now: Date): ReviewState {
 /** The state after an answer. */
 export function nextReview(state: ReviewState, outcome: ReviewOutcome, now: Date): ReviewState {
   const last = REVIEW_INTERVALS_DAYS.length - 1;
-  const step = outcome === "recalled" ? Math.min(state.step + 1, last) : Math.max(state.step - 1, 0);
+  const step =
+    outcome === "recalled" ? Math.min(state.step + 1, last) : outcome === "slow" ? state.step : Math.max(state.step - 1, 0);
   return { step, dueAt: dueAfter(step, now) };
 }
 

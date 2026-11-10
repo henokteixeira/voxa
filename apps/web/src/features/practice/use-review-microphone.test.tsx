@@ -28,7 +28,8 @@ describe("useReviewMicrophone", () => {
     expect(result.current.speaking).toBe(true);
     const wav = new ArrayBuffer(4);
     act(() => handlers.onTurn(wav));
-    expect(onTurn).toHaveBeenCalledWith(wav);
+    // With how long the learner took to start speaking to the cue.
+    expect(onTurn).toHaveBeenCalledWith(wav, expect.any(Number));
     expect(mic.pause).toHaveBeenCalled();
 
     act(() => handlers.onSpeechStart());

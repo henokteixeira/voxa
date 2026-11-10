@@ -615,8 +615,12 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     /** A new cue for one pattern or new word. */
     reviewCard: (subject: ReviewSubject) => request<ReviewCard>("/reviews/cards", { method: "POST", body: { subject } }),
     /** What the learner said to a card; null when they chose "I don't know". */
-    answerReview: (cardId: string, utterance: string | null) =>
-      request<ReviewAnswer>("/reviews/answers", { method: "POST", body: { cardId, utterance, timeZone: deviceTimeZone() } }),
+    /** `startDelayMs`: from the cue showing to the learner starting to speak; null for a typed answer. */
+    answerReview: (cardId: string, utterance: string | null, startDelayMs: number | null = null) =>
+      request<ReviewAnswer>("/reviews/answers", {
+        method: "POST",
+        body: { cardId, utterance, timeZone: deviceTimeZone(), startDelayMs },
+      }),
     /** The words in a short recording, e.g. a spoken review answer; empty when nothing was heard. */
     transcribe: async (wav: ArrayBuffer, language = "en") =>
       (await postAudio<{ text: string }>(`/voice/transcriptions?language=${encodeURIComponent(language)}`, wav)).text,

@@ -94,9 +94,11 @@ describe("createApiClient", () => {
 
     await api.reviewCard({ kind: "pattern", id: "p1" });
     await api.answerReview("c1", null);
+    await api.answerReview("c2", "I finished it", 2400);
     expect(fetchImpl.mock.calls.map(([url, init]) => [url, init.method, JSON.parse(init.body)])).toEqual([
       ["http://api/api/reviews/cards", "POST", { subject: { kind: "pattern", id: "p1" } }],
-      ["http://api/api/reviews/answers", "POST", { cardId: "c1", utterance: null, timeZone: deviceTimeZone() }],
+      ["http://api/api/reviews/answers", "POST", { cardId: "c1", utterance: null, timeZone: deviceTimeZone(), startDelayMs: null }],
+      ["http://api/api/reviews/answers", "POST", { cardId: "c2", utterance: "I finished it", timeZone: deviceTimeZone(), startDelayMs: 2400 }],
     ]);
   });
 

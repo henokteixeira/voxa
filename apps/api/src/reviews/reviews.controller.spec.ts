@@ -56,9 +56,14 @@ describe("POST /reviews/answers", () => {
     const cardId = subject.id;
     await request(app.getHttpServer()).post("/reviews/answers").send({ cardId, utterance: "I finish it", timeZone: "America/Sao_Paulo" }).expect(200);
     await request(app.getHttpServer()).post("/reviews/answers").send({ cardId, utterance: null, timeZone: "America/Sao_Paulo" }).expect(200);
+    await request(app.getHttpServer())
+      .post("/reviews/answers")
+      .send({ cardId, utterance: "I finished it", timeZone: "America/Sao_Paulo", startDelayMs: 2400 })
+      .expect(200);
     expect(service.answer.mock.calls).toEqual([
-      [cardId, "I finish it", "America/Sao_Paulo"],
-      [cardId, null, "America/Sao_Paulo"],
+      [cardId, "I finish it", "America/Sao_Paulo", null],
+      [cardId, null, "America/Sao_Paulo", null],
+      [cardId, "I finished it", "America/Sao_Paulo", 2400],
     ]);
   });
 
