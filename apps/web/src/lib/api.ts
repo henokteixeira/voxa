@@ -1,10 +1,41 @@
-import { type CefrLevel, CEFR_LEVELS, type Mode, MODES, type SessionTiming } from "@voxa/contracts";
+import {
+  type CefrLevel,
+  CEFR_LEVELS,
+  DAILY_MINUTES,
+  type DailyMinutes,
+  type DismissReason,
+  FACT_TOPICS,
+  type FactTopic,
+  type LevelSource,
+  type MarkedStep,
+  type MistakeStatus,
+  type Mode,
+  MODES,
+  type SessionTiming,
+  type TrackStage,
+  type XpReason,
+} from "@voxa/contracts";
 import { reportError } from "./report-error";
 
 /** Typed client for the Voxa API. Every call fails with ApiError, never a raw fetch error. */
 
-// Shared with the API: the session modes, the speaking levels and the timing a session measures.
-export { type CefrLevel, CEFR_LEVELS, type Mode, MODES, type SessionTiming };
+// Shared with the API (see packages/contracts).
+export {
+  type CefrLevel,
+  CEFR_LEVELS,
+  DAILY_MINUTES,
+  type DailyMinutes,
+  type DismissReason,
+  FACT_TOPICS,
+  type FactTopic,
+  type MarkedStep as MarkedMissionStep,
+  type MistakeStatus,
+  type Mode,
+  MODES,
+  type SessionTiming,
+  type TrackStage,
+  type XpReason,
+};
 
 /** The categories the learner picks from, by group (the placement interview is offered on its own). */
 export const EVERYDAY_MODES = ["free_talk", "my_day", "story", "opinion"] as const satisfies readonly Mode[];
@@ -14,7 +45,7 @@ export const WORK_MODES = ["daily", "presentation", "review"] as const satisfies
 export interface SpeakingLevel {
   language: string;
   level: CefrLevel;
-  source: "placement" | "manual" | "step_change";
+  source: LevelSource;
   /** The learner's own lines that back the estimate. */
   evidence: string[];
   /** ISO 8601 date-time. */
@@ -44,9 +75,6 @@ export interface SignalsHistoryEntry {
   recordedAt: string;
   signals: Required<FluencySignals>;
 }
-
-/** The stages of the guided track (A1–A2), in order. */
-export type TrackStage = "model" | "swap" | "extend" | "answer" | "again";
 
 /** Where the learner is in the guided track: the stage, as "step 2 of 5". */
 export interface TrackView {
@@ -163,9 +191,6 @@ export interface MissionSteps {
   review: boolean;
 }
 
-/** The steps the learner marks done: the conversation and "say it faster" are read from the session. */
-export type MarkedMissionStep = "listen" | "expressions" | "review";
-
 export interface MissionView {
   id: string;
   language: string;
@@ -268,7 +293,6 @@ export interface PracticeView {
   earlier: { id: string; category: string; original: string; correction: string; occurrences: number }[];
 }
 
-/** Timing measured during a live session (see features/session/fluency-clock.ts). */
 /** The fluency signals. Null when the session gave nothing to measure. */
 export interface FluencySignals {
   /** 0–1: of the mistakes that got a hint, the share the learner fixed alone. */
@@ -367,9 +391,6 @@ export interface CheckInResult {
   previous: CheckInPace | null;
 }
 
-/** What earns XP. A mistake never takes XP away. */
-export type XpReason = "practice_minute" | "goal_covered" | "self_corrected" | "personal_record";
-
 export interface XpAward {
   reason: XpReason;
   /** How many times it happened: minutes, goals, self-corrections, records. */
@@ -381,10 +402,6 @@ export interface SessionXp {
   awards: XpAward[];
   total: number;
 }
-
-/** How long the learner wants to practice a day; the XP goal follows from it. */
-export const DAILY_MINUTES = [15, 30, 45, 60] as const;
-export type DailyMinutes = (typeof DAILY_MINUTES)[number];
 
 /** Today's XP, goal and streak, in the learner's time zone. */
 export interface TodayProgress {
@@ -404,8 +421,6 @@ export function deviceTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
-export type MistakeStatus = "open" | "improving" | "mastered";
-
 /** A mistake in the bank, as the Mistakes screen shows it. */
 export interface BankMistake {
   id: string;
@@ -419,9 +434,6 @@ export interface BankMistake {
   lastSeenAt: string;
   status: MistakeStatus;
 }
-
-/** Why the learner says a record is not a mistake. */
-export type DismissReason = "transcript_error" | "both_correct" | "not_needed";
 
 /** What went wrong, in terms the screens can act on. */
 export type ApiErrorKind = "offline" | "not_found" | "ended" | "tutor_unavailable" | "invalid" | "server";
@@ -470,10 +482,6 @@ async function errorFrom(response: Response, where: string): Promise<ApiError> {
   if (error.kind === "server") reportError(error, { where, status: response.status, requestId });
   return error;
 }
-
-/** What a learner fact is about. */
-export const FACT_TOPICS = ["work", "projects", "people", "interests", "life", "goals"] as const;
-export type FactTopic = (typeof FACT_TOPICS)[number];
 
 /** Something the learner told the tutor; the tutor brings it up in later sessions. */
 export interface LearnerFact {
@@ -540,7 +548,7 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     missionModel: (missionId: string) => request<MissionModel>(`/missions/${encodeURIComponent(missionId)}/model`),
     /** The model as speech (WAV). */
     missionSpeech: (missionId: string) => audio(`/missions/${encodeURIComponent(missionId)}/model/speech`),
-    markMissionStep: (missionId: string, step: MarkedMissionStep, timeZone = deviceTimeZone()) =>
+    markMissionStep: (missionId: string, step: MarkedStep, timeZone = deviceTimeZone()) =>
       request<MissionView>(`/missions/${encodeURIComponent(missionId)}/steps/${step}`, { method: "POST", body: { timeZone } }),
     /** Step 2: whether the learner's sentence used the expression. */
     sayExpression: (missionId: string, expressionId: string, utterance: string) =>

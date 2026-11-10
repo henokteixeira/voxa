@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
+import { ExpressionAttemptBody, MissionStepBody } from "@voxa/contracts";
 import { z } from "zod";
 import { MissionService } from "../application/mission.service.js";
 import { Language, parse, TimeZone } from "../common/http.js";
@@ -8,8 +9,6 @@ import { MARKED_STEPS } from "../domain/mission/mission.js";
 const TodayQuery = z.object({ language: Language, timeZone: TimeZone });
 const MissionId = z.uuid();
 const Step = z.enum(MARKED_STEPS);
-const StepBody = z.object({ timeZone: TimeZone });
-const SayBody = z.object({ utterance: z.string().trim().min(1).max(2000) });
 
 /** The daily mission: today's situation, and step 1's model with its 3 expressions. */
 @Controller("missions")
@@ -33,7 +32,7 @@ export class MissionsController {
   @Post(":id/steps/:step")
   @HttpCode(200)
   markStep(@Param("id") id: string, @Param("step") step: string, @Body() body: unknown) {
-    const { timeZone } = parse(StepBody, body);
+    const { timeZone } = parse(MissionStepBody, body);
     return this.missions.markStep(parse(MissionId, id), parse(Step, step), timeZone);
   }
 
@@ -41,7 +40,7 @@ export class MissionsController {
   @Post(":id/expressions/:expressionId/attempts")
   @HttpCode(200)
   say(@Param("id") id: string, @Param("expressionId") expressionId: string, @Body() body: unknown) {
-    const { utterance } = parse(SayBody, body);
+    const { utterance } = parse(ExpressionAttemptBody, body);
     return this.missions.say(parse(MissionId, id), parse(MissionId, expressionId), utterance);
   }
 

@@ -1,17 +1,11 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch } from "@nestjs/common";
+import { EditFactBody } from "@voxa/contracts";
 import { z } from "zod";
 import { LearnerMemoryService } from "../application/learner-memory.service.js";
 import { parse } from "../common/http.js";
-import { type LearnerFact, MAX_FACT_LENGTH } from "../domain/memory/learner-fact.js";
+import type { LearnerFact } from "../domain/memory/learner-fact.js";
 
 const FactId = z.uuid();
-/** Same shape as the facts the tutor saves: one line, single spaces. */
-const EditBody = z.object({
-  statement: z
-    .string()
-    .transform((s) => s.trim().replace(/\s+/g, " "))
-    .pipe(z.string().min(1).max(MAX_FACT_LENGTH)),
-});
 
 const view = ({ id, topic, statement, learnedAt, updatedAt }: LearnerFact) => ({ id, topic, statement, learnedAt, updatedAt });
 
@@ -27,7 +21,7 @@ export class MemoryController {
 
   @Patch(":id")
   async edit(@Param("id") id: string, @Body() body: unknown) {
-    const { statement } = parse(EditBody, body);
+    const { statement } = parse(EditFactBody, body);
     return view(await this.memory.editFact(parse(FactId, id), statement));
   }
 

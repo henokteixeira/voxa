@@ -3,13 +3,10 @@
  * The level is an estimate (the tutor reading what the learner said against the CEFR descriptors,
  * or the learner's own correction), never a certificate: it only picks how much help to give.
  */
-import { CEFR_LEVELS, type CefrLevel } from "@voxa/contracts";
+import { CEFR_LEVELS, type CefrLevel, LEVEL_SOURCES, type LevelSource } from "@voxa/contracts";
 
-export { CEFR_LEVELS, type CefrLevel };
+export { CEFR_LEVELS, type CefrLevel, LEVEL_SOURCES, type LevelSource };
 
-/** How a level was set: the placement session, the learner by hand, or a step change he confirmed. */
-export const LEVEL_SOURCES = ["placement", "manual", "step_change"] as const;
-export type LevelSource = (typeof LEVEL_SOURCES)[number];
 
 /**
  * How much help a session gives (leveling and guided track design, approved by the learner on 2026-11-07):
