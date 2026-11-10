@@ -40,7 +40,7 @@ export function CheckInComparison({
         // Shown only when both check-ins were read for mistakes (older ones weren't): fewer is better.
         ...fewerIsBetter(copy.mistakesPer100Words, previous.mistakesPer100Words, checkIn.mistakesPer100Words),
         ...fewerIsBetter(copy.otherLanguageWords, previous.otherLanguageWords, checkIn.otherLanguageWords),
-        ...moreIsBetter(copy.linkingWords, previous.linkingWords, checkIn.linkingWords),
+        ...moreIsBetter(copy.linkingWordsPer100, previous.linkingWordsPer100, checkIn.linkingWordsPer100),
       ]
     : [];
   return (

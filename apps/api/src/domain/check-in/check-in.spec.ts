@@ -15,7 +15,7 @@ describe("check-in", () => {
       language: "en",
       task: "present_project",
       recordedAt: now,
-      transcript: "",
+      transcript: "It works because we tested it, but it is slow.",
       spokenWords: 136,
       speechMs: 120_000,
       longPauses: 9,
@@ -29,7 +29,7 @@ describe("check-in", () => {
       longPauses: 9,
       mistakesPer100Words: 3.7,
       otherLanguageWords: 2,
-      linkingWords: 0,
+      linkingWordsPer100: 1.5,
     });
   });
 

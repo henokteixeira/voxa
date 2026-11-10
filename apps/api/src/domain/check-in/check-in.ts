@@ -1,5 +1,5 @@
 import { wordsPerMinute } from "../conversation/fluency.js";
-import { countLinkingWords } from "./linking-words.js";
+import { linkingWordsPer100 } from "./linking-words.js";
 
 /**
  * The check-in every 2 weeks: always the same task, 2 minutes, no help and no corrections, compared with
@@ -37,8 +37,8 @@ export interface CheckInPace {
   /** Rounded to one decimal; null when the transcript was not read or has no words. */
   mistakesPer100Words: number | null;
   otherLanguageWords: number | null;
-  /** Words that link ideas (because, so, although...); null for a language without a list. */
-  linkingWords: number | null;
+  /** Words that link ideas (because, but, although...) per 100 words; null for a language without a list or no words. */
+  linkingWordsPer100: number | null;
 }
 
 export function checkInPace(checkIn: CheckIn): CheckInPace {
@@ -52,7 +52,7 @@ export function checkInPace(checkIn: CheckIn): CheckInPace {
         ? null
         : Math.round((checkIn.mistakes / checkIn.spokenWords) * 1000) / 10,
     otherLanguageWords: checkIn.otherLanguageWords,
-    linkingWords: countLinkingWords(checkIn.transcript, checkIn.language),
+    linkingWordsPer100: linkingWordsPer100(checkIn.transcript, checkIn.language, checkIn.spokenWords),
   };
 }
 

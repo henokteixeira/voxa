@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -77,16 +77,29 @@ describe("Check-in", () => {
     expect(router.state.location.pathname).toBe("/");
   });
 
+  it("shows no linking-word row when one of the check-ins has no count", async () => {
+    const recordCheckIn = vi.fn().mockResolvedValue({
+      checkIn: { ...pace("c2", "2026-11-23T10:00:00Z", 81, 4), linkingWordsPer100: 3, transcript: "My project…" },
+      previous: { ...pace("c1", "2026-11-09T10:00:00Z", 68, 9), linkingWordsPer100: null },
+    });
+    const { speak } = renderCheckIn({ checkIns: vi.fn().mockResolvedValue(overview(true)), recordCheckIn, checkInRecording: vi.fn() });
+    await userEvent.click(await screen.findByRole("button", { name: "Start · 2:00" }));
+    speak();
+    await userEvent.click(screen.getByRole("button", { name: "I'm done" }));
+    expect(await screen.findByRole("row", { name: "Long pauses 9 4" })).toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /^Linking words/ })).not.toBeInTheDocument();
+  });
+
   it("compares mistakes per 100 words and Portuguese words when both check-ins have them", async () => {
-    const read = (id: string, at: string, wpm: number, mistakes: number, words: number) => ({
+    const read = (id: string, at: string, wpm: number, mistakes: number, words: number, linking: number | null) => ({
       ...pace(id, at, wpm, 4),
       mistakesPer100Words: mistakes,
       otherLanguageWords: words,
-      linkingWords: words + 3,
+      linkingWordsPer100: linking,
     });
     const recordCheckIn = vi.fn().mockResolvedValue({
-      checkIn: { ...read("c2", "2026-11-23T10:00:00Z", 81, 3.5, 2), transcript: "My project…" },
-      previous: read("c1", "2026-11-09T10:00:00Z", 68, 6.2, 2),
+      checkIn: { ...read("c2", "2026-11-23T10:00:00Z", 81, 3.5, 2, 4.1), transcript: "My project…" },
+      previous: read("c1", "2026-11-09T10:00:00Z", 68, 6.2, 2, 2.2),
     });
     const { speak } = renderCheckIn({ checkIns: vi.fn().mockResolvedValue(overview(true)), recordCheckIn, checkInRecording: vi.fn() });
     await userEvent.click(await screen.findByRole("button", { name: "Start · 2:00" }));
@@ -95,7 +108,9 @@ describe("Check-in", () => {
 
     expect(await screen.findByRole("row", { name: "Mistakes per 100 words 6.2 3.5" })).toBeInTheDocument();
     expect(screen.getByRole("row", { name: "Words in Portuguese 2 2" })).toBeInTheDocument();
-    expect(screen.getByRole("row", { name: "Linking words (because, so, but…) 5 5" })).toBeInTheDocument();
+    // More linking words is better: the new value gets the color.
+    const linking = screen.getByRole("row", { name: "Linking words per 100 (because, but…) 2.2 4.1" });
+    expect(within(linking).getByText("4.1")).toHaveClass("text-sage-ink");
   });
 
   it("asks again when nothing was said", async () => {

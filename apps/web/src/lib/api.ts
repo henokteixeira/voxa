@@ -361,8 +361,8 @@ export interface CheckInPace {
   mistakesPer100Words: number | null;
   /** Words said in Portuguese (another language); null when the transcript wasn't read. */
   otherLanguageWords: number | null;
-  /** Words that link ideas (because, so, but…); null for a language without a list. Missing from older APIs. */
-  linkingWords?: number | null;
+  /** Words that link ideas (because, but, although…) per 100 words; null for a language without a list. Missing from older APIs. */
+  linkingWordsPer100?: number | null;
 }
 
 export interface CheckInOverview {
