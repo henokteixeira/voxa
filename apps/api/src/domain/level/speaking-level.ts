@@ -7,7 +7,6 @@ import { CEFR_LEVELS, type CefrLevel, LEVEL_SOURCES, type LevelSource } from "@v
 
 export { CEFR_LEVELS, type CefrLevel, LEVEL_SOURCES, type LevelSource };
 
-
 /**
  * How much help a session gives (leveling and guided track design, approved by the learner on 2026-11-07):
  * build_full (A1) = the guided track in full; build_light (A2) = the track, with the model only when he can't answer;
