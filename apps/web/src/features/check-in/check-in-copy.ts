@@ -1,3 +1,4 @@
+import type { CheckInTopic } from "@voxa/contracts";
 import type { Copy } from "@/lib/i18n/locale";
 
 /** Copy for the check-in every 2 weeks. */
@@ -45,6 +46,15 @@ export interface CheckInCopy {
   historyEvery: string;
   historyItem: (date: string, wordsPerMinute: number | null) => string;
   next: (date: string) => string;
+  /** The second task: 1 minute on a topic never given before. */
+  topicLabel: string;
+  topics: Record<CheckInTopic, string>;
+  topicListening: string;
+  topicNext: string;
+  topicLater: string;
+  topicFirstTitle: string;
+  topicFirstBody: string;
+  topicGainTitle: (gain: { kind: "pace" | "pauses"; before: number; now: number } | null, day: string | null) => string;
 }
 
 export const CHECK_IN_COPY: Copy<CheckInCopy> = {
@@ -96,6 +106,30 @@ export const CHECK_IN_COPY: Copy<CheckInCopy> = {
     historyEvery: "every 2 weeks",
     historyItem: (date, wpm) => `${date}: ${wpm ?? "no"} words per minute. Open this check-in`,
     next: (date) => `Next check-in: ${date}`,
+    topicLabel: "A new topic · 1 minute",
+    topics: {
+      last_weekend: "Tell me about something you did last weekend.",
+      problem_solved: "Tell me about a problem you solved recently, and how.",
+      explain_skill: "Explain how to do something you know well.",
+      change_wanted: "What would you change in your city or at work, and why?",
+      place_remembered: "Tell me about a place you remember well.",
+      person_admired: "Tell me about someone you admire, and why.",
+      next_month: "What are your plans for the next month?",
+      recommendation: "Recommend a book, a film or a series, and say why.",
+      childhood_memory: "Tell me about a memory from your childhood.",
+      hard_decision: "Tell me about a hard decision you made.",
+    },
+    topicListening: "Listening. Talk about the topic.",
+    topicNext: "One more minute: a new topic",
+    topicLater: "Not now",
+    topicFirstTitle: "Your first new topic is saved.",
+    topicFirstBody: "Each check-in brings a topic you haven't prepared, so you see how you talk off the cuff.",
+    topicGainTitle: (gain, day) => {
+      if (!gain) return "A new topic, with nothing prepared. Listen to how it sounds.";
+      return gain.kind === "pace"
+        ? `On the last new topic you said ${gain.before} words a minute. ${day ? `On ${day}` : "Today"}, ${gain.now}.`
+        : `On the last new topic you paused ${gain.before} ${gain.before === 1 ? "time" : "times"}. ${day ? `On ${day}` : "Today"}, ${gain.now}.`;
+    },
   },
   "pt-BR": {
     label: "Check-in",
@@ -145,5 +179,29 @@ export const CHECK_IN_COPY: Copy<CheckInCopy> = {
     historyEvery: "a cada 2 semanas",
     historyItem: (date, wpm) => `${date}: ${wpm ?? "sem"} palavras por minuto. Abrir este check-in`,
     next: (date) => `Próximo check-in: ${date}`,
+    topicLabel: "Um tema novo · 1 minuto",
+    topics: {
+      last_weekend: "Conte algo que você fez no último fim de semana.",
+      problem_solved: "Conte um problema que você resolveu há pouco, e como.",
+      explain_skill: "Explique como fazer algo que você sabe fazer bem.",
+      change_wanted: "O que você mudaria na sua cidade ou no trabalho, e por quê?",
+      place_remembered: "Fale de um lugar de que você se lembra bem.",
+      person_admired: "Fale de alguém que você admira, e por quê.",
+      next_month: "Quais são seus planos para o próximo mês?",
+      recommendation: "Recomende um livro, filme ou série, e diga por quê.",
+      childhood_memory: "Conte uma lembrança da sua infância.",
+      hard_decision: "Conte uma decisão difícil que você tomou.",
+    },
+    topicListening: "Ouvindo. Fale sobre o tema.",
+    topicNext: "Mais 1 minuto: um tema novo",
+    topicLater: "Agora não",
+    topicFirstTitle: "Seu primeiro tema novo está salvo.",
+    topicFirstBody: "Cada check-in traz um tema que você não preparou, para ver como você fala de improviso.",
+    topicGainTitle: (gain, day) => {
+      if (!gain) return "Um tema novo, sem nada preparado. Ouça como soa.";
+      return gain.kind === "pace"
+        ? `No último tema novo você falou ${gain.before} palavras por minuto. ${day ? `Em ${day}` : "Hoje"}, ${gain.now}.`
+        : `No último tema novo você pausou ${gain.before} ${gain.before === 1 ? "vez" : "vezes"}. ${day ? `Em ${day}` : "Hoje"}, ${gain.now}.`;
+    },
   },
 };
