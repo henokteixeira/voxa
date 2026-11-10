@@ -4,10 +4,11 @@ FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends espeak-ng \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY requirements.txt ./
-# CPU-only PyTorch first: the default Linux wheel bundles CUDA (several GB).
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.lock ./
+# CPU-only PyTorch first: the default Linux wheel bundles CUDA (several GB). Same version as in requirements.lock's resolve.
+RUN pip install --no-cache-dir torch==2.15.0 --index-url https://download.pytorch.org/whl/cpu
+# Exact versions, so every build gets the same packages.
+RUN pip install --no-cache-dir -r requirements.lock
 # Kokoro's English phonemizer installs this spaCy model at runtime if missing; bake it in.
 RUN python -m spacy download en_core_web_sm
 COPY . .
