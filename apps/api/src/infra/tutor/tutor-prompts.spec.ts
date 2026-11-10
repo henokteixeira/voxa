@@ -10,6 +10,7 @@ import {
   PLACEMENT_RULES,
   SCENES,
   strategiesSection,
+  NATURAL_TALK,
   SUPPORT_RULES,
 } from "./tutor-prompts.js";
 
@@ -173,6 +174,19 @@ describe("buildSystemPrompt: help by support step", () => {
     expect(SUPPORT_RULES.supported).toMatch(/only the start of a sentence/);
     expect(SUPPORT_RULES.supported).toMatch(/Never the whole answer/);
     expect(SUPPORT_RULES.supported).toMatch(/serious mistake .* give no sentence start/);
+  });
+
+  it("talks at natural length and asks unexpected questions from B1 up, and keeps lines short below", () => {
+    for (const step of ["supported", "conversation", "demanding"] as const) {
+      expect(prompt(step)).toContain(NATURAL_TALK);
+      expect(prompt(step)).not.toMatch(/one to three/);
+    }
+    expect(NATURAL_TALK).toMatch(/unexpected/);
+    for (const step of ["build_full", "build_light", null] as const) {
+      expect(prompt(step)).not.toContain(NATURAL_TALK);
+      expect(prompt(step)).toMatch(/short spoken sentences \(one to three\)/);
+    }
+    expect(SUPPORT_RULES.demanding).not.toMatch(/sponsor/);
   });
 
   it("follows the guided track at A1–A2", () => {
