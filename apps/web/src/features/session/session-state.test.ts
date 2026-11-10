@@ -182,9 +182,19 @@ describe("sessionReducer", () => {
     expect(sessionReducer(state, { type: "speech_start" }).missed).toBe(false);
   });
 
-  it.each(["bad_audio", "conflict"] as const)("treats %s as 'didn't catch that', not as a failure", (code) => {
-    const state = run(started, { type: "sent", request: "audio", audio: WAV }, { type: "failed", code });
+  it("treats a bad recording as 'didn't catch that', not as a failure", () => {
+    const state = run(started, { type: "sent", request: "audio", audio: WAV }, { type: "failed", code: "bad_audio" });
     expect(state).toMatchObject({ phase: "listening", missed: true, failure: null });
+  });
+
+  it("offers to send the same words again when the turn was not saved for a conflict", () => {
+    const state = run(
+      started,
+      { type: "sent", request: "audio", audio: WAV },
+      { type: "transcript", text: "I fixed it" },
+      { type: "failed", code: "conflict" },
+    );
+    expect(state).toMatchObject({ phase: "failed", failure: "conflict", retry: { kind: "text", text: "I fixed it" } });
   });
 
   it.each([

@@ -154,8 +154,7 @@ export const initialSessionState: SessionState = {
 };
 
 /** Failures that do not stop the session: say "didn't catch that" and listen again. */
-/** A turn refused for a conflict was not saved either: the learner says it again. */
-const SOFT_FAILURES: FailureCode[] = ["bad_audio", "invalid", "too_long", "conflict"];
+const SOFT_FAILURES: FailureCode[] = ["bad_audio", "invalid", "too_long"];
 const OVER: Phase[] = ["ending", "ended"];
 
 export function sessionReducer(state: SessionState, action: SessionAction): SessionState {

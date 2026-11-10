@@ -11,6 +11,7 @@ import type {
   SessionOutcome,
   SessionProgress,
   SessionRepository,
+  TurnClaim,
 } from "../../domain/ports/session.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
 import { sessions, turns } from "./schema.js";
@@ -104,11 +105,16 @@ export class DrizzleSessionRepository implements SessionRepository {
     return row ? toSession(row) : null;
   }
 
-  async claimTurn(sessionId: string, turnsSeen: number): Promise<boolean> {
+  async claimTurn(sessionId: string, turnsSeen: number): Promise<TurnClaim> {
     // The row lock waits for any other turn of this session still being saved.
-    await this.db.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, sessionId)).for("update");
+    const [session] = await this.db
+      .select({ endedAt: sessions.endedAt })
+      .from(sessions)
+      .where(eq(sessions.id, sessionId))
+      .for("update");
+    if (!session || session.endedAt) return "ended";
     const [row] = await this.db.select({ total: count() }).from(turns).where(eq(turns.sessionId, sessionId));
-    return (row?.total ?? 0) === turnsSeen;
+    return (row?.total ?? 0) === turnsSeen ? "claimed" : "taken";
   }
 
   async appendTurn(sessionId: string, turn: NewTurn): Promise<void> {

@@ -51,12 +51,15 @@ describe("DrizzleUnitOfWork", () => {
 });
 
 describe("DrizzleSessionRepository.claimTurn", () => {
-  it("is true while the session has exactly the turns seen, false once another was saved", async () => {
+  it("claims while the session has exactly the turns seen, and says when another turn was saved or it ended", async () => {
     const { id } = await sessions.create({ language: "en", mode: "daily" });
     await sessions.appendTurn(id, { role: "assistant", content: "Hi." });
+    const claim = (turnsSeen: number) => unitOfWork.run((stores) => stores.sessions.claimTurn(id, turnsSeen));
 
-    expect(await unitOfWork.run((stores) => stores.sessions.claimTurn(id, 1))).toBe(true);
+    expect(await claim(1)).toBe("claimed");
     await sessions.appendTurn(id, { role: "user", content: "Hello." });
-    expect(await unitOfWork.run((stores) => stores.sessions.claimTurn(id, 1))).toBe(false);
+    expect(await claim(1)).toBe("taken");
+    await sessions.end(id, null);
+    expect(await claim(2)).toBe("ended");
   });
 });

@@ -378,20 +378,27 @@ export class ConversationService {
     // Words to say only come with a plain reply: a hint or the correct form asks for the learner's own sentence.
     const scaffold = inTrack ? inTrack.scaffold : decision.kind === "reply" ? keptScaffold(session.step, verdict) : null;
     // Everything the turn changes is saved together: a failure halfway leaves no mistake counted for a turn that was never saved.
-    await this.saveTurn(sessionId, history.length, async (stores) => {
-      await recordTurnLearning(stores.mistakes, new ReviewScheduler(stores.reviews), learning);
-      await stores.sessions.appendTurn(sessionId, { role: "user", content: utterance, assisted });
-      await stores.sessions.appendTurn(sessionId, { role: "assistant", content: said });
-      await stores.sessions.setPending(sessionId, decision.nextPending);
-      await stores.sessions.setProgress(sessionId, {
-        coveredGoals,
-        lastCheckInAt: checkIn ? now : session.lastCheckInAt,
-        metTargets,
-        scaffold,
-        step: move?.step ?? session.step,
-        track: move?.track ?? session.track,
+    try {
+      await this.saveTurn(sessionId, history.length, async (stores) => {
+        await recordTurnLearning(stores.mistakes, new ReviewScheduler(stores.reviews), learning);
+        await stores.sessions.appendTurn(sessionId, { role: "user", content: utterance, assisted });
+        await stores.sessions.appendTurn(sessionId, { role: "assistant", content: said });
+        await stores.sessions.setPending(sessionId, decision.nextPending);
+        await stores.sessions.setProgress(sessionId, {
+          coveredGoals,
+          lastCheckInAt: checkIn ? now : session.lastCheckInAt,
+          metTargets,
+          scaffold,
+          step: move?.step ?? session.step,
+          track: move?.track ?? session.track,
+        });
       });
-    });
+    } catch (error) {
+      // Saving failed after the reply was spoken: keep at least the reply. Not after a conflict or an end, which won.
+      const lost = !(error instanceof TurnConflictError || error instanceof SessionEndedError);
+      if (lost && early.reply !== null) await this.keepSpokenReply(session, history.length, utterance, early.reply);
+      throw error;
+    }
 
     return {
       kind: decision.kind,
@@ -411,7 +418,9 @@ export class ConversationService {
   /** Saves one turn's writes in a single transaction, after checking no other turn of the session was saved meanwhile. */
   private saveTurn(sessionId: string, turnsSeen: number, write: (stores: TransactionStores) => Promise<void>): Promise<void> {
     return this.unitOfWork.run(async (stores) => {
-      if (!(await stores.sessions.claimTurn(sessionId, turnsSeen))) throw new TurnConflictError(sessionId);
+      const claim = await stores.sessions.claimTurn(sessionId, turnsSeen);
+      if (claim === "ended") throw new SessionEndedError(sessionId);
+      if (claim === "taken") throw new TurnConflictError(sessionId);
       await write(stores);
     });
   }

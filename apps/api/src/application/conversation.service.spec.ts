@@ -96,7 +96,9 @@ class FakeSessions implements SessionRepository {
   /** Whether each learner turn was helped, in order. */
   assisted = new Map<string, boolean[]>();
   async claimTurn(id: string, turnsSeen: number) {
-    return this.rows.get(id)!.turns.length === turnsSeen;
+    const row = this.rows.get(id)!;
+    if (row.endedAt) return "ended" as const;
+    return row.turns.length === turnsSeen ? ("claimed" as const) : ("taken" as const);
   }
   async appendTurn(id: string, { assisted, ...turn }: NewTurn) {
     this.rows.get(id)!.turns.push(turn);
@@ -353,8 +355,19 @@ beforeEach(() => {
     new ReviewScheduler(reviews),
     memory as unknown as LearnerMemoryService,
     missions,
-    // The fakes keep no transaction: the database test checks that a failed turn saves nothing.
-    { run: (work) => work({ sessions, mistakes, reviews: reviews as unknown as ReviewRepository }) },
+    // Rolls the fakes back when the work fails, like a transaction (the database test checks the real one).
+    {
+      run: async (work) => {
+        const saved = structuredClone({ rows: sessions.rows, assisted: sessions.assisted, events: mistakes.events, bank: mistakes.bank });
+        try {
+          return await work({ sessions, mistakes, reviews: reviews as unknown as ReviewRepository });
+        } catch (error) {
+          Object.assign(sessions, { rows: saved.rows, assisted: saved.assisted });
+          Object.assign(mistakes, { events: saved.events, bank: saved.bank });
+          throw error;
+        }
+      },
+    },
   );
 });
 
@@ -1542,5 +1555,32 @@ describe("ConversationService.respond: saving the turn", () => {
 
     expect(mistakes.events).toEqual([]);
     expect((await sessions.get(session.id))?.pending).toBeNull();
+  });
+
+  it("refuses a turn of a session that ended while it was answered", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    const evaluate = tutor.evaluate.bind(tutor);
+    tutor.evaluate = async (request, onReply) => {
+      await sessions.end(session.id, null);
+      return evaluate(request, onReply);
+    };
+
+    await expect(service.respond(session.id, "I goed to the meeting")).rejects.toBeInstanceOf(SessionEndedError);
+    expect(mistakes.events).toEqual([]);
+  });
+
+  it("keeps a reply already handed over when saving the analysed turn fails", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    const setPending = vi.spyOn(sessions, "setPending").mockRejectedValueOnce(new Error("Connection lost."));
+
+    await expect(service.respond(session.id, "I goed to the meeting", () => {})).rejects.toThrow("Connection lost.");
+
+    setPending.mockRestore();
+    expect((await sessions.history(session.id)).slice(-2)).toEqual([
+      { role: "user", content: "I goed to the meeting" },
+      { role: "assistant", content: "Nice. What happened next?" },
+    ]);
   });
 });
