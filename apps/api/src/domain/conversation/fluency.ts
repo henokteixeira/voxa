@@ -1,18 +1,8 @@
+import type { SessionTiming } from "@voxa/contracts";
 import type { Severity } from "./types.js";
 
 /** Timing the web app measures during a live session. Typed turns add words but no speech or pause. */
-export interface SessionTiming {
-  /** Total time the learner spoke. */
-  learnerSpeechMs: number;
-  /** Total time the tutor's voice played. */
-  tutorSpeechMs: number;
-  /** For each spoken answer: from the end of the tutor's voice to the start of the learner's speech. */
-  pausesMs: number[];
-  /** Silences of at least 1 s inside the learner's spoken answers. Missing in sessions measured before it existed. */
-  longPausesMs?: number[];
-  /** Words the learner spoke (typed turns do not count). Missing in sessions measured before it existed. */
-  spokenWords?: number;
-}
+export type { SessionTiming };
 
 /** The fluency signals of a session. Null when the session gives nothing to measure. */
 export interface FluencySignals {

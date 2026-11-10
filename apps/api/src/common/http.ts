@@ -6,10 +6,7 @@ import { isTimeZone } from "../domain/progress/daily-goal.js";
 export const TimeZone = z.string().max(64).refine(isTimeZone, "Unknown time zone.");
 
 /** A BCP 47 language tag, e.g. "en" or "en-US". English when missing. */
-export const Language = z
-  .string()
-  .regex(/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/)
-  .default("en");
+export { Language } from "@voxa/contracts";
 
 /** Validates request input; a mismatch is an InvalidInputError, answered with 400. */
 export function parse<T>(schema: z.ZodType<T>, value: unknown): T {

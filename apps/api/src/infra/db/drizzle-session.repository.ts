@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import { isTrackStage, type TrackState } from "../../domain/conversation/guided-track.js";
 import { isMode } from "../../domain/conversation/mode.js";
@@ -12,9 +12,10 @@ import type {
   SessionProgress,
   SessionRepository,
   TurnClaim,
+  UnfinishedSession,
 } from "../../domain/ports/session.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
-import { sessions, turns } from "./schema.js";
+import { sessions, sessionXp, turns } from "./schema.js";
 
 type SessionRow = typeof sessions.$inferSelect;
 
@@ -121,6 +122,7 @@ export class DrizzleSessionRepository implements SessionRepository {
     await this.db
       .insert(turns)
       .values({ sessionId, role: turn.role, content: turn.content, assisted: turn.assisted ?? false });
+    await this.db.update(sessions).set({ lastActiveAt: new Date() }).where(eq(sessions.id, sessionId));
   }
 
   async history(sessionId: string): Promise<ChatTurn[]> {
@@ -143,8 +145,53 @@ export class DrizzleSessionRepository implements SessionRepository {
       .where(eq(sessions.id, sessionId));
   }
 
-  async end(sessionId: string, timing: SessionTiming | null): Promise<void> {
-    await this.db.update(sessions).set({ endedAt: new Date(), timing }).where(eq(sessions.id, sessionId));
+  async saveTiming(sessionId: string, timing: SessionTiming): Promise<boolean> {
+    const saved = await this.db
+      .update(sessions)
+      .set({ timing, lastActiveAt: new Date() })
+      .where(and(eq(sessions.id, sessionId), isNull(sessions.endedAt)))
+      .returning({ id: sessions.id });
+    return saved.length > 0;
+  }
+
+  async unfinished(query: {
+    idleBefore: Date;
+    endedAfter: Date;
+    limit: number;
+    after?: UnfinishedSession;
+  }): Promise<UnfinishedSession[]> {
+    // To the millisecond, like the Date the page cursor comes back as.
+    const endsAt = sql<Date>`date_trunc('milliseconds', coalesce(${sessions.endedAt}, ${sessions.lastActiveAt}))`;
+    const rows = await this.db
+      .select({ id: sessions.id, endsAt: sql<Date | string>`${endsAt}` })
+      .from(sessions)
+      .leftJoin(sessionXp, eq(sessionXp.sessionId, sessions.id))
+      .where(
+        and(
+          or(
+            and(isNull(sessions.endedAt), lt(sessions.lastActiveAt, query.idleBefore)),
+            // Its end (by the learner or the server) is the last change: when that stopped half way.
+            and(
+              isNotNull(sessions.endedAt),
+              isNull(sessionXp.sessionId),
+              gt(sessions.lastActiveAt, query.endedAfter),
+              lt(sessions.lastActiveAt, query.idleBefore),
+            ),
+          ),
+          query.after && sql`(${endsAt}, ${sessions.id}) > (${query.after.endsAt.toISOString()}::timestamptz, ${query.after.id}::uuid)`,
+        ),
+      )
+      .orderBy(asc(endsAt), asc(sessions.id))
+      .limit(query.limit);
+    return rows.map((row) => ({ id: row.id, endsAt: new Date(row.endsAt) }));
+  }
+
+  async end(sessionId: string, timing: SessionTiming | null, endedAt = new Date()): Promise<void> {
+    await this.db
+      .update(sessions)
+      // Without a timing, the one saved during the session stays.
+      .set({ endedAt, lastActiveAt: new Date(), ...(timing && { timing }) })
+      .where(eq(sessions.id, sessionId));
   }
 
   async outcome(sessionId: string): Promise<SessionOutcome | null> {

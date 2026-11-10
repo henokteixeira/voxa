@@ -218,6 +218,13 @@
       "when": 1794333256222,
       "tag": "0030_metrics",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1794333477788,
+      "tag": "0031_session_last_active",
+      "breakpoints": true
     }
   ]
 }

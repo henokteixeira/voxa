@@ -58,6 +58,13 @@ describe("ProgressService.awardSession", () => {
     expect(await service.awardSession({ ...input, goalsCovered: 3 })).toEqual(first);
   });
 
+  it("counts the XP at the time given: a session the server closed counts on the day it was left", async () => {
+    const sessionId = await endedSession(timing(10));
+    const awardedAt = new Date("2026-11-06T23:00:00Z");
+    await service.awardSession({ sessionId, goalsCovered: 0, selfCorrections: 0, wordsPerMinute: null, awardedAt });
+    expect(await new DrizzleProgressRepository(db).earnedSince("en", new Date(0))).toEqual([{ total: 10, awardedAt }]);
+  });
+
   it("gives a record bonus for the fastest pace after 3 measured sessions", async () => {
     for (const wpm of [50, 55, 60]) {
       const id = await endedSession(timing(4, wpm));

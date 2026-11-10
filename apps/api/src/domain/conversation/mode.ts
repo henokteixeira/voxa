@@ -1,10 +1,6 @@
-/**
- * The practice modes (everyday conversations and work meetings), plus `placement`: the speaking-level
- * interview (it never corrects, it only observes).
- */
-export const MODES = ["free_talk", "my_day", "story", "opinion", "presentation", "daily", "review", "placement"] as const;
+import { MODES, type Mode } from "@voxa/contracts";
 
-export type Mode = (typeof MODES)[number];
+export { MODES, type Mode };
 
 export function isMode(value: unknown): value is Mode {
   return typeof value === "string" && (MODES as readonly string[]).includes(value);

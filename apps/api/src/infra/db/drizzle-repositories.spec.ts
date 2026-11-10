@@ -3,7 +3,8 @@ import type { PendingCorrection } from "../../domain/conversation/types.js";
 import type { Database } from "./db.module.js";
 import { DrizzleMistakeRepository } from "./drizzle-mistake.repository.js";
 import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
-import { mistakeCorrectUses, mistakeOccurrences, turns } from "./schema.js";
+import { eq, sql } from "drizzle-orm";
+import { mistakeCorrectUses, mistakeOccurrences, sessions as sessionRows, sessionXp, turns } from "./schema.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
@@ -137,6 +138,60 @@ describe("DrizzleSessionRepository", () => {
     const timing = { learnerSpeechMs: 61_000, tutorSpeechMs: 42_500, pausesMs: [1200, 800] };
     await sessions.end(id, timing);
     expect((await sessions.outcome(id))?.timing).toEqual(timing);
+  });
+
+  it("keeps the timing saved during the session when it ends without one", async () => {
+    const { id } = await sessions.create({ language: "en", mode: "daily" });
+    const timing = { learnerSpeechMs: 30_000, tutorSpeechMs: 20_000, pausesMs: [900] };
+    expect(await sessions.saveTiming(id, timing)).toBe(true);
+    const endedAt = new Date("2026-11-10T09:00:00Z");
+    await sessions.end(id, null, endedAt);
+    expect((await sessions.outcome(id))?.timing).toEqual(timing);
+    expect((await sessions.get(id))?.endedAt).toEqual(endedAt);
+    expect(await sessions.saveTiming(id, { ...timing, learnerSpeechMs: 1 })).toBe(false);
+    expect((await sessions.outcome(id))?.timing).toEqual(timing);
+  });
+
+  it("lists the sessions left open and the ends that stopped before the XP, earliest first, page by page", async () => {
+    const set = async (id: string, values: Partial<typeof sessionRows.$inferInsert>) =>
+      db.update(sessionRows).set(values).where(eq(sessionRows.id, id));
+    const create = () => sessions.create({ language: "en", mode: "daily" });
+    const [older, old, recent, endedNoXp, endedWithXp, endedLongAgo, endedJustNow] = await Promise.all(
+      Array.from({ length: 7 }, create),
+    );
+    await set(older.id, { lastActiveAt: new Date("2026-11-10T06:00:00Z") });
+    await set(old.id, { lastActiveAt: new Date("2026-11-10T07:00:00Z") });
+    await set(recent.id, { lastActiveAt: new Date("2026-11-10T11:00:00Z") });
+    // An end is the session's last change.
+    const ended = (at: string, lastActiveAt = at) => ({ endedAt: new Date(at), lastActiveAt: new Date(lastActiveAt) });
+    await set(endedNoXp.id, ended("2026-11-10T06:30:00Z"));
+    await set(endedWithXp.id, ended("2026-11-10T06:30:00Z"));
+    await db.insert(sessionXp).values({ sessionId: endedWithXp.id, language: "en", total: 0, awardedAt: new Date() });
+    await set(endedLongAgo.id, ended("2026-11-08T06:00:00Z"));
+    await set(endedJustNow.id, ended("2026-11-10T11:30:00Z"));
+    // Closed by the server at its last turn weeks ago, an hour after the window started: retried.
+    const closedLate = await create();
+    await set(closedLate.id, ended("2026-10-20T08:00:00Z", "2026-11-09T13:00:00Z"));
+    const query = { idleBefore: new Date("2026-11-10T10:00:00Z"), endedAfter: new Date("2026-11-09T12:00:00Z"), limit: 10 };
+
+    expect(await sessions.unfinished(query)).toEqual([
+      { id: closedLate.id, endsAt: new Date("2026-10-20T08:00:00Z") },
+      { id: older.id, endsAt: new Date("2026-11-10T06:00:00Z") },
+      { id: endedNoXp.id, endsAt: new Date("2026-11-10T06:30:00Z") },
+      { id: old.id, endsAt: new Date("2026-11-10T07:00:00Z") },
+    ]);
+    const [, second] = await sessions.unfinished({ ...query, limit: 2 });
+    expect((await sessions.unfinished({ ...query, after: second })).map((s) => s.id)).toEqual([endedNoXp.id, old.id]);
+
+    await sessions.appendTurn(older.id, { role: "user", content: "I'm back." });
+    expect((await sessions.unfinished(query)).map((s) => s.id)).toEqual([closedLate.id, endedNoXp.id, old.id]);
+
+    // A page cursor read back from a time stored to the microsecond does not return its own row again.
+    const fresh = await create();
+    await db.execute(sql`update sessions set last_active_at = '2026-11-10T08:00:00.123456Z' where id = ${fresh.id}`);
+    const page = await sessions.unfinished(query);
+    const atFresh = page.findIndex((s) => s.id === fresh.id);
+    expect((await sessions.unfinished({ ...query, after: page[atFresh] })).map((s) => s.id)).not.toContain(fresh.id);
   });
 
   it("has no outcome for an unknown session", async () => {

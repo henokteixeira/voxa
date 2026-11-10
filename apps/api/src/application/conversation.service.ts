@@ -457,7 +457,13 @@ export class ConversationService {
   }
 
   /** Ends the session (once: ending it again keeps the first timing) and returns its summary. */
-  async end(sessionId: string, timing: SessionTiming | null = null): Promise<SessionSummary> {
+  /** Keeps the timing the web app measured so far, so a session left open still has it when it is closed. */
+  async saveTiming(sessionId: string, timing: SessionTiming): Promise<void> {
+    if (!(await this.sessions.saveTiming(sessionId, timing))) await this.openSession(sessionId);
+  }
+
+  /** `endedAt` defaults to now; a session closed for being left idle ends at its last activity. */
+  async end(sessionId: string, timing: SessionTiming | null = null, endedAt?: Date): Promise<SessionSummary> {
     const session = await this.sessions.get(sessionId);
     if (!session) throw new SessionNotFoundError(sessionId);
     const history = await this.sessions.history(sessionId);
@@ -466,7 +472,7 @@ export class ConversationService {
       // Assessed before the session is marked ended: if the tutor is down, ending again retries it.
       level = (await this.levels.forSession(sessionId)) ?? (session.endedAt ? null : await this.assessPlacement(session, history));
     }
-    if (!session.endedAt) await this.sessions.end(sessionId, timing);
+    if (!session.endedAt) await this.sessions.end(sessionId, timing, endedAt);
     // Off the summary's path. It saves once, so ending again does not add anything twice.
     void this.memory.rememberLater(sessionId);
     const [mistakes, outcome] = await Promise.all([

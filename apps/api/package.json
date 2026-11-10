@@ -19,6 +19,7 @@
     "@nestjs/config": "^12.1.1",
     "@nestjs/core": "^12.4.0",
     "@nestjs/platform-express": "^12.4.0",
+    "@voxa/contracts": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",

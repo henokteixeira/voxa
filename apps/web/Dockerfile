@@ -3,6 +3,8 @@ FROM node:22-slim AS build-deps
 RUN corepack enable
 WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Shared with the other app; built when it is installed (its `prepare` script).
+COPY packages/contracts packages/contracts
 COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile --filter @voxa/web...
 COPY apps/web apps/web
