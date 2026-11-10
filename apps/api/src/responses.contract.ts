@@ -20,6 +20,7 @@ import type {
 } from "@voxa/contracts";
 import type { CheckInsController } from "./check-ins/check-ins.controller.js";
 import type { Json } from "./common/json.js";
+import type { HealthController } from "./health/health.controller.js";
 import type { LevelsController } from "./levels/levels.controller.js";
 import type { MemoryController } from "./memory/memory.controller.js";
 import type { MissionsController } from "./missions/missions.controller.js";
@@ -40,10 +41,14 @@ import type { TranscriptionsController } from "./voice/transcriptions.controller
 /** What the endpoint `Handler` sends. */
 type Sent<Handler extends (...args: never[]) => unknown> = Json<Awaited<ReturnType<Handler>>>;
 
-/** Fails to compile unless `Answer` is a `Response`. */
+/**
+ * Fails to compile unless `Answer` is a `Response`: every field the web reads is there with its type. Fields marked
+ * optional in the contract (the web copes without them) and extra fields the web ignores still pass.
+ */
 type Answers<Response, Answer extends Response> = Answer;
 
 export type ResponseContracts = [
+  Answers<{ status: string }, Sent<HealthController["check"]>>,
   Answers<StartedSession, Sent<SessionsController["start"]>>,
   Answers<ResumedSession, Sent<SessionsController["resume"]>>,
   Answers<TurnResult, Sent<SessionsController["turn"]>>,
