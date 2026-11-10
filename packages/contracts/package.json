@@ -2,7 +2,7 @@
   "name": "@voxa/contracts",
   "private": true,
   "version": "0.0.0",
-  "description": "What the API and the web app exchange: the shared values and the request schemas.",
+  "description": "What the API and the web app exchange: the shared values, the request schemas and the shapes of the responses.",
   "type": "module",
   "sideEffects": false,
   "exports": {
