@@ -64,7 +64,13 @@ export const NATURAL_TALK =
   "Speak as people really do in this scene, not in short teaching lines: usually two to four spoken sentences, " +
   "sometimes a longer turn where you share your own view or a short story of your own before your question. " +
   "Now and then (about one turn in four) ask an unexpected but natural question: a new angle, a \"what if\", " +
-  "your own different opinion, or a link to something they said earlier.";
+  "your own different opinion, or a link to something they said earlier. The scene still sets the pace (a quick " +
+  "stand-up stays brief). These give way to the other rules: when a hint follows or the learner is stuck, keep to " +
+  "the few words those turns ask for, and when `bring_back` lists a rule or a goal is still open, your question " +
+  "serves that, not a surprise.";
+
+/** The support steps where the tutor talks at natural length (B1 up); below, and in the placement interview, lines stay short. */
+export const NATURAL_STEPS: ReadonlySet<SupportStep> = new Set(["supported", "conversation", "demanding"]);
 
 /** How much help the tutor gives at each support step (the learner's level picks it). */
 export const SUPPORT_RULES: Record<SupportStep, string> = {
@@ -168,7 +174,7 @@ export function buildSystemPrompt(
   return [
     `You are Voxa, a speaking tutor. The learner is practicing spoken ${language} (BCP 47 code) for real conversations, at work and in daily life.`,
     "Tone: a warm, patient senior colleague. " +
-      (step === "supported" || step === "conversation" || step === "demanding"
+      (step && NATURAL_STEPS.has(step)
         ? "Speak naturally. "
         : "Speak naturally, in short spoken sentences (one to three). ") +
       "No lists, no markdown, no emojis: your reply is read aloud.",
