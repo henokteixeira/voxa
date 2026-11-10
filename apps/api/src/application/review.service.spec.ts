@@ -99,6 +99,12 @@ describe("ReviewService", () => {
     expect(result).toEqual({ recalled: true, answer: cue.answer, rule: "Passado.", nextDueAt: day(7), xp: 1 });
   });
 
+  it("keeps a due item at its step when the right answer came after a long search", async () => {
+    const result = await service.answer(await cardFor({ step: 1, dueAt: day(-1) }), "I finished the report", tz, 9_000);
+    expect(result).toMatchObject({ recalled: true, nextDueAt: day(3) });
+    expect(reviews.states.get("p1")).toEqual({ step: 1, dueAt: day(3) });
+  });
+
   it("moves it back on a wrong answer or on \"I don't know\", without asking the coach", async () => {
     coach.recalled = false;
     await service.answer(await cardFor({ step: 2, dueAt: day(-1) }), "I finish the report", tz);

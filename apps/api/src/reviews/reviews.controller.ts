@@ -13,6 +13,8 @@ const AnswerBody = z.object({
   utterance: z.string().max(2000).nullable(),
   /** The learner's time zone: an item earns XP once per local day. */
   timeZone: TimeZone,
+  /** From the cue showing to the learner starting to speak; missing or null for a typed answer. */
+  startDelayMs: z.number().int().min(0).max(600_000).nullable().optional(),
 });
 
 @Controller("reviews")
@@ -38,7 +40,7 @@ export class ReviewsController {
   @Post("answers")
   @HttpCode(200)
   async answer(@Body() body: unknown) {
-    const { cardId, utterance, timeZone } = parse(AnswerBody, body);
-    return this.reviews.answer(cardId, utterance, timeZone);
+    const { cardId, utterance, timeZone, startDelayMs } = parse(AnswerBody, body);
+    return this.reviews.answer(cardId, utterance, timeZone, startDelayMs ?? null);
   }
 }

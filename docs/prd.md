@@ -81,6 +81,7 @@ Every mistake the tutor detects, serious or small, becomes a record in the mista
 
 - **Record:** language (BCP 47), what the user said, the correct form, category (grammar, vocabulary, pronunciation, ...), occurrences, first and last seen, the session it came from.
 - **Repeat detection:** a mistake that matches an existing record increases its count instead of creating a new one; it counts as serious only when its pattern is in focus (see Correction rules).
+- **Slow recall:** a right review answer the learner started more than 6 s after the cue showed keeps the item at its step instead of moving it forward, since in a conversation the words have to come fast (2026-11-10; the 6 s bar is a design choice to tune).
 - **Review queue:** a review asks for the learner's own mistakes and new words before the expressions taken from models, so the 3 expressions that join every day never crowd out real mistakes; a due expression the learner uses in a conversation counts as its review (2026-11-10).
 - **Practice targets:** each session practices 2 mistakes from the bank: patterns due for review first, then mistakes not mastered yet; within each, the ones that got in the way of understanding come before more frequent small slips (2026-11-10).
 - **Status:** Open, Improving or Mastered (approved in the prototype). Open: new, or made again. Improving: the correct form was used in a later session. Mastered: correct in 3 different sessions without the mistake again. Making it again sends it back to Open (confirmed on 2026-11-06).

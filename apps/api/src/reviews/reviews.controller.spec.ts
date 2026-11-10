@@ -56,14 +56,29 @@ describe("POST /reviews/answers", () => {
     const cardId = subject.id;
     await request(app.getHttpServer()).post("/reviews/answers").send({ cardId, utterance: "I finish it", timeZone: "America/Sao_Paulo" }).expect(200);
     await request(app.getHttpServer()).post("/reviews/answers").send({ cardId, utterance: null, timeZone: "America/Sao_Paulo" }).expect(200);
+    await request(app.getHttpServer())
+      .post("/reviews/answers")
+      .send({ cardId, utterance: "I finished it", timeZone: "America/Sao_Paulo", startDelayMs: 2400 })
+      .expect(200);
     expect(service.answer.mock.calls).toEqual([
-      [cardId, "I finish it", "America/Sao_Paulo"],
-      [cardId, null, "America/Sao_Paulo"],
+      [cardId, "I finish it", "America/Sao_Paulo", null],
+      [cardId, null, "America/Sao_Paulo", null],
+      [cardId, "I finished it", "America/Sao_Paulo", 2400],
     ]);
   });
 
   it("rejects an answer without a card or a time zone", async () => {
     await request(app.getHttpServer()).post("/reviews/answers").send({ utterance: "hi", timeZone: "America/Sao_Paulo" }).expect(400);
     await request(app.getHttpServer()).post("/reviews/answers").send({ cardId: subject.id, utterance: "hi" }).expect(400);
+  });
+
+  it("rejects a start delay that is not a whole number of ms from 0 to 10 minutes", async () => {
+    for (const startDelayMs of [-1, 600_001, 1.5, "2400"]) {
+      await request(app.getHttpServer())
+        .post("/reviews/answers")
+        .send({ cardId: subject.id, utterance: "hi", timeZone: "America/Sao_Paulo", startDelayMs })
+        .expect(400);
+    }
+    expect(service.answer).not.toHaveBeenCalled();
   });
 });

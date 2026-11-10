@@ -811,12 +811,12 @@ describe("session summary", () => {
     expect(api.transcribe).toHaveBeenCalledWith(wav, "en");
     expect(api.reviewCard).toHaveBeenCalledWith({ kind: "pattern", id: "p1" });
     expect(await screen.findByRole("status")).toHaveTextContent("That's it");
-    expect(api.answerReview).toHaveBeenCalledWith("c1", "Yesterday I finished it");
+    expect(api.answerReview).toHaveBeenCalledWith("c1", "Yesterday I finished it", null);
     expect(screen.getByRole("region", { name: "You said" })).toHaveTextContent(`Yesterday I finished it${past.name}. ${past.rule}`);
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await userEvent.click(await screen.findByRole("button", { name: "I don't know, show me" }));
-    expect(api.answerReview).toHaveBeenLastCalledWith("c2", null);
+    expect(api.answerReview).toHaveBeenLastCalledWith("c2", null, null);
     expect(await screen.findByText("Almost")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "One way to say it" })).toHaveTextContent("I'm waiting for the keys.");
     expect(screen.getByText("Say it once more · this one comes back tomorrow")).toBeInTheDocument();
@@ -872,7 +872,7 @@ describe("session summary", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Type instead" }));
     await userEvent.type(screen.getByLabelText("Your answer"), "I finished it yesterday{Enter}");
-    expect(api.answerReview).toHaveBeenCalledWith("c1", "I finished it yesterday");
+    expect(api.answerReview).toHaveBeenCalledWith("c1", "I finished it yesterday", null);
   });
 
   it("offers to try again when a cue can't be loaded", async () => {

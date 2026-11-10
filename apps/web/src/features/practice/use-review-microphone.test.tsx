@@ -28,7 +28,8 @@ describe("useReviewMicrophone", () => {
     expect(result.current.speaking).toBe(true);
     const wav = new ArrayBuffer(4);
     act(() => handlers.onTurn(wav));
-    expect(onTurn).toHaveBeenCalledWith(wav);
+    // With how long the learner took to start speaking to the cue.
+    expect(onTurn).toHaveBeenCalledWith(wav, expect.any(Number));
     expect(mic.pause).toHaveBeenCalled();
 
     act(() => handlers.onSpeechStart());
@@ -39,6 +40,39 @@ describe("useReviewMicrophone", () => {
 
     unmount();
     expect(mic.stop).toHaveBeenCalled();
+  });
+
+  it("times each answer from when its cue first showed to the start of that turn's speech", async () => {
+    let now = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    let handlers!: MicrophoneHandlers;
+    const mic = { pause: vi.fn(), resume: vi.fn(), sendNow: vi.fn(), unlock: vi.fn(), stop: vi.fn() };
+    let opened!: (m: typeof mic) => void;
+    const { result, rerender, onTurn } = setup(vi.fn((h: MicrophoneHandlers) => ((handlers = h), new Promise<typeof mic>((r) => (opened = r)))));
+    // The cue showed at 0 while the microphone was still opening: the clock runs from then.
+    now = 8_000;
+    await act(async () => opened(mic));
+    await waitFor(() => expect(result.current.available).toBe(true));
+    now = 8_500;
+    act(() => handlers.onSpeechStart());
+    act(() => handlers.onTurn(new ArrayBuffer(4)));
+    expect(onTurn).toHaveBeenLastCalledWith(expect.any(ArrayBuffer), 8_500);
+
+    // The next cue: a cough at 1 s is not heard; listening again for the same cue keeps the clock.
+    now = 10_000;
+    rerender({ cue: null });
+    rerender({ cue: "c2" });
+    now = 11_000;
+    act(() => handlers.onSpeechStart());
+    act(() => handlers.onTurn(new ArrayBuffer(4)));
+    rerender({ cue: null });
+    rerender({ cue: "c2" });
+    now = 19_000;
+    act(() => handlers.onSpeechStart());
+    act(() => handlers.onTurn(new ArrayBuffer(4)));
+    // The real answer is timed from its own speech, not from the cough.
+    expect(onTurn).toHaveBeenLastCalledWith(expect.any(ArrayBuffer), 9_000);
+    vi.restoreAllMocks();
   });
 
   it("is unavailable when the microphone can't be opened, so the learner types", async () => {

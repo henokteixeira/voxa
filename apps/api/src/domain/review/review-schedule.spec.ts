@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { byReviewPriority, countsAsReview, firstReview, nextReview, reviewStatus } from "./review-schedule.js";
+import { byReviewPriority, countsAsReview, recallOutcome, SLOW_RECALL_MS, firstReview, nextReview, reviewStatus } from "./review-schedule.js";
 
 const now = new Date("2026-11-07T12:00:00Z");
 const inDays = (days: number) => new Date(now.getTime() + days * 86_400_000);
@@ -44,5 +44,19 @@ describe("byReviewPriority", () => {
       { subject: { kind: "expression", id: "e-new" }, dueAt: at(4) },
     ];
     expect(byReviewPriority(items).map((i) => i.subject.id)).toEqual(["w", "p-new", "e-old", "e-new"]);
+  });
+});
+
+describe("a slow recall", () => {
+  const now = new Date("2026-11-10T12:00:00Z");
+  it("keeps the item at its step, so it comes back after the same wait", () => {
+    expect(nextReview({ step: 2, dueAt: now }, "slow", now).step).toBe(2);
+  });
+
+  it("is a right answer that started after the bar; typed answers are never slow", () => {
+    expect(recallOutcome(true, SLOW_RECALL_MS + 1)).toBe("slow");
+    expect(recallOutcome(true, SLOW_RECALL_MS)).toBe("recalled");
+    expect(recallOutcome(true, null)).toBe("recalled");
+    expect(recallOutcome(false, 1_000)).toBe("missed");
   });
 });

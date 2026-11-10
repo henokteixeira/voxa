@@ -60,10 +60,10 @@ export function ReviewRun({ subjects, onDone }: { subjects: ReviewSubject[]; onD
     setAttempt((n) => n + 1);
   }
 
-  async function answer(card: ReviewCard, said: string | null) {
+  async function answer(card: ReviewCard, said: string | null, startDelayMs: number | null = null) {
     setStep({ kind: "checking", card });
     try {
-      const result = await api.answerReview(card.cardId, said);
+      const result = await api.answerReview(card.cardId, said, startDelayMs);
       setResults((r) => [...r, { subject: card.item.subject, name: card.item.name, recalled: result.recalled, nextDueAt: result.nextDueAt, xp: result.xp }]);
       setStep({ kind: "answered", card, said, answer: result });
     } catch {
@@ -73,13 +73,13 @@ export function ReviewRun({ subjects, onDone }: { subjects: ReviewSubject[]; onD
 
   const [typing, setTyping] = useState(false);
   const asking = step.kind === "asking" ? step.card : null;
-  const mic = useReviewMicrophone(asking && !typing ? asking.cardId : null, (wav) => {
+  const mic = useReviewMicrophone(asking && !typing ? asking.cardId : null, (wav, startDelayMs) => {
     if (!asking) return;
     setStep({ kind: "checking", card: asking });
     api
       .transcribe(wav, asking.item.language)
       .then((said) =>
-        said ? answer(asking, said) : setStep({ kind: "asking", card: asking, problem: "not_heard" }),
+        said ? answer(asking, said, startDelayMs) : setStep({ kind: "asking", card: asking, problem: "not_heard" }),
       )
       .catch(() => setStep({ kind: "asking", card: asking, problem: "failed" }));
   });

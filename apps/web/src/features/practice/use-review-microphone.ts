@@ -6,8 +6,9 @@ import { readPauseMs } from "@/lib/voice/pause-setting";
 /**
  * The microphone for a review: opened once, it makes turns only while listening for a cue (`listenFor`, its id), and stops on unmount.
  * `available` is null while opening and false when it can't be used (then the learner types).
+ * `onTurn` also gets how long the learner took to start speaking that turn, from when the cue first showed.
  */
-export function useReviewMicrophone(listenFor: string | null, onTurn: (wav: ArrayBuffer) => void) {
+export function useReviewMicrophone(listenFor: string | null, onTurn: (wav: ArrayBuffer, startDelayMs: number | null) => void) {
   const listening = listenFor !== null;
   const { openMicrophone } = useContext(VoiceDepsContext);
   const [available, setAvailable] = useState<boolean | null>(null);
@@ -16,20 +17,36 @@ export function useReviewMicrophone(listenFor: string | null, onTurn: (wav: Arra
   const cue = useRef(listenFor);
   const mic = useRef<Microphone | null>(null);
   const handler = useRef(onTurn);
+  // When the current cue first showed, and when the learner started speaking in this turn.
+  const timing = useRef<{ cue: string | null; listenedAt: number | null; spokeAt: number | null }>({ cue: null, listenedAt: null, spokeAt: null });
   useEffect(() => {
     handler.current = onTurn;
     if (listenFor !== null) cue.current = listenFor;
   }, [onTurn, listenFor]);
+  useEffect(() => {
+    // A new cue starts the clock, even while the microphone is still opening; listening again for the same cue
+    // (after "not heard") keeps it.
+    if (listenFor !== null && timing.current.cue !== listenFor) {
+      timing.current = { cue: listenFor, listenedAt: performance.now(), spokeAt: null };
+    }
+  }, [listenFor]);
 
   useEffect(() => {
     let cancelled = false;
     openMicrophone(
       {
-        onSpeechStart: () => setSpeakingTo(cue.current),
+        onSpeechStart: () => {
+          setSpeakingTo(cue.current);
+          if (timing.current.spokeAt === null) timing.current.spokeAt = performance.now();
+        },
         onTurn: (wav) => {
           setSpeakingTo(null);
           mic.current?.pause();
-          handler.current(wav);
+          const { cue: timed, listenedAt, spokeAt } = timing.current;
+          const delay = timed === cue.current && listenedAt !== null && spokeAt !== null ? Math.round(spokeAt - listenedAt) : null;
+          // Each turn is timed from its own speech: a cough or an unheard try must not time the real answer.
+          timing.current.spokeAt = null;
+          handler.current(wav, delay);
         },
       },
       { endSilenceMs: readPauseMs() },
