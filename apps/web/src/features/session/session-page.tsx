@@ -20,7 +20,8 @@ import { useTodayProgress } from "@/features/xp/use-today-progress";
 import { XP_COPY } from "@/features/xp/xp-copy";
 import { XpToast } from "@/features/xp/xp-toast";
 import { useSessionCues } from "./use-session-cues";
-import { type AutoRetry, useVoiceSession } from "./use-voice-session";
+import type { AutoRetry } from "./use-auto-retry";
+import { useVoiceSession } from "./use-voice-session";
 
 /** The live voice session: talk, get hints, see captions. Takes the whole screen. */
 export function SessionPage() {

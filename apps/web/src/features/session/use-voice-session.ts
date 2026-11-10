@@ -5,47 +5,27 @@ import { reportError } from "@/lib/report-error";
 import { type Microphone, MicrophoneUnavailableError } from "@/lib/voice/microphone";
 import { createFillerPlayer } from "@/lib/voice/filler-player";
 import { readPauseMs } from "@/lib/voice/pause-setting";
-import { AudioBlockedError, type Speaker } from "@/lib/voice/speaker";
+import type { Speaker } from "@/lib/voice/speaker";
 import type { VoiceSocket } from "@/lib/voice/voice-socket";
 import { FluencyClock } from "./fluency-clock";
 import { clearSavedSession, saveSession, takeSavedSession, TRANSIENT_ERRORS } from "./saved-session";
 import { type FailureCode, initialSessionState, type Retry, sessionReducer, tutorSpeaking } from "./session-state";
+import { useAutoRetry } from "./use-auto-retry";
+import { useElapsedSeconds } from "./use-elapsed-seconds";
+import { useSessionSync } from "./use-session-sync";
+import { useTutorSpeech } from "./use-tutor-speech";
 import { VoiceDepsContext } from "./voice-deps";
 
 /** Failures that need the whole start again (no session was created yet). */
 const START_FAILURES: FailureCode[] = ["mic_blocked", "mic_missing", "mic_busy", "mic_unsupported", "start_failed", "tutor_start_failed"];
 /** Failures that need a new socket on the same session. */
 const SOCKET_FAILURES: FailureCode[] = ["disconnected", "in_use"];
-/** Failures that often pass on their own (a slow or restarting server): retried by themselves first. */
-const AUTO_RETRY_FAILURES: FailureCode[] = ["voice_unavailable", "tutor_unavailable", "server", "disconnected"];
-/** The waits before each automatic retry; after the last one the learner decides. */
-/** How often an open session saves its timing on the server, besides after each turn. */
-const TIMING_HEARTBEAT_MS = 5 * 60 * 1000;
-
-export const AUTO_RETRY_DELAYS_MS = [2_000, 5_000, 10_000];
 /** Expected along the way (no speech, a frame dropped while busy): nothing to report. */
 const QUIET_ERRORS = new Set(["bad_audio", "busy", "too_long"]);
 
 /** Why a session couldn't start or resume: the tutor (Claude) didn't answer, or the server couldn't be used. */
 function startFailure(error: unknown): FailureCode {
   return error instanceof ApiError && error.kind === "tutor_unavailable" ? "tutor_start_failed" : "start_failed";
-}
-
-/** An automatic retry is on its way: the attempt number, out of how many. */
-export interface AutoRetry {
-  attempt: number;
-  of: number;
-}
-
-/** Counts the seconds the session runs (not while paused); a resumed session starts from its saved count. */
-function useElapsedSeconds(running: boolean) {
-  const [seconds, setSeconds] = useState(0);
-  useEffect(() => {
-    if (!running) return;
-    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
-    return () => clearInterval(timer);
-  }, [running]);
-  return [seconds, setSeconds] as const;
 }
 
 /** What to send once a (re)connected socket opens. */
@@ -58,7 +38,6 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
   const [state, dispatch] = useReducer(sessionReducer, initialSessionState);
   const [attempt, setAttempt] = useState(0);
   const [typing, setTyping] = useState(false);
-  const [autoRetry, setAutoRetry] = useState<AutoRetry | null>(null);
   /** Automatic retries spent on the current turn; back to 0 once the server answers it. */
   const autoRetries = useRef(0);
   const mic = useRef<Microphone | null>(null);
@@ -83,42 +62,7 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
     paused.current = state.phase === "paused";
   }, [state.phase]);
 
-  /** The tutor's clips waiting to play, in order (a reply, then a hint about the learner's turn). */
-  const speechQueue = useRef<ArrayBuffer[]>([]);
-  const playing = useRef(false);
-  /** The learner stopped the tutor: the rest of this turn's speech (e.g. a hint still on its way) stays silent. */
-  const muted = useRef(false);
-  /** Plays the next clip; when none is left, the tutor's turn to speak is over. */
-  const playNext = useCallback(function next() {
-    const wav = speechQueue.current.shift();
-    if (!wav) {
-      playing.current = false;
-      dispatch({ type: "playback_end" });
-      return;
-    }
-    playing.current = true;
-    dispatch({ type: "speech" });
-    // Captions already show the line; if the browser blocks audio, ask for a tap.
-    clock.current.tutorStarted(performance.now());
-    void (speaker.current?.play(wav) ?? Promise.resolve())
-      .catch((error: unknown) => {
-        if (error instanceof AudioBlockedError) dispatch({ type: "audio_blocked" });
-      })
-      .finally(() => {
-        clock.current.tutorStopped(performance.now());
-        // Stopped by the pause sheet: the wait until resume is not a pause before answering.
-        if (paused.current) {
-          clock.current.interrupt();
-          speechQueue.current = [];
-        }
-        next();
-      });
-  }, []);
-  /** Stops the tutor's voice, including the clips still waiting. */
-  const stopSpeech = useCallback(() => {
-    speechQueue.current = [];
-    speaker.current?.stop();
-  }, []);
+  const speech = useTutorSpeech({ speaker, clock, paused, dispatch });
 
   const connect = useCallback(
     function connectSocket(id: string, onOpen: OnOpen) {
@@ -126,15 +70,15 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
       const ws = deps.openVoiceSocket(api.voiceUrl(id), {
         onOpen: () => {
           if (onOpen.kind === "speak") {
-            muted.current = false;
+            speech.unmute();
             dispatch({ type: "sent", request: "speak" });
             ws.speakLast();
           } else if (onOpen.kind === "audio") {
-            muted.current = false;
+            speech.unmute();
             dispatch({ type: "sent", request: "audio", audio: onOpen.audio });
             ws.sendTurn(onOpen.audio);
           } else if (onOpen.kind === "text") {
-            muted.current = false;
+            speech.unmute();
             dispatch({ type: "sent", request: "text", text: onOpen.text });
             clock.current.typed();
             ws.sendText(onOpen.text);
@@ -164,10 +108,8 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
             missedSpeech.current = true;
             return;
           }
-          if (muted.current) return;
-          // A hint can follow the reply in the same turn: play them one after the other.
-          speechQueue.current.push(wav);
-          if (!playing.current) playNext();
+          // A hint can follow the reply in the same turn: they play one after the other.
+          speech.play(wav);
         },
         onError: (code, message) => {
           if (!QUIET_ERRORS.has(code)) reportError(new Error(message), { where: `voice socket (${code})` });
@@ -196,7 +138,7 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
       });
       socket.current = ws;
     },
-    [api, deps, playNext],
+    [api, deps, speech],
   );
 
   // Start: microphone first (no session is created if it is blocked), then the session, then the socket.
@@ -221,7 +163,7 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
             });
             sentEarly.current = false;
             mic.current?.pause();
-            muted.current = false;
+            speech.unmute();
             // The recording stays in the turn until its transcript arrives, so a failure can send it again.
             dispatch({ type: "sent", request: "audio", audio: wav });
             socket.current?.sendTurn(wav);
@@ -312,25 +254,9 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
       sessionId.current = null;
       resumedPending.current = false;
     };
-  }, [api, deps, mode, missionId, connect, attempt, setSeconds]);
+  }, [api, deps, mode, missionId, connect, attempt, setSeconds, speech]);
 
-  // Keeps what the server does not, so a reload can pick the session up again.
-  useEffect(() => {
-    const id = state.sessionId;
-    if (!id || ended.current || state.phase === "ending" || state.phase === "ended") return;
-    saveSession({ sessionId: id, mode, missionId, elapsedSeconds: seconds, timing: clock.current.timing() });
-  }, [state.sessionId, state.phase, mode, missionId, seconds]);
-
-  // While the session is open here (paused too), the server hears from it at least this often, so it never
-  // closes a session this tab can still go on with.
-  const openId = state.phase === "ending" || state.phase === "ended" ? null : state.sessionId;
-  useEffect(() => {
-    if (!openId) return;
-    const timer = setInterval(() => {
-      if (!ended.current) void api.saveTiming(openId, clock.current.timing()).catch(() => {});
-    }, TIMING_HEARTBEAT_MS);
-    return () => clearInterval(timer);
-  }, [api, openId]);
+  useSessionSync({ api, state, mode, missionId, seconds, clock, ended });
 
   // The microphone listens only on the learner's turn (and not while typing), so it never hears the tutor.
   const listening = (state.phase === "listening" || state.phase === "hearing") && !typing;
@@ -348,27 +274,33 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
     if (interrupted) clock.current.interrupt();
   }, [interrupted, state.phase]);
 
-  const sendText = useCallback((text: string) => {
-    setTyping(false);
-    muted.current = false;
-    dispatch({ type: "sent", request: "text", text });
-    clock.current.typed();
-    socket.current?.sendText(text);
-  }, []);
+  const sendText = useCallback(
+    (text: string) => {
+      setTyping(false);
+      speech.unmute();
+      dispatch({ type: "sent", request: "text", text });
+      clock.current.typed();
+      socket.current?.sendText(text);
+    },
+    [speech],
+  );
 
   /** Sends a recorded turn again (a retry): the learner does not have to say it twice. */
-  const sendAudio = useCallback((audio: ArrayBuffer) => {
-    muted.current = false;
-    dispatch({ type: "sent", request: "audio", audio });
-    socket.current?.sendTurn(audio);
-  }, []);
+  const sendAudio = useCallback(
+    (audio: ArrayBuffer) => {
+      speech.unmute();
+      dispatch({ type: "sent", request: "audio", audio });
+      socket.current?.sendTurn(audio);
+    },
+    [speech],
+  );
 
   const repeatLast = useCallback(() => {
-    stopSpeech();
-    muted.current = false;
+    speech.stop();
+    speech.unmute();
     dispatch({ type: "sent", request: "speak" });
     socket.current?.speakLast();
-  }, [stopSpeech]);
+  }, [speech]);
 
   /** Tap the ball: send early while talking, interrupt the tutor while it speaks. */
   const tapBall = useCallback(() => {
@@ -376,11 +308,8 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
       sentEarly.current = true;
       if (!mic.current?.sendNow()) sentEarly.current = false;
     }
-    else if (tutorSpeaking(state)) {
-      muted.current = true;
-      stopSpeech();
-    }
-  }, [state, stopSpeech]);
+    else if (tutorSpeaking(state)) speech.silence();
+  }, [state, speech]);
 
   /** Any tap on the screen: lets the browser play and record, and replays a line it blocked. */
   const unlock = useCallback(() => {
@@ -391,9 +320,9 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
 
   const pause = useCallback(() => {
     filler.current.cancel();
-    stopSpeech();
+    speech.stop();
     dispatch({ type: "pause" });
-  }, [stopSpeech]);
+  }, [speech]);
 
   const resume = useCallback(() => {
     dispatch({ type: "resume" });
@@ -428,27 +357,7 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
     retry();
   }, [retry]);
 
-  // A failure that may pass on its own is retried by itself, waiting longer each time, with the same turn.
-  const retryLater = useRef(retry);
-  useEffect(() => {
-    retryLater.current = retry;
-  }, [retry]);
-  const canAutoRetry =
-    state.phase === "failed" && state.failure !== null && AUTO_RETRY_FAILURES.includes(state.failure) && state.sessionId !== null;
-  useEffect(() => {
-    if (!canAutoRetry) return;
-    const attempt = autoRetries.current;
-    if (attempt >= AUTO_RETRY_DELAYS_MS.length) return;
-    setAutoRetry({ attempt: attempt + 1, of: AUTO_RETRY_DELAYS_MS.length });
-    const timer = setTimeout(() => {
-      autoRetries.current = attempt + 1;
-      retryLater.current();
-    }, AUTO_RETRY_DELAYS_MS[attempt]);
-    return () => {
-      clearTimeout(timer);
-      setAutoRetry(null);
-    };
-  }, [canAutoRetry, state.retry]);
+  const autoRetry = useAutoRetry(state, retry, autoRetries);
 
   const end = useCallback(async () => {
     ended.current = true;
@@ -458,7 +367,7 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
     filler.current.cancel();
     mic.current?.stop();
     socket.current?.close();
-    stopSpeech();
+    speech.stop();
     mic.current = socket.current = null;
     if (!id) return dispatch({ type: "ended", summary: null });
     try {
@@ -466,7 +375,7 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
     } catch {
       dispatch({ type: "ended", summary: null });
     }
-  }, [api, state.sessionId, stopSpeech]);
+  }, [api, state.sessionId, speech]);
 
   /** "Keep going" on the tutor's stop-or-keep-going question: the conversation just goes on. */
   const keepGoing = useCallback(() => dispatch({ type: "keep_going" }), []);
