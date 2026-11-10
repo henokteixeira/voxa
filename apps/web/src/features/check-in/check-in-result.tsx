@@ -1,4 +1,5 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import { CHECK_IN_TASK } from "@voxa/contracts";
+import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { VoiceDepsContext } from "@/features/session/voice-deps";
@@ -15,15 +16,19 @@ export function CheckInComparison({
   result,
   past = false,
   doneTo = "/",
+  next,
 }: {
   result: CheckInResult;
   /** Opened from Progress: the check-in is named by its date, not "today". */
   past?: boolean;
   doneTo?: string;
+  /** What comes next (the topic task): it takes the main button, and "Done" becomes "Not now". */
+  next?: ReactNode;
 }) {
   const copy = useCopy(CHECK_IN_COPY);
   const date = useCheckInDate();
   const { checkIn, previous } = result;
+  const topic = checkIn.task !== undefined && checkIn.task !== CHECK_IN_TASK;
   const day = past ? date(checkIn.recordedAt) : null;
   // The button that ended the recording is gone: the title takes the focus, so the result is read out.
   const title = useRef<HTMLHeadingElement>(null);
@@ -46,7 +51,13 @@ export function CheckInComparison({
   return (
     <>
       <h1 ref={title} tabIndex={-1} className="m-0 font-serif text-[26px] leading-tight font-normal outline-none">
-        {previous ? copy.gainTitle(clearestGain(checkIn, previous), day) : copy.firstTitle}
+        {topic
+          ? previous
+            ? copy.topicGainTitle(clearestGain(checkIn, previous))
+            : copy.topicFirstTitle
+          : previous
+            ? copy.gainTitle(clearestGain(checkIn, previous), day)
+            : copy.firstTitle}
       </h1>
       {previous ? (
         <table className="w-full border-separate border-spacing-0 rounded-lg bg-paper px-5 py-2 text-body shadow-card">
@@ -78,12 +89,13 @@ export function CheckInComparison({
           </tbody>
         </table>
       ) : (
-        <p className="m-0 text-body text-ink-soft">{copy.firstBody}</p>
+        <p className="m-0 text-body text-ink-soft">{topic ? copy.topicFirstBody : copy.firstBody}</p>
       )}
       <HearRecordings ids={[...(previous ? [previous.id] : []), checkIn.id]} label={previous ? copy.hearBoth(date(previous.recordedAt), day) : copy.hearToday} />
       <div className="flex-1" />
-      <Button block asChild>
-        <Link to={doneTo}>{copy.finish}</Link>
+      {next}
+      <Button block variant={next ? "ghost" : undefined} asChild>
+        <Link to={doneTo}>{next ? copy.topicLater : copy.finish}</Link>
       </Button>
     </>
   );

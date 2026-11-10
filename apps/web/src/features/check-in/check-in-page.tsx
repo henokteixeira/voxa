@@ -1,4 +1,5 @@
 import { BALL_RING_SPACE } from "@/components/ball-ring";
+import { isCheckInTopic } from "@voxa/contracts";
 import { useContext, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -33,9 +34,13 @@ const clock = (ms: number) => {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 };
 
+/** The task being recorded: the fixed one (no topic) or the second task's topic. */
+type Task = { topic: string | null; limitMs: number };
+
 /**
- * The check-in every 2 weeks: the same 2-minute task with no help and no correction. The whole stretch is
- * recorded (so it can be heard later), measured like a "say it faster" round, and compared with the last one.
+ * The check-in every 2 weeks: the same 2-minute task with no help and no correction, then 1 minute on a topic
+ * never given before. Each stretch is recorded whole (so it can be heard later), measured like a "say it faster"
+ * round, and compared with the last one of its kind.
  */
 export function CheckInPage() {
   const api = useApi();
@@ -45,7 +50,10 @@ export function CheckInPage() {
   const back = params.get("next") === MISSION_PATH ? MISSION_PATH : "/";
   const { openMicrophone } = useContext(VoiceDepsContext);
   const [step, setStep] = useState<Step>({ kind: "loading" });
-  const [limitMs, setLimitMs] = useState(120_000);
+  const [task, setTask] = useState<Task>({ topic: null, limitMs: 120_000 });
+  const limitMs = task.limitMs;
+  // The topic task offered after the fixed one; null when the API offers none.
+  const [topic, setTopic] = useState<{ task: string; limitMs: number } | null>(null);
   const [now, setNow] = useState(0);
   const mic = useRef<Microphone | null>(null);
   const meter = useRef(new RoundMeter());
@@ -80,8 +88,17 @@ export function CheckInPage() {
     Promise.all([opening, api.checkIns()])
       .then(([, overview]) => {
         if (cancelled) return;
-        setLimitMs(overview.limitMs);
-        if (overview.due) return setStep({ kind: "ready" });
+        const offered = overview.topic ? { task: overview.topic.task, limitMs: overview.topic.limitMs } : null;
+        setTopic(offered);
+        if (overview.due) {
+          setTask({ topic: null, limitMs: overview.limitMs });
+          return setStep({ kind: "ready" });
+        }
+        // The fixed task was just done and its topic task skipped: the topic task is still open.
+        if (offered && overview.topic?.due) {
+          setTask({ topic: offered.task, limitMs: offered.limitMs });
+          return setStep({ kind: "ready" });
+        }
         // Nothing to record: the microphone goes off.
         mic.current?.stop();
         mic.current = null;
@@ -123,10 +140,12 @@ export function CheckInPage() {
       const wav = clip.current.wav();
       // The frames are in the WAV now: free them (about 4 MB for 2 minutes).
       clip.current = new ClipRecorder();
-      const result = await api.recordCheckIn(wav, { speechMs, pausesMs: longPausesMs });
-      // Done for 2 weeks: the microphone goes off.
-      mic.current?.stop();
-      mic.current = null;
+      const result = await api.recordCheckIn(wav, { speechMs, pausesMs: longPausesMs }, "en", task.topic ?? undefined);
+      // Done for 2 weeks unless the topic task follows: then the microphone stays open for it.
+      if (task.topic !== null || !topic) {
+        mic.current?.stop();
+        mic.current = null;
+      }
       setStep({ kind: "result", result });
     } catch (error) {
       setStep({ kind: "ready", problem: error instanceof ApiError && error.kind === "invalid" ? "not_heard" : "failed" });
@@ -177,14 +196,34 @@ export function CheckInPage() {
         </p>
       )}
 
-      {step.kind === "result" && <CheckInComparison result={step.result} doneTo={back} />}
+      {step.kind === "result" && (
+        <CheckInComparison
+          result={step.result}
+          doneTo={back}
+          next={
+            task.topic === null && topic ? (
+              <Button
+                block
+                onClick={() => {
+                  setTask({ topic: topic.task, limitMs: topic.limitMs });
+                  setStep({ kind: "ready" });
+                }}
+              >
+                {copy.topicNext}
+              </Button>
+            ) : undefined
+          }
+        />
+      )}
 
       {(step.kind === "ready" || step.kind === "recording" || step.kind === "saving") && (
         <>
           <h1 className="sr-only">{copy.label}</h1>
           <section aria-label={copy.yourTask} className="flex flex-col gap-1.5 rounded-lg bg-paper px-5 py-4 shadow-card">
-            <span className="text-label text-taupe">{copy.yourTask}</span>
-            <span className="font-serif text-[22px] leading-snug">{copy.task}</span>
+            <span className="text-label text-taupe">{task.topic === null ? copy.yourTask : copy.topicLabel}</span>
+            <span className="font-serif text-[22px] leading-snug">
+              {task.topic === null ? copy.task : isCheckInTopic(task.topic) ? copy.topics[task.topic] : copy.task}
+            </span>
           </section>
           <div className="flex flex-1 flex-col items-center justify-center gap-3">
             <div className="relative inline-flex" style={{ padding: BALL_RING_SPACE }}>
@@ -195,7 +234,7 @@ export function CheckInPage() {
               {startedAt !== null ? copy.left(clock(leftMs)) : ""}
             </span>
             <span aria-live="polite" className="sr-only">
-              {step.kind === "saving" ? copy.saving : startedAt !== null ? copy.listening : ""}
+              {step.kind === "saving" ? copy.saving : startedAt !== null ? (task.topic === null ? copy.listening : copy.topicListening) : ""}
             </span>
           </div>
           {step.kind === "ready" && step.problem && (

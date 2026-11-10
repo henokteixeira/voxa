@@ -365,6 +365,8 @@ export interface FasterRoundsView {
 /** One check-in's pace, as listed and compared. */
 export interface CheckInPace {
   id: string;
+  /** "present_project" (the fixed task) or the topic of the second task. Missing from older APIs. */
+  task?: string;
   recordedAt: string;
   wordsPerMinute: number | null;
   longPauses: number;
@@ -381,7 +383,9 @@ export interface CheckInOverview {
   limitMs: number;
   dueAt: string;
   due: boolean;
-  /** Newest first. */
+  /** The second task, right after the fixed one: 1 minute on a topic never given before. Missing from older APIs. */
+  topic?: { task: string; limitMs: number; due: boolean };
+  /** The fixed task's check-ins, newest first. */
   checkIns: CheckInPace[];
 }
 
@@ -573,9 +577,10 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
       round: { round: number; transcript: string; speechMs: number; longPausesMs: number[] },
     ) => request<FasterRoundsView>(`/sessions/${encodeURIComponent(sessionId)}/faster-rounds`, { method: "POST", body: round }),
     checkIns: (language = "en") => request<CheckInOverview>(`/check-ins?language=${encodeURIComponent(language)}`),
-    /** The whole recording (WAV) with the speech time and the silences the app measured. */
-    recordCheckIn: (wav: ArrayBuffer, measure: { speechMs: number; pausesMs: number[] }, language = "en") => {
+    /** The whole recording (WAV) with the speech time and the silences the app measured; `task` is the topic task's, if it is that one. */
+    recordCheckIn: (wav: ArrayBuffer, measure: { speechMs: number; pausesMs: number[] }, language = "en", task?: string) => {
       const query = new URLSearchParams({ language, speechMs: String(measure.speechMs), pausesMs: measure.pausesMs.join(",") });
+      if (task) query.set("task", task);
       return postAudio<CheckInResult>(`/check-ins?${query}`, wav);
     },
     checkIn: (id: string) => request<CheckInResult>(`/check-ins/${encodeURIComponent(id)}`),

@@ -8,11 +8,12 @@ import type { ApiClient, CheckInOverview } from "@/lib/api";
 import type { MicrophoneHandlers } from "@/lib/voice/microphone";
 import { CheckInPage } from "./check-in-page";
 
-const overview = (due: boolean): CheckInOverview => ({
+const overview = (due: boolean, topicDue = false): CheckInOverview => ({
   task: "present_project",
   limitMs: 120_000,
   dueAt: "2026-11-09T10:00:00Z",
   due,
+  topic: { task: "last_weekend", limitMs: 60_000, due: topicDue },
   checkIns: [],
 });
 const pace = (id: string, recordedAt: string, wordsPerMinute: number, longPauses: number) => ({ id, recordedAt, wordsPerMinute, longPauses });
@@ -63,7 +64,7 @@ describe("Check-in", () => {
     speak();
     await userEvent.click(screen.getByRole("button", { name: "I'm done" }));
 
-    expect(recordCheckIn).toHaveBeenCalledWith(expect.any(ArrayBuffer), expect.objectContaining({ pausesMs: [] }));
+    expect(recordCheckIn).toHaveBeenCalledWith(expect.any(ArrayBuffer), expect.objectContaining({ pausesMs: [] }), "en", undefined);
     expect(await screen.findByRole("heading", { name: "The time before, you said 68 words a minute. Today, 81." })).toBeInTheDocument();
     expect(screen.getByRole("row", { name: "Long pauses 9 4" })).toBeInTheDocument();
     // The earlier check-in wasn't read for mistakes: no mistake rows to compare.
@@ -73,7 +74,8 @@ describe("Check-in", () => {
     await userEvent.click(screen.getByRole("button", { name: /^Hear .+, then today$/ }));
     expect(checkInRecording.mock.calls.map(([id]) => id)).toEqual(["c1", "c2"]);
     expect(speaker.play).toHaveBeenCalledTimes(2);
-    await userEvent.click(screen.getByRole("link", { name: "Done" }));
+    // The topic task can wait.
+    await userEvent.click(screen.getByRole("link", { name: "Not now" }));
     expect(router.state.location.pathname).toBe("/");
   });
 
@@ -126,5 +128,42 @@ describe("Check-in", () => {
     renderCheckIn({ checkIns: vi.fn().mockResolvedValue(overview(false)) });
     expect(await screen.findByRole("alert")).toHaveTextContent("The next check-in isn't due yet.");
     expect(screen.queryByRole("button", { name: "Start · 2:00" })).toBeNull();
+  });
+
+  it("goes on to 1 minute on a new topic, compared only with the last new topic", async () => {
+    const recordCheckIn = vi
+      .fn()
+      .mockResolvedValueOnce({ checkIn: { ...pace("c2", "2026-11-23T10:00:00Z", 81, 4), task: "present_project", transcript: "…" }, previous: null })
+      .mockResolvedValueOnce({
+        checkIn: { ...pace("t2", "2026-11-23T10:05:00Z", 70, 2), task: "last_weekend", transcript: "…" },
+        previous: { ...pace("t1", "2026-11-09T10:05:00Z", 60, 3), task: "hard_decision" },
+      });
+    const { speak } = renderCheckIn({ checkIns: vi.fn().mockResolvedValue(overview(true)), recordCheckIn, checkInRecording: vi.fn() });
+    await userEvent.click(await screen.findByRole("button", { name: "Start · 2:00" }));
+    speak();
+    await userEvent.click(screen.getByRole("button", { name: "I'm done" }));
+    expect(await screen.findByRole("heading", { name: "Your first check-in is saved." })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Not now" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "One more minute: a new topic" }));
+    expect(screen.getByRole("region", { name: "Your task" })).toHaveTextContent("A new topic · 1 minute");
+    expect(screen.getByRole("region", { name: "Your task" })).toHaveTextContent("Tell me about something you did last weekend.");
+    await userEvent.click(screen.getByRole("button", { name: "Start · 1:00" }));
+    speak();
+    await userEvent.click(screen.getByRole("button", { name: "I'm done" }));
+
+    expect(recordCheckIn).toHaveBeenLastCalledWith(expect.any(ArrayBuffer), expect.any(Object), "en", "last_weekend");
+    expect(
+      await screen.findByRole("heading", { name: "On the last new topic you said 60 words a minute. Today, 70." }),
+    ).toBeInTheDocument();
+    // Nothing follows the topic task.
+    expect(screen.queryByRole("button", { name: "One more minute: a new topic" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Done" })).toBeInTheDocument();
+  });
+
+  it("opens on the topic task when the fixed one was just done and the topic is still open", async () => {
+    renderCheckIn({ checkIns: vi.fn().mockResolvedValue(overview(false, true)) });
+    expect(await screen.findByRole("button", { name: "Start · 1:00" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Your task" })).toHaveTextContent("Tell me about something you did last weekend.");
   });
 });
