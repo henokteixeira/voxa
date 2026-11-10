@@ -239,6 +239,13 @@
       "when": 1794337732696,
       "tag": "0033_checks_and_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794338896745,
+      "tag": "0034_session_targets",
+      "breakpoints": true
     }
   ]
 }
