@@ -31,7 +31,10 @@ import type { NewTurn, SessionProgress, SessionRepository } from "../domain/port
 import type { TrackPlan, TutorContext, TutorPort, TutorRequest } from "../domain/ports/tutor.port.js";
 import { NEW_WORD_CATEGORY } from "../domain/conversation/types.js";
 import type { TrackState } from "../domain/conversation/guided-track.js";
-import { ConversationService, SessionEndedError, SessionNotFoundError, TurnConflictError, type TurnResult } from "./conversation.service.js";
+import { SessionEndedError, SessionNotFoundError, TurnConflictError } from "../domain/conversation/session-errors.js";
+import { SessionStartService } from "./session-start.service.js";
+import { SessionSummaryService } from "./session-summary.service.js";
+import { TurnService, type TurnResult } from "./turn.service.js";
 
 class FakeTutor implements TutorPort {
   verdicts: TutorVerdict[] = [];
@@ -339,7 +342,9 @@ let tutor: FakeTutor;
 let reviews: FakeReviews;
 let sessions: FakeSessions;
 let mistakes: FakeMistakes;
-let service: ConversationService;
+let starts: SessionStartService;
+let turns: TurnService;
+let summaries: SessionSummaryService;
 let clock: FakeClock;
 let bankEntries: BankEntry[];
 let levels: FakeLevels;
@@ -366,17 +371,17 @@ beforeEach(() => {
   const missions = {
     get: async (id: string) => missionRows.find((m) => m.id === id) ?? null,
   };
-  service = new ConversationService(
+  const reviewScheduler = new ReviewScheduler(reviews);
+  const learnerMemory = memory as unknown as LearnerMemoryService;
+  starts = new SessionStartService(tutor, sessions, learnerContext, bank, clock, levels, reviewScheduler, learnerMemory, missions);
+  turns = new TurnService(
     tutor,
     sessions,
     mistakes,
     learnerContext,
     bank,
     clock,
-    assessor,
-    levels,
-    new ReviewScheduler(reviews),
-    memory as unknown as LearnerMemoryService,
+    reviewScheduler,
     missions,
     // Rolls the fakes back when the work fails, like a transaction (the database test checks the real one).
     {
@@ -392,9 +397,10 @@ beforeEach(() => {
       },
     },
   );
+  summaries = new SessionSummaryService(sessions, mistakes, clock, assessor, levels, learnerMemory);
 });
 
-describe("ConversationService.start in a daily mission", () => {
+describe("SessionStartService.start in a daily mission", () => {
   const mission = (over: Partial<Mission> = {}): Mission => ({
     id: "m1",
     language: "en",
@@ -420,38 +426,38 @@ describe("ConversationService.start in a daily mission", () => {
 
   it("links the conversation to the mission and gives the tutor its 3 expressions, all session long", async () => {
     missionRows.push(mission());
-    const { session } = await service.start("daily", "en", "m1");
+    const { session } = await starts.start("daily", "en", "m1");
     expect((await sessions.get(session.id))?.missionId).toBe("m1");
     const phrases = ["I'm still working on…", "I'm blocked by…", "By the end of the day, I'll…"];
     expect(tutor.opened[0].expressions).toEqual(phrases);
 
     tutor.verdicts.push(verdict({}));
-    await service.respond(session.id, "Hi");
+    await turns.respond(session.id, "Hi");
     expect(tutor.requests[0].expressions).toEqual(phrases);
   });
 
   it("gives no expressions outside a mission", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({}));
-    await service.respond(session.id, "Hi");
+    await turns.respond(session.id, "Hi");
     expect(tutor.opened[0].expressions).toBeUndefined();
     expect(tutor.requests[0].expressions).toBeUndefined();
   });
 
   it("refuses a mission of another situation and an unknown one", async () => {
     missionRows.push(mission());
-    await expect(service.start("story", "en", "m1")).rejects.toBeInstanceOf(InvalidInputError);
-    await expect(service.start("daily", "en", "m9")).rejects.toBeInstanceOf(MissionNotFoundError);
+    await expect(starts.start("story", "en", "m1")).rejects.toBeInstanceOf(InvalidInputError);
+    await expect(starts.start("daily", "en", "m9")).rejects.toBeInstanceOf(MissionNotFoundError);
   });
 });
 
-describe("ConversationService.start", () => {
+describe("SessionStartService.start", () => {
   it("gives the tutor what it remembered at the start, all session long", async () => {
-    const { session } = await service.start("free_talk", "en");
+    const { session } = await starts.start("free_talk", "en");
     // A memory saved mid-session (another session's background run) does not change this one's prompt.
     memory.recall.mockResolvedValue({ facts: [], recentSessions: [] });
     tutor.verdicts.push(verdict({}));
-    await service.respond(session.id, "Hi");
+    await turns.respond(session.id, "Hi");
 
     const stored = await sessions.get(session.id);
     expect(memory.recall).toHaveBeenCalledTimes(1);
@@ -461,12 +467,12 @@ describe("ConversationService.start", () => {
   });
 
   it("picks up sessions left unremembered", async () => {
-    await service.start("daily", "en");
+    await starts.start("daily", "en");
     expect(memory.sweep).toHaveBeenCalledTimes(1);
   });
 
   it("opens the scene for the mode with the learner's context and saves the first line", async () => {
-    const { session, message } = await service.start("presentation", "en");
+    const { session, message } = await starts.start("presentation", "en");
 
     expect(tutor.opened).toEqual([
       expect.objectContaining({ mode: "presentation", language: "en", learnerContext: "Works on Oral Collector." }),
@@ -476,10 +482,10 @@ describe("ConversationService.start", () => {
   });
 
   it("returns the mode's goals and gives them to the tutor", async () => {
-    const { goals } = await service.start("daily", "en");
+    const { goals } = await starts.start("daily", "en");
     expect(goals).toEqual(["yesterday", "today", "blockers"]);
     expect(tutor.opened[0].goals.map((g) => g.id)).toEqual(["yesterday", "today", "blockers"]);
-    expect((await service.start("free_talk", "en")).goals).toEqual([]);
+    expect((await starts.start("free_talk", "en")).goals).toEqual([]);
   });
 
   it("practices the two most frequent mistakes not mastered yet, never a new word", async () => {
@@ -491,7 +497,7 @@ describe("ConversationService.start", () => {
       entry({ original: "open", occurrences: 4 }),
       entry({ original: "other language", occurrences: 7, language: "es" }),
     ];
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     expect(session.targets.map((t) => t.original)).toEqual(["improving", "open"]);
     expect(tutor.opened[0].targets.map((t) => t.original)).toEqual(["improving", "open"]);
   });
@@ -505,18 +511,18 @@ describe("ConversationService.start", () => {
     reviews.items.set("pattern:p-due", { language: "en", step: 1, dueAt: clock.now() });
     reviews.items.set("pattern:p-later", { language: "en", step: 1, dueAt: new Date(clock.now().getTime() + 86_400_000) });
 
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     expect(session.targets.map((t) => t.original)).toEqual(["due", "often"]);
   });
 });
 
 describe("Session goals", () => {
   it("keeps the goals the tutor reports, only the mode's", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ coveredGoals: ["yesterday", "status"] }), verdict({ coveredGoals: ["today"] }));
 
-    expect((await service.respond(session.id, "Yesterday I fixed a bug.")).coveredGoals).toEqual(["yesterday"]);
-    const second = await service.respond(session.id, "Today I will test it.");
+    expect((await turns.respond(session.id, "Yesterday I fixed a bug.")).coveredGoals).toEqual(["yesterday"]);
+    const second = await turns.respond(session.id, "Today I will test it.");
 
     expect(second.coveredGoals).toEqual(["yesterday", "today"]);
     expect(tutor.requests[1].coveredGoals).toEqual(["yesterday"]);
@@ -524,10 +530,10 @@ describe("Session goals", () => {
   });
 
   it("asks whether to stop once every goal is covered", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ reply: "Thanks.", coveredGoals: ["yesterday", "today", "blockers"] }));
 
-    const result = await service.respond(session.id, "Yesterday tests, today deploy, no blockers.");
+    const result = await turns.respond(session.id, "Yesterday tests, today deploy, no blockers.");
 
     expect(result.checkIn).toBe(true);
     expect(result.message).toBe("Thanks. We've covered everything for this conversation. Do you want to stop here or keep going?");
@@ -535,44 +541,44 @@ describe("Session goals", () => {
   });
 
   it("asks in free talk after 8 minutes, then again every 5 minutes", async () => {
-    const { session } = await service.start("free_talk", "en");
+    const { session } = await starts.start("free_talk", "en");
     tutor.verdicts.push(verdict({}), verdict({}), verdict({}), verdict({}));
 
     clock.advanceMinutes(7);
-    expect((await service.respond(session.id, "Hi")).checkIn).toBe(false);
+    expect((await turns.respond(session.id, "Hi")).checkIn).toBe(false);
     clock.advanceMinutes(1);
-    expect((await service.respond(session.id, "Hi")).checkIn).toBe(true);
+    expect((await turns.respond(session.id, "Hi")).checkIn).toBe(true);
     clock.advanceMinutes(4);
-    expect((await service.respond(session.id, "Hi")).checkIn).toBe(false);
+    expect((await turns.respond(session.id, "Hi")).checkIn).toBe(false);
     clock.advanceMinutes(1);
-    expect((await service.respond(session.id, "Hi")).message).toContain("We've been talking for a while.");
+    expect((await turns.respond(session.id, "Hi")).message).toContain("We've been talking for a while.");
   });
 
   it("never asks on a turn that gives a hint", async () => {
-    const { session } = await service.start("free_talk", "en");
+    const { session } = await starts.start("free_talk", "en");
     clock.advanceMinutes(9);
     tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true }));
 
-    expect((await service.respond(session.id, "I goed to the meeting")).checkIn).toBe(false);
-    expect((await service.respond(session.id, "I went to the meeting")).checkIn).toBe(true);
+    expect((await turns.respond(session.id, "I goed to the meeting")).checkIn).toBe(false);
+    expect((await turns.respond(session.id, "I went to the meeting")).checkIn).toBe(true);
   });
 
   it("counts a target met when said right without a hint, even after making the mistake this session", async () => {
     bankEntries = [entry({ original: "I goed", occurrences: 3 }), entry({ original: "more better", correction: "better" })];
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(
       verdict({ issues: [{ ...goed, original: "I goed", correction: "I went" }] }),
       verdict({ pendingResolved: true, correctUses: ["I goed"] }),
       verdict({ correctUses: ["I goed", "more better", "not a target"] }),
       verdict({ issues: [{ ...article, original: "more better", correction: "better" }] }),
     );
-    await service.respond(session.id, "I goed there");
-    await service.respond(session.id, "I went there");
+    await turns.respond(session.id, "I goed there");
+    await turns.respond(session.id, "I went there");
     expect((await sessions.get(session.id))?.metTargets).toEqual([]); // the retry after a hint does not count
-    await service.respond(session.id, "Then I went home, it was better");
-    await service.respond(session.id, "more better");
+    await turns.respond(session.id, "Then I went home, it was better");
+    await turns.respond(session.id, "more better");
 
-    expect((await service.end(session.id)).targets.map((t) => [t.original, t.met])).toEqual([
+    expect((await summaries.end(session.id)).targets.map((t) => [t.original, t.met])).toEqual([
       ["I goed", true],
       ["more better", true],
     ]);
@@ -581,20 +587,20 @@ describe("Session goals", () => {
   it("watches a target outside the known mistakes list once, by its exact text", async () => {
     bankEntries = [entry({ original: "I goed", occurrences: 3 })];
     mistakes.bank.push({ id: "m1", language: "en", original: "I goed", correction: "I went", category: "grammar", occurrences: 3, lastSeenAt: new Date(), pattern: null, patternId: null });
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({}));
     tutor.verdicts.push(verdict({}));
-    await service.respond(session.id, "Hi");
+    await turns.respond(session.id, "Hi");
     expect(tutor.requests[0].knownMistakes.filter((m) => m.original === "I goed")).toHaveLength(1);
   });
 
   it("shows covered goals and met targets in the summary", async () => {
     bankEntries = [entry({ original: "I goed", occurrences: 3 }), entry({ original: "more better", correction: "better" })];
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ coveredGoals: ["yesterday"], correctUses: ["I goed"] }));
-    await service.respond(session.id, "Yesterday I went to the office.");
+    await turns.respond(session.id, "Yesterday I went to the office.");
 
-    const summary = await service.end(session.id);
+    const summary = await summaries.end(session.id);
 
     expect(summary.goals).toEqual([
       { id: "yesterday", covered: true },
@@ -608,12 +614,12 @@ describe("Session goals", () => {
   });
 });
 
-describe("ConversationService.respond", () => {
+describe("TurnService.respond", () => {
   it("keeps talking and only records a minor mistake", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [article] }));
 
-    const result = await service.respond(session.id, "I opened PR");
+    const result = await turns.respond(session.id, "I opened PR");
 
     expect(result).toMatchObject({ kind: "reply", message: "Nice. What happened next?", selfCorrected: false, support: null });
     expect(mistakes.events).toEqual([
@@ -623,10 +629,10 @@ describe("ConversationService.respond", () => {
   });
 
   it("pauses on a serious mistake with a hint and remembers it as pending", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }));
 
-    const result = await service.respond(session.id, "I goed to the meeting");
+    const result = await turns.respond(session.id, "I goed to the meeting");
 
     expect(result.kind).toBe("hint");
     expect(result.message).toBe("Check the past tense of 'go'.");
@@ -635,12 +641,12 @@ describe("ConversationService.respond", () => {
   });
 
   it("records the pattern a mistake breaks, with a clean key, and shows the tutor the bank's patterns", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     const pattern = { key: " Past Simple ", name: "Past for finished actions", rule: "Ação terminada: passado." };
     tutor.verdicts.push(verdict({ issues: [{ ...article, pattern }] }), verdict({}));
 
-    await service.respond(session.id, "I opened PR");
-    await service.respond(session.id, "Then I left");
+    await turns.respond(session.id, "I opened PR");
+    await turns.respond(session.id, "Then I left");
 
     expect(mistakes.bank[0].pattern).toEqual({ ...pattern, key: "past_simple" });
     expect(tutor.requests[1].knownPatterns).toEqual([{ key: "past_simple", name: "Past for finished actions" }]);
@@ -655,29 +661,29 @@ describe("ConversationService.respond", () => {
 
     it("pauses with a hint when its pattern is due for review, and records it as serious", async () => {
       reviews.items.set("pattern:p-articles", { language: "en", step: 1, dueAt: clock.now() });
-      const { session } = await service.start("daily", "en");
+      const { session } = await starts.start("daily", "en");
       tutor.verdicts.push(verdict({ issues: [known] }));
 
-      const result = await service.respond(session.id, "I opened PR");
+      const result = await turns.respond(session.id, "I opened PR");
 
       expect(result.kind).toBe("hint");
       expect(mistakes.events[0].severity).toBe("serious");
     });
 
     it("pauses when it is one of the session's practice targets", async () => {
-      const { session } = await service.start("daily", "en");
+      const { session } = await starts.start("daily", "en");
       expect(session.targets.map((t) => t.original)).toEqual(["I opened PR"]);
       tutor.verdicts.push(verdict({ issues: [known] }));
 
-      expect((await service.respond(session.id, "I opened PR")).kind).toBe("hint");
+      expect((await turns.respond(session.id, "I opened PR")).kind).toBe("hint");
     });
 
     it("is only recorded when its pattern is not in focus", async () => {
       bankEntries.push(entry({ id: "b2", original: "I goed", occurrences: 5 }), entry({ id: "b3", original: "more better", occurrences: 4 }));
-      const { session } = await service.start("daily", "en");
+      const { session } = await starts.start("daily", "en");
       tutor.verdicts.push(verdict({ issues: [known] }));
 
-      const result = await service.respond(session.id, "I opened PR");
+      const result = await turns.respond(session.id, "I opened PR");
 
       expect(result.kind).toBe("reply");
       expect(mistakes.events[0].severity).toBe("minor");
@@ -685,10 +691,10 @@ describe("ConversationService.respond", () => {
 
     it("tells the tutor which patterns pause, until the pattern is broken in the session", async () => {
       reviews.items.set("pattern:p-articles", { language: "en", step: 1, dueAt: clock.now() });
-      const { session } = await service.start("daily", "en");
+      const { session } = await starts.start("daily", "en");
       tutor.verdicts.push(verdict({ issues: [known] }), verdict({ pendingResolved: true }));
-      await service.respond(session.id, "I opened PR");
-      await service.respond(session.id, "I opened a PR");
+      await turns.respond(session.id, "I opened PR");
+      await turns.respond(session.id, "I opened a PR");
 
       expect(tutor.requests[0].focusPatterns).toEqual([{ key: "articles_before_nouns", name: "Articles before nouns" }]);
       expect(tutor.requests[1].focusPatterns).toEqual([]);
@@ -696,31 +702,31 @@ describe("ConversationService.respond", () => {
 
     it("still pauses on a serious mistake of a pattern already broken in the session", async () => {
       reviews.items.set("pattern:p-articles", { language: "en", step: 1, dueAt: clock.now() });
-      const { session } = await service.start("daily", "en");
+      const { session } = await starts.start("daily", "en");
       tutor.verdicts.push(verdict({ issues: [known] }), verdict({ pendingResolved: true }), verdict({ issues: [{ ...known, severity: "serious", original: "I merged PR" }] }));
-      await service.respond(session.id, "I opened PR");
-      await service.respond(session.id, "I opened a PR");
+      await turns.respond(session.id, "I opened PR");
+      await turns.respond(session.id, "I opened a PR");
 
-      expect((await service.respond(session.id, "I merged PR")).kind).toBe("hint");
+      expect((await turns.respond(session.id, "I merged PR")).kind).toBe("hint");
     });
 
     it("pauses only the first time in the session", async () => {
       reviews.items.set("pattern:p-articles", { language: "en", step: 1, dueAt: clock.now() });
-      const { session } = await service.start("daily", "en");
+      const { session } = await starts.start("daily", "en");
       tutor.verdicts.push(verdict({ issues: [known] }), verdict({ pendingResolved: true }), verdict({ issues: [{ ...known, original: "I merged PR", correction: "I merged a PR" }] }));
-      await service.respond(session.id, "I opened PR");
-      await service.respond(session.id, "I opened a PR");
+      await turns.respond(session.id, "I opened PR");
+      await turns.respond(session.id, "I opened a PR");
 
-      expect((await service.respond(session.id, "I merged PR")).kind).toBe("reply");
+      expect((await turns.respond(session.id, "I merged PR")).kind).toBe("reply");
     });
   });
 
   it("passes history, the pending correction and known mistakes to the tutor", async () => {
-    const { session } = await service.start("review", "en");
+    const { session } = await starts.start("review", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true }));
-    await service.respond(session.id, "I goed to the meeting");
+    await turns.respond(session.id, "I goed to the meeting");
 
-    await service.respond(session.id, "I went to the meeting");
+    await turns.respond(session.id, "I went to the meeting");
 
     const request = tutor.requests[1];
     expect(request.utterance).toBe("I went to the meeting");
@@ -732,11 +738,11 @@ describe("ConversationService.respond", () => {
   });
 
   it("marks a self-correction and goes back to the conversation", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true }));
-    await service.respond(session.id, "I goed to the meeting");
+    await turns.respond(session.id, "I goed to the meeting");
 
-    const result = await service.respond(session.id, "I went to the meeting");
+    const result = await turns.respond(session.id, "I went to the meeting");
 
     expect(result).toMatchObject({ kind: "reply", message: "Nice. What happened next?", selfCorrected: true, support: null });
     expect(mistakes.events[0].selfCorrected).toBe(true);
@@ -744,14 +750,14 @@ describe("ConversationService.respond", () => {
   });
 
   it("does not record the pending mistake again while the learner retries", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(
       verdict({ issues: [goed] }),
       verdict({ issues: [goed], nextHint: "Think of 'go, ___, gone'." }),
     );
-    await service.respond(session.id, "I goed to the meeting");
+    await turns.respond(session.id, "I goed to the meeting");
 
-    const result = await service.respond(session.id, "I goed to the meeting");
+    const result = await turns.respond(session.id, "I goed to the meeting");
 
     expect(result).toMatchObject({
       kind: "hint",
@@ -764,29 +770,29 @@ describe("ConversationService.respond", () => {
   });
 
   it("treats a retry with different case or end punctuation as the same pending mistake", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(
       verdict({ issues: [goed] }),
       verdict({ issues: [{ ...goed, original: "I Goed to the meeting.", correction: "I went to the meeting." }] }),
     );
-    await service.respond(session.id, "I goed to the meeting");
+    await turns.respond(session.id, "I goed to the meeting");
 
-    await service.respond(session.id, "I Goed to the meeting.");
+    await turns.respond(session.id, "I Goed to the meeting.");
 
     expect(mistakes.events).toHaveLength(1);
   });
 
   it("records a known mistake as serious even when a correction is already pending", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(
       verdict({ issues: [goed] }),
       verdict({ issues: [goed, { ...article, matchesKnownMistake: true, pattern: articlesPattern }] }),
     );
     bankEntries = [entry({ original: "I opened PR", patternId: "p-articles", pattern: articlesPattern })];
     reviews.items.set("pattern:p-articles", { language: "en", step: 1, dueAt: clock.now() });
-    await service.respond(session.id, "I goed to the meeting");
+    await turns.respond(session.id, "I goed to the meeting");
 
-    await service.respond(session.id, "I goed to the meeting and I opened PR");
+    await turns.respond(session.id, "I goed to the meeting and I opened PR");
 
     expect(mistakes.events.map((e) => [e.original, e.severity])).toEqual([
       [goed.original, "serious"],
@@ -795,16 +801,16 @@ describe("ConversationService.respond", () => {
   });
 
   it("shows the correct form after two hints and asks the learner to repeat it", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(
       verdict({ issues: [goed] }),
       verdict({ issues: [goed], nextHint: "Think of 'go, ___, gone'." }),
       verdict({ issues: [goed] }),
     );
-    await service.respond(session.id, "I goed to the meeting");
-    await service.respond(session.id, "I goed to the meeting");
+    await turns.respond(session.id, "I goed to the meeting");
+    await turns.respond(session.id, "I goed to the meeting");
 
-    const result = await service.respond(session.id, "I goed to the meeting");
+    const result = await turns.respond(session.id, "I goed to the meeting");
 
     expect(result.kind).toBe("reveal");
     expect(result.message).toContain("I went to the meeting");
@@ -813,12 +819,12 @@ describe("ConversationService.respond", () => {
 
   it("names the mistake's type on every hint, and gives its rule only with the correct form", async () => {
     const pattern = { key: "past_simple", name: "Past for finished actions", rule: "Ação terminada: passado (go → went)." };
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [{ ...goed, pattern }] }), verdict({ issues: [goed] }), verdict({ issues: [goed] }));
 
-    const first = await service.respond(session.id, "I goed to the meeting");
-    const second = await service.respond(session.id, "I goed to the meeting");
-    const reveal = await service.respond(session.id, "I goed to the meeting");
+    const first = await turns.respond(session.id, "I goed to the meeting");
+    const second = await turns.respond(session.id, "I goed to the meeting");
+    const reveal = await turns.respond(session.id, "I goed to the meeting");
 
     expect([first, second].map((r) => [r.kind, r.mistakeType, r.rule])).toEqual([
       ["hint", goed.category, null],
@@ -826,25 +832,25 @@ describe("ConversationService.respond", () => {
     ]);
     expect(reveal).toMatchObject({ kind: "reveal", mistakeType: goed.category, rule: { name: pattern.name, rule: pattern.rule } });
     // After a reload, the screen gets the type and the rule back.
-    expect((await service.resume(session.id)).hint).toMatchObject({ mistakeType: goed.category, rule: { name: pattern.name, rule: pattern.rule } });
+    expect((await starts.resume(session.id)).hint).toMatchObject({ mistakeType: goed.category, rule: { name: pattern.name, rule: pattern.rule } });
   });
 
   it("gives the correct form without a rule for a hint saved before patterns", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }));
-    await service.respond(session.id, "I goed to the meeting");
+    await turns.respond(session.id, "I goed to the meeting");
     const { pattern: _unused, ...old } = (await sessions.get(session.id))!.pending!;
     await sessions.setPending(session.id, { ...old, hintsGiven: 2 });
     tutor.verdicts.push(verdict({ issues: [goed] }));
 
-    expect(await service.respond(session.id, "I goed to the meeting")).toMatchObject({ kind: "reveal", mistakeType: goed.category, rule: null });
+    expect(await turns.respond(session.id, "I goed to the meeting")).toMatchObject({ kind: "reveal", mistakeType: goed.category, rule: null });
   });
 
   it("saves the learner's line and the tutor's answer", async () => {
-    const { session } = await service.start("free_talk", "en");
+    const { session } = await starts.start("free_talk", "en");
     tutor.verdicts.push(verdict({}));
 
-    await service.respond(session.id, "We shipped the upload fix.");
+    await turns.respond(session.id, "We shipped the upload fix.");
 
     expect((await sessions.history(session.id)).slice(1)).toEqual([
       { role: "user", content: "We shipped the upload fix." },
@@ -853,28 +859,28 @@ describe("ConversationService.respond", () => {
   });
 
   it("rejects an unknown session", async () => {
-    await expect(service.respond("nope", "hi")).rejects.toBeInstanceOf(SessionNotFoundError);
+    await expect(turns.respond("nope", "hi")).rejects.toBeInstanceOf(SessionNotFoundError);
   });
 
   it("rejects a session that has ended", async () => {
-    const { session } = await service.start("daily", "en");
-    await service.end(session.id);
-    await expect(service.respond(session.id, "hi")).rejects.toBeInstanceOf(SessionEndedError);
+    const { session } = await starts.start("daily", "en");
+    await summaries.end(session.id);
+    await expect(turns.respond(session.id, "hi")).rejects.toBeInstanceOf(SessionEndedError);
   });
 });
 
-describe("ConversationService.respond: the reply first, the analysis after", () => {
+describe("TurnService.respond: the reply first, the analysis after", () => {
   const early = () => {
     const lines: TurnResult[] = [];
     return { lines, onReply: (line: TurnResult) => lines.push(line) };
   };
 
   it("hands over the reply before the verdict, then has nothing more to say", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [article], support: "PR = pull request.", coveredGoals: ["yesterday"] }));
     const { lines, onReply } = early();
 
-    const result = await service.respond(session.id, "I opened PR", onReply);
+    const result = await turns.respond(session.id, "I opened PR", onReply);
 
     expect(lines).toEqual([
       {
@@ -908,11 +914,11 @@ describe("ConversationService.respond: the reply first, the analysis after", () 
   });
 
   it("says the hint after the reply on a serious mistake, and keeps both in the conversation", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }));
     const { lines, onReply } = early();
 
-    const result = await service.respond(session.id, "I goed to the meeting", onReply);
+    const result = await turns.respond(session.id, "I goed to the meeting", onReply);
 
     expect(lines.map((l) => l.message)).toEqual(["Nice. What happened next?"]);
     expect(result).toMatchObject({ kind: "hint", message: "Check the past tense of 'go'." });
@@ -923,11 +929,11 @@ describe("ConversationService.respond: the reply first, the analysis after", () 
   });
 
   it("asks whether to stop after the reply", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ reply: "Thanks.", coveredGoals: ["yesterday", "today", "blockers"] }));
     const { onReply } = early();
 
-    const result = await service.respond(session.id, "Yesterday tests, today deploy, no blockers.", onReply);
+    const result = await turns.respond(session.id, "Yesterday tests, today deploy, no blockers.", onReply);
 
     expect(result).toMatchObject({
       checkIn: true,
@@ -939,24 +945,24 @@ describe("ConversationService.respond: the reply first, the analysis after", () 
   });
 
   it("waits for the whole verdict while a hint is pending: the reply may not be said", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ nextHint: "Think of 'went'." }));
-    await service.respond(session.id, "I goed to the meeting");
+    await turns.respond(session.id, "I goed to the meeting");
     const { lines, onReply } = early();
 
-    const result = await service.respond(session.id, "I goed there", onReply);
+    const result = await turns.respond(session.id, "I goed there", onReply);
 
     expect(lines).toEqual([]);
     expect(result).toMatchObject({ kind: "hint", message: "Think of 'went'." });
   });
 
   it("answers in one piece when the tutor did not hand over the reply", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.speaksEarly = false;
     tutor.verdicts.push(verdict({ issues: [goed] }));
     const { lines, onReply } = early();
 
-    const result = await service.respond(session.id, "I goed to the meeting", onReply);
+    const result = await turns.respond(session.id, "I goed to the meeting", onReply);
 
     expect(lines).toEqual([]);
     expect(result.message).toBe("Check the past tense of 'go'.");
@@ -964,16 +970,16 @@ describe("ConversationService.respond: the reply first, the analysis after", () 
   });
 });
 
-describe("ConversationService.respond: expressions due for review", () => {
+describe("TurnService.respond: expressions due for review", () => {
   it("shows the tutor the due expressions and counts one used in the conversation as recalled", async () => {
     reviews.items.set("expression:e1", { language: "en", step: 1, dueAt: clock.now() });
     reviews.phrases.set("e1", "I'm still working on…");
     reviews.items.set("expression:e2", { language: "en", step: 1, dueAt: new Date(clock.now().getTime() + 86_400_000) });
     reviews.phrases.set("e2", "The main reason is…");
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ usedExpressions: ["I'm still working on…", "Not listed…"] }));
 
-    await service.respond(session.id, "I'm still working on the upload");
+    await turns.respond(session.id, "I'm still working on the upload");
 
     expect(tutor.requests[0].reviewExpressions).toEqual(["I'm still working on…"]);
     expect(reviews.items.get("expression:e1")?.step).toBe(2);
@@ -984,35 +990,35 @@ describe("ConversationService.respond: expressions due for review", () => {
     reviews.items.set("expression:e1", { language: "en", step: 1, dueAt: clock.now() });
     reviews.phrases.set("e1", "I'm still working on…");
     levels.rows.push({ language: "en", level: "B1", source: "manual", evidence: [], assessedAt: clock.now() });
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(
       verdict({ stuck: true, scaffold: "You could start with: I'm still working on..." }),
       verdict({ usedExpressions: ["I'm still working on..."] }),
     );
-    await service.respond(session.id, "I don't know");
+    await turns.respond(session.id, "I don't know");
 
-    await service.respond(session.id, "I'm still working on the upload");
+    await turns.respond(session.id, "I'm still working on the upload");
 
     expect(reviews.items.get("expression:e1")?.step).toBe(1);
   });
 
   it("watches no expressions in the placement interview", async () => {
     reviews.items.set("expression:e1", { language: "en", step: 1, dueAt: clock.now() });
-    const { session } = await service.start("placement", "en");
+    const { session } = await starts.start("placement", "en");
     tutor.verdicts.push(verdict({}));
-    await service.respond(session.id, "Hi");
+    await turns.respond(session.id, "Hi");
     expect(tutor.requests[0].reviewExpressions).toEqual([]);
   });
 });
 
-describe("ConversationService.respond: words in the learner's first language", () => {
+describe("TurnService.respond: words in the learner's first language", () => {
   const prazo = { said: "prazo", words: "deadline" };
 
   it("saves them as new words, not as mistakes, and passes the written help along", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ newWords: [prazo], support: "“Prazo” em inglês é “deadline”." }));
 
-    const result = await service.respond(session.id, "The prazo is Friday");
+    const result = await turns.respond(session.id, "The prazo is Friday");
 
     expect(result).toMatchObject({
       kind: "reply",
@@ -1025,52 +1031,52 @@ describe("ConversationService.respond: words in the learner's first language", (
   });
 
   it("sends new words to the tutor apart from the known mistakes", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ newWords: [prazo], issues: [article] }), verdict({}));
-    await service.respond(session.id, "I opened PR before the prazo");
-    await service.respond(session.id, "Next one");
+    await turns.respond(session.id, "I opened PR before the prazo");
+    await turns.respond(session.id, "Next one");
 
     expect(tutor.requests[1].knownMistakes.map((m) => m.original)).toEqual(["I opened PR"]);
     expect(tutor.requests[1].knownNewWords).toEqual([{ original: "prazo", correction: "deadline", category: NEW_WORD_CATEGORY }]);
   });
 
   it("does not save a new word that is also listed as a mistake, or twice", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     const both = { ...article, original: "prazo", correction: "deadline" };
     tutor.verdicts.push(verdict({ issues: [both], newWords: [prazo, { said: "reunião", words: "meeting" }, { said: "reunião", words: "meeting" }] }));
-    await service.respond(session.id, "prazo da reunião");
+    await turns.respond(session.id, "prazo da reunião");
     expect(mistakes.events.map((e) => e.original)).toEqual(["prazo", "reunião"]);
   });
 
   it("drops written support that gives away the pending correction", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed], support: "Diga: I went to the meeting" }));
-    const result = await service.respond(session.id, "I goed to the meeting");
+    const result = await turns.respond(session.id, "I goed to the meeting");
     expect(result.kind).toBe("hint");
     expect(result.support).toBeNull();
   });
 
   it("counts a new word said in English later as a correct use", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ newWords: [prazo] }), verdict({ correctUses: ["prazo"] }));
-    await service.respond(session.id, "The prazo is Friday");
-    await service.respond(session.id, "The deadline is Friday");
+    await turns.respond(session.id, "The prazo is Friday");
+    await turns.respond(session.id, "The deadline is Friday");
     expect(mistakes.correctUses).toMatchObject([{ original: "prazo" }]);
   });
 
   it("does not count new words as mistakes in the fluency signals", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ newWords: [prazo], issues: [article] }));
-    await service.respond(session.id, "I opened PR before the prazo"); // 6 words
+    await turns.respond(session.id, "I opened PR before the prazo"); // 6 words
 
-    const summary = await service.end(session.id);
+    const summary = await summaries.end(session.id);
 
     expect(summary.mistakes.map((m) => m.category)).toEqual(["grammar", NEW_WORD_CATEGORY]);
     expect(summary.signals.mistakesPer100Words).toBeCloseTo((1 / 6) * 100);
   });
 });
 
-describe("ConversationService: help by the learner's level", () => {
+describe("The conversation: help by the learner's level", () => {
   const placed = (level: SpeakingLevel["level"]): SpeakingLevel => ({
     language: "en",
     level,
@@ -1081,33 +1087,33 @@ describe("ConversationService: help by the learner's level", () => {
   const stuckAtB1 = verdict({ reply: "No problem. You could start with: Yesterday I...", stuck: true, scaffold: "Yesterday I..." });
 
   it("starts each session at the step of the learner's level, and as before without a level", async () => {
-    expect((await service.start("daily", "en")).session.step).toBe("conversation");
+    expect((await starts.start("daily", "en")).session.step).toBe("conversation");
     levels.rows.push(placed("B1"));
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     expect(session.step).toBe("supported");
     expect(tutor.opened.at(-1)?.step).toBe("supported");
-    expect((await service.start("placement", "en")).session.step).toBeNull();
+    expect((await starts.start("placement", "en")).session.step).toBeNull();
   });
 
   it("at B1, keeps the sentence start the tutor gave and counts the learner's next turn as helped", async () => {
     levels.rows.push(placed("B1"));
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(stuckAtB1, verdict({}));
 
-    await service.respond(session.id, "I don't know how to say it.");
-    await service.respond(session.id, "Yesterday I worked on the export.");
+    await turns.respond(session.id, "I don't know how to say it.");
+    await turns.respond(session.id, "Yesterday I worked on the export.");
 
     expect(tutor.requests[1].scaffold).toBe("Yesterday I...");
     expect((await sessions.get(session.id))?.scaffold).toBeNull();
     expect(sessions.assisted.get(session.id)).toEqual([false, true]);
-    expect((await service.end(session.id)).signals.unaidedShare).toBe(0.5);
+    expect((await summaries.end(session.id)).signals.unaidedShare).toBe(0.5);
   });
 
   it("at B1, sends the sentence start to the screen, outside any track", async () => {
     levels.rows.push(placed("B1"));
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(stuckAtB1);
-    expect(await service.respond(session.id, "I don't know how to say it.")).toMatchObject({
+    expect(await turns.respond(session.id, "I don't know how to say it.")).toMatchObject({
       track: null,
       scaffold: "Yesterday I...",
     });
@@ -1115,29 +1121,29 @@ describe("ConversationService: help by the learner's level", () => {
 
   it("gives no words to say from B2 up, even if the tutor writes some", async () => {
     levels.rows.push(placed("B2"));
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(stuckAtB1);
-    await service.respond(session.id, "I don't know.");
+    await turns.respond(session.id, "I don't know.");
     expect((await sessions.get(session.id))?.scaffold).toBeNull();
   });
 
   it("drops the words to say when the turn is a hint: the learner retries their own sentence", async () => {
     levels.rows.push(placed("B1"));
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ ...stuckAtB1, issues: [goed] }));
-    expect((await service.respond(session.id, "I goed to the meeting.")).kind).toBe("hint");
+    expect((await turns.respond(session.id, "I goed to the meeting.")).kind).toBe("hint");
     expect((await sessions.get(session.id))?.scaffold).toBeNull();
   });
 
   it("counts a turn in the first language as helped", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ newWords: [{ said: "prazo", words: "deadline" }] }));
-    await service.respond(session.id, "The prazo is Friday.");
+    await turns.respond(session.id, "The prazo is Friday.");
     expect(sessions.assisted.get(session.id)).toEqual([true]);
   });
 });
 
-describe("ConversationService: the guided track (A1–A2)", () => {
+describe("The conversation: the guided track (A1–A2)", () => {
   const placed = (level: SpeakingLevel["level"]): SpeakingLevel => ({
     language: "en",
     level,
@@ -1150,7 +1156,7 @@ describe("ConversationService: the guided track (A1–A2)", () => {
   async function startA1() {
     levels.rows.push(placed("A1"));
     tutor.openingScaffold = model;
-    return (await service.start("daily", "en")).session;
+    return (await starts.start("daily", "en")).session;
   }
 
   it("opens at A1 with a model sentence for the first goal and keeps it to compare the repetition", async () => {
@@ -1165,10 +1171,10 @@ describe("ConversationService: the guided track (A1–A2)", () => {
 
   it("tells the screen the step and the words to say, on start, on each turn and on resume", async () => {
     const session = await startA1();
-    expect(await service.resume(session.id)).toMatchObject({ track: { stage: "model", number: 1, total: 5 }, scaffold: model });
+    expect(await starts.resume(session.id)).toMatchObject({ track: { stage: "model", number: 1, total: 5 }, scaffold: model });
 
     tutor.verdicts.push(verdict({ scaffold: "Yesterday I worked on the audio upload." }));
-    const turn = await service.respond(session.id, model);
+    const turn = await turns.respond(session.id, model);
     expect(turn).toMatchObject({
       track: { stage: "swap", number: 2, total: 5 },
       scaffold: "Yesterday I worked on the audio upload.",
@@ -1178,7 +1184,7 @@ describe("ConversationService: the guided track (A1–A2)", () => {
   it("moves on once the learner repeats the model, and asks the tutor for the next step", async () => {
     const session = await startA1();
     tutor.verdicts.push(verdict({ scaffold: model }));
-    await service.respond(session.id, "Yesterday I worked on the login screen.");
+    await turns.respond(session.id, "Yesterday I worked on the login screen.");
 
     const plan = tutor.requests[0].plan;
     expect(plan?.otherwise.stage).toBe("swap");
@@ -1189,29 +1195,29 @@ describe("ConversationService: the guided track (A1–A2)", () => {
   it("says the model again, slower, when the repetition does not match", async () => {
     const session = await startA1();
     tutor.verdicts.push(verdict({ scaffold: model }));
-    await service.respond(session.id, "Yesterday I...");
+    await turns.respond(session.id, "Yesterday I...");
     expect(tutor.requests[0].plan?.otherwise).toMatchObject({ stage: "model", retry: true });
   });
 
   it("covers a goal only with the learner's own answer, never while repeating", async () => {
     const session = await startA1();
     tutor.verdicts.push(verdict({ scaffold: model, coveredGoals: ["yesterday"] }));
-    expect((await service.respond(session.id, model)).coveredGoals).toEqual([]);
+    expect((await turns.respond(session.id, model)).coveredGoals).toEqual([]);
   });
 
   it("does not stop for a hint while the learner says the words given", async () => {
     const session = await startA1();
     tutor.verdicts.push(verdict({ scaffold: model, issues: [goed] }));
-    expect((await service.respond(session.id, "I goed to the meeting.")).kind).toBe("reply");
+    expect((await turns.respond(session.id, "I goed to the meeting.")).kind).toBe("reply");
   });
 
   it("at A2, asks the question first and gives the model only when the learner is stuck", async () => {
     levels.rows.push(placed("A2"));
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     expect(tutor.openPlans[0]?.otherwise.stage).toBe("answer");
     tutor.verdicts.push(verdict({ stuck: true, scaffold: model }));
 
-    await service.respond(session.id, "I don't know.");
+    await turns.respond(session.id, "I don't know.");
 
     expect(tutor.requests[0].plan?.ifStuck.stage).toBe("model");
     expect(tutor.requests[0].plan?.otherwise.stage).toBe("again");
@@ -1220,14 +1226,14 @@ describe("ConversationService: the guided track (A1–A2)", () => {
 
   it("stops for a hint at the learner's own answer, and moves on once it is fixed", async () => {
     levels.rows.push(placed("A2"));
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true }));
 
-    expect((await service.respond(session.id, "I goed to the meeting.")).kind).toBe("hint");
+    expect((await turns.respond(session.id, "I goed to the meeting.")).kind).toBe("hint");
     expect((await sessions.get(session.id))?.track?.stage).toBe("answer");
     expect(tutor.requests[0].plan?.hintsPause).toBe(true);
 
-    const fixed = await service.respond(session.id, "I went to the meeting.");
+    const fixed = await turns.respond(session.id, "I went to the meeting.");
     expect(fixed.selfCorrected).toBe(true);
     expect(fixed.coveredGoals).toEqual(["yesterday"]);
     expect((await sessions.get(session.id))?.track?.stage).toBe("again");
@@ -1236,44 +1242,44 @@ describe("ConversationService: the guided track (A1–A2)", () => {
   it("records a serious mistake made while repeating with its real severity, without a hint", async () => {
     const session = await startA1();
     tutor.verdicts.push(verdict({ scaffold: model, issues: [goed] }));
-    await service.respond(session.id, "I goed to the meeting.");
+    await turns.respond(session.id, "I goed to the meeting.");
     expect(mistakes.events.at(-1)).toMatchObject({ original: goed.original, severity: "serious" });
   });
 
   it("covers the goal when the learner answers alone, and asks to say it again", async () => {
     levels.rows.push(placed("A2"));
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ scaffold: "ignored" }));
-    const turn = await service.respond(session.id, "Yesterday I fixed the upload bug.");
+    const turn = await turns.respond(session.id, "Yesterday I fixed the upload bug.");
     expect(turn.coveredGoals).toEqual(["yesterday"]);
     expect(await sessions.get(session.id)).toMatchObject({ scaffold: null, track: { stage: "again" } });
   });
 });
 
-describe("ConversationService.end", () => {
+describe("SessionSummaryService.end", () => {
   it("asks for the ended session to be remembered, placement included", async () => {
-    const { session } = await service.start("free_talk", "en");
-    await service.end(session.id);
+    const { session } = await starts.start("free_talk", "en");
+    await summaries.end(session.id);
     expect(memory.rememberLater).toHaveBeenCalledWith(session.id);
 
-    const { session: placement } = await service.start("placement", "en");
-    await service.end(placement.id);
+    const { session: placement } = await starts.start("placement", "en");
+    await summaries.end(placement.id);
     expect(memory.rememberLater).toHaveBeenCalledWith(placement.id);
   });
 
   it("does not wait for the memory to be saved", async () => {
     memory.rememberLater.mockReturnValue(new Promise(() => {}));
-    const { session } = await service.start("free_talk", "en");
-    await expect(service.end(session.id)).resolves.toEqual(expect.objectContaining({ sessionId: session.id }));
+    const { session } = await starts.start("free_talk", "en");
+    await expect(summaries.end(session.id)).resolves.toEqual(expect.objectContaining({ sessionId: session.id }));
   });
 
   it("ends the session and summarizes its mistakes and self-corrections", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true, issues: [article] }));
-    await service.respond(session.id, "I goed to the meeting");
-    await service.respond(session.id, "I went to the meeting and I opened PR");
+    await turns.respond(session.id, "I goed to the meeting");
+    await turns.respond(session.id, "I went to the meeting and I opened PR");
 
-    const summary = await service.end(session.id);
+    const summary = await summaries.end(session.id);
 
     expect((await sessions.get(session.id))?.endedAt).toBeInstanceOf(Date);
     expect(summary.mode).toBe("daily");
@@ -1285,10 +1291,10 @@ describe("ConversationService.end", () => {
   });
 
   it("computes the fluency signals from the turns, the mistakes and the timing", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true, issues: [article] }));
-    await service.respond(session.id, "I goed to the meeting"); // 5 words
-    await service.respond(session.id, "I went to the meeting and I opened PR"); // 9 words
+    await turns.respond(session.id, "I goed to the meeting"); // 5 words
+    await turns.respond(session.id, "I went to the meeting and I opened PR"); // 9 words
 
     const timing = {
       learnerSpeechMs: 30_000,
@@ -1297,7 +1303,7 @@ describe("ConversationService.end", () => {
       longPausesMs: [1200],
       spokenWords: 14,
     };
-    const summary = await service.end(session.id, timing);
+    const summary = await summaries.end(session.id, timing);
 
     expect(summary.signals).toEqual({
       selfCorrectionRate: 1,
@@ -1311,47 +1317,47 @@ describe("ConversationService.end", () => {
   });
 
   it("uses the timing saved during the session when it ends without one, at the time given", async () => {
-    const { session } = await service.start("daily", "en");
-    await service.saveTiming(session.id, { learnerSpeechMs: 60_000, tutorSpeechMs: 1000, pausesMs: [], spokenWords: 90 });
+    const { session } = await starts.start("daily", "en");
+    await summaries.saveTiming(session.id, { learnerSpeechMs: 60_000, tutorSpeechMs: 1000, pausesMs: [], spokenWords: 90 });
     const lastActive = new Date("2026-11-10T08:00:00Z");
-    const summary = await service.end(session.id, null, lastActive);
+    const summary = await summaries.end(session.id, null, lastActive);
     expect(summary.signals.wordsPerMinute).toBe(90);
     expect((await sessions.get(session.id))?.endedAt).toEqual(lastActive);
   });
 
   it("does not save the timing of a session that ended", async () => {
-    const { session } = await service.start("daily", "en");
-    await service.end(session.id);
+    const { session } = await starts.start("daily", "en");
+    await summaries.end(session.id);
     const timing = { learnerSpeechMs: 1000, tutorSpeechMs: 1000, pausesMs: [] };
-    await expect(service.saveTiming(session.id, timing)).rejects.toBeInstanceOf(SessionEndedError);
-    await expect(service.saveTiming("missing", timing)).rejects.toBeInstanceOf(SessionNotFoundError);
+    await expect(summaries.saveTiming(session.id, timing)).rejects.toBeInstanceOf(SessionEndedError);
+    await expect(summaries.saveTiming("missing", timing)).rejects.toBeInstanceOf(SessionNotFoundError);
   });
 
   it("can be called twice, keeping the first timing", async () => {
-    const { session } = await service.start("daily", "en");
-    await service.end(session.id, { learnerSpeechMs: 60_000, tutorSpeechMs: 1000, pausesMs: [], spokenWords: 90 });
-    const again = await service.end(session.id, { learnerSpeechMs: 9000, tutorSpeechMs: 1000, pausesMs: [], spokenWords: 1 });
+    const { session } = await starts.start("daily", "en");
+    await summaries.end(session.id, { learnerSpeechMs: 60_000, tutorSpeechMs: 1000, pausesMs: [], spokenWords: 90 });
+    const again = await summaries.end(session.id, { learnerSpeechMs: 9000, tutorSpeechMs: 1000, pausesMs: [], spokenWords: 1 });
     expect(again).toMatchObject({ sessionId: session.id, signals: { wordsPerMinute: 90 } });
   });
 
   it("has no timing signals when the app sent no timing", async () => {
-    const { session } = await service.start("daily", "en");
-    const summary = await service.end(session.id);
+    const { session } = await starts.start("daily", "en");
+    const summary = await summaries.end(session.id);
     expect(summary.signals).toMatchObject({ averagePauseMs: null, wordsPerMinute: null, longPausesPerMinute: null });
   });
 
   it("rejects an unknown session", async () => {
-    await expect(service.end("nope")).rejects.toBeInstanceOf(SessionNotFoundError);
+    await expect(summaries.end("nope")).rejects.toBeInstanceOf(SessionNotFoundError);
   });
 });
 
-describe("ConversationService.resume", () => {
+describe("SessionStartService.resume", () => {
   it("returns what the screen needs to pick an open session up again", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed], nextHint: "Check the past tense of 'go'.", coveredGoals: ["yesterday"] }));
-    await service.respond(session.id, "I goed to the meeting");
+    await turns.respond(session.id, "I goed to the meeting");
 
-    const resumed = await service.resume(session.id);
+    const resumed = await starts.resume(session.id);
 
     expect(resumed).toEqual({
       sessionId: session.id,
@@ -1375,49 +1381,49 @@ describe("ConversationService.resume", () => {
   });
 
   it("has no hint when no correction is pending", async () => {
-    const { session } = await service.start("free_talk", "en");
-    expect(await service.resume(session.id)).toMatchObject({ goals: [], coveredGoals: [], hint: null });
+    const { session } = await starts.start("free_talk", "en");
+    expect(await starts.resume(session.id)).toMatchObject({ goals: [], coveredGoals: [], hint: null });
   });
 
   it("rejects an unknown session and one that has ended", async () => {
-    await expect(service.resume("nope")).rejects.toBeInstanceOf(SessionNotFoundError);
-    const { session } = await service.start("daily", "en");
-    await service.end(session.id);
-    await expect(service.resume(session.id)).rejects.toBeInstanceOf(SessionEndedError);
+    await expect(starts.resume("nope")).rejects.toBeInstanceOf(SessionNotFoundError);
+    const { session } = await starts.start("daily", "en");
+    await summaries.end(session.id);
+    await expect(starts.resume(session.id)).rejects.toBeInstanceOf(SessionEndedError);
   });
 });
 
 describe("takeaways in the summary", () => {
   it("lists the session's patterns to take away", async () => {
     const pattern = { key: "articles", name: "A before a singular noun", rule: "Use a antes de substantivo singular." };
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [{ ...article, pattern }] }));
-    await service.respond(session.id, "I opened PR");
+    await turns.respond(session.id, "I opened PR");
 
-    expect((await service.end(session.id)).takeaways).toEqual([
+    expect((await summaries.end(session.id)).takeaways).toEqual([
       { patternId: "p-articles", category: "grammar", name: pattern.name, rule: pattern.rule, said: article.original },
     ]);
   });
 
   it("has nothing to take away after the placement interview", async () => {
     const pattern = { key: "articles", name: "A before a singular noun", rule: "Use a antes de substantivo singular." };
-    const { session } = await service.start("placement", "en");
+    const { session } = await starts.start("placement", "en");
     tutor.verdicts.push(verdict({ issues: [{ ...article, pattern }] }));
-    await service.respond(session.id, "I opened PR");
+    await turns.respond(session.id, "I opened PR");
 
-    expect((await service.end(session.id)).takeaways).toEqual([]);
+    expect((await summaries.end(session.id)).takeaways).toEqual([]);
   });
 });
 
 describe("a pattern comes back in the session", () => {
   it("asks the tutor to bring a pattern back once, 3 learner turns after it was broken", async () => {
     const pattern = { key: "articles", name: "A before a singular noun", rule: "Use a antes de substantivo singular." };
-    const { session } = await service.start("free_talk", "en");
+    const { session } = await starts.start("free_talk", "en");
     tutor.verdicts.push(verdict({ issues: [{ ...article, severity: "minor", pattern }] }));
-    await service.respond(session.id, "I opened PR");
+    await turns.respond(session.id, "I opened PR");
     for (const line of ["Then I tested it", "It went well", "We shipped it"]) {
       tutor.verdicts.push(verdict({}));
-      await service.respond(session.id, line);
+      await turns.respond(session.id, line);
     }
 
     expect(tutor.requests.map((r) => r.bringBack)).toEqual([[], [], [{ key: "articles", name: pattern.name }], []]);
@@ -1425,12 +1431,12 @@ describe("a pattern comes back in the session", () => {
 
   it("never brings a pattern back in the placement interview", async () => {
     const pattern = { key: "articles", name: "A before a singular noun", rule: "Use a antes de substantivo singular." };
-    const { session } = await service.start("placement", "en");
+    const { session } = await starts.start("placement", "en");
     tutor.verdicts.push(verdict({ issues: [{ ...article, severity: "minor", pattern }] }));
-    await service.respond(session.id, "I opened PR");
+    await turns.respond(session.id, "I opened PR");
     for (const line of ["Then I tested it", "It went well"]) {
       tutor.verdicts.push(verdict({}));
-      await service.respond(session.id, line);
+      await turns.respond(session.id, line);
     }
     expect(tutor.requests.every((r) => r.bringBack.length === 0)).toBe(true);
   });
@@ -1441,36 +1447,36 @@ describe("review schedule", () => {
   const tomorrow = () => new Date(clock.now().getTime() + 86_400_000);
 
   it("brings a pattern back tomorrow when the mistake is made, and a new word too", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [{ ...article, pattern }], newWords: [{ said: "prazo", words: "deadline" }] }));
 
-    await service.respond(session.id, "I opened PR before the prazo");
+    await turns.respond(session.id, "I opened PR before the prazo");
 
     expect(reviews.items.get("pattern:p-articles")).toEqual({ language: "en", step: 0, dueAt: tomorrow() });
     expect(reviews.items.get("new_word:m2")).toEqual({ language: "en", step: 0, dueAt: tomorrow() });
   });
 
   it("moves a due pattern forward when the learner says it right in a later session", async () => {
-    const { session: old } = await service.start("daily", "en");
+    const { session: old } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [{ ...article, pattern }] }));
-    await service.respond(old.id, "I opened PR");
+    await turns.respond(old.id, "I opened PR");
     clock.advanceMinutes(2 * 24 * 60);
 
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ correctUses: [article.original] }));
-    await service.respond(session.id, "I opened a PR");
+    await turns.respond(session.id, "I opened a PR");
 
     expect(reviews.items.get("pattern:p-articles")).toMatchObject({ step: 1 });
   });
 
   it("moves a pattern back once when one turn breaks it twice", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     reviews.items.set("pattern:p-articles", { language: "en", step: 3, dueAt: tomorrow() });
     tutor.verdicts.push(
       verdict({ issues: [{ ...article, pattern }, { ...article, original: "I closed issue", correction: "I closed an issue", pattern }] }),
     );
 
-    await service.respond(session.id, "I opened PR and I closed issue");
+    await turns.respond(session.id, "I opened PR and I closed issue");
 
     expect(reviews.items.get("pattern:p-articles")).toMatchObject({ step: 2 });
   });
@@ -1478,133 +1484,133 @@ describe("review schedule", () => {
 
 describe("correct uses of known mistakes", () => {
   it("records each known mistake the learner got right, by its bank text", async () => {
-    const { session: old } = await service.start("daily", "en");
+    const { session: old } = await starts.start("daily", "en");
     await mistakes.record({ language: "en", original: goed.original, correction: goed.correction, category: "grammar", pattern: null }, { sessionId: old.id, severity: "serious" });
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ correctUses: ["i goed to the meeting.", "something never in the bank"] }));
 
-    await service.respond(session.id, "I went to the meeting");
+    await turns.respond(session.id, "I went to the meeting");
 
     expect(mistakes.correctUses).toEqual([{ sessionId: session.id, language: "en", original: goed.original }]);
   });
 
   it("keeps a correct use of another known mistake while a correction is pending", async () => {
-    const { session: old } = await service.start("daily", "en");
+    const { session: old } = await starts.start("daily", "en");
     await mistakes.record({ language: "en", original: article.original, correction: article.correction, category: "grammar", pattern: null }, { sessionId: old.id, severity: "minor" });
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true, correctUses: [goed.original, article.original] }));
 
-    await service.respond(session.id, "I goed to the meeting");
-    await service.respond(session.id, "I went to the meeting and I opened a PR");
+    await turns.respond(session.id, "I goed to the meeting");
+    await turns.respond(session.id, "I went to the meeting and I opened a PR");
 
     expect(mistakes.correctUses).toEqual([{ sessionId: session.id, language: "en", original: article.original }]);
   });
 
   it("does not count a retry of a pending correction as a correct use", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true, correctUses: [goed.original] }));
 
-    await service.respond(session.id, "I goed to the meeting");
-    await service.respond(session.id, "I went to the meeting");
+    await turns.respond(session.id, "I goed to the meeting");
+    await turns.respond(session.id, "I went to the meeting");
 
     expect(mistakes.correctUses).toEqual([]);
   });
 });
 
-describe("ConversationService, placement interview", () => {
+describe("The conversation, placement interview", () => {
   it("starts with the placement tasks and no practice targets", async () => {
     bankEntries = [entry({ occurrences: 5 })];
-    const { session, goals } = await service.start("placement", "en");
+    const { session, goals } = await starts.start("placement", "en");
     expect(goals).toEqual(["warm_up", "routine", "past_work", "project", "opinion"]);
     expect(session.targets).toEqual([]);
   });
 
   it("never stops for a hint: a serious mistake is recorded as minor", async () => {
-    const { session } = await service.start("placement", "en");
+    const { session } = await starts.start("placement", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }));
-    const result = await service.respond(session.id, "I goed to the meeting");
+    const result = await turns.respond(session.id, "I goed to the meeting");
     expect(result.kind).toBe("reply");
     expect(mistakes.events).toEqual([expect.objectContaining({ original: goed.original, severity: "minor" })]);
     expect((await sessions.get(session.id))?.pending).toBeNull();
   });
 
   it("estimates and stores the level when it ends, once", async () => {
-    const { session } = await service.start("placement", "en");
+    const { session } = await starts.start("placement", "en");
     tutor.verdicts.push(verdict({}));
-    await service.respond(session.id, "Yesterday I fix the upload");
+    await turns.respond(session.id, "Yesterday I fix the upload");
 
-    const summary = await service.end(session.id);
+    const summary = await summaries.end(session.id);
     const placed = { language: "en", level: "A2", source: "placement", evidence: ["Yesterday I fix the upload"], assessedAt: clock.now() };
     expect(summary.level).toEqual(placed);
     expect(assessor.calls).toEqual([{ language: "en", turns: await sessions.history(session.id) }]);
     expect(levels.rows).toEqual([placed]);
 
     // Ending again shows the same level without assessing again.
-    expect((await service.end(session.id)).level).toEqual(placed);
+    expect((await summaries.end(session.id)).level).toEqual(placed);
     expect(assessor.calls).toHaveLength(1);
   });
 
   it("gives no level when the learner said nothing", async () => {
-    const { session } = await service.start("placement", "en");
-    expect((await service.end(session.id)).level).toBeNull();
+    const { session } = await starts.start("placement", "en");
+    expect((await summaries.end(session.id)).level).toBeNull();
     expect(assessor.calls).toEqual([]);
   });
 
   it("keeps the session open when the assessment fails, so ending again retries it", async () => {
-    const { session } = await service.start("placement", "en");
+    const { session } = await starts.start("placement", "en");
     tutor.verdicts.push(verdict({}));
-    await service.respond(session.id, "Yesterday I fix the upload");
+    await turns.respond(session.id, "Yesterday I fix the upload");
     assessor.failure = new TutorUnavailableError("down");
 
-    await expect(service.end(session.id)).rejects.toBeInstanceOf(TutorUnavailableError);
+    await expect(summaries.end(session.id)).rejects.toBeInstanceOf(TutorUnavailableError);
     expect((await sessions.get(session.id))?.endedAt).toBeNull();
 
     assessor.failure = null;
-    expect((await service.end(session.id)).level?.level).toBe("A2");
+    expect((await summaries.end(session.id)).level?.level).toBe("A2");
   });
 
   it("stores one level per session, so a second end at the same time keeps the first", async () => {
-    const { session } = await service.start("placement", "en");
+    const { session } = await starts.start("placement", "en");
     tutor.verdicts.push(verdict({}));
-    await service.respond(session.id, "Yesterday I fix the upload");
-    const [first, second] = await Promise.all([service.end(session.id), service.end(session.id)]);
+    await turns.respond(session.id, "Yesterday I fix the upload");
+    const [first, second] = await Promise.all([summaries.end(session.id), summaries.end(session.id)]);
     expect(first.level).toEqual(second.level);
     expect(levels.rows).toHaveLength(1);
   });
 
   it("shows the session's own level later, even after a level set by hand", async () => {
-    const { session } = await service.start("placement", "en");
+    const { session } = await starts.start("placement", "en");
     tutor.verdicts.push(verdict({}));
-    await service.respond(session.id, "Yesterday I fix the upload");
-    const placed = (await service.end(session.id)).level;
+    await turns.respond(session.id, "Yesterday I fix the upload");
+    const placed = (await summaries.end(session.id)).level;
     await levels.add({ language: "en", level: "B1", source: "manual", evidence: [], assessedAt: clock.now() });
-    expect((await service.end(session.id)).level).toEqual(placed);
+    expect((await summaries.end(session.id)).level).toEqual(placed);
   });
 
   it("asks to stop with its own line when the interview is over", async () => {
-    const { session } = await service.start("placement", "en");
+    const { session } = await starts.start("placement", "en");
     tutor.verdicts.push(verdict({ reply: "Thanks, that was great.", coveredGoals: ["warm_up", "routine", "past_work", "project", "opinion"] }));
-    const result = await service.respond(session.id, "I think it depends");
+    const result = await turns.respond(session.id, "I think it depends");
     expect(result.checkIn).toBe(true);
     expect(result.message).toContain("see your level");
   });
 
   it("has no level in the meeting modes", async () => {
-    const { session } = await service.start("daily", "en");
-    expect((await service.end(session.id)).level).toBeNull();
+    const { session } = await starts.start("daily", "en");
+    expect((await summaries.end(session.id)).level).toBeNull();
     expect(assessor.calls).toEqual([]);
   });
 });
 
-describe("ConversationService.respond: saving the turn", () => {
+describe("TurnService.respond: saving the turn", () => {
   it("keeps a reply already handed over when reading the rest of the turn fails, so it can be said again", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.evaluate = async (_request, onReply) => {
       onReply?.("Nice. What happened next?");
       throw new TutorUnavailableError("The stream stopped.");
     };
 
-    await expect(service.respond(session.id, "I opened PR", () => {})).rejects.toBeInstanceOf(TutorUnavailableError);
+    await expect(turns.respond(session.id, "I opened PR", () => {})).rejects.toBeInstanceOf(TutorUnavailableError);
 
     expect((await sessions.history(session.id)).slice(-2)).toEqual([
       { role: "user", content: "I opened PR" },
@@ -1614,18 +1620,18 @@ describe("ConversationService.respond: saving the turn", () => {
   });
 
   it("saves nothing when the tutor fails before any reply", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.evaluate = async () => {
       throw new TutorUnavailableError("Down.");
     };
 
-    await expect(service.respond(session.id, "I opened PR", () => {})).rejects.toBeInstanceOf(TutorUnavailableError);
+    await expect(turns.respond(session.id, "I opened PR", () => {})).rejects.toBeInstanceOf(TutorUnavailableError);
 
     expect(await sessions.history(session.id)).toHaveLength(1);
   });
 
   it("refuses a turn when another one of the session was saved while it was answered, and records nothing", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }));
     const evaluate = tutor.evaluate.bind(tutor);
     tutor.evaluate = async (request, onReply) => {
@@ -1633,14 +1639,14 @@ describe("ConversationService.respond: saving the turn", () => {
       return evaluate(request, onReply);
     };
 
-    await expect(service.respond(session.id, "I goed to the meeting")).rejects.toBeInstanceOf(TurnConflictError);
+    await expect(turns.respond(session.id, "I goed to the meeting")).rejects.toBeInstanceOf(TurnConflictError);
 
     expect(mistakes.events).toEqual([]);
     expect((await sessions.get(session.id))?.pending).toBeNull();
   });
 
   it("refuses a turn of a session that ended while it was answered", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }));
     const evaluate = tutor.evaluate.bind(tutor);
     tutor.evaluate = async (request, onReply) => {
@@ -1648,16 +1654,16 @@ describe("ConversationService.respond: saving the turn", () => {
       return evaluate(request, onReply);
     };
 
-    await expect(service.respond(session.id, "I goed to the meeting")).rejects.toBeInstanceOf(SessionEndedError);
+    await expect(turns.respond(session.id, "I goed to the meeting")).rejects.toBeInstanceOf(SessionEndedError);
     expect(mistakes.events).toEqual([]);
   });
 
   it("keeps a reply already handed over when saving the analysed turn fails", async () => {
-    const { session } = await service.start("daily", "en");
+    const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }));
     const setPending = vi.spyOn(sessions, "setPending").mockRejectedValueOnce(new Error("Connection lost."));
 
-    await expect(service.respond(session.id, "I goed to the meeting", () => {})).rejects.toThrow("Connection lost.");
+    await expect(turns.respond(session.id, "I goed to the meeting", () => {})).rejects.toThrow("Connection lost.");
 
     setPending.mockRestore();
     expect((await sessions.history(session.id)).slice(-2)).toEqual([

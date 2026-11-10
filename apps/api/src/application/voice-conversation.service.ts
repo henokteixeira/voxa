@@ -4,7 +4,8 @@ import { METRICS_RECORDER, type MetricsRecorder } from "../domain/ports/metrics.
 import { SESSION_REPOSITORY, type SessionRepository } from "../domain/ports/session.repository.js";
 import { STT_PORT, type SpeechToTextPort, TTS_PORT, type TextToSpeechPort } from "../domain/ports/voice.port.js";
 import { speechParts } from "../domain/voice/speech-parts.js";
-import { ConversationService, SessionEndedError, SessionNotFoundError, type TurnResult } from "./conversation.service.js";
+import { SessionEndedError, SessionNotFoundError } from "../domain/conversation/session-errors.js";
+import { TurnService, type TurnResult } from "./turn.service.js";
 
 /** One learner turn: recorded speech, or typed text (for "Type instead" and retries). */
 export type VoiceInput = { audio: Buffer; mimeType: string } | { text: string };
@@ -37,7 +38,7 @@ export interface VoiceTurnEvents {
 @Injectable()
 export class VoiceConversationService {
   constructor(
-    private readonly conversation: ConversationService,
+    private readonly turns: TurnService,
     @Inject(SESSION_REPOSITORY) private readonly sessions: Pick<SessionRepository, "get" | "history">,
     @Inject(STT_PORT) private readonly stt: SpeechToTextPort,
     @Inject(TTS_PORT) private readonly tts: TextToSpeechPort,
@@ -85,7 +86,7 @@ export class VoiceConversationService {
 
     let result: TurnResult;
     try {
-      result = await this.conversation.respond(sessionId, text, speakReply);
+      result = await this.turns.respond(sessionId, text, speakReply);
     } catch (error) {
       // The reply's speech must not arrive after the failure is reported.
       await reply.spoken?.catch(() => {});

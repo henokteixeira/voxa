@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "../domain/conversation/types.js";
 import { VoiceUnavailableError } from "../domain/ports/voice.port.js";
-import { type ConversationService, SessionEndedError, SessionNotFoundError } from "./conversation.service.js";
+import { SessionEndedError, SessionNotFoundError } from "../domain/conversation/session-errors.js";
+import type { TurnService } from "./turn.service.js";
 import { VoiceConversationService } from "./voice-conversation.service.js";
 
 const id = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
@@ -27,7 +28,7 @@ const reply = { kind: "hint" as const, message: "When did it happen?", selfCorre
 const stt = { transcribe: vi.fn() };
 const tts = { synthesize: vi.fn() };
 const sessions = { get: vi.fn(), history: vi.fn() };
-const conversation = { respond: vi.fn() };
+const turns = { respond: vi.fn() };
 const events = {
   transcript: vi.fn(),
   tutor: vi.fn(),
@@ -44,10 +45,10 @@ beforeEach(() => {
   sessions.get.mockResolvedValue(session);
   events.cancelled.mockReturnValue(false);
   stt.transcribe.mockResolvedValue({ text: " Yesterday I finish it. ", language: "en-US" });
-  conversation.respond.mockResolvedValue(reply);
+  turns.respond.mockResolvedValue(reply);
   tts.synthesize.mockResolvedValue(Buffer.from("wav"));
   service = new VoiceConversationService(
-    conversation as unknown as ConversationService,
+    turns as unknown as TurnService,
     sessions as never,
     stt,
     tts,
@@ -63,14 +64,14 @@ describe("turn", () => {
 
     expect(stt.transcribe).toHaveBeenCalledWith(audio, "en-US", { mimeType: "audio/wav" });
     expect(events.transcript).toHaveBeenCalledWith("Yesterday I finish it.");
-    expect(conversation.respond).toHaveBeenCalledWith(id, "Yesterday I finish it.", expect.any(Function));
+    expect(turns.respond).toHaveBeenCalledWith(id, "Yesterday I finish it.", expect.any(Function));
     expect(events.tutor).toHaveBeenCalledWith(reply);
     expect(tts.synthesize).toHaveBeenCalledWith("When did it happen?", "en-US");
     expect(events.speech).toHaveBeenCalledWith(Buffer.from("wav"));
   });
 
   it("makes and sends the voice one sentence at a time, in order", async () => {
-    conversation.respond.mockResolvedValue({ ...reply, message: "Good, you finished the upload. When did that happen, this morning?" });
+    turns.respond.mockResolvedValue({ ...reply, message: "Good, you finished the upload. When did that happen, this morning?" });
     tts.synthesize.mockImplementation(async (text: string) => Buffer.from(text));
     events.speech.mockImplementation(() => {
       // The second sentence is made only after the first was sent.
@@ -87,7 +88,7 @@ describe("turn", () => {
 
     expect(stt.transcribe).not.toHaveBeenCalled();
     expect(events.transcript).toHaveBeenCalledWith("I finished it");
-    expect(conversation.respond).toHaveBeenCalledWith(id, "I finished it", expect.any(Function));
+    expect(turns.respond).toHaveBeenCalledWith(id, "I finished it", expect.any(Function));
   });
 
   it("does not ask the tutor when nothing was said", async () => {
@@ -96,7 +97,7 @@ describe("turn", () => {
     await service.turn(id, { audio: Buffer.from("noise"), mimeType: "audio/wav" }, events);
 
     expect(events.transcript).not.toHaveBeenCalled();
-    expect(conversation.respond).not.toHaveBeenCalled();
+    expect(turns.respond).not.toHaveBeenCalled();
   });
 
   it("checks the session before spending a transcription", async () => {
@@ -119,7 +120,7 @@ describe("turn", () => {
   it("does not ask the tutor after the learner left", async () => {
     events.cancelled.mockReturnValue(true);
     await service.turn(id, { text: "hi" }, events);
-    expect(conversation.respond).not.toHaveBeenCalled();
+    expect(turns.respond).not.toHaveBeenCalled();
   });
 
   it("has already sent the tutor's text when the voice fails", async () => {
@@ -137,7 +138,7 @@ describe("turn: the reply first, then what follows it", () => {
 
   /** The tutor hands over its reply, then answers with `then` once the analysis is done. */
   function replyFirst(then: object, analysis: Promise<void> = Promise.resolve()) {
-    conversation.respond.mockImplementation(async (_id: string, _text: string, onReply: (r: object) => void) => {
+    turns.respond.mockImplementation(async (_id: string, _text: string, onReply: (r: object) => void) => {
       onReply(first);
       await analysis;
       return then;
@@ -230,7 +231,7 @@ describe("turn: the reply first, then what follows it", () => {
 
   it("waits for the reply's speech before reporting that the tutor failed", async () => {
     const failure = new Error("tutor down");
-    conversation.respond.mockImplementation(async (_id: string, _text: string, onReply: (r: object) => void) => {
+    turns.respond.mockImplementation(async (_id: string, _text: string, onReply: (r: object) => void) => {
       onReply(first);
       throw failure;
     });
@@ -276,7 +277,7 @@ describe("turn timing", () => {
 
   it("measures up to the reply's voice when the reply comes first", async () => {
     clockSteps(0, 2000, 3000, 900);
-    conversation.respond.mockImplementation(async (_id: string, _text: string, onReply: (r: object) => void) => {
+    turns.respond.mockImplementation(async (_id: string, _text: string, onReply: (r: object) => void) => {
       onReply({ kind: "reply", message: "Nice.", selfCorrected: false });
       return { kind: "reply", message: "", selfCorrected: false };
     });

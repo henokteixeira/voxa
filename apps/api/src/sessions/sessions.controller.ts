@@ -1,8 +1,10 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Put } from "@nestjs/common";
 import { EndSessionBody, SessionTimingSchema, StartSessionBody, TurnBody } from "@voxa/contracts";
 import { z } from "zod";
-import { ConversationService } from "../application/conversation.service.js";
 import { SessionEndService } from "../application/session-end.service.js";
+import { SessionStartService } from "../application/session-start.service.js";
+import { SessionSummaryService } from "../application/session-summary.service.js";
+import { TurnService } from "../application/turn.service.js";
 import { parse } from "../common/http.js";
 import { trackView } from "../domain/conversation/guided-track.js";
 
@@ -11,14 +13,16 @@ const SessionId = z.uuid();
 @Controller("sessions")
 export class SessionsController {
   constructor(
-    private readonly conversation: ConversationService,
+    private readonly starts: SessionStartService,
+    private readonly turns: TurnService,
+    private readonly summaries: SessionSummaryService,
     private readonly ending: SessionEndService,
   ) {}
 
   @Post()
   async start(@Body() body: unknown) {
     const { mode, language, missionId } = parse(StartSessionBody, body);
-    const { session, message, goals } = await this.conversation.start(mode, language, missionId);
+    const { session, message, goals } = await this.starts.start(mode, language, missionId);
     return {
       sessionId: session.id,
       mode: session.mode,
@@ -34,7 +38,7 @@ export class SessionsController {
   @Get(":id")
   async resume(@Param("id") id: string) {
     const sessionId = parse(SessionId, id);
-    return this.conversation.resume(sessionId);
+    return this.starts.resume(sessionId);
   }
 
   @Post(":id/turns")
@@ -42,14 +46,14 @@ export class SessionsController {
   async turn(@Param("id") id: string, @Body() body: unknown) {
     const sessionId = parse(SessionId, id);
     const { text } = parse(TurnBody, body);
-    return this.conversation.respond(sessionId, text);
+    return this.turns.respond(sessionId, text);
   }
 
   /** The timing so far, sent after each turn, so a session left open keeps it. */
   @Put(":id/timing")
   @HttpCode(204)
   async timing(@Param("id") id: string, @Body() body: unknown): Promise<void> {
-    await this.conversation.saveTiming(parse(SessionId, id), parse(SessionTimingSchema, body));
+    await this.summaries.saveTiming(parse(SessionId, id), parse(SessionTimingSchema, body));
   }
 
   @Post(":id/end")

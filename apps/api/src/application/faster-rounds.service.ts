@@ -17,7 +17,7 @@ import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { FASTER_ROUND_REPOSITORY, type FasterRoundRepository } from "../domain/ports/faster-round.repository.js";
 import { SESSION_REPOSITORY, type SessionRepository } from "../domain/ports/session.repository.js";
 import type { Session } from "../domain/conversation/types.js";
-import { SessionNotFoundError } from "./conversation.service.js";
+import { SessionNotFoundError } from "../domain/conversation/session-errors.js";
 
 /** A told round as the web app sends it. */
 export interface ToldRound {

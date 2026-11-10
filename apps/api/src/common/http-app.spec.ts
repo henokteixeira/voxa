@@ -3,7 +3,7 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { SessionNotFoundError } from "../application/conversation.service.js";
+import { SessionNotFoundError } from "../domain/conversation/session-errors.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import { applyHttpConventions } from "./http-app.js";
 import { parse } from "./http.js";

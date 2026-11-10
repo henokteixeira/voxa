@@ -2,7 +2,7 @@ import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
-import { SessionEndedError, SessionNotFoundError } from "../application/conversation.service.js";
+import { SessionEndedError, SessionNotFoundError } from "../domain/conversation/session-errors.js";
 import { VoiceConversationService, type VoiceTurnEvents } from "../application/voice-conversation.service.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
 import { VoiceRequestError, VoiceUnavailableError } from "../domain/ports/voice.port.js";
