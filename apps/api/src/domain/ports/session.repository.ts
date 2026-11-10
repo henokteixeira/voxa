@@ -67,10 +67,11 @@ export interface SessionRepository {
   saveTiming(sessionId: string, timing: SessionTiming): Promise<boolean>;
   /**
    * Up to `limit` unfinished sessions, earliest `endsAt` first, after `after` when given (to page): the open ones
-   * with nothing done since `idleBefore`, and the ones that ended between `endedAfter` and `idleBefore` with no XP.
+   * with nothing done since `idleBefore`, and the ended ones with no XP whose end was saved between `endedAfter`
+   * and `idleBefore`.
    */
   unfinished(query: { idleBefore: Date; endedAfter: Date; limit: number; after?: UnfinishedSession }): Promise<UnfinishedSession[]>;
-  /** `endedAt` defaults to now. Without a timing, the one saved during the session stays. */
+  /** `endedAt` defaults to now; the end counts as the session's last change. Without a timing, the one saved during the session stays. */
   end(sessionId: string, timing: SessionTiming | null, endedAt?: Date): Promise<void>;
   outcome(sessionId: string): Promise<SessionOutcome | null>;
 }

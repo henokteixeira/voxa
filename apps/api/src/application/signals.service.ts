@@ -36,12 +36,13 @@ export class SignalsService {
    * them with the sessions before. Null for a placement interview, a session that measured nothing, or when
    * there is nothing to compare yet.
    */
-  async recordSession(ended: EndedSessionSignals): Promise<SignalComparison | null> {
+  /** `recordedAt` defaults to now; a session the server closed is recorded at its end. */
+  async recordSession(ended: EndedSessionSignals, recordedAt = this.clock.now()): Promise<SignalComparison | null> {
     // The interview gives no help and never corrects: its signals say nothing about practice.
     if (ended.mode === "placement") return null;
     // A session that measured nothing (ended at once) would only push real sessions out of the last ones.
     if (Object.values(ended.signals).every((value) => value === null)) return null;
-    const stored = await this.signals.recordOnce({ ...ended, recordedAt: this.clock.now() });
+    const stored = await this.signals.recordOnce({ ...ended, recordedAt });
     const earlier = await this.signals.earlierThan(stored.sessionId, COMPARED_SESSIONS);
     return compareSignals(
       stored.signals,

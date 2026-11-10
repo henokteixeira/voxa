@@ -5,13 +5,13 @@ import { SessionEndService } from "./session-end.service.js";
 
 /**
  * How long a session can sit with nothing done before it is closed: the web app's 2 hours to pick a session up
- * again after a reload, plus an hour of margin. A session counts as active while the web app runs it: it saves
- * the timing after each turn, every 5 minutes and when it picks the session up again.
+ * again after a reload, plus an hour of margin. A session stays active while a tab has it open (paused too): the
+ * web app saves the timing after each turn, every 5 minutes and when it picks the session up again.
  */
 export const IDLE_SESSION_LIMIT_MS = 3 * 60 * 60 * 1000;
 /** How often idle sessions are looked for. */
 export const IDLE_CHECK_EVERY_MS = 30 * 60 * 1000;
-/** How long an end that stopped half way (no XP) is tried again; older sessions are left as they are. */
+/** How long after it stopped half way an end with no XP is tried again; older ones are left as they are. */
 export const UNFINISHED_RETRY_MS = 24 * 60 * 60 * 1000;
 /** Sessions read at a time. */
 const PAGE = 20;

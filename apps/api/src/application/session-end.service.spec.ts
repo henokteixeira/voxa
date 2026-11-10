@@ -27,7 +27,7 @@ function setup() {
 }
 
 describe("SessionEndService.close", () => {
-  it("ends the session at the time given, counts its XP on that day and records no signals", async () => {
+  it("ends the session at the time given, and counts its XP and signals at that time", async () => {
     const { service, conversation, progress, signals } = setup();
     const endsAt = new Date("2026-11-09T22:30:00Z");
 
@@ -41,6 +41,6 @@ describe("SessionEndService.close", () => {
       wordsPerMinute: 80,
       awardedAt: endsAt,
     });
-    expect(signals.recordSession).not.toHaveBeenCalled();
+    expect(signals.recordSession).toHaveBeenCalledWith(summary, endsAt);
   });
 });

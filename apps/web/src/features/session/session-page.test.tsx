@@ -1035,6 +1035,22 @@ describe("fluency timing", () => {
     now.mockRestore();
   });
 
+  it("saves the timing every 5 minutes while the session is open, paused too", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await startAndListen();
+      api.saveTiming.mockClear();
+      await act(async () => vi.advanceTimersByTime(5 * 60 * 1000));
+      expect(api.saveTiming).toHaveBeenCalledTimes(1);
+      await userEvent.click(screen.getByRole("button", { name: "Pause" }));
+      await act(async () => vi.advanceTimersByTime(5 * 60 * 1000));
+      expect(api.saveTiming).toHaveBeenCalledTimes(2);
+      expect(api.saveTiming).toHaveBeenLastCalledWith("s1", expect.objectContaining({ pausesMs: expect.any(Array) }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("counts all the time as speech when the learner taps to send", async () => {
     savePauseMs(4000);
     const now = vi.spyOn(performance, "now");

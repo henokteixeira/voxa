@@ -24,11 +24,11 @@ export class SessionEndService {
 
   /**
    * Finishes a session the learner left (or whose end stopped half way) at `endsAt`, with the timing saved during
-   * it. Its XP counts on that day. Its signals are not recorded: the history is in the order sessions are
-   * recorded, and one closed hours later would come after sessions done since.
+   * it: its XP and its signals count at that time.
    */
   async close(sessionId: string, endsAt: Date): Promise<void> {
-    await this.award(await this.conversation.end(sessionId, null, endsAt), endsAt);
+    const summary = await this.conversation.end(sessionId, null, endsAt);
+    await Promise.all([this.award(summary, endsAt), this.signals.recordSession(summary, endsAt)]);
   }
 
   private award(summary: SessionSummary, awardedAt?: Date): Promise<SessionXp> {

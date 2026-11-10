@@ -35,7 +35,7 @@ export const sessions = pgTable(
     pending: jsonb("pending").$type<PendingCorrection>(),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     endedAt: timestamp("ended_at", { withTimezone: true }),
-    /** When the learner last did something in the session (a turn, or the web app saving the timing). */
+    /** When the session last changed: a turn, the web app saving the timing, or its end. */
     lastActiveAt: timestamp("last_active_at", { withTimezone: true }).notNull().defaultNow(),
     /** Speaking time and pauses measured by the web app; null when the session ended without them. */
     timing: jsonb("timing").$type<SessionTiming>(),

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, count, desc, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
 import { isTrackStage, type TrackState } from "../../domain/conversation/guided-track.js";
 import { isMode } from "../../domain/conversation/mode.js";
@@ -160,7 +160,8 @@ export class DrizzleSessionRepository implements SessionRepository {
     limit: number;
     after?: UnfinishedSession;
   }): Promise<UnfinishedSession[]> {
-    const endsAt = sql<Date>`coalesce(${sessions.endedAt}, ${sessions.lastActiveAt})`;
+    // To the millisecond, like the Date the page cursor comes back as.
+    const endsAt = sql<Date>`date_trunc('milliseconds', coalesce(${sessions.endedAt}, ${sessions.lastActiveAt}))`;
     const rows = await this.db
       .select({ id: sessions.id, endsAt: sql<Date | string>`${endsAt}` })
       .from(sessions)
@@ -169,10 +170,12 @@ export class DrizzleSessionRepository implements SessionRepository {
         and(
           or(
             and(isNull(sessions.endedAt), lt(sessions.lastActiveAt, query.idleBefore)),
+            // Its end (by the learner or the server) is the last change: when that stopped half way.
             and(
+              isNotNull(sessions.endedAt),
               isNull(sessionXp.sessionId),
-              gt(sessions.endedAt, query.endedAfter),
-              lt(sessions.endedAt, query.idleBefore),
+              gt(sessions.lastActiveAt, query.endedAfter),
+              lt(sessions.lastActiveAt, query.idleBefore),
             ),
           ),
           query.after && sql`(${endsAt}, ${sessions.id}) > (${query.after.endsAt.toISOString()}::timestamptz, ${query.after.id}::uuid)`,
@@ -187,7 +190,7 @@ export class DrizzleSessionRepository implements SessionRepository {
     await this.db
       .update(sessions)
       // Without a timing, the one saved during the session stays.
-      .set({ endedAt, ...(timing && { timing }) })
+      .set({ endedAt, lastActiveAt: new Date(), ...(timing && { timing }) })
       .where(eq(sessions.id, sessionId));
   }
 
