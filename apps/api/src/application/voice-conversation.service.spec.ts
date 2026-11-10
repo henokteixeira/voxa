@@ -59,14 +59,27 @@ describe("turn", () => {
   it("transcribes the audio in the session's language, asks the tutor and speaks the answer", async () => {
     const audio = Buffer.from("audio");
 
-    const speech = await service.turn(id, { audio, mimeType: "audio/wav" }, events);
+    await service.turn(id, { audio, mimeType: "audio/wav" }, events);
 
     expect(stt.transcribe).toHaveBeenCalledWith(audio, "en-US", { mimeType: "audio/wav" });
     expect(events.transcript).toHaveBeenCalledWith("Yesterday I finish it.");
     expect(conversation.respond).toHaveBeenCalledWith(id, "Yesterday I finish it.", expect.any(Function));
     expect(events.tutor).toHaveBeenCalledWith(reply);
     expect(tts.synthesize).toHaveBeenCalledWith("When did it happen?", "en-US");
-    expect(speech).toEqual(Buffer.from("wav"));
+    expect(events.speech).toHaveBeenCalledWith(Buffer.from("wav"));
+  });
+
+  it("makes and sends the voice one sentence at a time, in order", async () => {
+    conversation.respond.mockResolvedValue({ ...reply, message: "Good, you finished the upload. When did that happen, this morning?" });
+    tts.synthesize.mockImplementation(async (text: string) => Buffer.from(text));
+    events.speech.mockImplementation(() => {
+      // The second sentence is made only after the first was sent.
+      expect(tts.synthesize).toHaveBeenCalledTimes(events.speech.mock.calls.length);
+    });
+
+    await service.turn(id, { text: "hi" }, events);
+
+    expect(events.speech.mock.calls.map(([wav]) => String(wav))).toEqual(["Good, you finished the upload.", "When did that happen, this morning?"]);
   });
 
   it("skips speech-to-text when the learner typed the turn", async () => {
@@ -77,10 +90,10 @@ describe("turn", () => {
     expect(conversation.respond).toHaveBeenCalledWith(id, "I finished it", expect.any(Function));
   });
 
-  it("returns null without asking the tutor when nothing was said", async () => {
+  it("does not ask the tutor when nothing was said", async () => {
     stt.transcribe.mockResolvedValue({ text: "  ", language: "en-US" });
 
-    await expect(service.turn(id, { audio: Buffer.from("noise"), mimeType: "audio/wav" }, events)).resolves.toBeNull();
+    await service.turn(id, { audio: Buffer.from("noise"), mimeType: "audio/wav" }, events);
 
     expect(events.transcript).not.toHaveBeenCalled();
     expect(conversation.respond).not.toHaveBeenCalled();
@@ -98,14 +111,14 @@ describe("turn", () => {
 
   it("does not synthesize speech after the learner left", async () => {
     events.cancelled.mockReturnValueOnce(false).mockReturnValue(true);
-    await expect(service.turn(id, { text: "hi" }, events)).resolves.toBeNull();
+    await service.turn(id, { text: "hi" }, events);
     expect(events.tutor).toHaveBeenCalledWith(reply);
     expect(tts.synthesize).not.toHaveBeenCalled();
   });
 
   it("does not ask the tutor after the learner left", async () => {
     events.cancelled.mockReturnValue(true);
-    await expect(service.turn(id, { text: "hi" }, events)).resolves.toBeNull();
+    await service.turn(id, { text: "hi" }, events);
     expect(conversation.respond).not.toHaveBeenCalled();
   });
 
@@ -141,7 +154,8 @@ describe("turn: the reply first, then what follows it", () => {
     expect(events.followUp).not.toHaveBeenCalled();
     finish();
 
-    await expect(turn).resolves.toEqual(Buffer.from("When did it happen?"));
+    await turn;
+    expect(events.speech).toHaveBeenLastCalledWith(Buffer.from("When did it happen?"));
     expect(events.tutor).toHaveBeenCalledWith(first);
     expect(events.followUp).toHaveBeenCalledWith(hint);
   });
@@ -158,13 +172,14 @@ describe("turn: the reply first, then what follows it", () => {
 
     await service.turn(id, { text: "hi" }, events);
 
-    expect(order).toEqual(["speech", "followUp"]);
+    // The follow-up's own speech comes after it.
+    expect(order).toEqual(["speech", "followUp", "speech"]);
   });
 
   it("has no more speech when nothing follows the reply", async () => {
     replyFirst({ kind: "reply", message: "", selfCorrected: false });
 
-    await expect(service.turn(id, { text: "hi" }, events)).resolves.toBeNull();
+    await service.turn(id, { text: "hi" }, events);
 
     expect(tts.synthesize).toHaveBeenCalledTimes(1);
     expect(events.followUp).toHaveBeenCalledWith({ kind: "reply", message: "", selfCorrected: false });
@@ -174,7 +189,7 @@ describe("turn: the reply first, then what follows it", () => {
     events.cancelled.mockReturnValueOnce(false).mockReturnValue(true);
     replyFirst(hint);
 
-    await expect(service.turn(id, { text: "hi" }, events)).resolves.toBeNull();
+    await service.turn(id, { text: "hi" }, events);
 
     expect(tts.synthesize).not.toHaveBeenCalled();
     expect(events.speech).not.toHaveBeenCalled();
@@ -185,7 +200,7 @@ describe("turn: the reply first, then what follows it", () => {
     replyFirst(hint);
     events.speech.mockImplementation(() => events.cancelled.mockReturnValue(true));
 
-    await expect(service.turn(id, { text: "hi" }, events)).resolves.toBeNull();
+    await service.turn(id, { text: "hi" }, events);
 
     expect(events.speech).toHaveBeenCalledTimes(1);
     expect(events.followUp).not.toHaveBeenCalled();
@@ -289,21 +304,23 @@ describe("speakLast", () => {
       { role: "user", content: "I…" },
     ]);
 
-    await expect(service.speakLast(id)).resolves.toEqual(Buffer.from("wav"));
+    await service.speakLast(id, events);
 
     expect(tts.synthesize).toHaveBeenCalledWith("What did you do yesterday?", "en-US");
+    expect(events.speech).toHaveBeenCalledWith(Buffer.from("wav"));
   });
 
-  it("returns null when the tutor has not spoken yet", async () => {
+  it("says nothing when the tutor has not spoken yet", async () => {
     sessions.history.mockResolvedValue([]);
-    await expect(service.speakLast(id)).resolves.toBeNull();
+    await service.speakLast(id, events);
     expect(tts.synthesize).not.toHaveBeenCalled();
+    expect(events.speech).not.toHaveBeenCalled();
   });
 
   it("fails for an unknown or ended session", async () => {
     sessions.get.mockResolvedValue(null);
-    await expect(service.speakLast(id)).rejects.toBeInstanceOf(SessionNotFoundError);
+    await expect(service.speakLast(id, events)).rejects.toBeInstanceOf(SessionNotFoundError);
     sessions.get.mockResolvedValue({ ...session, endedAt: new Date() });
-    await expect(service.speakLast(id)).rejects.toBeInstanceOf(SessionEndedError);
+    await expect(service.speakLast(id, events)).rejects.toBeInstanceOf(SessionEndedError);
   });
 });

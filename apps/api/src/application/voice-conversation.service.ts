@@ -3,6 +3,7 @@ import type { Session } from "../domain/conversation/types.js";
 import { METRICS_RECORDER, type MetricsRecorder } from "../domain/ports/metrics.port.js";
 import { SESSION_REPOSITORY, type SessionRepository } from "../domain/ports/session.repository.js";
 import { STT_PORT, type SpeechToTextPort, TTS_PORT, type TextToSpeechPort } from "../domain/ports/voice.port.js";
+import { speechParts } from "../domain/voice/speech-parts.js";
 import { ConversationService, SessionEndedError, SessionNotFoundError, type TurnResult } from "./conversation.service.js";
 
 /** One learner turn: recorded speech, or typed text (for "Type instead" and retries). */
@@ -22,13 +23,13 @@ export interface VoiceTurnEvents {
   transcript(text: string): void;
   /** The tutor's reply; when its analysis is still running, `speech` and `followUp` come after it. */
   tutor(result: TurnResult): void;
-  /** The reply's speech (WAV), sent as soon as it is ready, before the follow-up. */
+  /** One part of the tutor's speech (WAV, a sentence or two), sent as soon as it is made; the parts play in order. */
   speech(wav: Buffer): void;
   /** What follows a reply said early: a hint, the stop-or-keep-going question, or "" (only help and goals). */
   followUp(result: TurnResult): void;
   /** True once the learner has left; the service then skips work nobody will hear. */
   cancelled(): boolean;
-  /** Sent once the tutor's voice is ready, to measure the loop. */
+  /** Sent once the first part of the tutor's voice is ready, to measure the loop. */
   timing?(timing: TurnTiming): void;
 }
 
@@ -43,8 +44,8 @@ export class VoiceConversationService {
     @Inject(METRICS_RECORDER) private readonly metrics: Pick<MetricsRecorder, "voiceTurn">,
   ) {}
 
-  /** Returns the tutor's spoken answer (WAV), or null when the audio held no speech. */
-  async turn(sessionId: string, input: VoiceInput, events: VoiceTurnEvents): Promise<Buffer | null> {
+  /** Sends the tutor's answer through `events`, its speech part by part; nothing after the transcript when the audio held no speech. */
+  async turn(sessionId: string, input: VoiceInput, events: VoiceTurnEvents): Promise<void> {
     const session = await this.session(sessionId);
     if (session.endedAt) throw new SessionEndedError(sessionId);
 
@@ -55,9 +56,9 @@ export class VoiceConversationService {
         : (await this.stt.transcribe(input.audio, session.language, { mimeType: input.mimeType })).text;
     const heard = performance.now();
     const text = said.trim();
-    if (!text) return null;
+    if (!text) return;
     events.transcript(text);
-    if (events.cancelled()) return null;
+    if (events.cancelled()) return;
 
     const report = (answered: number, spoken: number) => {
       const timing: TurnTiming = {
@@ -77,11 +78,7 @@ export class VoiceConversationService {
       const answered = performance.now();
       events.tutor(line);
       if (events.cancelled()) return;
-      reply.spoken = this.tts.synthesize(line.message, session.language).then((wav) => {
-        if (events.cancelled()) return;
-        report(answered, performance.now());
-        events.speech(wav);
-      });
+      reply.spoken = this.speak(line.message, session.language, events, () => report(answered, performance.now()));
       // Awaited below; this only keeps a failure from going unhandled while the analysis runs.
       reply.spoken.catch(() => {});
     };
@@ -95,29 +92,45 @@ export class VoiceConversationService {
       throw error;
     }
     if (reply.spoken) {
-      const followUp = result.message ? this.tts.synthesize(result.message, session.language) : null;
-      followUp?.catch(() => {});
       await reply.spoken;
-      if (events.cancelled()) return null;
+      if (events.cancelled()) return;
       events.followUp(result);
-      return followUp;
+      await this.speak(result.message, session.language, events);
+      return;
     }
 
     const answered = performance.now();
     events.tutor(result);
-    if (events.cancelled()) return null;
-    const speech = await this.tts.synthesize(result.message, session.language);
-    report(answered, performance.now());
-    return speech;
+    if (events.cancelled()) return;
+    await this.speak(result.message, session.language, events, () => report(answered, performance.now()));
   }
 
-  /** Speaks the tutor's last line again (the session's opening line, or "repeat the last question"). */
-  async speakLast(sessionId: string): Promise<Buffer | null> {
+  /** Speaks the tutor's last line again (the session's opening line, or "repeat the last question"), part by part. */
+  async speakLast(sessionId: string, events: Pick<VoiceTurnEvents, "speech" | "cancelled">): Promise<void> {
     const session = await this.session(sessionId);
     if (session.endedAt) throw new SessionEndedError(sessionId);
     const history = await this.sessions.history(sessionId);
     const last = history.findLast((turn) => turn.role === "assistant");
-    return last ? this.tts.synthesize(last.content, session.language) : null;
+    if (last) await this.speak(last.content, session.language, events);
+  }
+
+  /**
+   * Makes the line's voice one part at a time and sends each part as soon as it is ready, so the first sentence
+   * plays while the next is made. `first` runs when the first part is ready. Stops once the learner has left.
+   */
+  private async speak(
+    text: string,
+    language: string,
+    events: Pick<VoiceTurnEvents, "speech" | "cancelled">,
+    first?: () => void,
+  ): Promise<void> {
+    for (const [index, part] of speechParts(text).entries()) {
+      if (events.cancelled()) return;
+      const wav = await this.tts.synthesize(part, language);
+      if (events.cancelled()) return;
+      if (index === 0) first?.();
+      events.speech(wav);
+    }
   }
 
   private async session(sessionId: string): Promise<Session> {

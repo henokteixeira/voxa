@@ -14,7 +14,7 @@ import { DomainError, type ErrorCode, InvalidInputError } from "../domain/errors
  * is JSON, `{type:"text", text}` (a typed turn) or `{type:"speak"}` (say the tutor's last line again).
  *
  * Server → client, per request: `{type:"transcript", text}`, `{type:"tutor", kind, message, selfCorrected, support, mistake, checkIn, coveredGoals, track, scaffold}`,
- * the speech as a binary WAV frame, then `{type:"done"}`. A failure sends `{type:"error", code, message}`
+ * the speech as binary WAV frames (a sentence or two each, to play in order), then `{type:"done"}`. A failure sends `{type:"error", code, message}`
  * before "done". Any part may be missing (no speech heard → only "done").
  *
  * When the tutor's reply comes before its analysis of the turn: "tutor", the reply's speech, then
@@ -142,18 +142,17 @@ export class VoiceSocketServer implements OnApplicationBootstrap, OnApplicationS
       const message = parseMessage(data);
       input = message.type === "text" ? { text: message.text } : null;
     }
-    const speech = input
-      ? await this.voice.turn(sessionId, input, {
-          transcript: (text) => send({ type: "transcript", text }),
-          tutor: (result) => send({ ...result, type: "tutor" }),
-          speech: (wav) => send(wav),
-          followUp: (result) => send({ ...result, message: result.message || null, type: "followup" }),
-          cancelled,
-          timing: ({ sttMs, tutorMs, ttsMs, totalMs }) =>
-            this.logger.log(`turn timing stt=${sttMs ?? "-"}ms tutor=${tutorMs}ms tts=${ttsMs}ms total=${totalMs}ms`),
-        })
-      : await this.voice.speakLast(sessionId);
-    if (speech) send(speech);
+    const speech = (wav: Buffer) => send(wav);
+    if (!input) return this.voice.speakLast(sessionId, { speech, cancelled });
+    await this.voice.turn(sessionId, input, {
+      transcript: (text) => send({ type: "transcript", text }),
+      tutor: (result) => send({ ...result, type: "tutor" }),
+      speech,
+      followUp: (result) => send({ ...result, message: result.message || null, type: "followup" }),
+      cancelled,
+      timing: ({ sttMs, tutorMs, ttsMs, totalMs }) =>
+        this.logger.log(`turn timing stt=${sttMs ?? "-"}ms tutor=${tutorMs}ms tts=${ttsMs}ms total=${totalMs}ms`),
+    });
   }
 }
 

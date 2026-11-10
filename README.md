@@ -139,5 +139,5 @@ Modes: `presentation`, `free_talk`, `daily`, `review`.
 
 After starting a session over HTTP, the app opens a WebSocket at `ws://localhost:3000/api/sessions/<sessionId>/voice`
 (protocol in `apps/api/src/voice/voice-socket.server.ts`). Each binary frame is one finished turn of speech (WAV);
-the API answers with the transcript, the tutor's turn, the tutor's speech (WAV) and `done`.
+the API answers with the transcript, the tutor's turn, the tutor's speech (WAV frames of a sentence or two, made one after the other so the first plays sooner) and `done`.
 It needs the voice service running (`services/voice`).
