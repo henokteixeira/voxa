@@ -31,7 +31,7 @@ import type { NewTurn, SessionProgress, SessionRepository } from "../domain/port
 import type { TrackPlan, TutorContext, TutorPort, TutorRequest } from "../domain/ports/tutor.port.js";
 import { NEW_WORD_CATEGORY } from "../domain/conversation/types.js";
 import type { TrackState } from "../domain/conversation/guided-track.js";
-import { ConversationService, SessionEndedError, SessionNotFoundError, type TurnResult } from "./conversation.service.js";
+import { ConversationService, SessionEndedError, SessionNotFoundError, TurnConflictError, type TurnResult } from "./conversation.service.js";
 
 class FakeTutor implements TutorPort {
   verdicts: TutorVerdict[] = [];
@@ -95,6 +95,9 @@ class FakeSessions implements SessionRepository {
   }
   /** Whether each learner turn was helped, in order. */
   assisted = new Map<string, boolean[]>();
+  async claimTurn(id: string, turnsSeen: number) {
+    return this.rows.get(id)!.turns.length === turnsSeen;
+  }
   async appendTurn(id: string, { assisted, ...turn }: NewTurn) {
     this.rows.get(id)!.turns.push(turn);
     if (turn.role === "user") this.assisted.set(id, [...(this.assisted.get(id) ?? []), assisted ?? false]);
@@ -350,6 +353,8 @@ beforeEach(() => {
     new ReviewScheduler(reviews),
     memory as unknown as LearnerMemoryService,
     missions,
+    // The fakes keep no transaction: the database test checks that a failed turn saves nothing.
+    { run: (work) => work({ sessions, mistakes, reviews: reviews as unknown as ReviewRepository }) },
   );
 });
 
@@ -1493,5 +1498,49 @@ describe("ConversationService, placement interview", () => {
     const { session } = await service.start("daily", "en");
     expect((await service.end(session.id)).level).toBeNull();
     expect(assessor.calls).toEqual([]);
+  });
+});
+
+describe("ConversationService.respond: saving the turn", () => {
+  it("keeps a reply already handed over when reading the rest of the turn fails, so it can be said again", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.evaluate = async (_request, onReply) => {
+      onReply?.("Nice. What happened next?");
+      throw new TutorUnavailableError("The stream stopped.");
+    };
+
+    await expect(service.respond(session.id, "I opened PR", () => {})).rejects.toBeInstanceOf(TutorUnavailableError);
+
+    expect((await sessions.history(session.id)).slice(-2)).toEqual([
+      { role: "user", content: "I opened PR" },
+      { role: "assistant", content: "Nice. What happened next?" },
+    ]);
+    expect(mistakes.events).toEqual([]);
+  });
+
+  it("saves nothing when the tutor fails before any reply", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.evaluate = async () => {
+      throw new TutorUnavailableError("Down.");
+    };
+
+    await expect(service.respond(session.id, "I opened PR", () => {})).rejects.toBeInstanceOf(TutorUnavailableError);
+
+    expect(await sessions.history(session.id)).toHaveLength(1);
+  });
+
+  it("refuses a turn when another one of the session was saved while it was answered, and records nothing", async () => {
+    const { session } = await service.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    const evaluate = tutor.evaluate.bind(tutor);
+    tutor.evaluate = async (request, onReply) => {
+      await sessions.appendTurn(session.id, { role: "user", content: "Sent from another tab." });
+      return evaluate(request, onReply);
+    };
+
+    await expect(service.respond(session.id, "I goed to the meeting")).rejects.toBeInstanceOf(TurnConflictError);
+
+    expect(mistakes.events).toEqual([]);
+    expect((await sessions.get(session.id))?.pending).toBeNull();
   });
 });

@@ -9,6 +9,8 @@ export type VoiceErrorCode =
   | "bad_audio"
   | "invalid"
   | "busy"
+  /** Another turn of the session was saved while this one was answered; this one was not saved. */
+  | "conflict"
   | "server"
   /** The session is already open in another tab (close code 4409). */
   | "in_use"

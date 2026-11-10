@@ -182,8 +182,8 @@ describe("sessionReducer", () => {
     expect(sessionReducer(state, { type: "speech_start" }).missed).toBe(false);
   });
 
-  it("treats a bad recording as 'didn't catch that', not as a failure", () => {
-    const state = run(started, { type: "sent", request: "audio", audio: WAV }, { type: "failed", code: "bad_audio" });
+  it.each(["bad_audio", "conflict"] as const)("treats %s as 'didn't catch that', not as a failure", (code) => {
+    const state = run(started, { type: "sent", request: "audio", audio: WAV }, { type: "failed", code });
     expect(state).toMatchObject({ phase: "listening", missed: true, failure: null });
   });
 

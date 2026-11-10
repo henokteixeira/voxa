@@ -104,6 +104,13 @@ export class DrizzleSessionRepository implements SessionRepository {
     return row ? toSession(row) : null;
   }
 
+  async claimTurn(sessionId: string, turnsSeen: number): Promise<boolean> {
+    // The row lock waits for any other turn of this session still being saved.
+    await this.db.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, sessionId)).for("update");
+    const [row] = await this.db.select({ total: count() }).from(turns).where(eq(turns.sessionId, sessionId));
+    return (row?.total ?? 0) === turnsSeen;
+  }
+
   async appendTurn(sessionId: string, turn: NewTurn): Promise<void> {
     await this.db
       .insert(turns)

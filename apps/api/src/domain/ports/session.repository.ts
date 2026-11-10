@@ -42,6 +42,12 @@ export interface SessionRepository {
   get(id: string): Promise<Session | null>;
   /** The newest session started as the mission's step 3 (the learner may start over), or null. */
   latestForMission(missionId: string): Promise<Session | null>;
+  /**
+   * Inside a unit of work: holds the session until the transaction ends, so two turns of one session are
+   * saved one after the other. False when the session has more than `turnsSeen` turns: another turn was
+   * saved since its history was read.
+   */
+  claimTurn(sessionId: string, turnsSeen: number): Promise<boolean>;
   appendTurn(sessionId: string, turn: NewTurn): Promise<void>;
   history(sessionId: string): Promise<ChatTurn[]>;
   setPending(sessionId: string, pending: PendingCorrection | null): Promise<void>;
