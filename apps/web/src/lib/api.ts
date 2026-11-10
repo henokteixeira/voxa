@@ -1,442 +1,101 @@
-import {
-  type CefrLevel,
-  CEFR_LEVELS,
-  DAILY_MINUTES,
-  type DailyMinutes,
-  type DismissReason,
-  FACT_TOPICS,
-  type FactTopic,
-  type LevelSource,
-  type MarkedStep,
-  type MistakeStatus,
-  type Mode,
-  MODES,
-  type SessionTiming,
-  type TrackStage,
-  type XpReason,
+import type {
+  BankMistake,
+  CefrLevel,
+  CheckInOverview,
+  CheckInResult,
+  DailyMinutes,
+  DismissReason,
+  FasterRoundsView,
+  LearnerFact,
+  LevelView,
+  MarkedStep,
+  MissionModel,
+  MissionView,
+  Mode,
+  PracticeView,
+  ResumedSession,
+  ReviewAnswer,
+  ReviewCard,
+  ReviewOverview,
+  ReviewSubject,
+  SessionSummary,
+  SessionTiming,
+  SignalsHistoryEntry,
+  StartedSession,
+  TodayProgress,
+  TurnResult,
 } from "@voxa/contracts";
 import { reportError } from "./report-error";
 
 /** Typed client for the Voxa API. Every call fails with ApiError, never a raw fetch error. */
 
-// Shared with the API (see packages/contracts).
-export {
-  type CefrLevel,
-  CEFR_LEVELS,
-  DAILY_MINUTES,
-  type DailyMinutes,
-  type DismissReason,
-  FACT_TOPICS,
-  type FactTopic,
-  type MarkedStep as MarkedMissionStep,
-  type MistakeStatus,
-  type Mode,
-  MODES,
-  type SessionTiming,
-  type TrackStage,
-  type XpReason,
-};
+// Shared with the API (see packages/contracts): its values, and the shapes of its responses.
+export { CEFR_LEVELS, DAILY_MINUTES, FACT_TOPICS, MODES } from "@voxa/contracts";
+export type {
+  BankMistake,
+  CefrLevel,
+  CheckInOverview,
+  CheckInPace,
+  CheckInResult,
+  DailyMinutes,
+  DismissReason,
+  FactTopic,
+  FasterRound,
+  FasterRoundsView,
+  FluencySignals,
+  FollowUp,
+  Guidance,
+  LearnerFact,
+  LevelView,
+  MissionExpression,
+  MissionModel,
+  MissionSituation,
+  MissionSteps,
+  MissionView,
+  MistakePattern,
+  MistakeStatus,
+  Mode,
+  PracticeNewWord,
+  PracticePattern,
+  PracticeView,
+  ResumedSession,
+  ReviewAnswer,
+  ReviewCard,
+  ReviewItem,
+  ReviewOverview,
+  ReviewStatus,
+  ReviewSubject,
+  SessionMistake,
+  SessionSummary,
+  SessionTiming,
+  SessionXp,
+  SignalComparison,
+  SignalName,
+  SignalsHistoryEntry,
+  SpeakingLevel,
+  StartedSession,
+  StepChangeProposal,
+  Takeaway,
+  TodayProgress,
+  TrackStage,
+  TrackView,
+  Trend,
+  TurnResult,
+  XpAward,
+  XpReason,
+  MarkedStep as MarkedMissionStep,
+} from "@voxa/contracts";
 
 /** The categories the learner picks from, by group (the placement interview is offered on its own). */
 export const EVERYDAY_MODES = ["free_talk", "my_day", "story", "opinion"] as const satisfies readonly Mode[];
 export const WORK_MODES = ["daily", "presentation", "review"] as const satisfies readonly Mode[];
 
-/** The learner's speaking level, an estimate that picks how much help sessions give. */
-export interface SpeakingLevel {
-  language: string;
-  level: CefrLevel;
-  source: LevelSource;
-  /** The learner's own lines that back the estimate. */
-  evidence: string[];
-  /** ISO 8601 date-time. */
-  assessedAt: string;
-}
-
-export interface LevelView {
-  current: (SpeakingLevel & { step: string }) | null;
-  /** Suggest a placement interview: never done, or the last one is 4 weeks old. */
-  placementDue: boolean;
-  /** A different support step the last sessions point to; the learner confirms it. Missing from older servers. */
-  proposal?: StepChangeProposal | null;
-}
-
-export interface StepChangeProposal {
-  direction: "up" | "down";
-  to: CefrLevel;
-  /** The newest session the proposal rests on: a later session makes it a new proposal. */
-  basedOn: string;
-}
-
-/** One practice session's signals, for the Progress tab. */
-export interface SignalsHistoryEntry {
-  sessionId: string;
-  mode: Mode;
-  /** ISO 8601 date-time. */
-  recordedAt: string;
-  signals: Required<FluencySignals>;
-}
-
-/** Where the learner is in the guided track: the stage, as "step 2 of 5". */
-export interface TrackView {
-  stage: TrackStage;
-  number: number;
-  total: number;
-}
-
-/** The guided track and the words the tutor gave for the next turn. Missing from servers older than them. */
-export interface Guidance {
-  /** Null outside the guided track. */
-  track?: TrackView | null;
-  /** A model sentence, or a sentence start when stuck; null when there are no words to say. */
-  scaffold?: string | null;
-}
-
-export interface StartedSession extends Guidance {
-  sessionId: string;
-  mode: Mode;
-  language: string;
-  message: string;
-  /** Goals of the session, in order; empty in free talk. */
-  goals: string[];
-}
-
-/** An open session as the server keeps it, to pick it up again after a reload. */
-export interface ResumedSession extends Guidance {
-  sessionId: string;
-  mode: Mode;
-  language: string;
-  startedAt: string;
-  turns: { role: "user" | "assistant"; content: string }[];
-  goals: string[];
-  coveredGoals: string[];
-  /** The pending correction's hint step, without the correction. */
-  hint: { hintsGiven: number; revealed: boolean; mistake?: string; mistakeType?: string; rule?: { name: string; rule: string } | null } | null;
-}
-
-export interface TurnResult extends Guidance {
-  kind: "reply" | "hint" | "reveal";
-  message: string;
-  selfCorrected: boolean;
-  /** Written help in the learner's first language, shown on screen and never spoken. */
-  support?: string | null;
-  /** On a hint: the learner's words that hold the mistake (never the correction). */
-  mistake?: string | null;
-  /** On a hint or the correct form: the mistake's type (e.g. verb_tense). Missing from older servers. */
-  mistakeType?: string | null;
-  /** With the correct form only: the rule the mistake breaks, in one line. */
-  rule?: { name: string; rule: string } | null;
-  /** The tutor asked whether to stop or keep going. */
-  checkIn?: boolean;
-  /** Goals of the session covered so far. */
-  coveredGoals?: string[];
-}
-
-/**
- * What the tutor adds after its reply, once it has read the learner's turn: a hint about a serious mistake
- * (spoken right after the reply), the stop-or-keep-going question, or only on-screen help and goals.
- */
-export interface FollowUp extends Omit<TurnResult, "message"> {
-  /** The spoken line, or null when there is nothing to say. */
-  message: string | null;
-}
-
 /** The category the API gives a word the learner said in their first language. Not a mistake. */
 export const NEW_WORD_CATEGORY = "new_word";
-
-export interface SessionMistake {
-  original: string;
-  correction: string;
-  category: string;
-  severity: "serious" | "minor";
-  selfCorrected: boolean;
-  occurrences: number;
-  /** The pattern the mistake breaks; missing from older servers, null for new words and older mistakes. */
-  pattern?: MistakePattern | null;
-  patternId?: string | null;
-}
-
-/** A rule a mistake breaks: a short name and one line in the learner's first language. */
-export interface MistakePattern {
-  key: string;
-  name: string;
-  rule: string;
-}
-
-/** A pattern from the session for the learner to take away. */
-export interface Takeaway {
-  patternId: string;
-  category: string;
-  name: string;
-  rule: string;
-  /** The learner's words when they broke it. */
-  said: string;
-}
-
-/** What a review asks for: a pattern from the bank, one new word, or an expression from a daily mission. */
-export interface ReviewSubject {
-  kind: "pattern" | "new_word" | "expression";
-  id: string;
-}
-
-/** The situations the daily mission goes round, one a day. */
-export type MissionSituation = Extract<Mode, "daily" | "my_day" | "presentation" | "story" | "review" | "opinion">;
-
-/** Which of the mission's steps are done. `checkIn` is step 0 on check-in day only (null on other days). */
-export interface MissionSteps {
-  checkIn: boolean | null;
-  listen: boolean;
-  expressions: boolean;
-  task: boolean;
-  faster: boolean;
-  review: boolean;
-}
-
-export interface MissionView {
-  id: string;
-  language: string;
-  /** The learner's local day, YYYY-MM-DD. */
-  day: string;
-  situation: MissionSituation;
-  steps: MissionSteps;
-  done: boolean;
-  /** Step 3's conversation, once started. */
-  sessionId: string | null;
-}
-
-export interface MissionExpression {
-  id: string;
-  position: number;
-  /** The reusable chunk, e.g. "I'm blocked by…". */
-  phrase: string;
-  /** The model's sentence that uses it. */
-  example: string;
-  /** ISO 8601; null until the learner used it in a sentence of their own. */
-  saidAt: string | null;
-}
-
-/** Step 1: someone else does the same task first, at the learner's level. */
-export interface MissionModel {
-  speaker: string;
-  text: string;
-  expressions: MissionExpression[];
-}
-
-/** A pattern or new word with its review schedule. */
-export interface ReviewItem {
-  subject: ReviewSubject;
-  language: string;
-  category: string;
-  /** The pattern's name, or the new word. */
-  name: string;
-  /** The pattern's rule, or what the learner said in their first language. */
-  rule: string;
-  examples: { original: string; correction: string }[];
-  step: number;
-  /** ISO 8601 date-time. */
-  dueAt: string;
-}
-
-/** One review question: a cue in the learner's first language. The answer stays on the server. */
-export interface ReviewCard {
-  cardId: string;
-  item: ReviewItem;
-  cue: string;
-}
-
-export interface ReviewAnswer {
-  recalled: boolean;
-  /** One way to say it. */
-  answer: string;
-  rule: string;
-  /** ISO 8601 date-time: when the item comes back. */
-  nextDueAt: string;
-  /** XP the answer earned, right or wrong. */
-  xp: number;
-}
-
-export interface ReviewOverview {
-  due: ReviewItem[];
-  /** When the next item not yet due comes back; null when there is none. */
-  nextDueAt: string | null;
-}
-
-/** Where a pattern or new word is in its review schedule. */
-export type ReviewStatus = "new" | "improving" | "mastered";
-
-/** A pattern in the bank, as the Practice tab shows it. */
-export interface PracticePattern {
-  id: string;
-  category: string;
-  name: string;
-  rule: string;
-  status: ReviewStatus;
-  /** ISO 8601 date-time; null when it has no review yet. */
-  dueAt: string | null;
-  occurrences: number;
-  /** The learner's sentences that broke it, most recently seen first. */
-  sentences: { id: string; original: string; correction: string; occurrences: number; lastSeenAt: string }[];
-}
-
-export interface PracticeNewWord {
-  id: string;
-  word: string;
-  /** What the learner said in their first language. */
-  said: string;
-  status: ReviewStatus;
-  dueAt: string | null;
-}
-
-/** The Practice tab: patterns by type, new words, and mistakes saved before patterns. */
-export interface PracticeView {
-  patterns: PracticePattern[];
-  newWords: PracticeNewWord[];
-  earlier: { id: string; category: string; original: string; correction: string; occurrences: number }[];
-}
-
-/** The fluency signals. Null when the session gave nothing to measure. */
-export interface FluencySignals {
-  /** 0–1: of the mistakes that got a hint, the share the learner fixed alone. */
-  selfCorrectionRate: number | null;
-  mistakesPer100Words: number | null;
-  averagePauseMs: number | null;
-  /** Words the learner spoke per minute of his own speech. */
-  wordsPerMinute: number | null;
-  /** Long silences inside his answers per minute of his own speech. */
-  longPausesPerMinute: number | null;
-  /** 0–1: share of the learner's turns said without help. Missing from servers older than it. */
-  unaidedShare?: number | null;
-  /** Average words in one of the learner's answers. Missing from servers older than it. */
-  wordsPerAnswer?: number | null;
-}
-
-export type SignalName = keyof Required<FluencySignals>;
-export type Trend = "better" | "steady" | "worse";
-
-/** How the session compares with the learner's last sessions (up to 3), signal by signal. */
-export interface SignalComparison {
-  sessions: number;
-  signals: { name: SignalName; current: number; baseline: number; trend: Trend }[];
-}
-
-export interface SessionSummary {
-  sessionId: string;
-  mode: Mode;
-  mistakes: SessionMistake[];
-  selfCorrections: number;
-  signals: FluencySignals;
-  /** Null when there is nothing to compare yet (or after a placement interview); missing from older servers. */
-  comparison?: SignalComparison | null;
-  goals: { id: string; covered: boolean }[];
-  /** Mistakes from the bank practiced in this session; `met` when the learner said the correct form. */
-  targets: { original: string; correction: string; category: string; met: boolean }[];
-  /** After a placement interview: the level it gave (null when nothing was said). Missing or null otherwise. */
-  level?: SpeakingLevel | null;
-  /** XP the session earned; missing from servers older than XP. */
-  xp?: SessionXp;
-  /** Up to 3 patterns to take away; missing from older servers, empty after a placement interview. */
-  takeaways?: Takeaway[];
-}
-
-/** One "say it faster" round: the same content told again with less time. */
-export interface FasterRound {
-  round: number;
-  timeLimitMs: number;
-  transcript: string;
-  spokenWords: number;
-  speechMs: number;
-  longPauses: number;
-}
-
-export interface FasterRoundsView {
-  /** The session's language: the rounds are told in it. */
-  language: string;
-  rounds: FasterRound[];
-  /** The round to tell next and its time; null when the 3 are told. */
-  nextRound: number | null;
-  nextLimitMs: number | null;
-  /** After the third round: each round's pace and how it changed from the first. */
-  result: {
-    rounds: { round: number; wordsPerMinute: number | null; longPauses: number }[];
-    paceChangePercent: number | null;
-    fewerLongPauses: boolean;
-  } | null;
-}
-
-/** One check-in's pace, as listed and compared. */
-export interface CheckInPace {
-  id: string;
-  /** "present_project" (the fixed task) or the topic of the second task. Missing from older APIs. */
-  task?: string;
-  recordedAt: string;
-  wordsPerMinute: number | null;
-  longPauses: number;
-  /** Mistakes the tutor found reading the transcript afterwards; null when it couldn't read it. */
-  mistakesPer100Words: number | null;
-  /** Words said in Portuguese (another language); null when the transcript wasn't read. */
-  otherLanguageWords: number | null;
-  /** Words that link ideas (because, but, although…) per 100 words; null for a language without a list. Missing from older APIs. */
-  linkingWordsPer100?: number | null;
-}
-
-export interface CheckInOverview {
-  task: "present_project";
-  limitMs: number;
-  dueAt: string;
-  due: boolean;
-  /** The second task, right after the fixed one: 1 minute on a topic never given before. Missing from older APIs. */
-  topic?: { task: string; limitMs: number; due: boolean };
-  /** The fixed task's check-ins, newest first. */
-  checkIns: CheckInPace[];
-}
-
-/** A check-in and the one before it (null the first time). */
-export interface CheckInResult {
-  checkIn: CheckInPace & { transcript: string };
-  previous: CheckInPace | null;
-}
-
-export interface XpAward {
-  reason: XpReason;
-  /** How many times it happened: minutes, goals, self-corrections, records. */
-  count: number;
-  points: number;
-}
-
-export interface SessionXp {
-  awards: XpAward[];
-  total: number;
-}
-
-/** Today's XP, goal and streak, in the learner's time zone. */
-export interface TodayProgress {
-  /** YYYY-MM-DD. */
-  day: string;
-  minutesPerDay: DailyMinutes;
-  goalXp: number;
-  earnedXp: number;
-  goalMet: boolean;
-  streakDays: number;
-  /** XP for each reason, to show XP as it is earned. */
-  points: Record<XpReason, number>;
-}
 
 /** The device's IANA time zone: days, the goal and the streak follow the learner's clock. */
 export function deviceTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
-}
-
-/** A mistake in the bank, as the Mistakes screen shows it. */
-export interface BankMistake {
-  id: string;
-  /** BCP 47 tag, e.g. "en". */
-  language: string;
-  original: string;
-  correction: string;
-  category: string;
-  occurrences: number;
-  /** ISO 8601 date-time. */
-  lastSeenAt: string;
-  status: MistakeStatus;
 }
 
 /** What went wrong, in terms the screens can act on. */
@@ -485,16 +144,6 @@ async function errorFrom(response: Response, where: string): Promise<ApiError> {
   const error = new ApiError(kindFor(response.status), message, response.status, requestId, code);
   if (error.kind === "server") reportError(error, { where, status: response.status, requestId });
   return error;
-}
-
-/** Something the learner told the tutor; the tutor brings it up in later sessions. */
-export interface LearnerFact {
-  id: string;
-  topic: FactTopic;
-  /** One short sentence in English, in the third person. */
-  statement: string;
-  learnedAt: string;
-  updatedAt: string;
 }
 
 export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...args) => fetch(...args)) {

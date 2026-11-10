@@ -49,7 +49,7 @@ export class CheckInTopicNotDueError extends DomainError {
 }
 
 export interface CheckInOverview {
-  task: string;
+  task: typeof CHECK_IN_TASK;
   limitMs: number;
   dueAt: Date;
   due: boolean;
