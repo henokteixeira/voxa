@@ -39,6 +39,22 @@ Ports listen on this computer only. To open the web app and the API to your loca
 phone), set `VOXA_HOST=0.0.0.0` in `.env`; there is no login, so do it only on a network you trust. The database
 and the voice service always stay local.
 
+### Speed and cost
+
+Every voice turn's timing (speech-to-text, tutor, text-to-speech) goes to `voice_turn_timings`, and every Claude
+call (task, model, effort, tokens, time, failed or not) to `model_calls`. For example, the median wait per stage
+over the last 7 days, and the tokens per task:
+
+```bash
+docker compose exec postgres psql -U voxa -c "select percentile_cont(0.5) within group (order by stt_ms) as stt,
+  percentile_cont(0.5) within group (order by tutor_ms) as tutor, percentile_cont(0.5) within group (order by tts_ms) as tts,
+  percentile_cont(0.5) within group (order by total_ms) as total, count(*) from voice_turn_timings
+  where recorded_at > now() - interval '7 days'"
+docker compose exec postgres psql -U voxa -c "select task, model, effort, count(*), sum(input_tokens) as input,
+  sum(cache_read_tokens) as cache_read, sum(cache_write_tokens) as cache_write, sum(output_tokens) as output, percentile_cont(0.5) within group (order by duration_ms) as ms
+  from model_calls where called_at > now() - interval '7 days' group by 1, 2, 3 order by 4 desc"
+```
+
 ### Backups
 
 The `backup` service dumps the database into `./backups` (gitignored) when it starts and every day after, and

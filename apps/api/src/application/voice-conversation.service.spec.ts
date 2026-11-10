@@ -36,6 +36,7 @@ const events = {
   cancelled: vi.fn(),
   timing: vi.fn(),
 };
+const metrics = { voiceTurn: vi.fn() };
 let service: VoiceConversationService;
 
 beforeEach(() => {
@@ -50,6 +51,7 @@ beforeEach(() => {
     sessions as never,
     stt,
     tts,
+    metrics,
   );
 });
 
@@ -246,6 +248,7 @@ describe("turn timing", () => {
     await service.turn(id, { audio: Buffer.from("audio"), mimeType: "audio/wav" }, events);
 
     expect(events.timing).toHaveBeenCalledWith({ sttMs: 2500, tutorMs: 4000, ttsMs: 800, totalMs: 7300 });
+    expect(metrics.voiceTurn).toHaveBeenCalledWith({ sessionId: id, sttMs: 2500, tutorMs: 4000, ttsMs: 800, totalMs: 7300 });
   });
 
   it("reports no speech-to-text time for a typed turn", async () => {
