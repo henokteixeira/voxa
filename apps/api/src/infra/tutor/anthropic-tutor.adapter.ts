@@ -48,6 +48,7 @@ const VerdictSchema = z.object({
   pendingResolved: z.boolean(),
   nextHint: z.string().nullable(),
   correctUses: z.array(z.string()),
+  usedExpressions: z.array(z.string()),
   newWords: z.array(z.object({ said: z.string(), words: z.string() })),
   support: z.string().nullable(),
   coveredGoals: z.array(z.string()),

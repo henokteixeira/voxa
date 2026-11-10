@@ -13,9 +13,11 @@ export interface TurnLearning {
   pending: PendingCorrection | null;
   /** The mistakes to record, with their real severity (before the mode or track softened them). */
   issues: TutorVerdict["issues"];
-  verdict: Pick<TutorVerdict, "issues" | "correctUses" | "newWords">;
+  verdict: Pick<TutorVerdict, "issues" | "correctUses" | "newWords" | "usedExpressions">;
   /** Mistakes the tutor was watching for: the bank's most frequent ones and the session's targets. */
   watched: readonly Pick<PracticeTarget, "original">[];
+  /** Expressions due for review the tutor watched for: one used counts as its review. */
+  dueExpressions: readonly { id: string; phrase: string }[];
   /** The learner fixed the pending mistake alone. */
   selfCorrected: boolean;
   /** This turn's number among the learner's turns in the session (1 = first answer). */
@@ -60,6 +62,11 @@ export async function recordTurnLearning(
     const counted = await mistakes.recordCorrectUse(sessionId, { language, original: mistake.original });
     const subject = counted && reviewSubject(counted);
     if (subject) await reviews.usedCorrectly(language, subject, now);
+  }
+  // A due expression used in a sentence of one's own is recalled, as in a review.
+  for (const used of verdict.usedExpressions) {
+    const expression = turn.dueExpressions.find((e) => sameText(e.phrase, used));
+    if (expression) await reviews.usedCorrectly(language, { kind: "expression", id: expression.id }, now);
   }
   // A new word is never a mistake: skip one the tutor also listed as an issue, the pending one, or a repeat.
   const taken = [...verdict.issues.map((i) => i.original), ...(pending ? [pending.original] : [])];

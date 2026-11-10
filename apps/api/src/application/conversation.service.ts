@@ -230,7 +230,8 @@ export class ConversationService {
   async respond(sessionId: string, utterance: string, onReply?: (reply: TurnResult) => void): Promise<TurnResult> {
     const session = await this.openSession(sessionId);
     const corrects = correctsMistakes(session.mode);
-    const [history, known, knownPatterns, sessionPatterns, learnerContext, mission, entries, duePatterns] = await Promise.all([
+    const turnAt = this.clock.now();
+    const [history, known, knownPatterns, sessionPatterns, learnerContext, mission, entries, duePatterns, dueExpressions] = await Promise.all([
       this.sessions.history(sessionId),
       // Twice the limit, so new words don't push real mistakes out of the list.
       this.mistakes.mostFrequent(session.language, KNOWN_MISTAKES_LIMIT * 2),
@@ -239,7 +240,8 @@ export class ConversationService {
       this.learnerContext.load(),
       session.missionId ? this.missions.get(session.missionId) : null,
       corrects ? this.bank.list(session.language) : [],
-      corrects ? this.reviews.duePatterns(session.language, this.clock.now()) : new Set<string>(),
+      corrects ? this.reviews.duePatterns(session.language, turnAt) : new Set<string>(),
+      corrects ? this.reviews.dueExpressions(session.language, turnAt) : [],
     ]);
     const learnerTurn = history.filter((t) => t.role === "user").length + 1;
 
@@ -286,6 +288,7 @@ export class ConversationService {
         // next line: the reply has another job then.
         bringBack: session.pending || session.track ? [] : patternsToBringBack(sessionPatterns, learnerTurn + 1),
         focusPatterns: pausingPatterns(focus),
+        reviewExpressions: dueExpressions.map((e) => e.phrase),
         utterance,
         coveredGoals: session.coveredGoals,
         scaffold: session.scaffold,
@@ -313,6 +316,7 @@ export class ConversationService {
       issues: byMode.issues,
       verdict,
       watched: [...known, ...session.targets],
+      dueExpressions,
       selfCorrected: decision.selfCorrected,
       learnerTurn,
       now: this.clock.now(),

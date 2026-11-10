@@ -10,15 +10,28 @@ export function reviewSubject(mistake: Pick<Mistake, "id" | "category" | "patter
   return mistake.patternId ? { kind: "pattern", id: mistake.patternId } : null;
 }
 
+/** How many due expressions a conversation watches for. */
+export const DUE_EXPRESSIONS_WATCHED = 10;
+
 /** Moves review schedules as the learner speaks: in sessions and in reviews. */
 @Injectable()
 export class ReviewScheduler {
-  constructor(@Inject(REVIEW_REPOSITORY) private readonly reviews: Pick<ReviewRepository, "state" | "save" | "schedules">) {}
+  constructor(@Inject(REVIEW_REPOSITORY) private readonly reviews: Pick<ReviewRepository, "state" | "save" | "schedules" | "due">) {}
 
   /** The patterns due for review now: a conversation practices them first. */
   async duePatterns(language: string, now: Date): Promise<Set<string>> {
     const schedules = await this.reviews.schedules(language);
     return new Set(schedules.filter((s) => s.subject.kind === "pattern" && s.dueAt <= now).map((s) => s.subject.id));
+  }
+
+  /** The expressions due for review now, so a conversation can count one the learner uses as its review. */
+  async dueExpressions(language: string, now: Date): Promise<{ id: string; phrase: string }[]> {
+    // Expressions come after the mistakes in a review: look far enough down the list to reach them.
+    const due = await this.reviews.due(language, now, DUE_EXPRESSIONS_WATCHED * 10);
+    return due
+      .filter((item) => item.subject.kind === "expression")
+      .slice(0, DUE_EXPRESSIONS_WATCHED)
+      .map((item) => ({ id: item.subject.id, phrase: item.name }));
   }
 
   /** The mistake was made (or the word said in the first language): first review tomorrow, or one step back. */

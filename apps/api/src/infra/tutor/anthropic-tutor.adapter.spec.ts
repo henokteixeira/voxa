@@ -37,7 +37,7 @@ function fakeMessages(response: object) {
   return { messages: { create, parse, stream } as unknown as AnthropicMessages, create, parse, stream };
 }
 
-const verdict = { reply: "Nice.", issues: [], pendingResolved: false, nextHint: null, correctUses: [], newWords: [], support: null, coveredGoals: [], stuck: false, scaffold: null };
+const verdict = { reply: "Nice.", issues: [], pendingResolved: false, nextHint: null, correctUses: [], usedExpressions: [], newWords: [], support: null, coveredGoals: [], stuck: false, scaffold: null };
 const request: TutorRequest = {
   mode: "daily",
   language: "en",
@@ -48,6 +48,7 @@ const request: TutorRequest = {
   knownNewWords: [],
   knownPatterns: [],
   focusPatterns: [],
+  reviewExpressions: [],
   bringBack: [],
   utterance: "I fixed the upload.",
   goals: [],

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countsAsReview, firstReview, nextReview, reviewStatus } from "./review-schedule.js";
+import { byReviewPriority, countsAsReview, firstReview, nextReview, reviewStatus } from "./review-schedule.js";
 
 const now = new Date("2026-11-07T12:00:00Z");
 const inDays = (days: number) => new Date(now.getTime() + days * 86_400_000);
@@ -31,5 +31,18 @@ describe("review schedule", () => {
 
   it("is mastered from the 14-day wait on", () => {
     expect([0, 1, 2, 3, 4].map(reviewStatus)).toEqual(["new", "improving", "improving", "mastered", "mastered"]);
+  });
+});
+
+describe("byReviewPriority", () => {
+  it("puts mistakes and new words before expressions, each the longest overdue first", () => {
+    const at = (day: number) => new Date(Date.UTC(2026, 10, day));
+    const items = [
+      { subject: { kind: "expression", id: "e-old" }, dueAt: at(1) },
+      { subject: { kind: "pattern", id: "p-new" }, dueAt: at(5) },
+      { subject: { kind: "new_word", id: "w" }, dueAt: at(3) },
+      { subject: { kind: "expression", id: "e-new" }, dueAt: at(4) },
+    ];
+    expect(byReviewPriority(items).map((i) => i.subject.id)).toEqual(["w", "p-new", "e-old", "e-new"]);
   });
 });

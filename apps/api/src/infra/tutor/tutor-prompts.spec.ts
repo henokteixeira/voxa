@@ -218,7 +218,7 @@ describe("buildTrackInstruction", () => {
 
   it("goes into the turn message only in the track", () => {
     const step = { stage: "answer" as const, retry: false, goal: null };
-    const base = { utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], knownPatterns: [], bringBack: [], focusPatterns: [], coveredGoals: [], scaffold: null };
+    const base = { utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], knownPatterns: [], bringBack: [], focusPatterns: [], reviewExpressions: [], coveredGoals: [], scaffold: null };
     expect(buildTurnMessage({ ...base, plan: { otherwise: step, ifStuck: step, hintsPause: false } })).toMatch(
       /<guided_track>\nAsk the scene's question for the goal, with no model sentence\. Goal: a short topic/,
     );
@@ -245,6 +245,7 @@ describe("buildTurnMessage", () => {
       knownPatterns: [{ key: "past_simple_finished_action", name: "Past for finished actions" }],
       bringBack: [{ key: "past_simple_finished_action", name: "Past for finished actions" }],
       focusPatterns: [{ key: "articles_before_nouns", name: "Articles before nouns" }],
+      reviewExpressions: ["I'm still working on…"],
       coveredGoals: ["yesterday"],
       scaffold: "Yesterday I...",
       plan: null,
@@ -253,6 +254,7 @@ describe("buildTurnMessage", () => {
     expect(message).toContain("<known_patterns>\n- past_simple_finished_action: Past for finished actions\n</known_patterns>");
     expect(message).toContain("<bring_back>\n- past_simple_finished_action: Past for finished actions\n</bring_back>");
     expect(message).toContain("<covered_goals>\nyesterday\n</covered_goals>");
+    expect(message).toContain('<review_expressions>\n- "I\'m still working on…"\n</review_expressions>');
     expect(message).toContain("<focus_patterns>\n- articles_before_nouns: Articles before nouns\n</focus_patterns>");
     expect(message).toContain('<new_words>\n- "prazo" → "deadline"\n</new_words>');
     expect(message).toContain('"more better" → "better" (grammar)');
@@ -261,13 +263,14 @@ describe("buildTurnMessage", () => {
   });
 
   it("says none when there is nothing to check against", () => {
-    const message = buildTurnMessage({ utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], knownPatterns: [], bringBack: [], focusPatterns: [], coveredGoals: [], scaffold: null, plan: null });
+    const message = buildTurnMessage({ utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], knownPatterns: [], bringBack: [], focusPatterns: [], reviewExpressions: [], coveredGoals: [], scaffold: null, plan: null });
     expect(message).toContain("<words_given>\nnone\n</words_given>");
     expect(message).toContain("<new_words>\nnone\n</new_words>");
     expect(message).toContain("<known_mistakes>\nnone\n</known_mistakes>");
     expect(message).toContain("<pending_correction>\nnone\n</pending_correction>");
     expect(message).toContain("<bring_back>\nnone\n</bring_back>");
     expect(message).toContain("<focus_patterns>\nnone\n</focus_patterns>");
+    expect(message).toContain("<review_expressions>\nnone\n</review_expressions>");
   });
 });
 

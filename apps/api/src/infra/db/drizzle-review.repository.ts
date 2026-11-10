@@ -3,7 +3,7 @@ import { and, asc, desc, eq, gt, gte, inArray, isNull, lte, min, or, type SQL, s
 import { NEW_WORD_CATEGORY } from "../../domain/conversation/types.js";
 import { EXPRESSION_CATEGORY } from "../../domain/mission/mission.js";
 import type { AnsweredCard, ReviewItem, ReviewRepository, ReviewSchedule, ReviewSubject, StoredReviewCard } from "../../domain/ports/review.repository.js";
-import type { ReviewState } from "../../domain/review/review-schedule.js";
+import { byReviewPriority, type ReviewState } from "../../domain/review/review-schedule.js";
 import { DATABASE, type Database } from "./db.module.js";
 import { missionExpressions, mistakes, patterns, reviewCards, reviewItems } from "./schema.js";
 
@@ -33,7 +33,7 @@ export class DrizzleReviewRepository implements ReviewRepository {
 
   async due(language: string, now: Date, limit: number): Promise<ReviewItem[]> {
     const items = await this.items(and(eq(reviewItems.language, language), lte(reviewItems.dueAt, now)));
-    return items.slice(0, limit);
+    return byReviewPriority(items).slice(0, limit);
   }
 
   async item(subject: ReviewSubject): Promise<ReviewItem | null> {

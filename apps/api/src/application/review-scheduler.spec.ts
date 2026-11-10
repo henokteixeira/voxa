@@ -6,10 +6,11 @@ import { ReviewScheduler } from "./review-scheduler.js";
 function scheduler() {
   const states = new Map<string, ReviewState>();
   const key = (s: ReviewSubject) => `${s.kind}:${s.id}`;
-  const reviews: Pick<ReviewRepository, "state" | "save" | "schedules"> = {
+  const reviews: Pick<ReviewRepository, "state" | "save" | "schedules" | "due"> = {
     state: async (subject) => states.get(key(subject)) ?? null,
     save: async (_language, subject, state) => void states.set(key(subject), state),
     schedules: async () => [],
+    due: async () => [],
   };
   return { states, scheduler: new ReviewScheduler(reviews) };
 }
