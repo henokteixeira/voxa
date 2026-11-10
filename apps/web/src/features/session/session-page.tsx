@@ -15,7 +15,7 @@ import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-co
 import { CaptionCard, FadingCaption, HintCard, IconButton, PauseIcon, QuietLink, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
 import { SummaryFlow } from "./session-summary";
 import { TurnRing } from "./turn-ring";
-import type { FailureCode } from "./session-state";
+import { type FailureCode, tutorSpeaking } from "./session-state";
 import { useTodayProgress } from "@/features/xp/use-today-progress";
 import { XP_COPY } from "@/features/xp/xp-copy";
 import { XpToast } from "@/features/xp/xp-toast";
@@ -54,7 +54,7 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
   const { typing, setTyping } = session;
   const yourTurn = state.phase === "listening" || state.phase === "hearing";
   const ballAction =
-    state.phase === "hearing" ? page.sendNow : state.phase === "speaking" ? page.stopTutor : undefined;
+    state.phase === "hearing" ? page.sendNow : tutorSpeaking(state) ? page.stopTutor : undefined;
   const ballSize = !ballAction && state.hintStep > 0 ? 180 : 200;
   // First session only: say once that the ball can be tapped, until the learner taps it or the session ends.
   const [ballTip, setBallTip] = useState(() => !ballTipSeen());

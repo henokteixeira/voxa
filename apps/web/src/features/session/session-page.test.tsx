@@ -296,6 +296,18 @@ describe("live session", () => {
     expect(speaker.play).toHaveBeenCalledTimes(plays);
   });
 
+  it("lets the learner stop the tutor between two parts of its voice", async () => {
+    await startAndListen();
+    act(() => micHandlers.onTurn(new ArrayBuffer(16)));
+    act(() => socketHandlers.onTutor({ kind: "reply", message: "Nice. Tell me more about it.", selfCorrected: false }));
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
+    await act(async () => finishPlayback());
+    await userEvent.click(screen.getByRole("button", { name: "Stop the tutor" }));
+    const plays = speaker.play.mock.calls.length;
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(9)));
+    expect(speaker.play).toHaveBeenCalledTimes(plays);
+  });
+
   it("says once, in the first session, that the ball can be tapped", async () => {
     localStorage.removeItem("voxa.ballTipSeen");
     await startAndListen();

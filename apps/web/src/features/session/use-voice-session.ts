@@ -9,7 +9,7 @@ import { AudioBlockedError, type Speaker } from "@/lib/voice/speaker";
 import type { VoiceSocket } from "@/lib/voice/voice-socket";
 import { FluencyClock } from "./fluency-clock";
 import { clearSavedSession, saveSession, takeSavedSession, TRANSIENT_ERRORS } from "./saved-session";
-import { type FailureCode, initialSessionState, type Retry, sessionReducer } from "./session-state";
+import { type FailureCode, initialSessionState, type Retry, sessionReducer, tutorSpeaking } from "./session-state";
 import { VoiceDepsContext } from "./voice-deps";
 
 /** Failures that need the whole start again (no session was created yet). */
@@ -376,11 +376,11 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
       sentEarly.current = true;
       if (!mic.current?.sendNow()) sentEarly.current = false;
     }
-    else if (state.phase === "speaking") {
+    else if (tutorSpeaking(state)) {
       muted.current = true;
       stopSpeech();
     }
-  }, [state.phase, stopSpeech]);
+  }, [state, stopSpeech]);
 
   /** Any tap on the screen: lets the browser play and record, and replays a line it blocked. */
   const unlock = useCallback(() => {
