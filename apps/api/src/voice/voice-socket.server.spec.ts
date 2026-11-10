@@ -63,7 +63,7 @@ describe("voice socket", () => {
     voice.turn.mockImplementation(async (_id: string, _input: unknown, events: VoiceTurnEvents) => {
       events.transcript("I finished it.");
       events.tutor(tutor as never);
-      return Buffer.from("RIFFwav");
+      events.speech(Buffer.from("RIFFwav"));
     });
     const { ws, until } = await connect();
 
@@ -85,7 +85,7 @@ describe("voice socket", () => {
       events.tutor(tutor as never);
       events.speech(Buffer.from("RIFFreply"));
       events.followUp({ ...tutor, kind: "hint", message: "When did it happen?" } as never);
-      return Buffer.from("RIFFhint");
+      events.speech(Buffer.from("RIFFhint"));
     });
     const { ws, until } = await connect();
 
@@ -105,7 +105,6 @@ describe("voice socket", () => {
   it("sends a follow-up with nothing to say as a null message", async () => {
     voice.turn.mockImplementation(async (_id: string, _input: unknown, events: VoiceTurnEvents) => {
       events.followUp({ ...tutor, kind: "reply", message: "" } as never);
-      return null;
     });
     const { ws, until } = await connect();
 
@@ -117,7 +116,7 @@ describe("voice socket", () => {
   });
 
   it("takes a typed turn", async () => {
-    voice.turn.mockResolvedValue(null);
+    voice.turn.mockResolvedValue(undefined);
     const { ws, until } = await connect();
 
     ws.send(JSON.stringify({ type: "text", text: "I finished it" }));
@@ -129,13 +128,15 @@ describe("voice socket", () => {
   });
 
   it("speaks the last tutor line on request", async () => {
-    voice.speakLast.mockResolvedValue(Buffer.from("RIFFhello"));
+    voice.speakLast.mockImplementation(async (_id: string, events: Pick<VoiceTurnEvents, "speech">) => {
+      events.speech(Buffer.from("RIFFhello"));
+    });
     const { ws, until } = await connect();
 
     ws.send(JSON.stringify({ type: "speak" }));
     const frames = await until("done");
 
-    expect(voice.speakLast).toHaveBeenCalledWith(id);
+    expect(voice.speakLast).toHaveBeenCalledWith(id, expect.anything());
     expect(frames).toEqual([{ binary: Buffer.from("RIFFhello") }, { json: { type: "done" } }]);
     ws.close();
   });
@@ -205,7 +206,7 @@ describe("voice socket", () => {
     ws.send(Buffer.alloc(11 * 1024 * 1024));
     expect(await closed).toBe(1009);
 
-    voice.speakLast.mockResolvedValue(null);
+    voice.speakLast.mockResolvedValue(undefined);
     const next = await connect();
     next.ws.send(JSON.stringify({ type: "speak" }));
     expect(await next.until("done")).toEqual([{ json: { type: "done" } }]);
@@ -223,7 +224,7 @@ describe("voice socket", () => {
     await firstClosed;
     await new Promise((resolve) => setTimeout(resolve, 20));
     const third = await connect();
-    voice.speakLast.mockResolvedValue(null);
+    voice.speakLast.mockResolvedValue(undefined);
     third.ws.send(JSON.stringify({ type: "speak" }));
     expect(await third.until("done")).toEqual([{ json: { type: "done" } }]);
     third.ws.close();

@@ -157,6 +157,11 @@ export const initialSessionState: SessionState = {
 const SOFT_FAILURES: FailureCode[] = ["bad_audio", "invalid", "too_long"];
 const OVER: Phase[] = ["ending", "ended"];
 
+/** The tutor is speaking this turn, including the short gap while the next part of its voice is still on its way. */
+export function tutorSpeaking(state: SessionState): boolean {
+  return state.phase === "speaking" || (state.phase === "thinking" && state.turn.speech && !state.turn.done);
+}
+
 export function sessionReducer(state: SessionState, action: SessionAction): SessionState {
   // Nothing brings an ended session back.
   if (OVER.includes(state.phase) && action.type !== "ended") return state;
