@@ -19,7 +19,7 @@ describe("countWords", () => {
 });
 
 describe("fluencySignals", () => {
-  it("computes the four signals", () => {
+  it("computes the signals", () => {
     const signals = fluencySignals({
       mistakes: [serious(true), serious(true), serious(false), minor],
       learnerUtterances: ["one two three four five", "six seven eight nine ten"],
@@ -31,6 +31,7 @@ describe("fluencySignals", () => {
       averagePauseMs: 2000,
       wordsPerMinute: 95,
       longPausesPerMinute: 1.5,
+      wordsPerAnswer: 5,
     });
   });
 

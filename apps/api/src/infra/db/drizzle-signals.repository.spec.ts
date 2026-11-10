@@ -33,6 +33,7 @@ async function recordFor(language: string, mode: Mode, wordsPerMinute: number): 
       averagePauseMs: 1200,
       mistakesPer100Words: 4.3,
       selfCorrectionRate: 1 / 3,
+      wordsPerAnswer: 6.5,
     },
   });
 }
@@ -43,7 +44,7 @@ describe("DrizzleSignalsRepository", () => {
     const again = await signals.recordOnce({ ...first, signals: { ...first.signals, wordsPerMinute: 99 } });
     expect(again).toEqual(first);
     // Stored without loss: the comparison and the summary show the same numbers.
-    expect(first.signals).toMatchObject({ wordsPerMinute: 70, mistakesPer100Words: 4.3, selfCorrectionRate: 1 / 3 });
+    expect(first.signals).toMatchObject({ wordsPerMinute: 70, mistakesPer100Words: 4.3, selfCorrectionRate: 1 / 3, wordsPerAnswer: 6.5 });
   });
 
   it("lists the sessions of the same language stored before one, newest first", async () => {

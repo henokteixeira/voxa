@@ -29,6 +29,7 @@ const signals = (wordsPerMinute: number): SessionSignals => ({
   averagePauseMs: null,
   mistakesPer100Words: null,
   selfCorrectionRate: null,
+  wordsPerAnswer: null,
 });
 
 describe("SignalsService", () => {

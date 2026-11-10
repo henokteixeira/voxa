@@ -37,6 +37,8 @@ export interface ReflectionCopy {
   };
   signals: {
     pace: string;
+    answerLength: string;
+    answerLengthNote: string;
     /** Under the words per minute; null when the long pauses were not measured. */
     perMinute: (longPausesPerMinute: string | null) => string;
     fixedYourself: string;
@@ -92,6 +94,7 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
       better: {
         unaidedShare: "more answers without help",
         wordsPerMinute: "a faster pace",
+        wordsPerAnswer: "longer answers",
         longPausesPerMinute: "fewer long pauses",
         averagePauseMs: "shorter pauses before answering",
         mistakesPer100Words: "fewer mistakes",
@@ -102,8 +105,10 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     },
     signals: {
       pace: "Pace",
+      answerLength: "Words per answer",
+      answerLengthNote: "on average",
       perMinute: (pauses) => (pauses === null ? "words a minute" : `words a minute · ${pauses} long pauses a minute`),
-      fixedYourself: "Fixed yourself",
+      fixedYourself: "Fixed with a hint",
       afterHint: "after a hint",
       noHints: "no hints needed",
       pause: "Pause before answering",
@@ -151,6 +156,7 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
       better: {
         unaidedShare: "mais respostas sem ajuda",
         wordsPerMinute: "ritmo mais rápido",
+        wordsPerAnswer: "respostas mais longas",
         longPausesPerMinute: "menos pausas longas",
         averagePauseMs: "pausas mais curtas antes de responder",
         mistakesPer100Words: "menos erros",
@@ -161,9 +167,11 @@ export const REFLECTION_COPY: Copy<ReflectionCopy> = {
     },
     signals: {
       pace: "Ritmo",
+      answerLength: "Palavras por resposta",
+      answerLengthNote: "em média",
       perMinute: (pauses) =>
         pauses === null ? "palavras por minuto" : `palavras por minuto · ${pauses} pausas longas por minuto`,
-      fixedYourself: "Autocorreção",
+      fixedYourself: "Corrigiu com a dica",
       afterHint: "depois de uma dica",
       noHints: "sem precisar de dica",
       pause: "Pausa antes de responder",

@@ -294,6 +294,8 @@ export interface FluencySignals {
   longPausesPerMinute: number | null;
   /** 0–1: share of the learner's turns said without help. Missing from servers older than it. */
   unaidedShare?: number | null;
+  /** Average words in one of the learner's answers. Missing from servers older than it. */
+  wordsPerAnswer?: number | null;
 }
 
 export type SignalName = keyof Required<FluencySignals>;

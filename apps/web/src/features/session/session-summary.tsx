@@ -309,11 +309,21 @@ function Signals({ signals, mistakes }: { signals: FluencySignals; mistakes: Ses
       note: t.per100,
       empty: t.noWords,
     },
+    {
+      name: t.answerLength,
+      value: signals.wordsPerAnswer == null ? null : decimal.format(signals.wordsPerAnswer),
+      note: t.answerLengthNote,
+      empty: t.noWords,
+      wide: true,
+    },
   ];
   return (
     <dl aria-label={copy.signalsLabel} className="m-0 grid grid-cols-2 gap-2.5">
       {tiles.map((tile) => (
-        <div key={tile.name} className="flex flex-col gap-1 rounded-md bg-paper px-4 py-3.5 shadow-card">
+        <div
+          key={tile.name}
+          className={`flex flex-col gap-1 rounded-md bg-paper px-4 py-3.5 shadow-card${"wide" in tile && tile.wide ? " col-span-2" : ""}`}
+        >
           <dt className="text-caption text-taupe">{tile.name}</dt>
           <dd className="m-0 font-serif text-[26px] tabular-nums">{tile.value ?? "–"}</dd>
           <dd className="m-0 text-caption text-taupe">{tile.value === null ? tile.empty : tile.note}</dd>

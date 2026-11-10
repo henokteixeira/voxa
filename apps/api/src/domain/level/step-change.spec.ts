@@ -9,6 +9,7 @@ const session = (unaidedShare: number | null, longPausesPerMinute: number | null
   averagePauseMs: null,
   mistakesPer100Words: null,
   selfCorrectionRate: null,
+  wordsPerAnswer: null,
 });
 
 describe("proposeStepChange", () => {

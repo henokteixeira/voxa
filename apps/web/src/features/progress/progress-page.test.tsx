@@ -135,6 +135,7 @@ describe("Progress", () => {
       averagePauseMs: null,
       mistakesPer100Words: null,
       selfCorrectionRate: null,
+      wordsPerAnswer: null,
     },
   });
 

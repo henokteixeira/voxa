@@ -42,6 +42,7 @@ export const SIGNALS_COPY: Copy<SignalsCopy> = {
     signals: {
       unaidedShare: { name: "Answers without help", better: "higher is better", format: percent },
       wordsPerMinute: { name: "Pace (words a minute)", better: "higher is better", format: whole },
+      wordsPerAnswer: { name: "Words per answer", better: "higher is better", format: decimal },
       longPausesPerMinute: { name: "Long pauses a minute", better: "lower is better", format: decimal },
       averagePauseMs: { name: "Pause before answering", better: "lower is better", format: seconds },
       mistakesPer100Words: { name: "Mistakes per 100 words", better: "lower is better", format: decimal },
@@ -61,6 +62,7 @@ export const SIGNALS_COPY: Copy<SignalsCopy> = {
     signals: {
       unaidedShare: { name: "Respostas sem ajuda", better: "quanto mais, melhor", format: percent },
       wordsPerMinute: { name: "Ritmo (palavras por minuto)", better: "quanto mais, melhor", format: whole },
+      wordsPerAnswer: { name: "Palavras por resposta", better: "quanto mais, melhor", format: decimal },
       longPausesPerMinute: { name: "Pausas longas por minuto", better: "quanto menos, melhor", format: decimal },
       averagePauseMs: { name: "Pausa antes de responder", better: "quanto menos, melhor", format: seconds },
       mistakesPer100Words: { name: "Erros a cada 100 palavras", better: "quanto menos, melhor", format: decimal },

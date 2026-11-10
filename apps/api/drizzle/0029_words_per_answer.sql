@@ -1,0 +1,1 @@
+ALTER TABLE "session_signals" ADD COLUMN "words_per_answer" double precision;

@@ -21,6 +21,7 @@ function toRecord(row: SignalsRow): SessionSignalsRecord {
       averagePauseMs: row.averagePauseMs,
       mistakesPer100Words: row.mistakesPer100Words,
       selfCorrectionRate: row.selfCorrectionRate,
+      wordsPerAnswer: row.wordsPerAnswer,
     },
   };
 }
