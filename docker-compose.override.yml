@@ -25,7 +25,7 @@ services:
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
     ports: !override
-      - "5173:5173"
+      - "${VOXA_HOST:-127.0.0.1}:5173:5173"
     volumes:
       - ./apps/web:/repo/apps/web
       # Keep the container's installed packages; the host folder may have none (or Mac builds).

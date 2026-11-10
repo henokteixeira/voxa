@@ -35,6 +35,21 @@ apply on the next start. After a `git pull`, nothing to rebuild unless dependenc
 then run `docker compose up --build -V` (`-V` refreshes the installed packages).
 The production build (nginx, compiled API) runs with `docker compose -f docker-compose.yml up --build`.
 
+Ports listen on this computer only. To open the web app and the API to your local network (e.g. to try Voxa on a
+phone), set `VOXA_HOST=0.0.0.0` in `.env`; there is no login, so do it only on a network you trust. The database
+and the voice service always stay local.
+
+### Backups
+
+The `backup` service dumps the database into `./backups` (gitignored) when it starts and every day after, and
+removes dumps older than 14 days. To restore one (this replaces what is in the database now):
+
+```bash
+docker compose stop api
+docker compose exec -T postgres pg_restore -U voxa -d voxa --clean --if-exists < backups/voxa-<date>.dump
+docker compose start api
+```
+
 Voice evaluation (reads `services/voice/eval/recordings`, writes `services/voice/eval/results`):
 
 ```bash
