@@ -45,9 +45,10 @@ describe("check-in", () => {
   it("gives each topic once, in order, then the one given longest ago", () => {
     expect(nextCheckInTopic([])).toBe("last_weekend");
     expect(nextCheckInTopic(["problem_solved", "last_weekend"])).toBe("explain_skill");
-    const all = [...CHECK_IN_TOPICS].reverse(); // newest first: the first topic was given longest ago
-    expect(nextCheckInTopic(all)).toBe("last_weekend");
-    expect(nextCheckInTopic(["last_weekend", ...all.slice(0, -1)])).toBe("problem_solved");
+    // A real history keeps every use, newest first: give 25 in a row and check the order goes round.
+    const given: string[] = [];
+    for (let i = 0; i < 25; i++) given.unshift(nextCheckInTopic(given));
+    expect([...given].reverse()).toEqual([...CHECK_IN_TOPICS, ...CHECK_IN_TOPICS, ...CHECK_IN_TOPICS.slice(0, 5)]);
   });
 
   it("offers the topic task right after a fixed check-in, once, and only for a day", () => {

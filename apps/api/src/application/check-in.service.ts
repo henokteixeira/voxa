@@ -69,6 +69,7 @@ export interface CheckInResult {
 @Injectable()
 export class CheckInService {
   private readonly logger = new Logger(CheckInService.name);
+  private readonly storing = new Map<string, Promise<unknown>>();
 
   constructor(
     @Inject(CHECK_IN_REPOSITORY) private readonly checkIns: CheckInRepository,
@@ -113,33 +114,49 @@ export class CheckInService {
       throw new InvalidInputError(`This task has ${limitMs / 1000} s; ${measure.speechMs} ms of speech is too long.`);
     }
     const now = this.clock.now();
-    if (task === CHECK_IN_TASK) {
-      const [latest] = await this.checkIns.list(language, { limit: 1, kind: "benchmark" });
-      const dueAt = checkInDueAt(latest?.recordedAt ?? null, now);
-      if (dueAt > now) throw new CheckInNotDueError(dueAt);
-    } else {
-      const topic = this.topicOf(await this.checkIns.list(language), now);
-      if (task !== topic.task || !topic.due) throw new CheckInTopicNotDueError(task);
-    }
+    await this.assertDue(language, task, now);
     const { text } = await this.stt.transcribe(recording.audio, language, { mimeType: recording.mimeType });
     const transcript = text.trim();
     if (!transcript) throw new InvalidInputError("Nothing was heard in the recording.");
     const reading = await this.readTranscript(language, transcript);
-    const checkIn = await this.checkIns.create(
-      {
-        language,
-        task,
-        recordedAt: now,
-        transcript,
-        spokenWords: countWords(transcript),
-        speechMs: measure.speechMs,
-        longPauses: measure.pausesMs.filter((ms) => ms >= LONG_PAUSE_MS).length,
-        mistakes: reading?.mistakes ?? null,
-        otherLanguageWords: reading?.otherLanguageWords ?? null,
-      },
-      recording,
-    );
+    // Checked again and stored one at a time: a second upload of the same task (a retry, a double tap) may have
+    // been stored during the slow steps above.
+    const checkIn = await this.oneAtATime(language, async () => {
+      await this.assertDue(language, task, now);
+      return this.checkIns.create(
+        {
+          language,
+          task,
+          recordedAt: now,
+          transcript,
+          spokenWords: countWords(transcript),
+          speechMs: measure.speechMs,
+          longPauses: measure.pausesMs.filter((ms) => ms >= LONG_PAUSE_MS).length,
+          mistakes: reading?.mistakes ?? null,
+          otherLanguageWords: reading?.otherLanguageWords ?? null,
+        },
+        recording,
+      );
+    });
     return this.resultOf(checkIn);
+  }
+
+  private async assertDue(language: string, task: string, now: Date): Promise<void> {
+    if (task === CHECK_IN_TASK) {
+      const [latest] = await this.checkIns.list(language, { limit: 1, kind: "benchmark" });
+      const dueAt = checkInDueAt(latest?.recordedAt ?? null, now);
+      if (dueAt > now) throw new CheckInNotDueError(dueAt);
+      return;
+    }
+    const topic = this.topicOf(await this.checkIns.list(language), now);
+    if (task !== topic.task || !topic.due) throw new CheckInTopicNotDueError(task);
+  }
+
+  /** Runs `store` after any earlier one of the same language has finished (this API runs as one process). */
+  private oneAtATime<T>(language: string, store: () => Promise<T>): Promise<T> {
+    const run = (this.storing.get(language) ?? Promise.resolve()).then(store, store);
+    this.storing.set(language, run.catch(() => {}));
+    return run;
   }
 
   /** The tutor's reading of the transcript, or null when it is unavailable: the recording and pace are kept anyway. */

@@ -1,6 +1,6 @@
 import { Logger } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
-import { type CheckIn, type CheckInKind, checkInKind } from "../domain/check-in/check-in.js";
+import { CHECK_IN_TOPICS, type CheckIn, type CheckInKind, checkInKind } from "../domain/check-in/check-in.js";
 import type { CheckInReaderPort } from "../domain/ports/check-in-reader.port.js";
 import type { CheckInRecording, CheckInRepository } from "../domain/ports/check-in.repository.js";
 import { TutorUnavailableError } from "../domain/ports/tutor.port.js";
@@ -129,5 +129,29 @@ describe("CheckInService", () => {
     expect(fixed2.previous?.id).toBe(fixed.checkIn.id);
     const topic2 = await service.record("en", wav, { speechMs: 6_000, pausesMs: [] }, "problem_solved");
     expect(topic2.previous?.id).toBe(topic.checkIn.id);
+  });
+
+  it("stores one topic task when the same upload arrives twice at once", async () => {
+    const { service, checkIns } = setup();
+    await service.record("en", wav, { speechMs: 12_000, pausesMs: [] });
+    const results = await Promise.allSettled([
+      service.record("en", wav, { speechMs: 6_000, pausesMs: [] }, "last_weekend"),
+      service.record("en", wav, { speechMs: 6_000, pausesMs: [] }, "last_weekend"),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
+    expect(checkIns.rows.filter((r) => r.task === "last_weekend")).toHaveLength(1);
+  });
+
+  it("goes round the topics, each time the one given longest ago", async () => {
+    const { service, clock } = setup();
+    const given: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      clock.at = new Date(Date.UTC(2026, 10, 9) + i * 15 * 86_400_000);
+      await service.record("en", wav, { speechMs: 12_000, pausesMs: [] });
+      const { topic } = await service.overview("en");
+      given.push(topic.task);
+      await service.record("en", wav, { speechMs: 6_000, pausesMs: [] }, topic.task);
+    }
+    expect(given).toEqual([...CHECK_IN_TOPICS, ...CHECK_IN_TOPICS.slice(0, 2)]);
   });
 });
