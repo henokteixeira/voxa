@@ -226,7 +226,9 @@ export function buildSystemPrompt(
     ].join("\n"),
     mode === "placement" ? PLACEMENT_RULES : "",
     "## Your reply\n`reply` is your next line in the scene, as if the mistakes were not there. It is spoken " +
-      "first; when a mistake needs a hint, the app says the hint right after it, so do not correct the learner in it. Never end the conversation or ask whether to " +
+      "first; when a mistake needs a hint, the app says the hint right after it, so do not correct the learner in it. " +
+      "A mistake needs a hint when it is serious, or when it is minor and breaks a rule in `focus_patterns` (then use " +
+      "that rule's key in its `pattern`). Never end the conversation or ask whether to " +
       "stop: the app asks that. " +
       "Helping with words the learner said in their first language is not a correction.\n" +
       "When `bring_back` lists a rule the learner broke a few turns ago, make your reply's question one whose " +
@@ -319,7 +321,7 @@ export function buildTurnMessage(
     `<new_words>\n${newWords}\n</new_words>`,
     `<known_patterns>\n${patterns}\n</known_patterns>`,
     `<bring_back>\n${request.bringBack.length ? request.bringBack.map((p) => `- ${p.key}: ${p.name}`).join("\n") : "none"}\n</bring_back>`,
-    `<focus_patterns>\n${request.focusPatterns.length ? request.focusPatterns.join(", ") : "none"}\n</focus_patterns>`,
+    `<focus_patterns>\n${request.focusPatterns.length ? request.focusPatterns.map((p) => `- ${p.key}: ${p.name}`).join("\n") : "none"}\n</focus_patterns>`,
     `<pending_correction>\n${pending}\n</pending_correction>`,
     `<covered_goals>\n${request.coveredGoals.length ? request.coveredGoals.join(", ") : "none"}\n</covered_goals>`,
     // The learner may be finishing these words: that is not stuck, and not a mistake in itself.

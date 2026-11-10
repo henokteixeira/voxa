@@ -53,10 +53,10 @@ export interface TutorRequest extends TutorContext {
    */
   bringBack: KnownPattern[];
   /**
-   * Keys of the patterns whose small mistakes pause the talk for a hint this turn (see focusedVerdict), so the
-   * reply knows a hint follows it.
+   * The patterns whose small mistakes pause the talk for a hint this turn (see focusedVerdict), so the reply
+   * knows a hint follows it.
    */
-  focusPatterns: string[];
+  focusPatterns: KnownPattern[];
   utterance: string;
   /** Ids of the goals covered before this utterance. */
   coveredGoals: string[];

@@ -166,7 +166,10 @@ describe("verdictForMode", () => {
 describe("focusedVerdict", () => {
   const pattern = { key: "articles_before_nouns", name: "Articles before nouns", rule: "Use a/the antes do substantivo." };
   const known = issue({ severity: "minor", matchesKnownMistake: true, pattern });
-  const focus = (keys: string[], broken: string[] = []) => ({ patternKeys: new Set(keys), brokenThisSession: new Set(broken) });
+  const focus = (keys: string[], broken: string[] = []) => ({
+    patterns: new Map(keys.map((k) => [k, k.replaceAll("_", " ")])),
+    brokenThisSession: new Set(broken),
+  });
 
   it("pauses on a small known mistake when its pattern is in focus and was not broken yet this session", () => {
     const focused = focusedVerdict(verdict({ issues: [known] }), focus(["articles_before_nouns"]));
@@ -187,6 +190,11 @@ describe("focusedVerdict", () => {
   it("matches the pattern key as it is stored", () => {
     const messy = issue({ severity: "minor", matchesKnownMistake: true, pattern: { ...pattern, key: "Articles Before Nouns" } });
     expect(decide(null, focusedVerdict(verdict({ issues: [messy] }), focus(["articles_before_nouns"]))).kind).toBe("hint");
+  });
+
+  it("pauses on a new small mistake of a pattern in focus, even when the tutor did not match it to a known one", () => {
+    const fresh = issue({ severity: "minor", matchesKnownMistake: false, pattern });
+    expect(decide(null, focusedVerdict(verdict({ issues: [fresh] }), focus(["articles_before_nouns"]))).kind).toBe("hint");
   });
 
   it("only records a small known mistake without a pattern", () => {

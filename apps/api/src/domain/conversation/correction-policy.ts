@@ -109,28 +109,32 @@ export function safeHint(hint: string | null | undefined, target: { correction: 
 
 /** Which known mistakes may pause the conversation in this turn. */
 export interface HintFocus {
-  /** Keys of the patterns the session works on: due for review, or behind a practice target. */
-  patternKeys: ReadonlySet<string>;
+  /** The patterns the session works on (due for review, or behind a practice target): key to name. */
+  patterns: ReadonlyMap<string, string>;
   /** Keys of the patterns already broken earlier in this session. */
   brokenThisSession: ReadonlySet<string>;
 }
 
+/** The patterns whose small mistakes pause the talk now: in focus and not broken yet this session. */
+export function pausingPatterns(focus: HintFocus): { key: string; name: string }[] {
+  return [...focus.patterns].filter(([key]) => !focus.brokenThisSession.has(key)).map(([key, name]) => ({ key, name }));
+}
+
 /**
- * A small mistake that repeats a known one pauses the talk only when its pattern is in focus, and only the first
- * time in the session; otherwise it is recorded for the summary and the review (decided on 2026-11-10, so a
- * growing bank does not turn every conversation into a string of hints). A mistake that gets in the way of
- * understanding always pauses.
+ * A small mistake pauses the talk only when its pattern is in focus, and only the first time in the session;
+ * otherwise it is recorded for the summary and the review, also when it repeats one in the bank (decided on
+ * 2026-11-10, so a growing bank does not turn every conversation into a string of hints). A mistake that gets in
+ * the way of understanding always pauses.
  */
 export function focusedVerdict(verdict: TutorVerdict, focus: HintFocus): TutorVerdict {
+  const pausing = new Set(pausingPatterns(focus).map((p) => p.key));
   const inFocus = (issue: Issue) => {
     const key = cleanPattern(issue.pattern)?.key;
-    return key !== undefined && focus.patternKeys.has(key) && !focus.brokenThisSession.has(key);
+    return key !== undefined && pausing.has(key);
   };
   return {
     ...verdict,
-    issues: verdict.issues.map((i) =>
-      i.matchesKnownMistake && i.severity === "minor" && !inFocus(i) ? { ...i, matchesKnownMistake: false } : i,
-    ),
+    issues: verdict.issues.map((i) => (i.severity === "minor" ? { ...i, matchesKnownMistake: inFocus(i) } : i)),
   };
 }
 

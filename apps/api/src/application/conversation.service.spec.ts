@@ -642,6 +642,27 @@ describe("ConversationService.respond", () => {
       expect(mistakes.events[0].severity).toBe("minor");
     });
 
+    it("tells the tutor which patterns pause, until the pattern is broken in the session", async () => {
+      reviews.items.set("pattern:p-articles", { language: "en", step: 1, dueAt: clock.now() });
+      const { session } = await service.start("daily", "en");
+      tutor.verdicts.push(verdict({ issues: [known] }), verdict({ pendingResolved: true }));
+      await service.respond(session.id, "I opened PR");
+      await service.respond(session.id, "I opened a PR");
+
+      expect(tutor.requests[0].focusPatterns).toEqual([{ key: "articles_before_nouns", name: "Articles before nouns" }]);
+      expect(tutor.requests[1].focusPatterns).toEqual([]);
+    });
+
+    it("still pauses on a serious mistake of a pattern already broken in the session", async () => {
+      reviews.items.set("pattern:p-articles", { language: "en", step: 1, dueAt: clock.now() });
+      const { session } = await service.start("daily", "en");
+      tutor.verdicts.push(verdict({ issues: [known] }), verdict({ pendingResolved: true }), verdict({ issues: [{ ...known, severity: "serious", original: "I merged PR" }] }));
+      await service.respond(session.id, "I opened PR");
+      await service.respond(session.id, "I opened a PR");
+
+      expect((await service.respond(session.id, "I merged PR")).kind).toBe("hint");
+    });
+
     it("pauses only the first time in the session", async () => {
       reviews.items.set("pattern:p-articles", { language: "en", step: 1, dueAt: clock.now() });
       const { session } = await service.start("daily", "en");

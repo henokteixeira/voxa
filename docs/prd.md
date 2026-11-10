@@ -67,7 +67,7 @@ In the work modes the tutor uses the user's professional context (role, organiza
 
 The tutor corrects with hints, at once, only when a mistake matters; the user confirmed these rules on 2026-11-06.
 
-1. **Serious mistake** (it gets in the way of understanding): the tutor pauses the conversation and gives a hint so the user corrects himself. It does not just say the correct sentence. A small mistake that repeats one in the mistake bank also pauses, but only when its pattern is in focus (due for review, or behind one of the session's practice targets) and only the first time in the session (changed on 2026-11-10, so a growing bank does not fill every conversation with hints).
+1. **Serious mistake** (it gets in the way of understanding): the tutor pauses the conversation and gives a hint so the user corrects himself. It does not just say the correct sentence. A small mistake also pauses when its pattern is in focus (due for review, or behind one of the session's practice targets), only the first time that pattern is broken in the session; a small mistake that merely repeats one in the bank no longer pauses (changed on 2026-11-10, so a growing bank does not fill every conversation with hints).
 2. **Small mistake** (does not get in the way): recorded silently and shown in the end-of-session summary, so fluency is not broken.
 3. **Attempts:** up to 2 hints. After the second miss, the tutor gives the correct form and asks the user to repeat it, then the conversation resumes.
 
@@ -121,7 +121,7 @@ Each criterion below becomes at least one automated test; voice criteria are als
 **Correction**
 
 - [ ] A serious mistake makes the tutor reply with a hint, never with the corrected sentence.
-- [ ] A small mistake already in the bank pauses for a hint only when its pattern is due or a practice target, once per session.
+- [ ] A small mistake pauses for a hint only when its pattern is due or behind a practice target, once per pattern per session.
 - [ ] After 2 failed hints the tutor gives the correct form and asks the user to repeat it, then resumes.
 - [ ] A small mistake gets no interruption and is stored for the summary.
 

@@ -234,7 +234,7 @@ describe("buildTurnMessage", () => {
       knownNewWords: [{ original: "prazo", correction: "deadline", category: "new_word" }],
       knownPatterns: [{ key: "past_simple_finished_action", name: "Past for finished actions" }],
       bringBack: [{ key: "past_simple_finished_action", name: "Past for finished actions" }],
-      focusPatterns: ["articles_before_nouns"],
+      focusPatterns: [{ key: "articles_before_nouns", name: "Articles before nouns" }],
       coveredGoals: ["yesterday"],
       scaffold: "Yesterday I...",
       plan: null,
@@ -243,7 +243,7 @@ describe("buildTurnMessage", () => {
     expect(message).toContain("<known_patterns>\n- past_simple_finished_action: Past for finished actions\n</known_patterns>");
     expect(message).toContain("<bring_back>\n- past_simple_finished_action: Past for finished actions\n</bring_back>");
     expect(message).toContain("<covered_goals>\nyesterday\n</covered_goals>");
-    expect(message).toContain("<focus_patterns>\narticles_before_nouns\n</focus_patterns>");
+    expect(message).toContain("<focus_patterns>\n- articles_before_nouns: Articles before nouns\n</focus_patterns>");
     expect(message).toContain('<new_words>\n- "prazo" → "deadline"\n</new_words>');
     expect(message).toContain('"more better" → "better" (grammar)');
     expect(message).toContain('"I goed" should be "I went" (grammar). Hints already given: 1.');

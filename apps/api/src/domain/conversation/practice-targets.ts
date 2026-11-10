@@ -64,12 +64,12 @@ export function hintFocus(input: {
   sessionPatterns: readonly KnownPattern[];
 }): HintFocus {
   const { entries, duePatterns, targets, sessionPatterns } = input;
-  const patternKeys = new Set(
+  const patterns = new Map(
     entries.flatMap((e) =>
       e.pattern && e.patternId && (duePatterns.has(e.patternId) || targets.some((t) => sameText(t.original, e.original)))
-        ? [e.pattern.key]
+        ? [[e.pattern.key, e.pattern.name] as const]
         : [],
     ),
   );
-  return { patternKeys, brokenThisSession: new Set(sessionPatterns.map((p) => p.key)) };
+  return { patterns, brokenThisSession: new Set(sessionPatterns.map((p) => p.key)) };
 }

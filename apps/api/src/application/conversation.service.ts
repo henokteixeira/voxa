@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { decide, focusedVerdict, notedOnly, type TurnKind, verdictForMode } from "../domain/conversation/correction-policy.js";
+import { decide, focusedVerdict, notedOnly, pausingPatterns, type TurnKind, verdictForMode } from "../domain/conversation/correction-policy.js";
 import {
   givesWords,
   nextGoalAfter,
@@ -285,7 +285,7 @@ export class ConversationService {
         // The reply asks for the learner's next turn. Not while a hint is pending or the guided track gives the
         // next line: the reply has another job then.
         bringBack: session.pending || session.track ? [] : patternsToBringBack(sessionPatterns, learnerTurn + 1),
-        focusPatterns: [...focus.patternKeys].filter((key) => !focus.brokenThisSession.has(key)),
+        focusPatterns: pausingPatterns(focus),
         utterance,
         coveredGoals: session.coveredGoals,
         scaffold: session.scaffold,
