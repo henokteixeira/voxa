@@ -51,7 +51,7 @@ docker compose exec postgres psql -U voxa -c "select percentile_cont(0.5) within
   percentile_cont(0.5) within group (order by total_ms) as total, count(*) from voice_turn_timings
   where recorded_at > now() - interval '7 days'"
 docker compose exec postgres psql -U voxa -c "select task, model, effort, count(*), sum(input_tokens) as input,
-  sum(cache_read_tokens) as cache_read, sum(output_tokens) as output, percentile_cont(0.5) within group (order by duration_ms) as ms
+  sum(cache_read_tokens) as cache_read, sum(cache_write_tokens) as cache_write, sum(output_tokens) as output, percentile_cont(0.5) within group (order by duration_ms) as ms
   from model_calls where called_at > now() - interval '7 days' group by 1, 2, 3 order by 4 desc"
 ```
 

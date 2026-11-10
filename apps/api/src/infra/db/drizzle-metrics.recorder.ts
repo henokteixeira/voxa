@@ -21,7 +21,9 @@ export class DrizzleMetricsRecorder implements MetricsRecorder {
     try {
       await write();
     } catch (error) {
-      this.logger.warn(`Could not record a ${what}: ${(error as Error).message}`);
+      // A failed query's message is the SQL; the database's reason is its cause.
+      const cause = error instanceof Error && error.cause instanceof Error ? ` (${error.cause.message})` : "";
+      this.logger.warn(`Could not record a ${what}: ${error instanceof Error ? error.message : String(error)}${cause}`);
     }
   }
 }
