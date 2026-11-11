@@ -43,16 +43,19 @@ delete that line, or the app keeps calling that address (and fails on a phone).
 
 ### On a phone
 
-A phone browser allows the microphone only over HTTPS, so use [Tailscale](https://tailscale.com) (free; works away
-from home too, and nothing is opened to the internet):
+A phone browser allows the microphone only over HTTPS, and over plain `http://<computer's IP>:5173` only typing
+works. Two ways to get HTTPS:
 
-1. Install Tailscale on the computer and the phone, signed in to the same account.
-2. On the computer, with Voxa running: `tailscale serve --bg 5173` (accept if it asks to turn on HTTPS).
-3. On the phone, open the `https://<computer>.<tailnet>.ts.net` address it prints.
-
-`tailscale serve --bg off` stops it. Without Tailscale, `VOXA_HOST=0.0.0.0` in `.env` opens the app at
-`http://<computer's IP>:5173` on your local network, but only typing works there (no microphone over HTTP), and
-there is no login, so do it only on a network you trust.
+- **Own certificate, nothing to install** (development mode): set `VOXA_HOST=0.0.0.0` and `VOXA_HTTPS=true` in
+  `.env`, run `docker compose up --build -V`, then open `https://<computer's IP>:5173` on the phone (on a Mac,
+  `ipconfig getifaddr en0` prints the IP) and accept the certificate warning (again after each `-V` rebuild, which
+  makes a new certificate). On the computer the app is then at `https://localhost:5173`. There is no login, so do it only
+  on a network you trust. Some browsers may still refuse the voice connection with a certificate they don't trust;
+  then use Tailscale.
+- **[Tailscale](https://tailscale.com)** (free; a private address that works away from home too): install it on
+  the computer and the phone, signed in to the same account, run `tailscale serve --bg 5173` on the computer
+  (accept if it asks to turn on HTTPS) and open the `https://<computer>.<tailnet>.ts.net` address it prints.
+  `tailscale serve --bg off` stops it.
 
 ### Speed and cost
 
