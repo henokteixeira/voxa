@@ -57,7 +57,8 @@ export class DrizzleCheckInRepository implements CheckInRepository {
     const [row] = await this.db
       .select({ mimeType: checkInRecordings.mimeType, audio: checkInRecordings.audio })
       .from(checkInRecordings)
-      .where(eq(checkInRecordings.checkInId, id));
+      .innerJoin(checkIns, eq(checkInRecordings.checkInId, checkIns.id))
+      .where(and(eq(checkInRecordings.checkInId, id), eq(checkIns.learnerId, this.learnerId)));
     return row ?? null;
   }
 }

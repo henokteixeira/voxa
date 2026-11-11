@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "./db.module.js";
+import { DrizzleCheckInRepository } from "./drizzle-check-in.repository.js";
 import { DrizzleLevelRepository } from "./drizzle-level.repository.js";
 import { DrizzleMissionRepository } from "./drizzle-mission.repository.js";
 import { DrizzleMistakeRepository } from "./drizzle-mistake.repository.js";
@@ -40,6 +41,38 @@ describe("each learner sees only their own records", () => {
     expect(await missions.get(mission.id)).toBeNull();
     // The same day's mission is each learner's own.
     expect((await missions.create({ language: "en", day: "2026-11-11", situation: "story", createdAt: new Date() })).id).not.toBe(mission.id);
+  });
+
+  it("keeps check-ins, their recordings and review cards apart", async () => {
+    const checkIn = await new DrizzleCheckInRepository(db, otherId).create(
+      {
+        language: "en",
+        task: "present_project",
+        recordedAt: new Date(),
+        transcript: "My project helps volunteers.",
+        spokenWords: 40,
+        speechMs: 60_000,
+        longPauses: 1,
+        mistakes: null,
+        otherLanguageWords: null,
+      },
+      { mimeType: "audio/wav", audio: Buffer.from("RIFF") },
+    );
+    const { id: sessionId } = await new DrizzleSessionRepository(db, otherId).create({ language: "en", mode: "daily" });
+    const mistake = { language: "en", original: "I goed", correction: "I went", category: "verb_tense", pattern: null };
+    const word = await new DrizzleMistakeRepository(db, otherId).record(mistake, { sessionId, severity: "minor" });
+    const subject = { kind: "new_word", id: word!.id } as const;
+    const theirReviews = new DrizzleReviewRepository(db, otherId);
+    await theirReviews.save("en", subject, { step: 0, dueAt: new Date(0) }, null);
+    const card = await theirReviews.addCard(subject, { cue: "Eu fui.", answer: "I went." });
+
+    const checkIns = new DrizzleCheckInRepository(db, learnerId);
+    expect(await checkIns.get(checkIn.id)).toBeNull();
+    expect(await checkIns.recording(checkIn.id)).toBeNull();
+    expect(await checkIns.list("en")).toEqual([]);
+    const reviews = new DrizzleReviewRepository(db, learnerId);
+    expect(await reviews.card(card.id)).toBeNull();
+    expect(await reviews.answerCard(card.id, true, new Date())).toBe(false);
   });
 
   it("counts the same mistake once per learner", async () => {
