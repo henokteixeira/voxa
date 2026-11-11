@@ -12,6 +12,18 @@ export interface MicrophoneHandlers {
   onAudio?(frame: Float32Array, sampleRate: number): void;
   /** A finished turn, as 16 kHz WAV, with the silences inside it and the silence it ended with. */
   onTurn(wav: ArrayBuffer, turn?: Pick<RecordedTurn, "pausesMs"> & Partial<Pick<RecordedTurn, "trailingSilenceMs">>): void;
+  /** Frames are flowing again after resume() (at once, unless the microphone had to be opened again). */
+  onListening?(): void;
+  /** The microphone could not be opened again after a pause. */
+  onUnavailable?(reason: MicrophoneError): void;
+}
+
+export interface MicrophoneOptions extends Partial<TurnDetectorOptions> {
+  /**
+   * Let go of the microphone while paused (once the room's noise is learned), and open it again on resume.
+   * iOS turns the speaker down while a page holds the microphone, so the tutor would sound faint.
+   */
+  releaseWhilePaused?: boolean;
 }
 
 /** blocked: no permission. busy: another app holds it, or it can't be opened. */
@@ -28,8 +40,9 @@ export class MicrophoneUnavailableError extends Error {
 }
 
 export interface Microphone {
-  /** Stop making turns (while the tutor thinks or speaks). The room's noise is still learned. */
+  /** Stop making turns (while the tutor thinks or speaks). See MicrophoneOptions.releaseWhilePaused. */
   pause(): void;
+  /** Listens again; onListening says when frames flow. */
   resume(): void;
   /** Send what was said so far as a turn (tap to send). Returns false when nobody was talking. */
   sendNow(): boolean;
@@ -64,26 +77,27 @@ function reasonFor(error: unknown): MicrophoneError {
 
 export async function openMicrophone(
   handlers: MicrophoneHandlers,
-  options: Partial<TurnDetectorOptions> = {},
+  { releaseWhilePaused = false, ...options }: MicrophoneOptions = {},
 ): Promise<Microphone> {
   if (!navigator.mediaDevices?.getUserMedia || typeof AudioWorkletNode === "undefined") {
     throw new MicrophoneUnavailableError("unsupported");
   }
-  let stream: MediaStream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
+  const capture = () =>
+    navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
     });
+  let stream: MediaStream | null;
+  try {
+    stream = await capture();
   } catch (error) {
     throw new MicrophoneUnavailableError(reasonFor(error));
   }
 
   const context = new AudioContext();
-  const release = () => {
-    for (const track of stream.getTracks()) track.stop();
-    context.close().catch(() => {});
+  const releaseStream = (released: MediaStream | null) => {
+    for (const track of released?.getTracks() ?? []) track.stop();
   };
-  let source: MediaStreamAudioSourceNode;
+  let source: MediaStreamAudioSourceNode | null = null;
   let tap: AudioWorkletNode;
   try {
     const url = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
@@ -92,23 +106,40 @@ export async function openMicrophone(
     } finally {
       URL.revokeObjectURL(url);
     }
-    source = context.createMediaStreamSource(stream);
     tap = new AudioWorkletNode(context, "frame-tap");
     // Some engines only run a node whose output reaches the speakers; a silent gain keeps it quiet.
     const mute = context.createGain();
     mute.gain.value = 0;
-    source.connect(tap).connect(mute).connect(context.destination);
+    tap.connect(mute).connect(context.destination);
+    source = context.createMediaStreamSource(stream);
+    source.connect(tap);
   } catch {
-    release();
+    releaseStream(stream);
+    context.close().catch(() => {});
     throw new MicrophoneUnavailableError("unsupported");
   }
+
+  /** Lets go of the microphone; the audio graph stays, ready for the next stream. */
+  const detach = () => {
+    source?.disconnect();
+    source = null;
+    releaseStream(stream);
+    stream = null;
+  };
 
   const recorder = new TurnRecorder(new TurnDetector(options), context.sampleRate);
   let paused = false;
   let stopped = false;
+  /** Bumped by every pause, resume and stop: a stream that opens late for an older one is let go. */
+  let generation = 0;
+  /** Paused and the room's noise is learned: nothing more to hear until resume. */
+  const releaseIfDone = () => {
+    if (releaseWhilePaused && paused && stream && recorder.calibrated) detach();
+  };
   tap.port.onmessage = (event: MessageEvent<Float32Array>) => {
     if (paused) {
       recorder.learn(event.data);
+      releaseIfDone();
       return;
     }
     handlers.onAudio?.(event.data, context.sampleRate);
@@ -117,17 +148,41 @@ export async function openMicrophone(
     else if (result?.type === "turn") handlers.onTurn(result.wav, { pausesMs: result.pausesMs, trailingSilenceMs: result.trailingSilenceMs });
   };
 
+  const reopen = async (mine: number) => {
+    let opened: MediaStream | null = null;
+    try {
+      opened = await capture();
+      if (mine !== generation || stopped) return releaseStream(opened);
+      const reopened = context.createMediaStreamSource(opened);
+      reopened.connect(tap);
+      stream = opened;
+      source = reopened;
+    } catch (error) {
+      releaseStream(opened);
+      if (mine === generation && !stopped) handlers.onUnavailable?.(reasonFor(error));
+      return;
+    }
+    // Capturing again may have interrupted the audio graph.
+    context.resume().catch(() => {});
+    handlers.onListening?.();
+  };
+
   return {
     pause: () => {
+      generation++;
       paused = true;
       recorder.discard();
+      releaseIfDone();
     },
     resume: () => {
       // Already listening: keep the turn in progress.
       if (stopped || !paused) return;
+      generation++;
       recorder.discard();
       paused = false;
       context.resume().catch(() => {});
+      if (stream) handlers.onListening?.();
+      else void reopen(generation);
     },
     sendNow: () => {
       const turn = recorder.flush();
@@ -139,10 +194,11 @@ export async function openMicrophone(
     },
     stop: () => {
       if (stopped) return;
+      generation++;
       stopped = paused = true;
       tap.port.onmessage = null;
-      source.disconnect();
-      release();
+      detach();
+      context.close().catch(() => {});
     },
   };
 }

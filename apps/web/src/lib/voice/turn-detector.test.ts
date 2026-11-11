@@ -96,6 +96,14 @@ describe("TurnDetector", () => {
     expect(feed(detector, LOUD, 260)).toEqual(["start"]);
   });
 
+  it("says when the room's noise is learned", () => {
+    const detector = new TurnDetector({ calibrationMs: 500 });
+    for (let t = 0; t < 480; t += FRAME) detector.learn(QUIET, FRAME);
+    expect(detector.calibrated).toBe(false);
+    detector.learn(QUIET, FRAME);
+    expect(detector.calibrated).toBe(true);
+  });
+
   it("only learns the noise at first, even when it is loud", () => {
     const detector = new TurnDetector({ calibrationMs: 500 });
     expect(feed(detector, 0.05, 480)).toEqual([]);

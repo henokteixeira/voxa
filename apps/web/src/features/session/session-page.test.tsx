@@ -16,7 +16,7 @@ const routes = await eagerRoutes(lazyRoutes);
 
 let micHandlers: MicrophoneHandlers;
 let socketHandlers: VoiceSocketHandlers;
-const mic = { pause: vi.fn(), resume: vi.fn(), sendNow: vi.fn(), unlock: vi.fn(), stop: vi.fn() };
+const mic = { pause: vi.fn(), resume: vi.fn(() => micHandlers.onListening?.()), sendNow: vi.fn(), unlock: vi.fn(), stop: vi.fn() };
 const socket = { sendTurn: vi.fn(), sendText: vi.fn(), speakLast: vi.fn(), close: vi.fn() };
 const speaker = { play: vi.fn(), stop: vi.fn(), unlock: vi.fn(), close: vi.fn() };
 let finishPlayback: () => void;
@@ -530,6 +530,12 @@ describe("live session", () => {
     expect(api.startSession).toHaveBeenCalledTimes(1);
   });
 
+  it("explains a microphone that can't be opened again after the tutor's turn", async () => {
+    await startAndListen();
+    act(() => micHandlers.onUnavailable?.("blocked"));
+    expect(await screen.findByRole("alert", { name: "Voxa can't hear you" })).toBeInTheDocument();
+  });
+
   it("pauses, repeats the last question and ends the session", async () => {
     await startAndListen();
 
@@ -1012,7 +1018,7 @@ describe("fluency timing", () => {
     now.mockReturnValue(0);
     renderSession();
     await opened();
-    expect(deps.openMicrophone).toHaveBeenCalledWith(expect.anything(), { endSilenceMs: 4000 });
+    expect(deps.openMicrophone).toHaveBeenCalledWith(expect.anything(), { endSilenceMs: 4000, releaseWhilePaused: true });
     act(() => socketHandlers.onOpen());
     act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
     act(() => socketHandlers.onDone());
