@@ -15,6 +15,7 @@ import type {
   UnfinishedSession,
 } from "../../domain/ports/session.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
+import { LEARNER_ID } from "./learner.js";
 import { sessions, sessionTargets, sessionXp, turns } from "./schema.js";
 
 type SessionRow = typeof sessions.$inferSelect;
@@ -72,7 +73,10 @@ function trackColumns(track: TrackState | null) {
 
 @Injectable()
 export class DrizzleSessionRepository implements SessionRepository {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    @Inject(LEARNER_ID) private readonly learnerId: string,
+  ) {}
 
   async create({
     step,
@@ -90,7 +94,7 @@ export class DrizzleSessionRepository implements SessionRepository {
     return this.db.transaction(async (tx) => {
       const [row] = await tx
         .insert(sessions)
-        .values({ ...input, supportStep: step ?? null, ...trackColumns(track ?? null) })
+        .values({ ...input, learnerId: this.learnerId, supportStep: step ?? null, ...trackColumns(track ?? null) })
         .returning();
       const rows = targets.length
         ? await tx

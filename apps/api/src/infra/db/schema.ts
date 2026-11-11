@@ -35,10 +35,26 @@ function oneOf(column: SQL | AnyPgColumn, values: readonly string[]): SQL {
 
 // Every record carries its language (BCP 47 code, e.g. "en") to support other languages.
 
+/**
+ * The people who practice. There is one until login exists: the API uses that one (see learner.ts).
+ * A learner's own records carry `learner_id`; records under one of them (a session's turns, ...) reach it through it.
+ */
+export const learners = pgTable("learners", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** The learner who owns the record; deleting the learner deletes their records. */
+const learnerId = () =>
+  uuid("learner_id")
+    .notNull()
+    .references((): AnyPgColumn => learners.id, { onDelete: "cascade" });
+
 export const sessions = pgTable(
   "sessions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: learnerId(),
     language: varchar("language", { length: 16 }).notNull(),
     mode: varchar("mode", { length: 32 }).notNull(), // a Mode: free_talk, my_day, story, opinion, presentation, daily, review or placement
     /** The serious mistake the conversation is paused on, if any. */
@@ -81,6 +97,7 @@ export const sessions = pgTable(
     // Open sessions by last activity: the ones left idle are closed.
     index("sessions_open_last_active_at").on(t.lastActiveAt).where(sql`${t.endedAt} is null`),
     index("sessions_mission_id").on(t.missionId),
+    index("sessions_learner_started_at").on(t.learnerId, t.startedAt),
     check("sessions_mode", oneOf(t.mode, MODES)),
     check("sessions_support_step", oneOf(t.supportStep, SUPPORT_STEPS)),
     check("sessions_track_stage", oneOf(t.trackStage, TRACK_STAGES)),
@@ -136,6 +153,7 @@ export const patterns = pgTable(
 
 export const mistakes = pgTable("mistakes", {
   id: uuid("id").primaryKey().defaultRandom(),
+  learnerId: learnerId(),
   language: varchar("language", { length: 16 }).notNull(),
   original: text("original").notNull(),
   correction: text("correction").notNull(),
@@ -147,17 +165,17 @@ export const mistakes = pgTable("mistakes", {
   /** Set when the learner says "This isn't a mistake": the record then leaves the bank for good. */
   dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
   dismissReason: varchar("dismiss_reason", { length: 32 }), // transcript_error | both_correct | not_needed
-}, (t) => [unique("mistakes_language_original").on(t.language, t.original), check("mistakes_dismiss_reason", oneOf(t.dismissReason, DISMISS_REASONS))]);
+}, (t) => [unique("mistakes_learner_language_original").on(t.learnerId, t.language, t.original), check("mistakes_dismiss_reason", oneOf(t.dismissReason, DISMISS_REASONS))]);
 
 /** When each pattern, new word or expression comes back for review. Exactly one of the three subjects is set. */
 export const reviewItems = pgTable(
   "review_items",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: learnerId(),
     language: varchar("language", { length: 16 }).notNull(),
-    patternId: uuid("pattern_id")
-      .unique()
-      .references(() => patterns.id, { onDelete: "cascade" }),
+    /** A pattern: patterns are shared, so each learner has their own review of it. */
+    patternId: uuid("pattern_id").references(() => patterns.id, { onDelete: "cascade" }),
     /** A new word: its row in mistakes (category new_word). */
     newWordId: uuid("new_word_id")
       .unique()
@@ -172,8 +190,9 @@ export const reviewItems = pgTable(
     lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
   },
   (t) => [
+    unique("review_items_learner_pattern").on(t.learnerId, t.patternId),
     check("review_items_one_subject", sql`num_nonnulls(${t.patternId}, ${t.newWordId}, ${t.expressionId}) = 1`),
-    index("review_items_due").on(t.language, t.dueAt),
+    index("review_items_due").on(t.learnerId, t.language, t.dueAt),
   ],
 );
 
@@ -230,6 +249,7 @@ export const mistakeCorrectUses = pgTable(
 /** The learner's speaking level over time, per language; the newest row is the current level. */
 export const speakingLevels = pgTable("speaking_levels", {
   id: uuid("id").primaryKey().defaultRandom(),
+  learnerId: learnerId(),
   language: varchar("language", { length: 16 }).notNull(),
   /** Insertion order. Timestamps can tie, so ordering never relies on them. */
   seq: bigserial("seq", { mode: "number" }).notNull(),
@@ -242,20 +262,24 @@ export const speakingLevels = pgTable("speaking_levels", {
   sessionId: uuid("session_id")
     .unique()
     .references(() => sessions.id, { onDelete: "set null" }),
-}, (t) => [check("speaking_levels_level", oneOf(t.level, CEFR_LEVELS)), check("speaking_levels_source", oneOf(t.source, LEVEL_SOURCES))]);
+}, (t) => [index("speaking_levels_learner_language_seq").on(t.learnerId, t.language, t.seq), check("speaking_levels_level", oneOf(t.level, CEFR_LEVELS)), check("speaking_levels_source", oneOf(t.source, LEVEL_SOURCES))]);
 
 /** Every daily practice time the learner chose, per language. A day is judged by the newest choice made by its end. */
 export const dailyGoalSettings = pgTable(
   "daily_goal_settings",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: learnerId(),
     language: varchar("language", { length: 16 }).notNull(),
     /** Insertion order. Timestamps can tie, so ordering never relies on them. */
     seq: bigserial("seq", { mode: "number" }).notNull(),
     minutesPerDay: smallint("minutes_per_day").notNull(),
     setAt: timestamp("set_at", { withTimezone: true }).notNull(),
   },
-  (t) => [check("daily_goal_settings_minutes", sql`${t.minutesPerDay} in (15, 30, 45, 60)`)],
+  (t) => [
+    index("daily_goal_settings_learner_language_seq").on(t.learnerId, t.language, t.seq),
+    check("daily_goal_settings_minutes", sql`${t.minutesPerDay} in (15, 30, 45, 60)`),
+  ],
 );
 
 /** The XP of one ended session. Its primary key makes awarding happen once, even when two ends race. */
@@ -323,6 +347,7 @@ export const learnerFacts = pgTable(
   "learner_facts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: learnerId(),
     /** Insertion order. Timestamps can tie, so ordering never relies on them. */
     seq: bigserial("seq", { mode: "number" }).notNull(),
     topic: varchar("topic", { length: 16 }).notNull(), // work | projects | people | interests | life | goals
@@ -333,7 +358,7 @@ export const learnerFacts = pgTable(
     learnedAt: timestamp("learned_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
-  (t) => [index("learner_facts_seq").on(t.seq)],
+  (t) => [index("learner_facts_learner_seq").on(t.learnerId, t.seq)],
 );
 
 /** The "say it faster" rounds told after a session: the same content, with less time each round. */
@@ -366,6 +391,7 @@ export const checkIns = pgTable(
   "check_ins",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: learnerId(),
     /** Insertion order. Timestamps can tie, so ordering never relies on them. */
     seq: bigserial("seq", { mode: "number" }).notNull(),
     language: varchar("language", { length: 16 }).notNull(),
@@ -380,7 +406,7 @@ export const checkIns = pgTable(
     otherLanguageWords: smallint("other_language_words"),
   },
   (t) => [
-    index("check_ins_language_seq").on(t.language, t.seq),
+    index("check_ins_learner_language_seq").on(t.learnerId, t.language, t.seq),
     // The fixed task and the topics of CHECK_IN_TOPICS (domain/check-in/check-in.ts).
     check(
       "check_ins_task",
@@ -403,6 +429,7 @@ export const missions = pgTable(
   "missions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: learnerId(),
     language: varchar("language", { length: 16 }).notNull(),
     /** The learner's local day. */
     day: date("day", { mode: "string" }).notNull(),
@@ -417,7 +444,7 @@ export const missions = pgTable(
     reviewDoneAt: timestamp("review_done_at", { withTimezone: true }),
   },
   (t) => [
-    unique("missions_language_day").on(t.language, t.day),
+    unique("missions_learner_language_day").on(t.learnerId, t.language, t.day),
     check("missions_situation", sql`${t.situation} in ('daily', 'my_day', 'presentation', 'story', 'review', 'opinion')`),
     check("missions_model", sql`(${t.modelSpeaker} is null) = (${t.modelText} is null)`),
   ],

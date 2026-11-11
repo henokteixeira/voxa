@@ -1,27 +1,15 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { rmSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { afterEach, describe, expect, it } from "vitest";
 import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
+import { soleLearnerId } from "./learner.js";
+import { MIGRATIONS, migrationsBefore } from "./migrations-before.js";
 import * as schema from "./schema.js";
 
-const MIGRATIONS = resolve(__dirname, "../../../drizzle");
 const TAG = "0034_session_targets";
-
-/** The migrations folder as it was before `tag`. */
-function migrationsBefore(tag: string): string {
-  const dir = mkdtempSync(join(tmpdir(), "voxa-migrations-"));
-  cpSync(MIGRATIONS, dir, { recursive: true });
-  const journalPath = join(dir, "meta", "_journal.json");
-  const journal = JSON.parse(readFileSync(journalPath, "utf8")) as { entries: { tag: string }[] };
-  const at = journal.entries.findIndex((entry) => entry.tag === tag);
-  writeFileSync(journalPath, JSON.stringify({ ...journal, entries: journal.entries.slice(0, at) }));
-  return dir;
-}
 
 let cleanup: (() => Promise<void>) | null = null;
 afterEach(async () => {
@@ -52,7 +40,7 @@ describe(`migration ${TAG}`, () => {
 
     await migrate(db, { migrationsFolder: MIGRATIONS });
 
-    const session = await new DrizzleSessionRepository(db).get(row!.id);
+    const session = await new DrizzleSessionRepository(db, await soleLearnerId(db)).get(row!.id);
     // The repeated target is kept once.
     expect(session?.targets).toEqual(targets.slice(0, 2));
     expect(session?.metTargets).toEqual(["He don't"]);

@@ -3,6 +3,7 @@ import { and, asc, desc, eq, isNull, lt } from "drizzle-orm";
 import { isMissionSituation, type MarkedStep, type Mission, type MissionModel, type NewMissionModel } from "../../domain/mission/mission.js";
 import type { MissionRepository, NewMission } from "../../domain/ports/mission.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
+import { LEARNER_ID } from "./learner.js";
 import { missionExpressions, missions } from "./schema.js";
 
 type MissionRow = typeof missions.$inferSelect;
@@ -14,10 +15,15 @@ const STEP_COLUMNS = { listen: "listenedAt", expressions: "expressionsDoneAt", r
 
 @Injectable()
 export class DrizzleMissionRepository implements MissionRepository {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    @Inject(LEARNER_ID) private readonly learnerId: string,
+  ) {}
 
   async create(mission: NewMission): Promise<Mission> {
-    await this.db.insert(missions).values(mission).onConflictDoNothing({ target: [missions.language, missions.day] });
+    await this.db.insert(missions)
+      .values({ ...mission, learnerId: this.learnerId })
+      .onConflictDoNothing({ target: [missions.learnerId, missions.language, missions.day] });
     const created = await this.forDay(mission.language, mission.day);
     if (!created) throw new Error(`The mission for ${mission.day} was not stored.`);
     return created;

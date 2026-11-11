@@ -14,10 +14,10 @@ let missions: DrizzleMissionRepository;
 beforeEach(async () => {
   const test = await createTestDatabase();
   close = test.close;
-  sessions = new DrizzleSessionRepository(test.db);
-  mistakes = new DrizzleMistakeRepository(test.db);
-  reviews = new DrizzleReviewRepository(test.db);
-  missions = new DrizzleMissionRepository(test.db);
+  sessions = new DrizzleSessionRepository(test.db, test.learnerId);
+  mistakes = new DrizzleMistakeRepository(test.db, test.learnerId);
+  reviews = new DrizzleReviewRepository(test.db, test.learnerId);
+  missions = new DrizzleMissionRepository(test.db, test.learnerId);
 });
 afterEach(() => close());
 

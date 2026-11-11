@@ -9,6 +9,7 @@ import { LearnerMemoryService } from "./learner-memory.service.js";
 
 const now = new Date("2026-11-07T18:00:00Z");
 let db: Database;
+let learnerId: string;
 let close: () => Promise<void>;
 let sessions: DrizzleSessionRepository;
 let memory: DrizzleLearnerMemoryRepository;
@@ -17,9 +18,9 @@ let service: LearnerMemoryService;
 
 beforeEach(async () => {
   vi.spyOn(Logger.prototype, "log").mockImplementation(() => {});
-  ({ db, close } = await createTestDatabase());
-  sessions = new DrizzleSessionRepository(db);
-  memory = new DrizzleLearnerMemoryRepository(db);
+  ({ db, learnerId, close } = await createTestDatabase());
+  sessions = new DrizzleSessionRepository(db, learnerId);
+  memory = new DrizzleLearnerMemoryRepository(db, learnerId);
   extract = vi.fn<MemoryExtractorPort["extract"]>().mockResolvedValue({
     recap: "Talked about work.",
     added: [{ topic: "work", statement: "Works as a developer." }],

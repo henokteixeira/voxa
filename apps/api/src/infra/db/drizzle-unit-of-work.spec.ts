@@ -7,14 +7,15 @@ import { mistakeOccurrences, mistakes } from "./schema.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
+let learnerId: string;
 let close: () => Promise<void>;
 let unitOfWork: DrizzleUnitOfWork;
 let sessions: DrizzleSessionRepository;
 
 beforeEach(async () => {
-  ({ db, close } = await createTestDatabase());
-  unitOfWork = new DrizzleUnitOfWork(db);
-  sessions = new DrizzleSessionRepository(db);
+  ({ db, learnerId, close } = await createTestDatabase());
+  unitOfWork = new DrizzleUnitOfWork(db, learnerId);
+  sessions = new DrizzleSessionRepository(db, learnerId);
 });
 afterEach(() => close());
 
@@ -30,7 +31,7 @@ describe("DrizzleUnitOfWork", () => {
     });
 
     expect(await sessions.history(id)).toEqual([{ role: "user", content: "I goed" }]);
-    expect(await new DrizzleMistakeRepository(db).forSession(id)).toHaveLength(1);
+    expect(await new DrizzleMistakeRepository(db, learnerId).forSession(id)).toHaveLength(1);
   });
 
   it("keeps nothing when the work fails halfway, including a mistake recorded in its own transaction", async () => {

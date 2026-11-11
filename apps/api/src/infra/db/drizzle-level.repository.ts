@@ -3,20 +3,24 @@ import { and, desc, eq } from "drizzle-orm";
 import type { CefrLevel, LevelSource, SpeakingLevel } from "../../domain/level/speaking-level.js";
 import type { LevelRepository } from "../../domain/ports/level.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
+import { LEARNER_ID } from "./learner.js";
 import { speakingLevels } from "./schema.js";
 
 @Injectable()
 export class DrizzleLevelRepository implements LevelRepository {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    @Inject(LEARNER_ID) private readonly learnerId: string,
+  ) {}
 
   async add(level: SpeakingLevel): Promise<void> {
-    await this.db.insert(speakingLevels).values(level);
+    await this.db.insert(speakingLevels).values({ ...level, learnerId: this.learnerId });
   }
 
   async addForSession(sessionId: string, level: SpeakingLevel): Promise<SpeakingLevel> {
     await this.db
       .insert(speakingLevels)
-      .values({ ...level, sessionId })
+      .values({ ...level, sessionId, learnerId: this.learnerId })
       .onConflictDoNothing({ target: speakingLevels.sessionId });
     const stored = await this.forSession(sessionId);
     if (!stored) throw new Error(`The level of session ${sessionId} was not stored.`);

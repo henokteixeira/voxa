@@ -7,14 +7,18 @@ import type {
   SessionXpRecord,
 } from "../../domain/ports/progress.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
+import { LEARNER_ID } from "./learner.js";
 import { dailyGoalSettings, sessionXp, xpAwards } from "./schema.js";
 
 @Injectable()
 export class DrizzleProgressRepository implements ProgressRepository {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    @Inject(LEARNER_ID) private readonly learnerId: string,
+  ) {}
 
   async setDailyMinutes(language: string, setting: DailyMinutesSetting): Promise<void> {
-    await this.db.insert(dailyGoalSettings).values({ language, ...setting });
+    await this.db.insert(dailyGoalSettings).values({ language, ...setting, learnerId: this.learnerId });
   }
 
   async dailyMinutesHistory(language: string): Promise<DailyMinutesSetting[]> {

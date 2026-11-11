@@ -6,18 +6,19 @@ import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
+let learnerId: string;
 let close: () => Promise<void>;
 let rounds: DrizzleFasterRoundRepository;
 
 beforeEach(async () => {
-  ({ db, close } = await createTestDatabase());
+  ({ db, learnerId, close } = await createTestDatabase());
   rounds = new DrizzleFasterRoundRepository(db);
 });
 afterEach(() => close());
 
 describe("DrizzleFasterRoundRepository", () => {
   it("keeps the first copy of each round and lists them in order", async () => {
-    const session = await new DrizzleSessionRepository(db).create({ language: "en", mode: "daily" });
+    const session = await new DrizzleSessionRepository(db, learnerId).create({ language: "en", mode: "daily" });
     const round = (n: number, transcript: string): FasterRoundRecord => ({
       sessionId: session.id,
       language: "en",
@@ -37,7 +38,7 @@ describe("DrizzleFasterRoundRepository", () => {
   });
 
   it("lists the rounds told since a time, in one language", async () => {
-    const sessionRepo = new DrizzleSessionRepository(db);
+    const sessionRepo = new DrizzleSessionRepository(db, learnerId);
     const en = await sessionRepo.create({ language: "en", mode: "daily" });
     const es = await sessionRepo.create({ language: "es", mode: "daily" });
     const round = (sessionId: string, language: string, n: number, at: string): FasterRoundRecord => ({

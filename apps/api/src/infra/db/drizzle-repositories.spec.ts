@@ -8,14 +8,15 @@ import { mistakeCorrectUses, mistakeOccurrences, sessions as sessionRows, sessio
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
+let learnerId: string;
 let close: () => Promise<void>;
 let sessions: DrizzleSessionRepository;
 let mistakes: DrizzleMistakeRepository;
 
 beforeEach(async () => {
-  ({ db, close } = await createTestDatabase());
-  sessions = new DrizzleSessionRepository(db);
-  mistakes = new DrizzleMistakeRepository(db);
+  ({ db, learnerId, close } = await createTestDatabase());
+  sessions = new DrizzleSessionRepository(db, learnerId);
+  mistakes = new DrizzleMistakeRepository(db, learnerId);
 });
 afterEach(() => close());
 

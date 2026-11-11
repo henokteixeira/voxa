@@ -4,11 +4,15 @@ import { isMode } from "../../domain/conversation/mode.js";
 import { isFactTopic, type LearnerFact, type RecalledSession, type SessionMemory } from "../../domain/memory/learner-fact.js";
 import type { LearnerMemoryRepository } from "../../domain/ports/learner-memory.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
+import { LEARNER_ID } from "./learner.js";
 import { learnerFacts, sessions } from "./schema.js";
 
 @Injectable()
 export class DrizzleLearnerMemoryRepository implements LearnerMemoryRepository {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    @Inject(LEARNER_ID) private readonly learnerId: string,
+  ) {}
 
   async facts(): Promise<LearnerFact[]> {
     const rows = await this.db.select().from(learnerFacts).orderBy(asc(learnerFacts.seq));
@@ -51,7 +55,14 @@ export class DrizzleLearnerMemoryRepository implements LearnerMemoryRepository {
       }
       if (memory.added.length) {
         await tx.insert(learnerFacts).values(
-          memory.added.map((f) => ({ ...f, language, sourceSessionId: sessionId, learnedAt: at, updatedAt: at })),
+          memory.added.map((f) => ({
+            ...f,
+            learnerId: this.learnerId,
+            language,
+            sourceSessionId: sessionId,
+            learnedAt: at,
+            updatedAt: at,
+          })),
         );
       }
       return true;

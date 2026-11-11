@@ -5,6 +5,7 @@ import { EXPRESSION_CATEGORY } from "../../domain/mission/mission.js";
 import type { AnsweredCard, ReviewItem, ReviewRepository, ReviewSchedule, ReviewSubject, StoredReviewCard } from "../../domain/ports/review.repository.js";
 import { byReviewPriority, type ReviewState } from "../../domain/review/review-schedule.js";
 import { DATABASE, type Database } from "./db.module.js";
+import { LEARNER_ID } from "./learner.js";
 import { missionExpressions, mistakes, patterns, reviewCards, reviewItems } from "./schema.js";
 
 /** How many of a pattern's sentences a review shows. */
@@ -19,7 +20,10 @@ const KIND_COLUMN = {
 
 @Injectable()
 export class DrizzleReviewRepository implements ReviewRepository {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    @Inject(LEARNER_ID) private readonly learnerId: string,
+  ) {}
 
   async state(subject: ReviewSubject): Promise<ReviewState | null> {
     const [row] = await this.db
@@ -34,8 +38,8 @@ export class DrizzleReviewRepository implements ReviewRepository {
     const values = { step: state.step, dueAt: state.dueAt, ...(reviewedAt ? { lastReviewedAt: reviewedAt } : {}) };
     await this.db
       .insert(reviewItems)
-      .values({ language, ...subjectColumns(subject), ...values })
-      .onConflictDoUpdate({ target: subjectColumn(subject), set: values });
+      .values({ language, learnerId: this.learnerId, ...subjectColumns(subject), ...values })
+      .onConflictDoUpdate({ target: conflictTarget(subject), set: values });
   }
 
   async due(language: string, now: Date, limit: number, kind?: ReviewSubject["kind"]): Promise<ReviewItem[]> {
@@ -182,6 +186,11 @@ function subjectColumn(subject: ReviewSubject) {
     case "expression":
       return reviewItems.expressionId;
   }
+}
+
+/** The unique key a subject's item is found by: patterns are shared, so a pattern's item is unique per learner. */
+function conflictTarget(subject: ReviewSubject) {
+  return subject.kind === "pattern" ? [reviewItems.learnerId, reviewItems.patternId] : subjectColumn(subject);
 }
 
 function subjectColumns(subject: ReviewSubject) {
