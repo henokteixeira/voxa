@@ -1,11 +1,18 @@
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import react from "@vitejs/plugin-react";
 import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 import { VitePWA } from "vite-plugin-pwa";
 
 const linen = "#F6F1EA";
+
+/**
+ * VOXA_HTTPS=true: the dev server answers over HTTPS with its own certificate, so a phone on the local network
+ * (https://<computer's IP>:5173) may use the microphone. The browser warns about the certificate.
+ */
+const https = process.env.VOXA_HTTPS === "true";
 
 /**
  * Dev server only: answers the browser's service-worker update check with a worker that removes itself
@@ -44,6 +51,7 @@ export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   plugins: [
     retireServiceWorker(),
+    ...(https ? [basicSsl({ name: "voxa-dev" })] : []),
     react(),
     tailwindcss(),
     VitePWA({

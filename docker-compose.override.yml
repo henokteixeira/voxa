@@ -25,6 +25,8 @@ services:
     environment:
       # Where the dev server forwards /api (see apps/web/vite.config.ts).
       API_PROXY_TARGET: http://api:3000
+      # true: the dev server uses HTTPS with its own certificate (microphone on a phone; see the README).
+      VOXA_HTTPS: ${VOXA_HTTPS:-}
     ports: !override
       - "${VOXA_HOST:-127.0.0.1}:5173:5173"
     volumes:
