@@ -38,7 +38,8 @@ The production build (nginx, compiled API) runs with `docker compose -f docker-c
 
 Ports listen on this computer only. The web app calls the API under `/api` on its own address (the dev server and
 nginx forward it), so whatever address opens the app also reaches the API. The database and the voice service
-always stay local.
+always stay local. An `.env` copied before this change may still hold `VITE_API_URL=http://localhost:3000`:
+delete that line, or the app keeps calling that address (and fails on a phone).
 
 ### On a phone
 
@@ -150,7 +151,7 @@ Modes: `presentation`, `free_talk`, `daily`, `review`.
 
 ### Live voice
 
-After starting a session over HTTP, the app opens a WebSocket at `ws://localhost:3000/api/sessions/<sessionId>/voice`
+After starting a session over HTTP, the app opens a WebSocket at `/api/sessions/<sessionId>/voice` on its own address
 (protocol in `apps/api/src/voice/voice-socket.server.ts`). Each binary frame is one finished turn of speech (WAV);
 the API answers with the transcript, the tutor's turn, the tutor's speech (WAV frames of a sentence or two, made one after the other so the first plays sooner) and `done`.
 It needs the voice service running (`services/voice`).
