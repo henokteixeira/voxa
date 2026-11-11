@@ -12,7 +12,7 @@ import { saveMissionTakeaways } from "./mission-steps";
 let endClip: () => void = () => {};
 const player = {
   load: vi.fn().mockResolvedValue(undefined),
-  play: vi.fn().mockResolvedValue(undefined),
+  play: vi.fn().mockResolvedValue(true),
   pause: vi.fn(),
   rewind: vi.fn(),
   unlock: vi.fn(),
@@ -205,6 +205,7 @@ describe("the daily mission", () => {
     act(() => endClip());
     await userEvent.click(await screen.findByRole("button", { name: "Listen again" }));
     await userEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    expect(player.pause).toHaveBeenCalled();
     expect(markMissionStep).toHaveBeenLastCalledWith("m1", "listen");
     await vi.waitFor(() => expect(player.close).toHaveBeenCalled());
   });

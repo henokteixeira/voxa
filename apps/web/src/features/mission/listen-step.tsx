@@ -52,11 +52,17 @@ export function ListenStep(props: { missionId: string; model: MissionModel; onLi
         await player.current.load(await api.missionSpeech(missionId));
         loaded.current = true;
       }
-      await player.current.play();
-      setState("playing");
     } catch {
       // The next tap loads the speech again.
-      loaded.current = false;
+      setState("failed");
+      return;
+    }
+    try {
+      // Paused again before it started: keep the paused screen.
+      if (!(await player.current.play())) setState((current) => (current === "playing" ? "paused" : current));
+      else setState("playing");
+    } catch {
+      // Blocked by the browser: the next tap resumes from the same spot.
       setState("failed");
     }
   }
@@ -124,7 +130,14 @@ export function ListenStep(props: { missionId: string; model: MissionModel; onLi
         )}
         {/* Without audio, reading the text is the way through: the step never blocks the mission. */}
         {canContinue && (
-          <Button block onClick={props.onContinue}>
+          <Button
+            block
+            onClick={() => {
+              // Saving the step takes a round trip: the audio stops now.
+              player.current?.pause();
+              props.onContinue();
+            }}
+          >
             {copy.continue}
           </Button>
         )}

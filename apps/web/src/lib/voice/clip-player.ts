@@ -4,8 +4,11 @@ import { AudioBlockedError, RESUME_TIMEOUT_MS } from "./speaker";
 export interface ClipPlayer {
   /** Decodes the clip; playback starts at its beginning. */
   load(wav: ArrayBuffer): Promise<void>;
-  /** Plays from where it stopped; rejects with AudioBlockedError until the page gets a tap. */
-  play(): Promise<void>;
+  /**
+   * Plays from where it stopped. Resolves true once it plays, false when pause() or close() came first;
+   * rejects with AudioBlockedError until the page gets a tap.
+   */
+  play(): Promise<boolean>;
   /** Stops where it is: the next play() goes on from there. */
   pause(): void;
   /** Goes back up to `seconds`, still playing if it was. */
@@ -61,12 +64,15 @@ export function createClipPlayer(onEnded: () => void): ClipPlayer {
       buffer = await context.decodeAudioData(wav.slice(0));
     },
     async play() {
-      if (source || !buffer || closed) return;
+      if (source) return true;
+      if (!buffer || closed) return false;
       const mine = generation;
       await Promise.race([context.resume(), new Promise((resolve) => setTimeout(resolve, RESUME_TIMEOUT_MS))]);
-      if (mine !== generation || source || closed) return;
+      if (mine !== generation || closed) return false;
+      if (source) return true;
       if (context.state !== "running") throw new AudioBlockedError();
       start();
+      return true;
     },
     pause() {
       generation++;
