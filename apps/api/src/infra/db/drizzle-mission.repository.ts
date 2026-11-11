@@ -86,7 +86,7 @@ export class DrizzleMissionRepository implements MissionRepository {
 
   private async toMission(row: MissionRow): Promise<Mission> {
     if (!isMissionSituation(row.situation)) throw new Error(`Mission ${row.id} has an unknown situation: ${row.situation}.`);
-    const { modelSpeaker, modelText, ...mission } = row;
+    const { modelSpeaker, modelText, learnerId: _learnerId, ...mission } = row;
     if (modelSpeaker === null || modelText === null) return { ...mission, situation: row.situation, model: null };
     const expressions = await this.db
       .select({

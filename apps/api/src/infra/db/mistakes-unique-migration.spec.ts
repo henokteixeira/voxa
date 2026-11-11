@@ -90,6 +90,11 @@ describe("migration 0028: one row per mistake", () => {
 describe("DrizzleMistakeRepository.record after the migration", () => {
   it("counts the same mistake recorded by two turns at once on one row", async () => {
     await migrate();
+    // Back to the constraint as it is now: one row per mistake for each learner.
+    await db.execute(sql`ALTER TABLE "mistakes" DROP CONSTRAINT "mistakes_language_original"`);
+    await db.execute(
+      sql`ALTER TABLE "mistakes" ADD CONSTRAINT "mistakes_learner_language_original" UNIQUE ("learner_id", "language", "original")`,
+    );
     const repository = new DrizzleMistakeRepository(db, learnerId);
     const mistake = { language: "en", original: "I goed", correction: "I went", category: "verb_tense", pattern: null };
 

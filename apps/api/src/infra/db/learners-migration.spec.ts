@@ -28,12 +28,18 @@ describe(`migration ${TAG}`, () => {
     await migrate(db, { migrationsFolder: before });
     await db.execute(sql`insert into sessions (language, mode) values ('en', 'daily')`);
     await db.execute(sql`insert into mistakes (language, original, correction, category) values ('en', 'I goed', 'I went', 'verb_tense')`);
+    await db.execute(sql`insert into missions (language, day, situation, created_at) values ('en', '2026-11-10', 'daily', now())`);
 
     await migrate(db, { migrationsFolder: MIGRATIONS });
 
     const learnerId = await soleLearnerId(db);
     expect(await db.select({ learnerId: schema.sessions.learnerId }).from(schema.sessions)).toEqual([{ learnerId }]);
     expect(await db.select({ learnerId: schema.mistakes.learnerId }).from(schema.mistakes)).toEqual([{ learnerId }]);
+    expect(await db.select({ learnerId: schema.missions.learnerId }).from(schema.missions)).toEqual([{ learnerId }]);
+    // The same day's mission again is refused: missions are unique per learner, language and day.
+    await expect(
+      db.execute(sql`insert into missions (learner_id, language, day, situation, created_at) values (${learnerId}, 'en', '2026-11-10', 'daily', now())`),
+    ).rejects.toThrow();
   });
 });
 
