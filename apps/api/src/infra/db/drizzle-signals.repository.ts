@@ -1,8 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, inArray, lt } from "drizzle-orm";
 import { isMode } from "../../domain/conversation/mode.js";
 import type { SessionSignalsRecord, SignalsRepository } from "../../domain/ports/signals.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
+import { LEARNER_ID, sessionsOf } from "./learner.js";
 import { sessionSignals } from "./schema.js";
 
 type SignalsRow = typeof sessionSignals.$inferSelect;
@@ -28,7 +29,15 @@ function toRecord(row: SignalsRow): SessionSignalsRecord {
 
 @Injectable()
 export class DrizzleSignalsRepository implements SignalsRepository {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    @Inject(LEARNER_ID) private readonly learnerId: string,
+  ) {}
+
+  /** Signals of this learner's sessions. */
+  private get mine() {
+    return inArray(sessionSignals.sessionId, sessionsOf(this.db, this.learnerId));
+  }
 
   async recordOnce({ signals, ...record }: SessionSignalsRecord): Promise<SessionSignalsRecord> {
     // Integer columns: the pace and the pause are whole numbers already, rounded again in case a caller did not.
@@ -52,7 +61,7 @@ export class DrizzleSignalsRepository implements SignalsRepository {
     const rows = await this.db
       .select()
       .from(sessionSignals)
-      .where(and(eq(sessionSignals.language, own.language), lt(sessionSignals.seq, own.seq)))
+      .where(and(this.mine, eq(sessionSignals.language, own.language), lt(sessionSignals.seq, own.seq)))
       .orderBy(desc(sessionSignals.seq))
       .limit(limit);
     return rows.map(toRecord);
@@ -62,7 +71,7 @@ export class DrizzleSignalsRepository implements SignalsRepository {
     const rows = await this.db
       .select()
       .from(sessionSignals)
-      .where(eq(sessionSignals.language, language))
+      .where(and(this.mine, eq(sessionSignals.language, language)))
       .orderBy(desc(sessionSignals.seq))
       .limit(limit);
     return rows.map(toRecord);

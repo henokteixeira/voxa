@@ -1,5 +1,6 @@
 import type { Database } from "./db.module.js";
-import { learners } from "./schema.js";
+import { eq } from "drizzle-orm";
+import { learners, sessions } from "./schema.js";
 
 /** The id of the learner the API serves (a string): the repositories save and read that learner's records. */
 export const LEARNER_ID = Symbol("LEARNER_ID");
@@ -14,4 +15,9 @@ export async function soleLearnerId(db: Database): Promise<string> {
     throw new Error(`Expected exactly one learner until login exists, found ${rows.length === 0 ? "none" : "more"}.`);
   }
   return rows[0].id;
+}
+
+/** The ids of the learner's sessions, to find records kept under a session (XP, signals, rounds) by learner. */
+export function sessionsOf(db: Database, learnerId: string) {
+  return db.select({ id: sessions.id }).from(sessions).where(eq(sessions.learnerId, learnerId));
 }

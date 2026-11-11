@@ -12,7 +12,7 @@ let rounds: DrizzleFasterRoundRepository;
 
 beforeEach(async () => {
   ({ db, learnerId, close } = await createTestDatabase());
-  rounds = new DrizzleFasterRoundRepository(db);
+  rounds = new DrizzleFasterRoundRepository(db, learnerId);
 });
 afterEach(() => close());
 

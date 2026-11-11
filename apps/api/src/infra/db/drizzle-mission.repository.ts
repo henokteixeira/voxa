@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, isNull, lt } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt } from "drizzle-orm";
 import { isMissionSituation, type MarkedStep, type Mission, type MissionModel, type NewMissionModel } from "../../domain/mission/mission.js";
 import type { MissionRepository, NewMission } from "../../domain/ports/mission.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
@@ -33,7 +33,7 @@ export class DrizzleMissionRepository implements MissionRepository {
     const [row] = await this.db
       .select()
       .from(missions)
-      .where(and(eq(missions.language, language), eq(missions.day, day)));
+      .where(and(eq(missions.learnerId, this.learnerId), eq(missions.language, language), eq(missions.day, day)));
     return row ? this.toMission(row) : null;
   }
 
@@ -41,14 +41,14 @@ export class DrizzleMissionRepository implements MissionRepository {
     const [row] = await this.db
       .select()
       .from(missions)
-      .where(and(eq(missions.language, language), lt(missions.day, day)))
+      .where(and(eq(missions.learnerId, this.learnerId), eq(missions.language, language), lt(missions.day, day)))
       .orderBy(desc(missions.day))
       .limit(1);
     return row ? this.toMission(row) : null;
   }
 
   async get(id: string): Promise<Mission | null> {
-    const [row] = await this.db.select().from(missions).where(eq(missions.id, id));
+    const [row] = await this.db.select().from(missions).where(and(eq(missions.id, id), eq(missions.learnerId, this.learnerId)));
     return row ? this.toMission(row) : null;
   }
 
@@ -57,7 +57,7 @@ export class DrizzleMissionRepository implements MissionRepository {
       const saved = await tx
         .update(missions)
         .set({ modelSpeaker: model.speaker, modelText: model.text })
-        .where(and(eq(missions.id, id), isNull(missions.modelText)))
+        .where(and(eq(missions.id, id), eq(missions.learnerId, this.learnerId), isNull(missions.modelText)))
         .returning({ id: missions.id });
       if (saved.length === 0) return;
       await tx.insert(missionExpressions).values(model.expressions.map((e) => ({ missionId: id, ...e })));
@@ -72,14 +72,20 @@ export class DrizzleMissionRepository implements MissionRepository {
     await this.db
       .update(missions)
       .set({ [column]: at })
-      .where(and(eq(missions.id, id), isNull(missions[column])));
+      .where(and(eq(missions.id, id), eq(missions.learnerId, this.learnerId), isNull(missions[column])));
   }
 
   async markSaid(expressionId: string, at: Date): Promise<boolean> {
     const marked = await this.db
       .update(missionExpressions)
       .set({ saidAt: at })
-      .where(and(eq(missionExpressions.id, expressionId), isNull(missionExpressions.saidAt)))
+      .where(
+        and(
+          eq(missionExpressions.id, expressionId),
+          isNull(missionExpressions.saidAt),
+          inArray(missionExpressions.missionId, this.db.select({ id: missions.id }).from(missions).where(eq(missions.learnerId, this.learnerId))),
+        ),
+      )
       .returning({ id: missionExpressions.id });
     return marked.length > 0;
   }

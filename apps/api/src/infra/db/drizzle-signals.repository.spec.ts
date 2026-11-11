@@ -13,7 +13,7 @@ let signals: DrizzleSignalsRepository;
 
 beforeEach(async () => {
   ({ db, learnerId, close } = await createTestDatabase());
-  signals = new DrizzleSignalsRepository(db);
+  signals = new DrizzleSignalsRepository(db, learnerId);
 });
 afterEach(() => close());
 

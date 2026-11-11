@@ -25,11 +25,21 @@ export class DrizzleReviewRepository implements ReviewRepository {
     @Inject(LEARNER_ID) private readonly learnerId: string,
   ) {}
 
+  /** This learner's review items. */
+  private get mine() {
+    return eq(reviewItems.learnerId, this.learnerId);
+  }
+
+  /** This learner's item for the subject. */
+  private subjectIs(subject: ReviewSubject) {
+    return and(this.mine, eq(subjectColumn(subject), subject.id));
+  }
+
   async state(subject: ReviewSubject): Promise<ReviewState | null> {
     const [row] = await this.db
       .select({ step: reviewItems.step, dueAt: reviewItems.dueAt })
       .from(reviewItems)
-      .where(subjectIs(subject))
+      .where(this.subjectIs(subject))
       .limit(1);
     return row ?? null;
   }
@@ -50,7 +60,7 @@ export class DrizzleReviewRepository implements ReviewRepository {
   }
 
   async item(subject: ReviewSubject): Promise<ReviewItem | null> {
-    const [item] = await this.items(subjectIs(subject));
+    const [item] = await this.items(this.subjectIs(subject));
     return item ?? null;
   }
 
@@ -62,7 +72,7 @@ export class DrizzleReviewRepository implements ReviewRepository {
       .leftJoin(patterns, eq(reviewItems.patternId, patterns.id))
       .leftJoin(mistakes, eq(reviewItems.newWordId, mistakes.id))
       .leftJoin(missionExpressions, eq(reviewItems.expressionId, missionExpressions.id))
-      .where(and(where, isNull(mistakes.dismissedAt)))
+      .where(and(this.mine, where, isNull(mistakes.dismissedAt)))
       .orderBy(asc(reviewItems.dueAt), asc(reviewItems.id));
 
     const patternIds = rows.flatMap((r) => (r.pattern ? [r.pattern.id] : []));
@@ -70,7 +80,7 @@ export class DrizzleReviewRepository implements ReviewRepository {
       ? await this.db
           .select({ patternId: mistakes.patternId, original: mistakes.original, correction: mistakes.correction })
           .from(mistakes)
-          .where(and(inArray(mistakes.patternId, patternIds), isNull(mistakes.dismissedAt)))
+          .where(and(eq(mistakes.learnerId, this.learnerId), inArray(mistakes.patternId, patternIds), isNull(mistakes.dismissedAt)))
           .orderBy(desc(mistakes.lastSeenAt), desc(mistakes.id))
       : [];
 
@@ -100,7 +110,7 @@ export class DrizzleReviewRepository implements ReviewRepository {
     const [item] = await this.db
       .select({ id: reviewItems.id, language: reviewItems.language })
       .from(reviewItems)
-      .where(subjectIs(subject))
+      .where(this.subjectIs(subject))
       .limit(1);
     if (!item) throw new Error(`No review item for ${subject.kind} ${subject.id}.`);
     const [row] = await this.db
@@ -115,7 +125,7 @@ export class DrizzleReviewRepository implements ReviewRepository {
       .select({ card: reviewCards, patternId: reviewItems.patternId, newWordId: reviewItems.newWordId, expressionId: reviewItems.expressionId })
       .from(reviewCards)
       .innerJoin(reviewItems, eq(reviewCards.reviewItemId, reviewItems.id))
-      .where(eq(reviewCards.id, id))
+      .where(and(eq(reviewCards.id, id), this.mine))
       .limit(1);
     const subject = row ? subjectOf(row) : null;
     if (!row || !subject) return null;
@@ -126,7 +136,13 @@ export class DrizzleReviewRepository implements ReviewRepository {
     const updated = await this.db
       .update(reviewCards)
       .set({ recalled, answeredAt: at })
-      .where(and(eq(reviewCards.id, id), isNull(reviewCards.answeredAt)))
+      .where(
+        and(
+          eq(reviewCards.id, id),
+          isNull(reviewCards.answeredAt),
+          inArray(reviewCards.reviewItemId, this.db.select({ id: reviewItems.id }).from(reviewItems).where(this.mine)),
+        ),
+      )
       .returning({ id: reviewCards.id });
     return updated.length > 0;
   }
@@ -135,7 +151,8 @@ export class DrizzleReviewRepository implements ReviewRepository {
     const rows = await this.db
       .select({ cardId: reviewCards.id, itemId: reviewCards.reviewItemId, answeredAt: reviewCards.answeredAt })
       .from(reviewCards)
-      .where(and(eq(reviewCards.language, language), gte(reviewCards.answeredAt, since)))
+      .innerJoin(reviewItems, eq(reviewCards.reviewItemId, reviewItems.id))
+      .where(and(this.mine, eq(reviewCards.language, language), gte(reviewCards.answeredAt, since)))
       .orderBy(asc(reviewCards.answeredAt));
     return rows.flatMap(({ cardId, itemId, answeredAt }) => (answeredAt ? [{ cardId, itemId, answeredAt }] : []));
   }
@@ -150,7 +167,7 @@ export class DrizzleReviewRepository implements ReviewRepository {
         dueAt: reviewItems.dueAt,
       })
       .from(reviewItems)
-      .where(eq(reviewItems.language, language));
+      .where(and(this.mine, eq(reviewItems.language, language)));
     return rows.flatMap((row): ReviewSchedule[] => {
       const subject = subjectOf(row);
       return subject ? [{ subject, step: row.step, dueAt: row.dueAt }] : [];
@@ -164,12 +181,13 @@ export class DrizzleReviewRepository implements ReviewRepository {
       .leftJoin(mistakes, eq(reviewItems.newWordId, mistakes.id))
       .where(
         and(
+          this.mine,
           eq(reviewItems.language, language),
           gt(reviewItems.dueAt, now),
           or(
             and(isNull(reviewItems.patternId), isNull(mistakes.dismissedAt)),
             // A pattern counts while one of its mistakes is still in the bank.
-            sql`exists (select 1 from ${mistakes} m where m.pattern_id = ${reviewItems.patternId} and m.dismissed_at is null)`,
+            sql`exists (select 1 from ${mistakes} m where m.pattern_id = ${reviewItems.patternId} and m.learner_id = ${reviewItems.learnerId} and m.dismissed_at is null)`,
           ),
         ),
       );
@@ -202,10 +220,6 @@ function subjectColumns(subject: ReviewSubject) {
     case "expression":
       return { expressionId: subject.id };
   }
-}
-
-function subjectIs(subject: ReviewSubject) {
-  return eq(subjectColumn(subject), subject.id);
 }
 
 /** The subject a row's columns name; the table's check keeps exactly one of them set. */

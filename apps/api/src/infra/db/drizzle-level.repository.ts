@@ -28,7 +28,7 @@ export class DrizzleLevelRepository implements LevelRepository {
   }
 
   async forSession(sessionId: string): Promise<SpeakingLevel | null> {
-    const [row] = await this.db.select().from(speakingLevels).where(eq(speakingLevels.sessionId, sessionId)).limit(1);
+    const [row] = await this.db.select().from(speakingLevels).where(and(eq(speakingLevels.sessionId, sessionId), eq(speakingLevels.learnerId, this.learnerId))).limit(1);
     return row ? toLevel(row) : null;
   }
 
@@ -36,7 +36,7 @@ export class DrizzleLevelRepository implements LevelRepository {
     const [row] = await this.db
       .select()
       .from(speakingLevels)
-      .where(eq(speakingLevels.language, language))
+      .where(and(eq(speakingLevels.learnerId, this.learnerId), eq(speakingLevels.language, language)))
       .orderBy(desc(speakingLevels.seq))
       .limit(1);
     return row ? toLevel(row) : null;
@@ -46,7 +46,7 @@ export class DrizzleLevelRepository implements LevelRepository {
     const [row] = await this.db
       .select({ assessedAt: speakingLevels.assessedAt })
       .from(speakingLevels)
-      .where(and(eq(speakingLevels.language, language), eq(speakingLevels.source, "placement")))
+      .where(and(eq(speakingLevels.learnerId, this.learnerId), eq(speakingLevels.language, language), eq(speakingLevels.source, "placement")))
       .orderBy(desc(speakingLevels.seq))
       .limit(1);
     return row?.assessedAt ?? null;

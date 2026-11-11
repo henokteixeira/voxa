@@ -78,6 +78,11 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
     return toMistake(saved);
   }
 
+  /** This learner's mistakes (patterns are shared; mistakes are each learner's own). */
+  private get mine() {
+    return eq(mistakes.learnerId, this.learnerId);
+  }
+
   /** The pattern's id, saved the first time it shows up; later mistakes with the same key join it as it is. */
   private async patternId(tx: Transaction, language: string, category: string, p: MistakePattern): Promise<string> {
     await tx.insert(patterns).values({ language, category, key: p.key, name: p.name, rule: p.rule }).onConflictDoNothing();
@@ -95,7 +100,12 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
       .select()
       .from(mistakes)
       .where(
-        and(eq(mistakes.language, mistake.language), eq(mistakes.original, mistake.original), isNull(mistakes.dismissedAt)),
+        and(
+          this.mine,
+          eq(mistakes.language, mistake.language),
+          eq(mistakes.original, mistake.original),
+          isNull(mistakes.dismissedAt),
+        ),
       )
       .limit(1);
     if (!found) return null;
@@ -122,6 +132,7 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
       .where(
         and(
           eq(mistakeOccurrences.sessionId, sessionId),
+          this.mine,
           eq(mistakes.language, mistake.language),
           eq(mistakes.original, mistake.original),
         ),
@@ -136,7 +147,7 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
     const rows = await this.db
       .select()
       .from(mistakes)
-      .where(and(eq(mistakes.language, language), isNull(mistakes.dismissedAt)))
+      .where(and(this.mine, eq(mistakes.language, language), isNull(mistakes.dismissedAt)))
       .orderBy(desc(mistakes.occurrences), desc(mistakes.lastSeenAt))
       .limit(limit);
     return rows.map(toMistake);
@@ -157,7 +168,7 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
       .from(mistakeOccurrences)
       .innerJoin(mistakes, eq(mistakeOccurrences.mistakeId, mistakes.id))
       .leftJoin(patterns, eq(mistakes.patternId, patterns.id))
-      .where(and(eq(mistakeOccurrences.sessionId, sessionId), isNull(mistakes.dismissedAt)))
+      .where(and(eq(mistakeOccurrences.sessionId, sessionId), this.mine, isNull(mistakes.dismissedAt)))
       .orderBy(asc(mistakeOccurrences.seq));
     const seenBefore = await this.patternsSeenOutside(sessionId, rows.map((r) => r.patternId));
     return rows.map(({ patternKey, patternName, patternRule, ...r }) => ({
@@ -176,7 +187,7 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
       .selectDistinct({ patternId: mistakes.patternId })
       .from(mistakeOccurrences)
       .innerJoin(mistakes, eq(mistakeOccurrences.mistakeId, mistakes.id))
-      .where(and(inArray(mistakes.patternId, ids), ne(mistakeOccurrences.sessionId, sessionId)));
+      .where(and(this.mine, inArray(mistakes.patternId, ids), ne(mistakeOccurrences.sessionId, sessionId)));
     return new Set(rows.flatMap((r) => (r.patternId ? [r.patternId] : [])));
   }
 
@@ -186,7 +197,14 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
       .from(mistakeOccurrences)
       .innerJoin(mistakes, eq(mistakeOccurrences.mistakeId, mistakes.id))
       .innerJoin(patterns, eq(mistakes.patternId, patterns.id))
-      .where(and(eq(mistakeOccurrences.sessionId, sessionId), isNull(mistakes.dismissedAt), isNotNull(mistakeOccurrences.learnerTurn)))
+      .where(
+        and(
+          eq(mistakeOccurrences.sessionId, sessionId),
+          this.mine,
+          isNull(mistakes.dismissedAt),
+          isNotNull(mistakeOccurrences.learnerTurn),
+        ),
+      )
       .groupBy(patterns.id);
     return rows.flatMap(({ key, name, lastTurn }) => (lastTurn === null ? [] : [{ key, name, lastTurn }]));
   }
@@ -196,7 +214,7 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
       .select({ key: patterns.key, name: patterns.name })
       .from(patterns)
       .innerJoin(mistakes, eq(mistakes.patternId, patterns.id))
-      .where(and(eq(patterns.language, language), isNull(mistakes.dismissedAt)))
+      .where(and(eq(patterns.language, language), this.mine, isNull(mistakes.dismissedAt)))
       .groupBy(patterns.id)
       .orderBy(desc(max(mistakes.lastSeenAt)), asc(patterns.key))
       .limit(limit);
@@ -207,7 +225,7 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
       .select({ mistake: mistakes, ...patternColumns })
       .from(mistakes)
       .leftJoin(patterns, eq(mistakes.patternId, patterns.id))
-      .where(and(eq(mistakes.language, language), isNull(mistakes.dismissedAt)))
+      .where(and(this.mine, eq(mistakes.language, language), isNull(mistakes.dismissedAt)))
       .orderBy(desc(mistakes.lastSeenAt), desc(mistakes.id));
     if (rows.length === 0) return [];
 
@@ -249,7 +267,7 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
     const updated = await this.db
       .update(mistakes)
       .set({ dismissedAt: new Date(), dismissReason: reason })
-      .where(eq(mistakes.id, id))
+      .where(and(eq(mistakes.id, id), this.mine))
       .returning({ id: mistakes.id });
     return updated.length > 0;
   }
