@@ -1,7 +1,8 @@
 # Whole app: `docker compose up --build`, then open http://localhost:5173.
 # The microphone stays in the browser on the host; containers only see the audio the web app sends.
 # Ports listen on this computer only. VOXA_HOST=0.0.0.0 in .env opens the web app and the API to the local
-# network (e.g. to try it on a phone); the database and the voice service always stay local.
+# network (typing only on a phone: the microphone needs HTTPS, see "On a phone" in the README); the database and
+# the voice service always stay local.
 services:
   postgres:
     image: postgres:17
@@ -73,8 +74,6 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-      args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
     ports:
       - "${VOXA_HOST:-127.0.0.1}:5173:80"
     depends_on:
