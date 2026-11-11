@@ -79,6 +79,16 @@ services:
     depends_on:
       - api
 
+  # A temporary public HTTPS address for the web app (Cloudflare quick tunnel, no account), e.g. for the microphone
+  # on a phone. Only with `docker compose --profile tunnel up -d`; the address shows in `docker compose logs tunnel`.
+  # Anyone with the address can use the app (and the tutor's API credits): stop it after testing.
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.7
+    profiles: [tunnel]
+    command: ["tunnel", "--no-autoupdate", "--url", "http://web:80"]
+    depends_on:
+      - web
+
   # A dump of the database when it starts and every day after, in ./backups (gitignored).
   # Dumps older than 14 days are removed. Restore: see README ("Backups").
   backup:

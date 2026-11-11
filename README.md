@@ -43,8 +43,20 @@ delete that line, or the app keeps calling that address (and fails on a phone).
 
 ### On a phone
 
-A phone browser allows the microphone only over HTTPS, so use [Tailscale](https://tailscale.com) (free; works away
-from home too, and nothing is opened to the internet):
+A phone browser allows the microphone only over HTTPS. The quickest way, with nothing to install, is a temporary
+Cloudflare tunnel run by Docker:
+
+```bash
+docker compose --profile tunnel up -d
+docker compose logs tunnel | grep trycloudflare.com   # the https://….trycloudflare.com address to open on the phone
+docker compose stop tunnel                            # when done
+```
+
+The address is public while the tunnel runs and changes each time: anyone who has it can use the app (and the
+tutor's API credits), so stop the tunnel after testing.
+
+For a private address that lasts, use [Tailscale](https://tailscale.com) (free; works away from home too, and
+nothing is opened to the internet):
 
 1. Install Tailscale on the computer and the phone, signed in to the same account.
 2. On the computer, with Voxa running: `tailscale serve --bg 5173` (accept if it asks to turn on HTTPS).

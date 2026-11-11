@@ -38,8 +38,9 @@ export default defineConfig({
   server: {
     // The app calls /api on its own address; the dev server forwards it (and the voice WebSocket) to the API.
     proxy: { "/api": { target: process.env.API_PROXY_TARGET ?? "http://localhost:3000", ws: true } },
-    // Opened through a Tailscale HTTPS address (e.g. on a phone, where the microphone needs HTTPS).
-    allowedHosts: [".ts.net"],
+    // Opened through an HTTPS address (e.g. on a phone, where the microphone needs HTTPS): Tailscale or the
+    // Cloudflare quick tunnel (`docker compose --profile tunnel up -d`).
+    allowedHosts: [".ts.net", ".trycloudflare.com"],
   },
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   plugins: [

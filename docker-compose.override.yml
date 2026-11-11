@@ -31,3 +31,7 @@ services:
       - ./apps/web:/repo/apps/web
       # Keep the container's installed packages; the host folder may have none (or Mac builds).
       - /repo/apps/web/node_modules
+
+  tunnel:
+    # The dev server's port instead of nginx's.
+    command: ["tunnel", "--no-autoupdate", "--url", "http://web:5173"]
