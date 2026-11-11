@@ -111,6 +111,16 @@
   line-height: 1.5;
   font-weight: 500;
 }
+/*
+ * A soft shade at the bottom edge while more text sits below, since phones hide the scrollbar.
+ * The paper-colored cover scrolls with the text and hides the shade once the end is reached.
+ */
+@utility scroll-fade {
+  background:
+    linear-gradient(transparent, var(--color-paper) 70%) bottom / 100% 24px no-repeat local,
+    linear-gradient(transparent, color-mix(in srgb, var(--color-ink) 12%, transparent)) bottom / 100% 16px no-repeat scroll;
+}
+
 @utility text-caption {
   font-size: 13px;
   line-height: 1.45;
