@@ -3,18 +3,22 @@ import { and, desc, eq, lt, ne, type SQL } from "drizzle-orm";
 import { CHECK_IN_TASK, type CheckIn, type CheckInKind, checkInKind } from "../../domain/check-in/check-in.js";
 import type { CheckInRecording, CheckInRepository } from "../../domain/ports/check-in.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
+import { LEARNER_ID } from "./learner.js";
 import { checkInRecordings, checkIns } from "./schema.js";
 
-const toCheckIn = ({ seq: _seq, ...row }: typeof checkIns.$inferSelect): CheckIn => row;
+const toCheckIn = ({ seq: _seq, learnerId: _learnerId, ...row }: typeof checkIns.$inferSelect): CheckIn => row;
 const ofKind = (kind: CheckInKind): SQL => (kind === "benchmark" ? eq(checkIns.task, CHECK_IN_TASK) : ne(checkIns.task, CHECK_IN_TASK));
 
 @Injectable()
 export class DrizzleCheckInRepository implements CheckInRepository {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    @Inject(LEARNER_ID) private readonly learnerId: string,
+  ) {}
 
   async create(checkIn: Omit<CheckIn, "id">, recording: CheckInRecording): Promise<CheckIn> {
     return this.db.transaction(async (tx) => {
-      const [row] = await tx.insert(checkIns).values(checkIn).returning();
+      const [row] = await tx.insert(checkIns).values({ ...checkIn, learnerId: this.learnerId }).returning();
       await tx.insert(checkInRecordings).values({ checkInId: row.id, ...recording });
       return toCheckIn(row);
     });

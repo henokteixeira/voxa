@@ -11,6 +11,7 @@ import { createTestDatabase } from "../infra/db/test-database.js";
 import { ProgressService } from "./progress.service.js";
 
 let db: Database;
+let learnerId: string;
 let close: () => Promise<void>;
 let sessions: DrizzleSessionRepository;
 let now: Date;
@@ -20,10 +21,10 @@ const clock: Clock = { now: () => now };
 const tz = "America/Sao_Paulo";
 
 beforeEach(async () => {
-  ({ db, close } = await createTestDatabase());
-  sessions = new DrizzleSessionRepository(db);
-  reviews = new DrizzleReviewRepository(db);
-  service = new ProgressService(new DrizzleProgressRepository(db), sessions, clock, reviews, new DrizzleFasterRoundRepository(db));
+  ({ db, learnerId, close } = await createTestDatabase());
+  sessions = new DrizzleSessionRepository(db, learnerId);
+  reviews = new DrizzleReviewRepository(db, learnerId);
+  service = new ProgressService(new DrizzleProgressRepository(db, learnerId), sessions, clock, reviews, new DrizzleFasterRoundRepository(db));
   now = new Date("2026-11-07T15:00:00Z");
 });
 afterEach(() => close());
@@ -62,7 +63,7 @@ describe("ProgressService.awardSession", () => {
     const sessionId = await endedSession(timing(10));
     const awardedAt = new Date("2026-11-06T23:00:00Z");
     await service.awardSession({ sessionId, goalsCovered: 0, selfCorrections: 0, wordsPerMinute: null, awardedAt });
-    expect(await new DrizzleProgressRepository(db).earnedSince("en", new Date(0))).toEqual([{ total: 10, awardedAt }]);
+    expect(await new DrizzleProgressRepository(db, learnerId).earnedSince("en", new Date(0))).toEqual([{ total: 10, awardedAt }]);
   });
 
   it("gives a record bonus for the fastest pace after 3 measured sessions", async () => {
@@ -121,7 +122,7 @@ describe("ProgressService.today", () => {
 
   it("adds 1 XP for each item reviewed today, right or wrong, once a day per item", async () => {
     const session = await sessions.create({ language: "en", mode: "daily" });
-    const word = await new DrizzleMistakeRepository(db).record(
+    const word = await new DrizzleMistakeRepository(db, learnerId).record(
       { language: "en", original: "prazo", correction: "deadline", category: "new_word", pattern: null },
       { sessionId: session.id, severity: "minor" },
     );

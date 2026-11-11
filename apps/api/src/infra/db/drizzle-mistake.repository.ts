@@ -12,13 +12,17 @@ import type {
   SessionPattern,
 } from "../../domain/ports/mistake.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
+import { LEARNER_ID } from "./learner.js";
 import { mistakeCorrectUses, mistakeOccurrences, mistakes, patterns } from "./schema.js";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 @Injectable()
 export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankRepository {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    @Inject(LEARNER_ID) private readonly learnerId: string,
+  ) {}
 
   async record(m: NewMistake, occurrence: Occurrence): Promise<Mistake | null> {
     return this.db.transaction(async (tx) => {
@@ -29,14 +33,18 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
           await tx
             .select()
             .from(mistakes)
-            .where(and(eq(mistakes.language, m.language), eq(mistakes.original, m.original)))
+            .where(
+              and(eq(mistakes.learnerId, this.learnerId), eq(mistakes.language, m.language), eq(mistakes.original, m.original)),
+            )
             .limit(1)
             .for("update")
         )[0];
       let existing = await find();
       if (!existing) {
         const patternId = pattern ? await this.patternId(tx, m.language, m.category, pattern) : null;
-        const [inserted] = await tx.insert(mistakes).values({ ...fields, patternId }).onConflictDoNothing().returning();
+        const [inserted] = await tx
+          .insert(mistakes)
+          .values({ ...fields, patternId, learnerId: this.learnerId }).onConflictDoNothing().returning();
         if (inserted) return this.occurred(tx, inserted, m.language, occurrence);
         // Another turn saved it first: count this one on that row.
         existing = await find();

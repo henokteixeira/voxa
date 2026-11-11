@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { Pool } from "pg";
 import type { Env } from "../../config/env.js";
+import { LEARNER_ID, soleLearnerId } from "./learner.js";
 import * as schema from "./schema.js";
 
 /** Any Postgres driver (node-postgres in the app, PGlite in tests). */
@@ -19,7 +20,8 @@ export const DATABASE = Symbol("DATABASE");
       useFactory: (config: ConfigService<Env, true>): Database =>
         drizzle(new Pool({ connectionString: config.get("DATABASE_URL", { infer: true }) }), { schema }),
     },
+    { provide: LEARNER_ID, inject: [DATABASE], useFactory: soleLearnerId },
   ],
-  exports: [DATABASE],
+  exports: [DATABASE, LEARNER_ID],
 })
 export class DbModule {}

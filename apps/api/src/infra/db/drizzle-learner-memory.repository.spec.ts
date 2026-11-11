@@ -5,14 +5,15 @@ import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
+let learnerId: string;
 let close: () => Promise<void>;
 let memory: DrizzleLearnerMemoryRepository;
 let sessions: DrizzleSessionRepository;
 
 beforeEach(async () => {
-  ({ db, close } = await createTestDatabase());
-  memory = new DrizzleLearnerMemoryRepository(db);
-  sessions = new DrizzleSessionRepository(db);
+  ({ db, learnerId, close } = await createTestDatabase());
+  memory = new DrizzleLearnerMemoryRepository(db, learnerId);
+  sessions = new DrizzleSessionRepository(db, learnerId);
 });
 afterEach(() => close());
 

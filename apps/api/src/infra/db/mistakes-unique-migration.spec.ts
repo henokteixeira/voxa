@@ -15,13 +15,14 @@ const MIGRATION = readFileSync(resolve(__dirname, "../../../drizzle/0028_mistake
   .filter(Boolean);
 
 let db: Database;
+let learnerId: string;
 let close: () => Promise<void>;
 let sessionId: string;
 
 beforeEach(async () => {
-  ({ db, close } = await createTestDatabase());
-  await db.execute(sql`ALTER TABLE "mistakes" DROP CONSTRAINT "mistakes_language_original"`);
-  ({ id: sessionId } = await new DrizzleSessionRepository(db).create({ language: "en", mode: "daily" }));
+  ({ db, learnerId, close } = await createTestDatabase());
+  await db.execute(sql`ALTER TABLE "mistakes" DROP CONSTRAINT "mistakes_learner_language_original"`);
+  ({ id: sessionId } = await new DrizzleSessionRepository(db, learnerId).create({ language: "en", mode: "daily" }));
 });
 afterEach(() => close());
 
@@ -32,6 +33,7 @@ async function migrate() {
 }
 
 const row = (over: Partial<typeof mistakes.$inferInsert>) => ({
+  learnerId,
   language: "en",
   original: "I goed",
   correction: "I went",
@@ -53,7 +55,7 @@ describe("migration 0028: one row per mistake", () => {
       { mistakeId: newer.id, sessionId, language: "en", severity: "minor" },
     ]);
     await db.insert(mistakeCorrectUses).values({ mistakeId: older.id, sessionId, language: "en" });
-    await db.insert(reviewItems).values({ language: "en", newWordId: older.id, step: 1, dueAt: new Date("2026-11-08T00:00:00Z") });
+    await db.insert(reviewItems).values({ learnerId, language: "en", newWordId: older.id, step: 1, dueAt: new Date("2026-11-08T00:00:00Z") });
 
     await migrate();
 
@@ -88,7 +90,12 @@ describe("migration 0028: one row per mistake", () => {
 describe("DrizzleMistakeRepository.record after the migration", () => {
   it("counts the same mistake recorded by two turns at once on one row", async () => {
     await migrate();
-    const repository = new DrizzleMistakeRepository(db);
+    // Back to the constraint as it is now: one row per mistake for each learner.
+    await db.execute(sql`ALTER TABLE "mistakes" DROP CONSTRAINT "mistakes_language_original"`);
+    await db.execute(
+      sql`ALTER TABLE "mistakes" ADD CONSTRAINT "mistakes_learner_language_original" UNIQUE ("learner_id", "language", "original")`,
+    );
+    const repository = new DrizzleMistakeRepository(db, learnerId);
     const mistake = { language: "en", original: "I goed", correction: "I went", category: "verb_tense", pattern: null };
 
     await Promise.all([

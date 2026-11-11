@@ -7,11 +7,12 @@ import { DrizzleSignalsRepository } from "./drizzle-signals.repository.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
+let learnerId: string;
 let close: () => Promise<void>;
 let signals: DrizzleSignalsRepository;
 
 beforeEach(async () => {
-  ({ db, close } = await createTestDatabase());
+  ({ db, learnerId, close } = await createTestDatabase());
   signals = new DrizzleSignalsRepository(db);
 });
 afterEach(() => close());
@@ -19,7 +20,7 @@ afterEach(() => close());
 const at = new Date("2026-11-07T10:00:00Z");
 
 async function recordFor(language: string, mode: Mode, wordsPerMinute: number): Promise<SessionSignalsRecord> {
-  const session = await new DrizzleSessionRepository(db).create({ language, mode });
+  const session = await new DrizzleSessionRepository(db, learnerId).create({ language, mode });
   return signals.recordOnce({
     sessionId: session.id,
     language,

@@ -4,6 +4,7 @@ import { DATABASE, type Database } from "./db.module.js";
 import { DrizzleMistakeRepository } from "./drizzle-mistake.repository.js";
 import { DrizzleReviewRepository } from "./drizzle-review.repository.js";
 import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
+import { LEARNER_ID } from "./learner.js";
 
 /**
  * One Postgres transaction, with the repositories bound to it. A repository that opens its own transaction
@@ -11,16 +12,19 @@ import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
  */
 @Injectable()
 export class DrizzleUnitOfWork implements UnitOfWork {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    @Inject(LEARNER_ID) private readonly learnerId: string,
+  ) {}
 
   run<T>(work: (stores: TransactionStores) => Promise<T>): Promise<T> {
     return this.db.transaction((tx) => {
       // A transaction is a database handle too: the repositories run on it unchanged.
       const db = tx as unknown as Database;
       return work({
-        sessions: new DrizzleSessionRepository(db),
-        mistakes: new DrizzleMistakeRepository(db),
-        reviews: new DrizzleReviewRepository(db),
+        sessions: new DrizzleSessionRepository(db, this.learnerId),
+        mistakes: new DrizzleMistakeRepository(db, this.learnerId),
+        reviews: new DrizzleReviewRepository(db, this.learnerId),
       });
     });
   }

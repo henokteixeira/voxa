@@ -5,12 +5,13 @@ import { DrizzleSessionRepository } from "./drizzle-session.repository.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
+let learnerId: string;
 let close: () => Promise<void>;
 let levels: DrizzleLevelRepository;
 
 beforeEach(async () => {
-  ({ db, close } = await createTestDatabase());
-  levels = new DrizzleLevelRepository(db);
+  ({ db, learnerId, close } = await createTestDatabase());
+  levels = new DrizzleLevelRepository(db, learnerId);
 });
 afterEach(() => close());
 
@@ -39,7 +40,7 @@ describe("DrizzleLevelRepository", () => {
   });
 
   it("keeps one level per placement session", async () => {
-    const session = await new DrizzleSessionRepository(db).create({ language: "en", mode: "placement" });
+    const session = await new DrizzleSessionRepository(db, learnerId).create({ language: "en", mode: "placement" });
     expect(await levels.forSession(session.id)).toBeNull();
     expect(await levels.addForSession(session.id, placed)).toEqual(placed);
     // A second end (a retry, or two at once) keeps the first.

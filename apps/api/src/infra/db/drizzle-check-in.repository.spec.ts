@@ -5,12 +5,13 @@ import { DrizzleCheckInRepository } from "./drizzle-check-in.repository.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
+let learnerId: string;
 let close: () => Promise<void>;
 let checkIns: DrizzleCheckInRepository;
 
 beforeEach(async () => {
-  ({ db, close } = await createTestDatabase());
-  checkIns = new DrizzleCheckInRepository(db);
+  ({ db, learnerId, close } = await createTestDatabase());
+  checkIns = new DrizzleCheckInRepository(db, learnerId);
 });
 afterEach(() => close());
 

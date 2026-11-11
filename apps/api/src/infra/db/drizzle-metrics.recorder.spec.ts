@@ -6,11 +6,12 @@ import { modelCalls, voiceTurnTimings } from "./schema.js";
 import { createTestDatabase } from "./test-database.js";
 
 let db: Database;
+let learnerId: string;
 let close: () => Promise<void>;
 let recorder: DrizzleMetricsRecorder;
 
 beforeEach(async () => {
-  ({ db, close } = await createTestDatabase());
+  ({ db, learnerId, close } = await createTestDatabase());
   recorder = new DrizzleMetricsRecorder(db);
 });
 afterEach(() => close());
@@ -19,7 +20,7 @@ const call = { task: "tutor_turn", model: "claude-opus-5-5", effort: "low", inpu
 
 describe("DrizzleMetricsRecorder", () => {
   it("keeps each voice turn's timing and each model call", async () => {
-    const { id } = await new DrizzleSessionRepository(db).create({ language: "en", mode: "daily" });
+    const { id } = await new DrizzleSessionRepository(db, learnerId).create({ language: "en", mode: "daily" });
 
     await recorder.voiceTurn({ sessionId: id, sttMs: null, tutorMs: 2000, ttsMs: 600, totalMs: 2600 });
     await recorder.modelCall(call);
