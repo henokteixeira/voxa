@@ -48,6 +48,11 @@ export class TurnDetector {
     return this.speaking;
   }
 
+  /** The room's noise has been heard long enough to tell speech from it. */
+  get calibrated(): boolean {
+    return this.heardMs >= this.options.calibrationMs;
+  }
+
   /** The silences inside the current (or last) turn that speech resumed after, in ms. Not the silence that ended it. */
   get pausesMs(): readonly number[] {
     return this.gaps;
