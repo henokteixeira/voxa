@@ -25,7 +25,7 @@ export class DrizzleCheckInRepository implements CheckInRepository {
   }
 
   async get(id: string): Promise<CheckIn | null> {
-    const [row] = await this.db.select().from(checkIns).where(eq(checkIns.id, id));
+    const [row] = await this.db.select().from(checkIns).where(and(eq(checkIns.id, id), eq(checkIns.learnerId, this.learnerId)));
     return row ? toCheckIn(row) : null;
   }
 
@@ -33,7 +33,7 @@ export class DrizzleCheckInRepository implements CheckInRepository {
     const query = this.db
       .select()
       .from(checkIns)
-      .where(and(eq(checkIns.language, language), kind ? ofKind(kind) : undefined))
+      .where(and(eq(checkIns.learnerId, this.learnerId), eq(checkIns.language, language), kind ? ofKind(kind) : undefined))
       .orderBy(desc(checkIns.seq));
     return (await (limit === undefined ? query : query.limit(limit))).map(toCheckIn);
   }
@@ -42,12 +42,12 @@ export class DrizzleCheckInRepository implements CheckInRepository {
     const [own] = await this.db
       .select({ language: checkIns.language, seq: checkIns.seq, task: checkIns.task })
       .from(checkIns)
-      .where(eq(checkIns.id, id));
+      .where(and(eq(checkIns.id, id), eq(checkIns.learnerId, this.learnerId)));
     if (!own) return null;
     const [row] = await this.db
       .select()
       .from(checkIns)
-      .where(and(eq(checkIns.language, own.language), ofKind(checkInKind(own.task)), lt(checkIns.seq, own.seq)))
+      .where(and(eq(checkIns.learnerId, this.learnerId), eq(checkIns.language, own.language), ofKind(checkInKind(own.task)), lt(checkIns.seq, own.seq)))
       .orderBy(desc(checkIns.seq))
       .limit(1);
     return row ? toCheckIn(row) : null;
@@ -57,7 +57,8 @@ export class DrizzleCheckInRepository implements CheckInRepository {
     const [row] = await this.db
       .select({ mimeType: checkInRecordings.mimeType, audio: checkInRecordings.audio })
       .from(checkInRecordings)
-      .where(eq(checkInRecordings.checkInId, id));
+      .innerJoin(checkIns, eq(checkInRecordings.checkInId, checkIns.id))
+      .where(and(eq(checkInRecordings.checkInId, id), eq(checkIns.learnerId, this.learnerId)));
     return row ?? null;
   }
 }

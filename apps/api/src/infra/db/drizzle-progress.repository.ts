@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, eq, gte, isNotNull, lte } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, lte } from "drizzle-orm";
 import { parseDailyMinutes, parseXpReason, XP_REASONS } from "../../domain/progress/daily-goal.js";
 import type {
   DailyMinutesSetting,
@@ -7,7 +7,7 @@ import type {
   SessionXpRecord,
 } from "../../domain/ports/progress.repository.js";
 import { DATABASE, type Database } from "./db.module.js";
-import { LEARNER_ID } from "./learner.js";
+import { LEARNER_ID, sessionsOf } from "./learner.js";
 import { dailyGoalSettings, sessionXp, xpAwards } from "./schema.js";
 
 @Injectable()
@@ -25,7 +25,7 @@ export class DrizzleProgressRepository implements ProgressRepository {
     const rows = await this.db
       .select({ minutesPerDay: dailyGoalSettings.minutesPerDay, setAt: dailyGoalSettings.setAt })
       .from(dailyGoalSettings)
-      .where(eq(dailyGoalSettings.language, language))
+      .where(and(eq(dailyGoalSettings.learnerId, this.learnerId), eq(dailyGoalSettings.language, language)))
       .orderBy(asc(dailyGoalSettings.seq));
     return rows.map((row) => ({ minutesPerDay: parseDailyMinutes(row.minutesPerDay), setAt: row.setAt }));
   }
@@ -65,11 +65,16 @@ export class DrizzleProgressRepository implements ProgressRepository {
     return { ...header, awards };
   }
 
+  /** XP of this learner's sessions. */
+  private get mine() {
+    return inArray(sessionXp.sessionId, sessionsOf(this.db, this.learnerId));
+  }
+
   async earnedSince(language: string, since: Date): Promise<{ total: number; awardedAt: Date }[]> {
     return this.db
       .select({ total: sessionXp.total, awardedAt: sessionXp.awardedAt })
       .from(sessionXp)
-      .where(and(eq(sessionXp.language, language), gte(sessionXp.awardedAt, since)))
+      .where(and(this.mine, eq(sessionXp.language, language), gte(sessionXp.awardedAt, since)))
       .orderBy(asc(sessionXp.awardedAt));
   }
 
@@ -77,7 +82,9 @@ export class DrizzleProgressRepository implements ProgressRepository {
     const rows = await this.db
       .select({ pace: sessionXp.wordsPerMinute })
       .from(sessionXp)
-      .where(and(eq(sessionXp.language, language), lte(sessionXp.awardedAt, before), isNotNull(sessionXp.wordsPerMinute)));
+      .where(
+        and(this.mine, eq(sessionXp.language, language), lte(sessionXp.awardedAt, before), isNotNull(sessionXp.wordsPerMinute)),
+      );
     return rows.flatMap((row) => (row.pace === null ? [] : [row.pace]));
   }
 }

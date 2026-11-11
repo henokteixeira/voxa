@@ -24,7 +24,7 @@ beforeEach(async () => {
   ({ db, learnerId, close } = await createTestDatabase());
   sessions = new DrizzleSessionRepository(db, learnerId);
   reviews = new DrizzleReviewRepository(db, learnerId);
-  service = new ProgressService(new DrizzleProgressRepository(db, learnerId), sessions, clock, reviews, new DrizzleFasterRoundRepository(db));
+  service = new ProgressService(new DrizzleProgressRepository(db, learnerId), sessions, clock, reviews, new DrizzleFasterRoundRepository(db, learnerId));
   now = new Date("2026-11-07T15:00:00Z");
 });
 afterEach(() => close());
@@ -142,7 +142,7 @@ describe("ProgressService.today", () => {
 
   it("adds 1 XP a minute of say-it-faster speech, the session's rounds added up", async () => {
     const sessionId = await endedSession(null);
-    const rounds = new DrizzleFasterRoundRepository(db);
+    const rounds = new DrizzleFasterRoundRepository(db, learnerId);
     const told = (round: number, speechMs: number, at: string) =>
       rounds.saveOnce({ sessionId, language: "en", round, timeLimitMs: 120_000, transcript: "I fixed the bug", spokenWords: 4, speechMs, longPauses: 0, recordedAt: new Date(at) });
     await told(1, 110_000, "2026-11-07T14:00:00Z");

@@ -15,7 +15,7 @@ export class DrizzleLearnerMemoryRepository implements LearnerMemoryRepository {
   ) {}
 
   async facts(): Promise<LearnerFact[]> {
-    const rows = await this.db.select().from(learnerFacts).orderBy(asc(learnerFacts.seq));
+    const rows = await this.db.select().from(learnerFacts).where(eq(learnerFacts.learnerId, this.learnerId)).orderBy(asc(learnerFacts.seq));
     return rows.map(toFact);
   }
 
@@ -23,7 +23,7 @@ export class DrizzleLearnerMemoryRepository implements LearnerMemoryRepository {
     const rows = await this.db
       .select({ id: sessions.id })
       .from(sessions)
-      .where(and(isNotNull(sessions.endedAt), isNull(sessions.rememberedAt)))
+      .where(and(eq(sessions.learnerId, this.learnerId), isNotNull(sessions.endedAt), isNull(sessions.rememberedAt)))
       .orderBy(asc(sessions.endedAt))
       .limit(limit);
     return rows.map((r) => r.id);
@@ -33,7 +33,7 @@ export class DrizzleLearnerMemoryRepository implements LearnerMemoryRepository {
     const [row] = await this.db
       .select({ rememberedAt: sessions.rememberedAt })
       .from(sessions)
-      .where(eq(sessions.id, sessionId))
+      .where(and(eq(sessions.id, sessionId), eq(sessions.learnerId, this.learnerId)))
       .limit(1);
     return row?.rememberedAt != null;
   }
@@ -44,14 +44,14 @@ export class DrizzleLearnerMemoryRepository implements LearnerMemoryRepository {
       const claimed = await tx
         .update(sessions)
         .set({ rememberedAt: at, recap: memory.recap })
-        .where(and(eq(sessions.id, sessionId), isNull(sessions.rememberedAt)))
+        .where(and(eq(sessions.id, sessionId), eq(sessions.learnerId, this.learnerId), isNull(sessions.rememberedAt)))
         .returning({ id: sessions.id });
       if (!claimed.length) return false;
       for (const { id, statement } of memory.updated) {
         await tx
           .update(learnerFacts)
           .set({ statement, language, sourceSessionId: sessionId, updatedAt: at })
-          .where(eq(learnerFacts.id, id));
+          .where(and(eq(learnerFacts.id, id), eq(learnerFacts.learnerId, this.learnerId)));
       }
       if (memory.added.length) {
         await tx.insert(learnerFacts).values(
@@ -73,13 +73,13 @@ export class DrizzleLearnerMemoryRepository implements LearnerMemoryRepository {
     const [row] = await this.db
       .update(learnerFacts)
       .set({ statement, updatedAt: at })
-      .where(eq(learnerFacts.id, id))
+      .where(and(eq(learnerFacts.id, id), eq(learnerFacts.learnerId, this.learnerId)))
       .returning();
     return row ? toFact(row) : null;
   }
 
   async deleteFact(id: string): Promise<boolean> {
-    const rows = await this.db.delete(learnerFacts).where(eq(learnerFacts.id, id)).returning({ id: learnerFacts.id });
+    const rows = await this.db.delete(learnerFacts).where(and(eq(learnerFacts.id, id), eq(learnerFacts.learnerId, this.learnerId))).returning({ id: learnerFacts.id });
     return rows.length > 0;
   }
 
@@ -87,7 +87,7 @@ export class DrizzleLearnerMemoryRepository implements LearnerMemoryRepository {
     const rows = await this.db
       .select({ mode: sessions.mode, language: sessions.language, startedAt: sessions.startedAt, recap: sessions.recap })
       .from(sessions)
-      .where(and(isNotNull(sessions.recap), lt(sessions.startedAt, before)))
+      .where(and(eq(sessions.learnerId, this.learnerId), isNotNull(sessions.recap), lt(sessions.startedAt, before)))
       .orderBy(desc(sessions.startedAt))
       .limit(limit);
     return rows.flatMap((r) => (isMode(r.mode) && r.recap ? [{ ...r, mode: r.mode, recap: r.recap }] : []));

@@ -106,18 +106,23 @@ export class DrizzleSessionRepository implements SessionRepository {
     });
   }
 
+  /** The session `id`, if it is this learner's. */
+  private own(id: string) {
+    return and(eq(sessions.id, id), eq(sessions.learnerId, this.learnerId));
+  }
+
   async latestForMission(missionId: string): Promise<Session | null> {
     const [row] = await this.db
       .select()
       .from(sessions)
-      .where(eq(sessions.missionId, missionId))
+      .where(and(eq(sessions.missionId, missionId), eq(sessions.learnerId, this.learnerId)))
       .orderBy(desc(sessions.startedAt), desc(sessions.id))
       .limit(1);
     return row ? this.withTargets(row) : null;
   }
 
   async get(id: string): Promise<Session | null> {
-    const [row] = await this.db.select().from(sessions).where(eq(sessions.id, id)).limit(1);
+    const [row] = await this.db.select().from(sessions).where(this.own(id)).limit(1);
     return row ? this.withTargets(row) : null;
   }
 
@@ -135,7 +140,7 @@ export class DrizzleSessionRepository implements SessionRepository {
     const [session] = await this.db
       .select({ endedAt: sessions.endedAt })
       .from(sessions)
-      .where(eq(sessions.id, sessionId))
+      .where(this.own(sessionId))
       .for("update");
     if (!session || session.endedAt) return "ended";
     const [row] = await this.db.select({ total: count() }).from(turns).where(eq(turns.sessionId, sessionId));
@@ -146,7 +151,7 @@ export class DrizzleSessionRepository implements SessionRepository {
     await this.db
       .insert(turns)
       .values({ sessionId, role: turn.role, content: turn.content, assisted: turn.assisted ?? false });
-    await this.db.update(sessions).set({ lastActiveAt: new Date() }).where(eq(sessions.id, sessionId));
+    await this.db.update(sessions).set({ lastActiveAt: new Date() }).where(this.own(sessionId));
   }
 
   async history(sessionId: string): Promise<ChatTurn[]> {
@@ -159,7 +164,7 @@ export class DrizzleSessionRepository implements SessionRepository {
   }
 
   async setPending(sessionId: string, pending: PendingCorrection | null): Promise<void> {
-    await this.db.update(sessions).set({ pending }).where(eq(sessions.id, sessionId));
+    await this.db.update(sessions).set({ pending }).where(this.own(sessionId));
   }
 
   async setProgress(sessionId: string, { step, track, metTargets, ...progress }: SessionProgress): Promise<void> {
@@ -167,7 +172,7 @@ export class DrizzleSessionRepository implements SessionRepository {
       await tx
         .update(sessions)
         .set({ ...progress, supportStep: step, ...trackColumns(track) })
-        .where(eq(sessions.id, sessionId));
+        .where(this.own(sessionId));
       // `original` is unique per session, so each target is met or not by its own words.
       await tx
         .update(sessionTargets)
@@ -180,7 +185,7 @@ export class DrizzleSessionRepository implements SessionRepository {
     const saved = await this.db
       .update(sessions)
       .set({ timing, lastActiveAt: new Date() })
-      .where(and(eq(sessions.id, sessionId), isNull(sessions.endedAt)))
+      .where(and(this.own(sessionId), isNull(sessions.endedAt)))
       .returning({ id: sessions.id });
     return saved.length > 0;
   }
@@ -199,6 +204,7 @@ export class DrizzleSessionRepository implements SessionRepository {
       .leftJoin(sessionXp, eq(sessionXp.sessionId, sessions.id))
       .where(
         and(
+          eq(sessions.learnerId, this.learnerId),
           or(
             and(isNull(sessions.endedAt), lt(sessions.lastActiveAt, query.idleBefore)),
             // Its end (by the learner or the server) is the last change: when that stopped half way.
@@ -222,14 +228,14 @@ export class DrizzleSessionRepository implements SessionRepository {
       .update(sessions)
       // Without a timing, the one saved during the session stays.
       .set({ endedAt, lastActiveAt: new Date(), ...(timing && { timing }) })
-      .where(eq(sessions.id, sessionId));
+      .where(this.own(sessionId));
   }
 
   async outcome(sessionId: string): Promise<SessionOutcome | null> {
     const [row] = await this.db
       .select({ timing: sessions.timing })
       .from(sessions)
-      .where(eq(sessions.id, sessionId))
+      .where(this.own(sessionId))
       .limit(1);
     if (!row) return null;
     const [learnerTurns] = await this.db
