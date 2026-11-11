@@ -43,11 +43,12 @@ export const TranscriptIcon = () => (
 export function CaptionCard(props: { caption: Caption; textRef?: Ref<HTMLParagraphElement>; scroll?: boolean }) {
   const { caption, textRef, scroll } = props;
   const { parts } = useCopy(SESSION_COPY);
-  const scrollClass = scroll ? " max-h-[30dvh] overflow-y-auto overscroll-contain" : "";
+  // Focusable when it scrolls, so a keyboard can reach and scroll it again.
+  const textClass = scroll ? "max-h-[30dvh] overflow-y-auto overscroll-contain scroll-fade" : "outline-none";
   return (
     <div className="flex flex-col gap-1 rounded-md bg-paper px-[18px] py-4 shadow-card">
       <span className="text-label text-taupe">{caption.who === "tutor" ? parts.tutor : parts.you}</span>
-      <p ref={textRef} tabIndex={textRef ? -1 : undefined} lang="en" className={`m-0 text-body outline-none${scrollClass}`}>
+      <p ref={textRef} tabIndex={scroll ? 0 : textRef ? -1 : undefined} lang="en" className={`m-0 text-body ${textClass}`}>
         {caption.text}
       </p>
     </div>
