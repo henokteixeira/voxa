@@ -21,7 +21,7 @@ Requirements: Docker only.
 
 ```bash
 cp .env.example .env          # fill in ANTHROPIC_API_KEY
-docker compose up --build     # http://localhost:5173 (API: http://localhost:3000/api/health)
+docker compose up --build     # http://localhost:5173 (API: http://localhost:5173/api/health)
 ```
 
 This starts Postgres, applies the migrations, and runs the API, the web app and the voice service.
@@ -36,9 +36,22 @@ apply on the next start. After a `git pull`, nothing to rebuild unless dependenc
 then run `docker compose up --build -V` (`-V` refreshes the installed packages).
 The production build (nginx, compiled API) runs with `docker compose -f docker-compose.yml up --build`.
 
-Ports listen on this computer only. To open the web app and the API to your local network (e.g. to try Voxa on a
-phone), set `VOXA_HOST=0.0.0.0` in `.env`; there is no login, so do it only on a network you trust. The database
-and the voice service always stay local.
+Ports listen on this computer only. The web app calls the API under `/api` on its own address (the dev server and
+nginx forward it), so whatever address opens the app also reaches the API. The database and the voice service
+always stay local.
+
+### On a phone
+
+A phone browser allows the microphone only over HTTPS, so use [Tailscale](https://tailscale.com) (free; works away
+from home too, and nothing is opened to the internet):
+
+1. Install Tailscale on the computer and the phone, signed in to the same account.
+2. On the computer, with Voxa running: `tailscale serve --bg 5173` (accept if it asks to turn on HTTPS).
+3. On the phone, open the `https://<computer>.<tailnet>.ts.net` address it prints.
+
+`tailscale serve --bg off` stops it. Without Tailscale, `VOXA_HOST=0.0.0.0` in `.env` opens the app at
+`http://<computer's IP>:5173` on your local network, but only typing works there (no microphone over HTTP), and
+there is no login, so do it only on a network you trust.
 
 ### Speed and cost
 

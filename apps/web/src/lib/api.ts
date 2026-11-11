@@ -289,4 +289,6 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
 
 export type ApiClient = ReturnType<typeof createApiClient>;
 
-export const api = createApiClient(import.meta.env.VITE_API_URL ?? "http://localhost:3000");
+// The API is served under /api on the app's own address (the dev server and nginx forward it), so the app works
+// from any address it is opened at: localhost, the computer's IP or an HTTPS tunnel. VITE_API_URL overrides it.
+export const api = createApiClient(import.meta.env.VITE_API_URL || window.location.origin);

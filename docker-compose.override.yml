@@ -23,7 +23,8 @@ services:
     image: voxa-web-dev
     build: { target: dev }
     environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+      # Where the dev server forwards /api (see apps/web/vite.config.ts).
+      API_PROXY_TARGET: http://api:3000
     ports: !override
       - "${VOXA_HOST:-127.0.0.1}:5173:5173"
     volumes:

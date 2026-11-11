@@ -16,8 +16,8 @@ EXPOSE 5173
 CMD ["pnpm", "exec", "vite", "--host", "0.0.0.0", "--port", "5173", "--strictPort"]
 
 FROM build-deps AS build
-# The browser runs on the host, so it reaches the API through the published port.
-ARG VITE_API_URL=http://localhost:3000
+# Empty: the app calls /api on its own address, and nginx forwards it to the API.
+ARG VITE_API_URL=
 ENV VITE_API_URL=$VITE_API_URL
 RUN pnpm --filter @voxa/web build
 
