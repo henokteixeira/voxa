@@ -48,6 +48,11 @@ export class TurnRecorder {
     return null;
   }
 
+  /** The room's noise has been heard long enough to tell speech from it. */
+  get calibrated(): boolean {
+    return this.detector.calibrated;
+  }
+
   /** Learns the room's noise without making turns (while the microphone is paused). */
   learn(frame: Float32Array): void {
     this.detector.learn(rms(frame), (frame.length / this.sampleRate) * 1000);

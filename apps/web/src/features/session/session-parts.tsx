@@ -36,12 +36,19 @@ export const TranscriptIcon = () => (
   </svg>
 );
 
-export function CaptionCard({ caption, textRef }: { caption: Caption; textRef?: Ref<HTMLParagraphElement> }) {
+/**
+ * One line of the chat. With `scroll`, a long line scrolls inside the card past a set height,
+ * so the screen does not grow with the text (the live screen; the transcript already scrolls as a whole).
+ */
+export function CaptionCard(props: { caption: Caption; textRef?: Ref<HTMLParagraphElement>; scroll?: boolean }) {
+  const { caption, textRef, scroll } = props;
   const { parts } = useCopy(SESSION_COPY);
+  // Focusable when it scrolls, so a keyboard can reach and scroll it again.
+  const textClass = scroll ? "max-h-[30dvh] overflow-y-auto overscroll-contain scroll-fade" : "outline-none";
   return (
     <div className="flex flex-col gap-1 rounded-md bg-paper px-[18px] py-4 shadow-card">
       <span className="text-label text-taupe">{caption.who === "tutor" ? parts.tutor : parts.you}</span>
-      <p ref={textRef} tabIndex={textRef ? -1 : undefined} lang="en" className="m-0 text-body outline-none">
+      <p ref={textRef} tabIndex={scroll ? 0 : textRef ? -1 : undefined} lang="en" className={`m-0 text-body ${textClass}`}>
         {caption.text}
       </p>
     </div>

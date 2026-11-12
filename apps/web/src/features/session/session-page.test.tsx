@@ -16,7 +16,7 @@ const routes = await eagerRoutes(lazyRoutes);
 
 let micHandlers: MicrophoneHandlers;
 let socketHandlers: VoiceSocketHandlers;
-const mic = { pause: vi.fn(), resume: vi.fn(), sendNow: vi.fn(), unlock: vi.fn(), stop: vi.fn() };
+const mic = { pause: vi.fn(), resume: vi.fn(() => micHandlers.onListening?.()), sendNow: vi.fn(), unlock: vi.fn(), stop: vi.fn() };
 const socket = { sendTurn: vi.fn(), sendText: vi.fn(), speakLast: vi.fn(), close: vi.fn() };
 const speaker = { play: vi.fn(), stop: vi.fn(), unlock: vi.fn(), close: vi.fn() };
 let finishPlayback: () => void;
@@ -152,6 +152,8 @@ describe("live session", () => {
     expect(screen.getByText("I fixed the login bug")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Show what the tutor said" }));
     expect(screen.getByText("Nice. What's next?")).toHaveFocus();
+    // A long line scrolls inside its card, so the screen does not grow with it.
+    expect(screen.getByText("Nice. What's next?")).toHaveClass("overflow-y-auto");
 
     // The same link hides the line again.
     await userEvent.click(screen.getByRole("button", { name: "Hide what the tutor said" }));
@@ -527,6 +529,12 @@ describe("live session", () => {
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     await opened();
     expect(api.startSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("explains a microphone that can't be opened again after the tutor's turn", async () => {
+    await startAndListen();
+    act(() => micHandlers.onUnavailable?.("blocked"));
+    expect(await screen.findByRole("alert", { name: "Voxa can't hear you" })).toBeInTheDocument();
   });
 
   it("pauses, repeats the last question and ends the session", async () => {
@@ -1011,7 +1019,7 @@ describe("fluency timing", () => {
     now.mockReturnValue(0);
     renderSession();
     await opened();
-    expect(deps.openMicrophone).toHaveBeenCalledWith(expect.anything(), { endSilenceMs: 4000 });
+    expect(deps.openMicrophone).toHaveBeenCalledWith(expect.anything(), { endSilenceMs: 4000, releaseWhilePaused: true });
     act(() => socketHandlers.onOpen());
     act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
     act(() => socketHandlers.onDone());

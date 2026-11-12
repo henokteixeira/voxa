@@ -140,7 +140,7 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
     bottom = (
       <>
         {yours}
-        {tutorLine >= 0 && shownCaption === tutorLine && <CaptionCard caption={lastCaption} textRef={tutorText} />}
+        {tutorLine >= 0 && shownCaption === tutorLine && <CaptionCard caption={lastCaption} textRef={tutorText} scroll />}
       </>
     );
   }

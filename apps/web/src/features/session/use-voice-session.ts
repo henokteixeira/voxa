@@ -169,7 +169,12 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
             socket.current?.sendTurn(wav);
             player.arm(speaker.current);
           },
-        }, { endSilenceMs });
+          // The wait before answering counts from when the microphone hears again, not from when it was asked to.
+          onListening: () => clock.current.listening(performance.now()),
+          // Let go during the tutor's turn (see below); it could not be opened again.
+          onUnavailable: (reason) => dispatch({ type: "failed", code: `mic_${reason}` }),
+          // iOS plays the tutor quietly while the page holds the microphone.
+        }, { endSilenceMs, releaseWhilePaused: true });
         if (cancelled) return opened.stop();
         opened.pause();
         mic.current = opened;
@@ -263,10 +268,8 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
   // Only when `listening` flips: resuming drops what was heard, so doing it again when the learner starts
   // talking ("listening" → "hearing") would lose their turn and leave nothing to send.
   useEffect(() => {
-    if (listening) {
-      clock.current.listening(performance.now());
-      mic.current?.resume();
-    } else mic.current?.pause();
+    if (listening) mic.current?.resume();
+    else mic.current?.pause();
   }, [listening]);
   // Typing or pausing: the wait that follows is not a pause before speaking.
   const interrupted = typing || state.phase === "paused";
