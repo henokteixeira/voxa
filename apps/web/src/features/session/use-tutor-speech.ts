@@ -29,15 +29,25 @@ export function useTutorSpeech({ speaker, clock, paused, dispatch }: TutorSpeech
         return;
       }
       playing.current = true;
-      dispatch({ type: "speech" });
-      // Captions already show the line; if the browser blocks audio, ask for a tap.
-      clock.current.tutorStarted(performance.now());
-      void (speaker.current?.play(wav) ?? Promise.resolve())
+      dispatch({ type: "voice_queued" });
+      let started = false;
+      // "Speaking" only once the voice is heard: waking the audio and decoding come first.
+      const start = () => {
+        if (started) return;
+        started = true;
+        dispatch({ type: "speech" });
+        clock.current.tutorStarted(performance.now());
+      };
+      void (speaker.current ? speaker.current.play(wav, start) : Promise.resolve(start()))
         .catch((error: unknown) => {
-          if (error instanceof AudioBlockedError) dispatch({ type: "audio_blocked" });
+          // Captions already show the line; if the browser blocks audio, ask for a tap.
+          if (error instanceof AudioBlockedError) {
+            start();
+            dispatch({ type: "audio_blocked" });
+          }
         })
         .finally(() => {
-          clock.current.tutorStopped(performance.now());
+          if (started) clock.current.tutorStopped(performance.now());
           // Stopped by the pause sheet: the wait until resume is not a pause before answering.
           if (paused.current) {
             clock.current.interrupt();

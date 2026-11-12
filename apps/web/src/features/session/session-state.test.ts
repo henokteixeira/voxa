@@ -1,6 +1,6 @@
 import type { SessionSummary } from "@/lib/api";
 import { describe, expect, it } from "vitest";
-import { initialSessionState, type SessionAction, type SessionState, sessionReducer } from "./session-state";
+import { initialSessionState, type SessionAction, type SessionState, sessionReducer, tutorSpeaking } from "./session-state";
 
 function run(...actions: SessionAction[]): SessionState {
   return actions.reduce(sessionReducer, initialSessionState);
@@ -77,6 +77,26 @@ describe("sessionReducer", () => {
     expect(state.phase).toBe("speaking");
     state = sessionReducer(sessionReducer(state, { type: "done" }), { type: "playback_end" });
     expect(state.phase).toBe("listening");
+  });
+
+  it("waits for a voice that is still starting before handing over", () => {
+    let state = run(started, { type: "sent", request: "speak" }, { type: "voice_queued" }, { type: "done" });
+    expect(state.phase).toBe("thinking");
+    state = sessionReducer(state, { type: "speech" });
+    expect(state.phase).toBe("speaking");
+    state = sessionReducer(state, { type: "playback_end" });
+    expect(state.phase).toBe("listening");
+  });
+
+  it("hands over when a voice that never started is stopped", () => {
+    const state = run(started, { type: "sent", request: "speak" }, { type: "voice_queued" }, { type: "done" }, { type: "playback_end" });
+    expect(state.phase).toBe("listening");
+  });
+
+  it("counts a voice that is still starting as the tutor speaking", () => {
+    const state = run(started, { type: "sent", request: "speak" }, { type: "voice_queued" });
+    expect(tutorSpeaking(state)).toBe(true);
+    expect(tutorSpeaking(sessionReducer(state, { type: "playback_end" }))).toBe(false);
   });
 
   it("goes listening → hearing → thinking, and shows both sides as captions", () => {

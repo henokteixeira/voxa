@@ -66,6 +66,8 @@ export interface SessionState {
   missed: boolean;
   /** The browser blocked the tutor's voice until the page gets a tap. */
   audioBlocked: boolean;
+  /** A clip of the tutor's voice is in the speaker: starting (waking the audio, decoding) or playing. */
+  voicing: boolean;
   failure: FailureCode | null;
   /** What to resend on "Try again" after a failure mid-turn. */
   retry: Retry | null;
@@ -107,6 +109,9 @@ export type SessionAction =
   | { type: "transcript"; text: string }
   | { type: "tutor"; result: TurnResult }
   | { type: "followup"; result: FollowUp }
+  /** A clip of the tutor's voice went to the speaker; it is heard from "speech". */
+  | { type: "voice_queued" }
+  /** The tutor's voice is heard. */
   | { type: "speech" }
   | { type: "playback_end" }
   | { type: "audio_blocked" }
@@ -142,6 +147,7 @@ export const initialSessionState: SessionState = {
   support: null,
   missed: false,
   audioBlocked: false,
+  voicing: false,
   failure: null,
   retry: null,
   turn: freshTurn("speak"),
@@ -159,7 +165,8 @@ const OVER: Phase[] = ["ending", "ended"];
 
 /** The tutor is speaking this turn, including the short gap while the next part of its voice is still on its way. */
 export function tutorSpeaking(state: SessionState): boolean {
-  return state.phase === "speaking" || (state.phase === "thinking" && state.turn.speech && !state.turn.done);
+  if (state.phase === "speaking") return true;
+  return state.phase === "thinking" && (state.voicing || (state.turn.speech && !state.turn.done));
 }
 
 export function sessionReducer(state: SessionState, action: SessionAction): SessionState {
@@ -257,14 +264,21 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case "speech":
       if (state.phase !== "thinking") return { ...state, turn: { ...state.turn, speech: true } };
       return { ...state, phase: "speaking", audioBlocked: false, turn: { ...state.turn, speech: true } };
-    case "playback_end":
-      return state.phase === "speaking" ? { ...state, phase: state.turn.done ? "listening" : "thinking" } : state;
+    case "voice_queued":
+      return { ...state, voicing: true };
+    case "playback_end": {
+      const idle = { ...state, voicing: false };
+      // Also when the voice was stopped before it was heard, after the turn was done.
+      const handOver = state.phase === "speaking" || (state.phase === "thinking" && state.voicing && state.turn.done);
+      return handOver ? { ...idle, phase: state.turn.done ? "listening" : "thinking" } : idle;
+    }
     case "audio_blocked":
       return { ...state, audioBlocked: true };
     case "done": {
       // A finished turn has nothing left to resend.
       const turn = { ...state.turn, done: true, audio: null };
-      if (state.phase !== "thinking") return { ...state, turn };
+      // The tutor's voice is still starting: hand over when it ends.
+      if (state.phase !== "thinking" || state.voicing) return { ...state, turn };
       // A spoken turn that came back without a transcript held no speech.
       return { ...state, turn, phase: "listening", missed: turn.request === "audio" && turn.transcript === null };
     }

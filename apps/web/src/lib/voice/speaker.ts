@@ -10,8 +10,11 @@ export class AudioBlockedError extends Error {
 
 /** Plays the tutor's speech (WAV). Browser glue, checked by hand on the PC. */
 export interface Speaker {
-  /** Resolves when playback ends or is stopped; rejects with AudioBlockedError until the page gets a tap. */
-  play(wav: ArrayBuffer): Promise<void>;
+  /**
+   * Resolves when playback ends or is stopped; rejects with AudioBlockedError until the page gets a tap.
+   * onStart runs when the sound actually starts (waking the audio and decoding come first, and can take a while).
+   */
+  play(wav: ArrayBuffer, onStart?: () => void): Promise<void>;
   /** Stops what is playing, or what is about to play. */
   stop(): void;
   /** Call from a tap or click: lets the browser play audio. */
@@ -41,7 +44,7 @@ export function createSpeaker(): Speaker {
   };
 
   return {
-    async play(wav) {
+    async play(wav, onStart) {
       stop();
       const mine = generation;
       await Promise.race([context.resume(), new Promise((resolve) => setTimeout(resolve, RESUME_TIMEOUT_MS))]);
@@ -59,6 +62,7 @@ export function createSpeaker(): Speaker {
           resolve();
         };
         source.start();
+        onStart?.();
       });
     },
     stop,
