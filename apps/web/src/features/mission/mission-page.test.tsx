@@ -14,7 +14,6 @@ const player = {
   load: vi.fn().mockResolvedValue(undefined),
   play: vi.fn().mockResolvedValue(true),
   pause: vi.fn(),
-  rewind: vi.fn(),
   unlock: vi.fn(),
   close: vi.fn(),
 };
@@ -172,7 +171,7 @@ describe("the daily mission", () => {
     expect(markMissionStep).not.toHaveBeenCalled();
   });
 
-  it("pauses, resumes and goes back 5 seconds while the model plays", async () => {
+  it("pauses and resumes the model", async () => {
     const markMissionStep = vi.fn().mockResolvedValue(view({ listen: true }));
     renderMission({
       missionToday: vi.fn().mockResolvedValue(view()),
@@ -184,8 +183,6 @@ describe("the daily mission", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Pause" }));
     expect(player.pause).toHaveBeenCalled();
     expect(screen.getByText("Paused")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Back 5 s" }));
-    expect(player.rewind).toHaveBeenCalledWith(5);
     await userEvent.click(screen.getByRole("button", { name: "Resume" }));
     expect(player.play).toHaveBeenCalledTimes(2);
     // Not heard to the end yet: the step isn't done.

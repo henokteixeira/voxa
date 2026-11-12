@@ -24,7 +24,6 @@ export interface MissionCopy {
   paused: string;
   pause: string;
   resume: string;
-  rewind: string;
   showText: string;
   hideText: string;
   playFailed: string;
@@ -74,7 +73,6 @@ export const MISSION_COPY: Copy<MissionCopy> = {
     paused: "Paused",
     pause: "Pause",
     resume: "Resume",
-    rewind: "Back 5 s",
     showText: "Show the text",
     hideText: "Hide the text",
     playFailed: "The audio couldn't play. Tap Listen to try again.",
@@ -122,7 +120,6 @@ export const MISSION_COPY: Copy<MissionCopy> = {
     paused: "Pausado",
     pause: "Pausar",
     resume: "Retomar",
-    rewind: "Voltar 5 s",
     showText: "Mostrar o texto",
     hideText: "Esconder o texto",
     playFailed: "Não deu para tocar o áudio. Toque em Ouvir para tentar de novo.",

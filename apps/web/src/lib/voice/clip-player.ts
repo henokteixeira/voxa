@@ -1,6 +1,6 @@
 import { AudioBlockedError, RESUME_TIMEOUT_MS } from "./speaker";
 
-/** Plays one recorded clip (WAV) the learner can pause and go back in. Browser glue, checked by hand on the PC. */
+/** Plays one recorded clip (WAV) the learner can pause and resume. Browser glue, checked by hand on the PC. */
 export interface ClipPlayer {
   /** Decodes the clip; playback starts at its beginning. */
   load(wav: ArrayBuffer): Promise<void>;
@@ -11,8 +11,6 @@ export interface ClipPlayer {
   play(): Promise<boolean>;
   /** Stops where it is: the next play() goes on from there. */
   pause(): void;
-  /** Goes back up to `seconds`, still playing if it was. */
-  rewind(seconds: number): void;
   /** Call from a tap or click: lets the browser play audio. */
   unlock(): void;
   close(): void;
@@ -77,12 +75,6 @@ export function createClipPlayer(onEnded: () => void): ClipPlayer {
     pause() {
       generation++;
       halt();
-    },
-    rewind(seconds) {
-      const playing = source !== null;
-      halt();
-      offset = Math.max(0, offset - seconds);
-      if (playing) start();
     },
     unlock() {
       if (!closed) context.resume().catch(() => {});

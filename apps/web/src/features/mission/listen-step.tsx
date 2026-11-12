@@ -8,12 +8,9 @@ import { useCopy } from "@/lib/i18n/locale";
 import type { ClipPlayer } from "@/lib/voice/clip-player";
 import { MISSION_COPY } from "./mission-copy";
 
-/** How far "Back" goes: about one sentence of the model. */
-const REWIND_SECONDS = 5;
-
 /**
  * Step 1: someone else does the same task first, at the learner's level. Audio first, the text on tap.
- * While it plays, the learner can pause it and go back a few seconds to catch a sentence again.
+ * While it plays, the learner can pause it and resume from the same spot.
  * The step is done once the learner listened to it to the end (`onListened`); "Continue" then moves on, and stops the audio.
  * If the audio can't play, Continue is offered too: the text is there to read.
  */
@@ -106,23 +103,17 @@ export function ListenStep(props: { missionId: string; model: MissionModel; onLi
           {textShown ? copy.hideText : copy.showText}
         </button>
         {started ? (
-          <div className="flex gap-2">
-            <Button variant="secondary" className="flex-1" onClick={() => player.current?.rewind(REWIND_SECONDS)}>
-              <RewindIcon />
-              {copy.rewind}
+          state === "playing" ? (
+            <Button block variant="secondary" onClick={pause}>
+              <PauseIcon />
+              {copy.pause}
             </Button>
-            {state === "playing" ? (
-              <Button variant="secondary" className="flex-1" onClick={pause}>
-                <PauseIcon />
-                {copy.pause}
-              </Button>
-            ) : (
-              <Button variant="secondary" className="flex-1" onClick={() => void play()}>
-                <PlayIcon />
-                {copy.resume}
-              </Button>
-            )}
-          </div>
+          ) : (
+            <Button block variant="secondary" onClick={() => void play()}>
+              <PlayIcon />
+              {copy.resume}
+            </Button>
+          )
         ) : (
           <Button block variant={canContinue ? "secondary" : "primary"} disabled={state === "loading"} onClick={() => void play()}>
             {listened ? copy.listenAgain : copy.listen}
@@ -163,11 +154,3 @@ function PlayIcon() {
   );
 }
 
-function RewindIcon() {
-  return (
-    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 3v3.5h3.5" />
-      <path d="M3.4 6.5A5.5 5.5 0 1 1 3 9.5" />
-    </svg>
-  );
-}
