@@ -21,6 +21,9 @@ export interface MissionCopy {
   listen: string;
   listening: string;
   listenAgain: string;
+  paused: string;
+  pause: string;
+  resume: string;
   showText: string;
   hideText: string;
   playFailed: string;
@@ -67,6 +70,9 @@ export const MISSION_COPY: Copy<MissionCopy> = {
     listen: "Listen",
     listening: "Speaking",
     listenAgain: "Listen again",
+    paused: "Paused",
+    pause: "Pause",
+    resume: "Resume",
     showText: "Show the text",
     hideText: "Hide the text",
     playFailed: "The audio couldn't play. Tap Listen to try again.",
@@ -111,6 +117,9 @@ export const MISSION_COPY: Copy<MissionCopy> = {
     listen: "Ouvir",
     listening: "Falando",
     listenAgain: "Ouvir de novo",
+    paused: "Pausado",
+    pause: "Pausar",
+    resume: "Retomar",
     showText: "Mostrar o texto",
     hideText: "Esconder o texto",
     playFailed: "Não deu para tocar o áudio. Toque em Ouvir para tentar de novo.",

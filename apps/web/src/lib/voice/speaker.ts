@@ -1,5 +1,5 @@
 /** Browsers keep audio suspended until the page has had a tap; don't wait for it forever. */
-const RESUME_TIMEOUT_MS = 1500;
+export const RESUME_TIMEOUT_MS = 1500;
 
 export class AudioBlockedError extends Error {
   constructor() {

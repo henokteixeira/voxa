@@ -54,6 +54,7 @@ const deps: VoiceDeps = {
     return socket;
   }),
   createSpeaker: () => speaker,
+  createClipPlayer: vi.fn(),
 };
 
 function todayWith(earnedXp: number) {

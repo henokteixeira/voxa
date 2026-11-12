@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,11 +8,22 @@ import type { ApiClient, MissionSteps, MissionView } from "@/lib/api";
 import { MissionPage } from "./mission-page";
 import { saveMissionTakeaways } from "./mission-steps";
 
-const speaker = { play: vi.fn().mockResolvedValue(undefined), stop: vi.fn(), unlock: vi.fn(), close: vi.fn() };
+// The model's clip: the test plays it to the end with `endClip()`.
+let endClip: () => void = () => {};
+const player = {
+  load: vi.fn().mockResolvedValue(undefined),
+  play: vi.fn().mockResolvedValue(true),
+  pause: vi.fn(),
+  unlock: vi.fn(),
+  close: vi.fn(),
+};
 // No microphone here: the learner types.
 const deps = {
   openMicrophone: vi.fn().mockRejectedValue(new Error("blocked")),
-  createSpeaker: () => speaker,
+  createClipPlayer: (onEnded: () => void) => {
+    endClip = onEnded;
+    return player;
+  },
 } as unknown as VoiceDeps;
 
 const steps = (done: Partial<MissionSteps> = {}): MissionSteps => ({
@@ -86,7 +97,8 @@ describe("the daily mission", () => {
     await userEvent.click(screen.getByRole("button", { name: "Show the text" }));
     expect(screen.getByText(model.text)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Listen" }));
-    expect(speaker.play).toHaveBeenCalled();
+    expect(player.play).toHaveBeenCalled();
+    act(() => endClip());
     expect(markMissionStep).toHaveBeenCalledWith("m1", "listen");
     await userEvent.click(await screen.findByRole("button", { name: "Continue" }));
 
@@ -157,6 +169,42 @@ describe("the daily mission", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Close" }));
     expect(router.state.location.pathname).toBe("/");
     expect(markMissionStep).not.toHaveBeenCalled();
+  });
+
+  it("pauses and resumes the model", async () => {
+    const markMissionStep = vi.fn().mockResolvedValue(view({ listen: true }));
+    renderMission({
+      missionToday: vi.fn().mockResolvedValue(view()),
+      missionModel: vi.fn().mockResolvedValue(model),
+      missionSpeech: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+      markMissionStep,
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Listen" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Pause" }));
+    expect(player.pause).toHaveBeenCalled();
+    expect(screen.getByText("Paused")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Resume" }));
+    expect(player.play).toHaveBeenCalledTimes(2);
+    // Not heard to the end yet: the step isn't done.
+    expect(markMissionStep).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
+  });
+
+  it("stops the model when the learner moves on while it plays again", async () => {
+    const markMissionStep = vi.fn().mockResolvedValue(view({ listen: true }));
+    renderMission({
+      missionToday: vi.fn().mockResolvedValue(view()),
+      missionModel: vi.fn().mockResolvedValue(model),
+      missionSpeech: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+      markMissionStep,
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Listen" }));
+    act(() => endClip());
+    await userEvent.click(await screen.findByRole("button", { name: "Listen again" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    expect(player.pause).toHaveBeenCalled();
+    expect(markMissionStep).toHaveBeenLastCalledWith("m1", "listen");
+    await vi.waitFor(() => expect(player.close).toHaveBeenCalled());
   });
 
   it("goes on to the conversation without audio: the text is there to read", async () => {

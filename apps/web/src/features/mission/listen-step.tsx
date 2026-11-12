@@ -5,45 +5,72 @@ import { VoiceDepsContext } from "@/features/session/voice-deps";
 import { useApi } from "@/hooks/use-api";
 import type { MissionModel } from "@/lib/api";
 import { useCopy } from "@/lib/i18n/locale";
-import type { Speaker } from "@/lib/voice/speaker";
+import type { ClipPlayer } from "@/lib/voice/clip-player";
 import { MISSION_COPY } from "./mission-copy";
 
 /**
  * Step 1: someone else does the same task first, at the learner's level. Audio first, the text on tap.
- * The step is done once the learner listened to it to the end (`onListened`); "Continue" then moves on.
+ * While it plays, the learner can pause it and resume from the same spot.
+ * The step is done once the learner listened to it to the end (`onListened`); "Continue" then moves on, and stops the audio.
  * If the audio can't play, Continue is offered too: the text is there to read.
  */
 export function ListenStep(props: { missionId: string; model: MissionModel; onListened: () => void; onContinue: () => void }) {
   const { missionId, model } = props;
   const api = useApi();
   const copy = useCopy(MISSION_COPY);
-  const { createSpeaker } = useContext(VoiceDepsContext);
-  const speaker = useRef<Speaker | null>(null);
-  const speech = useRef<Promise<ArrayBuffer> | null>(null);
-  const [state, setState] = useState<"idle" | "playing" | "failed">("idle");
+  const { createClipPlayer } = useContext(VoiceDepsContext);
+  const player = useRef<ClipPlayer | null>(null);
+  const loaded = useRef(false);
+  const [state, setState] = useState<"idle" | "loading" | "playing" | "paused" | "failed">("idle");
   const [listened, setListened] = useState(false);
   const [textShown, setTextShown] = useState(false);
-  useEffect(() => () => speaker.current?.close(), []);
+  // The clip ends outside React: read the latest callback, not the first render's.
+  const onListened = useRef(props.onListened);
+  useEffect(() => {
+    onListened.current = props.onListened;
+  });
+  const listenedOnce = useRef(false);
+  useEffect(() => () => player.current?.close(), []);
+
+  function ended() {
+    setState("idle");
+    if (listenedOnce.current) return;
+    listenedOnce.current = true;
+    setListened(true);
+    onListened.current();
+  }
 
   async function play() {
-    speaker.current ??= createSpeaker();
-    speaker.current.unlock();
-    setState("playing");
+    player.current ??= createClipPlayer(ended);
+    player.current.unlock();
+    setState(loaded.current ? "playing" : "loading");
     try {
-      speech.current ??= api.missionSpeech(missionId);
-      await speaker.current.play(await speech.current);
-      setState("idle");
-      if (!listened) {
-        setListened(true);
-        props.onListened();
+      if (!loaded.current) {
+        await player.current.load(await api.missionSpeech(missionId));
+        loaded.current = true;
       }
     } catch {
       // The next tap loads the speech again.
-      speech.current = null;
+      setState("failed");
+      return;
+    }
+    try {
+      // Paused again before it started: keep the paused screen.
+      if (!(await player.current.play())) setState((current) => (current === "playing" ? "paused" : current));
+      else setState("playing");
+    } catch {
+      // Blocked by the browser: the next tap resumes from the same spot.
       setState("failed");
     }
   }
 
+  function pause() {
+    player.current?.pause();
+    setState("paused");
+  }
+
+  const started = state === "playing" || state === "paused";
+  const canContinue = listened || state === "failed";
   return (
     <>
       <div className="flex flex-col gap-2">
@@ -53,7 +80,7 @@ export function ListenStep(props: { missionId: string; model: MissionModel; onLi
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
         <VoiceBall state={state === "playing" ? "speaking" : "idle"} size={180} />
         <span aria-live="polite" className="text-label text-mist-ink">
-          {state === "playing" ? copy.listening : ""}
+          {state === "playing" ? copy.listening : state === "paused" ? copy.paused : ""}
         </span>
       </div>
       {textShown && (
@@ -75,22 +102,55 @@ export function ListenStep(props: { missionId: string; model: MissionModel; onLi
         >
           {textShown ? copy.hideText : copy.showText}
         </button>
-        {/* Without audio, reading the text is the way through: the step never blocks the mission. */}
-        {listened || state === "failed" ? (
-          <>
-            <Button block variant="secondary" disabled={state === "playing"} onClick={() => void play()}>
-              {listened ? copy.listenAgain : copy.listen}
+        {started ? (
+          state === "playing" ? (
+            <Button block variant="secondary" onClick={pause}>
+              <PauseIcon />
+              {copy.pause}
             </Button>
-            <Button block disabled={state === "playing"} onClick={props.onContinue}>
-              {copy.continue}
+          ) : (
+            <Button block variant="secondary" onClick={() => void play()}>
+              <PlayIcon />
+              {copy.resume}
             </Button>
-          </>
+          )
         ) : (
-          <Button block disabled={state === "playing"} onClick={() => void play()}>
-            {copy.listen}
+          <Button block variant={canContinue ? "secondary" : "primary"} disabled={state === "loading"} onClick={() => void play()}>
+            {listened ? copy.listenAgain : copy.listen}
+          </Button>
+        )}
+        {/* Without audio, reading the text is the way through: the step never blocks the mission. */}
+        {canContinue && (
+          <Button
+            block
+            onClick={() => {
+              // Saving the step takes a round trip: the audio stops now.
+              player.current?.pause();
+              props.onContinue();
+            }}
+          >
+            {copy.continue}
           </Button>
         )}
       </div>
     </>
   );
 }
+
+function PauseIcon() {
+  return (
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <rect x="3.5" y="2.5" width="3" height="11" rx="1" />
+      <rect x="9.5" y="2.5" width="3" height="11" rx="1" />
+    </svg>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M4.5 2.8v10.4a.8.8 0 0 0 1.2.7l8.4-5.2a.8.8 0 0 0 0-1.4L5.7 2.1a.8.8 0 0 0-1.2.7Z" />
+    </svg>
+  );
+}
+
