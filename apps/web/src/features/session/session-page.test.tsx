@@ -131,7 +131,10 @@ beforeEach(() => {
     language: "en",
     message: "Morning! What did you work on yesterday?",
   });
-  speaker.play.mockImplementation(() => new Promise<void>((resolve) => (finishPlayback = resolve)));
+  speaker.play.mockImplementation((_wav: ArrayBuffer, onStart?: () => void) => {
+    onStart?.();
+    return new Promise<void>((resolve) => (finishPlayback = resolve));
+  });
 });
 
 describe("live session", () => {
@@ -343,6 +346,26 @@ describe("live session", () => {
     expect(mic.resume).toHaveBeenCalledTimes(2);
   });
 
+  it("shows the tutor speaking only once its voice is heard", async () => {
+    let start: () => void = () => {};
+    speaker.play.mockImplementationOnce((_wav: ArrayBuffer, onStart?: () => void) => {
+      start = () => onStart?.();
+      return new Promise<void>((resolve) => (finishPlayback = resolve));
+    });
+    renderSession();
+    await opened();
+    act(() => socketHandlers.onOpen());
+    act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
+    expect(screen.queryByText("Speaking")).not.toBeInTheDocument();
+    // The server is done before the voice is heard: the microphone waits for the voice to end.
+    act(() => socketHandlers.onDone());
+    expect(mic.resume).not.toHaveBeenCalled();
+    act(() => start());
+    expect(screen.getByText("Speaking")).toBeInTheDocument();
+    await act(async () => finishPlayback());
+    expect(mic.resume).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the microphone off while the tutor speaks", async () => {
     renderSession();
     await opened();
@@ -397,7 +420,7 @@ describe("live session", () => {
       const answer = new ArrayBuffer(8);
       act(() => socketHandlers.onSpeech(answer));
       expect(speaker.stop).toHaveBeenCalled();
-      expect(speaker.play).toHaveBeenLastCalledWith(answer);
+      expect(speaker.play).toHaveBeenLastCalledWith(answer, expect.any(Function));
     } finally {
       vi.useRealTimers();
     }
