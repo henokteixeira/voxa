@@ -69,6 +69,7 @@ class FakeSessions implements SessionRepository {
       language: input.language,
       mode: input.mode,
       pending: null,
+      withdrawnMistakes: [],
       startedAt: input.startedAt ?? new Date(),
       endedAt: null,
       coveredGoals: [],
@@ -112,6 +113,11 @@ class FakeSessions implements SessionRepository {
   }
   async setPending(id: string, pending: PendingCorrection | null) {
     this.rows.get(id)!.pending = pending;
+  }
+  async withdrawPending(id: string, original: string) {
+    const row = this.rows.get(id)!;
+    row.pending = null;
+    row.withdrawnMistakes = [...row.withdrawnMistakes, original];
   }
   async saveTiming(id: string, timing: SessionTiming) {
     const row = this.rows.get(id);
@@ -859,6 +865,11 @@ describe("TurnService.respond", () => {
     // Nothing pending: nothing to do.
     await turns.withdrawPending(session.id);
     expect(mistakes.withdrawn).toHaveLength(1);
+    // Said again, it gets no new hint and is not counted again.
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    const again = await turns.respond(session.id, "I goed to the meeting");
+    expect(again.kind).toBe("reply");
+    expect(mistakes.events.filter((e) => e.original === goed.original)).toHaveLength(0);
   });
 
   it("gives the correct form without a rule for a hint saved before patterns", async () => {

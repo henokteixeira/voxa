@@ -12,6 +12,7 @@ const session: Session = {
   language: "en-US",
   mode: "daily",
   pending: null,
+  withdrawnMistakes: [],
   startedAt: new Date(),
   endedAt: null,
   coveredGoals: [],

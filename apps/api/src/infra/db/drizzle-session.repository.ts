@@ -32,6 +32,7 @@ function toSession(row: SessionRow, targets: TargetRow[]): Session {
     language: row.language,
     mode: row.mode,
     pending: row.pending ?? null,
+    withdrawnMistakes: row.withdrawnMistakes,
     startedAt: row.startedAt,
     endedAt: row.endedAt,
     coveredGoals: row.coveredGoals,
@@ -161,6 +162,13 @@ export class DrizzleSessionRepository implements SessionRepository {
       .where(eq(turns.sessionId, sessionId))
       .orderBy(asc(turns.seq));
     return rows.map((r) => ({ role: r.role === "user" ? "user" : "assistant", content: r.content }));
+  }
+
+  async withdrawPending(sessionId: string, original: string): Promise<void> {
+    await this.db
+      .update(sessions)
+      .set({ pending: null, withdrawnMistakes: sql`array_append(${sessions.withdrawnMistakes}, ${original})` })
+      .where(this.own(sessionId));
   }
 
   async setPending(sessionId: string, pending: PendingCorrection | null): Promise<void> {

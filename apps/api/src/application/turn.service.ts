@@ -169,7 +169,9 @@ export class TurnService {
     }
     // The placement interview only observes: every mistake is recorded as minor, so none stops it with a hint.
     // In the guided track, saying the words given (the model, the longer sentence) never stops for a hint either.
-    const byMode = verdictForMode(session.mode, focusedVerdict(verdict, focus));
+    // A mistake the learner said they said right is not raised again in this session, nor recorded.
+    const kept = withoutWithdrawn(verdict, session.withdrawnMistakes);
+    const byMode = verdictForMode(session.mode, focusedVerdict(kept, focus));
     const observed = session.track && !pausesForHints(session.track.stage) ? notedOnly(byMode) : byMode;
     const decision = decide(session.pending, observed);
     // The track moves on a plain reply only: while a hint is pending, the learner retries the same answer.
@@ -275,7 +277,7 @@ export class TurnService {
     if (!pending) return;
     await this.unitOfWork.run(async (stores) => {
       await stores.mistakes.withdraw(sessionId, { language: session.language, original: pending.original });
-      await stores.sessions.setPending(sessionId, null);
+      await stores.sessions.withdrawPending(sessionId, pending.original);
     });
   }
 
@@ -322,4 +324,10 @@ export class TurnService {
     const nextGoal = nextGoalAfter(goalsFor(session.mode), track.goal, session.coveredGoals);
     return trackOutcomes({ track, step, model: session.scaffold, utterance, nextGoal });
   }
+}
+
+/** The verdict without the mistakes the learner answered with "I said it right" earlier in the session. */
+export function withoutWithdrawn(verdict: TutorVerdict, withdrawn: readonly string[]): TutorVerdict {
+  if (!withdrawn.length) return verdict;
+  return { ...verdict, issues: verdict.issues.filter((issue) => !withdrawn.some((w) => sameText(w, issue.original))) };
 }

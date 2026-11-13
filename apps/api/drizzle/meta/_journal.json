@@ -260,6 +260,13 @@
       "when": 1794532037396,
       "tag": "0036_mission_faster_skipped",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794533058355,
+      "tag": "0037_session_withdrawn_mistakes",
+      "breakpoints": true
     }
   ]
 }

@@ -30,6 +30,7 @@ describe("DrizzleSessionRepository", () => {
       language: "en",
       mode: "daily",
       pending: null,
+      withdrawnMistakes: [],
       startedAt: expect.any(Date),
       endedAt: null,
       coveredGoals: [],
@@ -197,6 +198,15 @@ describe("DrizzleSessionRepository", () => {
 
   it("has no outcome for an unknown session", async () => {
     expect(await sessions.outcome("6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b")).toBeNull();
+  });
+});
+
+describe("DrizzleSessionRepository.withdrawPending", () => {
+  it("clears the pending hint and keeps its words", async () => {
+    const s = await sessions.create({ language: "en", mode: "daily" });
+    await sessions.setPending(s.id, { original: "I goed", correction: "I went", category: "verb_tense", hintsGiven: 1, revealed: false });
+    await sessions.withdrawPending(s.id, "I goed");
+    expect(await sessions.get(s.id)).toMatchObject({ pending: null, withdrawnMistakes: ["I goed"] });
   });
 });
 
@@ -390,6 +400,8 @@ describe("DrizzleMistakeRepository as the mistake bank", () => {
 
     await mistakes.withdraw(s1.id, goed);
     expect(await mistakes.mostFrequent("en", 5)).toEqual([]);
+    // A dismissed mistake is left as the learner dismissed it.
+    await mistakes.withdraw(s1.id, goed);
     // Unknown mistakes are ignored.
     await mistakes.withdraw(s1.id, { language: "en", original: "never said" });
   });
