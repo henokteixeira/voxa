@@ -287,7 +287,12 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
 
       {/* The cards scroll inside the room left under the ball, so a long card never makes the screen grow. */}
       <div inert={state.phase === "paused"} className="flex min-h-0 flex-col gap-3">
-        <div aria-live="polite" className="-mx-1 flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain px-1 pb-6 scroll-mask">
+        {/* Capped at half the screen, so the transcript keeps room above it; focusable so a keyboard can scroll it. */}
+        <div
+          aria-live="polite"
+          tabIndex={cardOpen ? 0 : undefined}
+          className={`-mx-1 flex max-h-[50dvh] min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain px-1 outline-none ${cardOpen ? "scroll-mask pb-6" : ""}`}
+        >
           {bottom}
           {supportShown && state.support && <SupportNote text={state.support} />}
         </div>

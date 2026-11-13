@@ -116,6 +116,7 @@
  * Pair it with 24px of bottom padding: at the end only the empty padding fades.
  */
 @utility scroll-mask {
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent);
   mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent);
 }
 
