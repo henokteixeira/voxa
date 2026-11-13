@@ -4,6 +4,7 @@ import { correctsMistakes, type Mode } from "../domain/conversation/mode.js";
 import { describeGoal, goalsFor } from "../domain/conversation/session-goals.js";
 import { sessionStep } from "../domain/conversation/support.js";
 import type { ChatTurn, Session } from "../domain/conversation/types.js";
+import { shownRule } from "../domain/conversation/text.js";
 import { choosePracticeTargets } from "../domain/conversation/practice-targets.js";
 import { InvalidInputError } from "../domain/errors.js";
 import type { Mission } from "../domain/mission/mission.js";
@@ -41,7 +42,7 @@ export interface SessionResume {
     revealed: boolean;
     mistake: string;
     mistakeType: string;
-    /** Only once the correct form was given: the rule it breaks. */
+    /** The rule it breaks, when it does not give the correct form away (see shownRule). */
     rule: { name: string; rule: string } | null;
   } | null;
   track: TrackView | null;
@@ -120,7 +121,7 @@ export class SessionStartService {
             revealed: pending.revealed,
             mistake: pending.original,
             mistakeType: pending.category,
-            rule: pending.revealed ? (pending.pattern ?? null) : null,
+            rule: shownRule(pending),
           }
         : null,
       track: trackView(session.track),

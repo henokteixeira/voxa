@@ -212,6 +212,9 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     resumeSession: (sessionId: string) => request<ResumedSession>(`/sessions/${encodeURIComponent(sessionId)}`),
     sendTurn: (sessionId: string, text: string) =>
       request<TurnResult>(`/sessions/${encodeURIComponent(sessionId)}/turns`, { method: "POST", body: { text } }),
+    /** "I said it right": the pending mistake no longer counts, and the conversation goes on. */
+    withdrawPending: (sessionId: string) =>
+      request<void>(`/sessions/${encodeURIComponent(sessionId)}/pending/withdraw`, { method: "POST" }),
     /** The timing so far, after each turn. */
     saveTiming: (sessionId: string, timing: SessionTiming) =>
       request<void>(`/sessions/${encodeURIComponent(sessionId)}/timing`, { method: "PUT", body: timing }),

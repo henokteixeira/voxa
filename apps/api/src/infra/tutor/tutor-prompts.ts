@@ -265,7 +265,8 @@ export function buildSystemPrompt(
         "short snake_case id in English (e.g. `past_simple_finished_action`); when the rule is one in the known " +
         "patterns list, copy its key exactly. `name`: a label of two to six words, in plain " +
         `${language} (e.g. \"Past for finished actions\"). \`rule\`: the rule in one short line, in ${firstLanguage}, ` +
-        "with one tiny example; it is shown only after the learner tries, so it may hold the correct form.",
+        "with one tiny example about something else; it is shown with the hint, before the learner retries, so it " +
+        "must never hold the corrected words of this mistake.",
       "Do not report style preferences or correct language that a fluent speaker would accept.",
       "List in `correctUses` each known mistake the learner avoided (the utterance says the same thing correctly), " +
         `and each new word they now said in ${language}. Copy its \`original\` text from the known mistakes or new ` +

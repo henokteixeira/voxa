@@ -65,6 +65,8 @@ export interface SessionCopy {
     correctForm: string;
     savedToBank: string;
     help: string;
+    saidItRight: string;
+    withdrawn: string;
   };
 }
 
@@ -243,6 +245,8 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       correctForm: "The correct form",
       savedToBank: "Saved to your mistake bank",
       help: "Help",
+      saidItRight: "I said it right",
+      withdrawn: "Got it: that doesn't count as a mistake. Go on.",
     },
   },
   "pt-BR": {
@@ -295,6 +299,8 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       correctForm: "A forma correta",
       savedToBank: "Salvo no seu banco de erros",
       help: "Ajuda",
+      saidItRight: "Eu disse certo",
+      withdrawn: "Certo: isso não conta como erro. Pode continuar.",
     },
   },
 };

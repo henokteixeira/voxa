@@ -25,7 +25,7 @@ import { SessionEndedError, TurnConflictError } from "../domain/conversation/ses
 import { keptScaffold, surprisesAllowed, wasAssisted } from "../domain/conversation/support.js";
 import { NEW_WORD_CATEGORY, type PracticeTarget, type Session } from "../domain/conversation/types.js";
 import { hintFocus, metTargetsAfter } from "../domain/conversation/practice-targets.js";
-import { sameText, safeSupport } from "../domain/conversation/text.js";
+import { sameText, safeSupport, shownRule } from "../domain/conversation/text.js";
 import { patternsToBringBack } from "../domain/mistakes/bring-back.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { LEARNER_CONTEXT_PORT, type LearnerContextPort } from "../domain/ports/learner-context.port.js";
@@ -54,7 +54,7 @@ export interface TurnResult {
   mistake: string | null;
   /** On a hint or the correct form: the mistake's type (e.g. verb_tense), named on the card. */
   mistakeType: string | null;
-  /** With the correct form only (it may hold it): the rule the mistake breaks, in one line. */
+  /** With a hint or the correct form: the rule the mistake breaks, in one line (see shownRule). */
   rule: { name: string; rule: string } | null;
   /** True when the tutor asked whether to stop or keep going. */
   checkIn: boolean;
@@ -257,12 +257,26 @@ export class TurnService {
       support: safeSupport(verdict.support, decision.nextPending?.correction),
       mistake: decision.kind === "hint" ? (decision.nextPending?.original ?? null) : null,
       mistakeType: decision.kind === "reply" ? null : (decision.nextPending?.category ?? null),
-      rule: decision.kind === "reveal" ? (decision.nextPending?.pattern ?? null) : null,
+      rule: decision.kind === "reply" ? null : shownRule(decision.nextPending),
       checkIn: checkIn !== null,
       coveredGoals,
       track: trackView(move?.track ?? session.track),
       scaffold,
     };
+  }
+
+  /**
+   * "I said it right": the learner says the tutor (or the speech-to-text) got the pending mistake wrong. The mistake no
+   * longer counts for this session and the conversation goes on, with no more hints about it. Nothing to do without one.
+   */
+  async withdrawPending(sessionId: string): Promise<void> {
+    const session = await openSession(this.sessions, sessionId);
+    const pending = session.pending;
+    if (!pending) return;
+    await this.unitOfWork.run(async (stores) => {
+      await stores.mistakes.withdraw(sessionId, { language: session.language, original: pending.original });
+      await stores.sessions.setPending(sessionId, null);
+    });
   }
 
   /** Saves one turn's writes in a single transaction, after checking no other turn of the session was saved meanwhile. */

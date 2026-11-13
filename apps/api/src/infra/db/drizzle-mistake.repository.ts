@@ -263,6 +263,28 @@ export class DrizzleMistakeRepository implements MistakeRepository, MistakeBankR
     }));
   }
 
+  async withdraw(sessionId: string, m: { language: string; original: string }): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ id: mistakes.id })
+        .from(mistakes)
+        .where(and(this.mine, eq(mistakes.language, m.language), eq(mistakes.original, m.original)))
+        .for("update");
+      if (!row) return;
+      await tx
+        .delete(mistakeOccurrences)
+        .where(and(eq(mistakeOccurrences.mistakeId, row.id), eq(mistakeOccurrences.sessionId, sessionId)));
+      const [{ left }] = await tx
+        .select({ left: count() })
+        .from(mistakeOccurrences)
+        .where(eq(mistakeOccurrences.mistakeId, row.id));
+      await tx
+        .update(mistakes)
+        .set(left === 0 ? { dismissedAt: new Date(), dismissReason: "transcript_error" } : { occurrences: left })
+        .where(eq(mistakes.id, row.id));
+    });
+  }
+
   async dismiss(id: string, reason: DismissReason): Promise<boolean> {
     const updated = await this.db
       .update(mistakes)

@@ -50,13 +50,17 @@ export interface SessionState {
   captions: Caption[];
   /** Hints given for the current mistake: 0, 1 or 2. */
   hintStep: number;
-  /** The learner's sentence the hint is about. */
+  /** The words of the learner's sentence that hold the mistake. */
   hintFor: string | null;
+  /** The learner's whole sentence the hint is about, as transcribed (the latest try). */
+  hintSentence: string | null;
+  /** The learner said "I said it right": the mistake no longer counts. Shown until the next turn. */
+  withdrawn: boolean;
   /** The tutor gave the correct form and asked for a repeat. */
   revealed: boolean;
   /** The current mistake's type (e.g. verb_tense), named on the hint card; null when unknown. */
   mistakeType: string | null;
-  /** With the correct form: the rule the mistake breaks. */
+  /** With a hint or the correct form: the rule the mistake breaks. */
   rule: { name: string; rule: string } | null;
   /** The learner just fixed a mistake alone. */
   fixed: boolean;
@@ -102,6 +106,8 @@ export type SessionAction =
       hint: { hintsGiven: number; revealed: boolean; mistake?: string; mistakeType?: string; rule?: { name: string; rule: string } | null } | null;
     } & Guidance)
   | { type: "keep_going" }
+  /** "I said it right" on a hint card: the server dropped the mistake. */
+  | { type: "withdrawn" }
   | { type: "sent"; request: "audio"; audio: ArrayBuffer }
   | { type: "sent"; request: "speak" }
   | { type: "sent"; request: "text"; text: string }
@@ -140,6 +146,8 @@ export const initialSessionState: SessionState = {
   captions: [],
   hintStep: 0,
   hintFor: null,
+  hintSentence: null,
+  withdrawn: false,
   mistakeType: null,
   rule: null,
   revealed: false,
@@ -197,15 +205,18 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         coveredGoals: action.coveredGoals,
         hintStep: hint && !hint.revealed ? Math.min(2, hint.hintsGiven) : 0,
         hintFor: hint?.mistake ?? null,
+        hintSentence: hint ? (action.captions.findLast((c) => c.who === "you")?.text ?? null) : null,
         revealed: hint?.revealed ?? false,
         mistakeType: hint?.mistakeType ?? null,
-        rule: hint?.revealed ? (hint.rule ?? null) : null,
+        rule: hint?.rule ?? null,
         turn: freshTurn("speak"),
         ...guidance(state, action),
       };
     }
     case "keep_going":
       return { ...state, checkIn: false };
+    case "withdrawn":
+      return { ...state, ...noHint, support: null, withdrawn: true };
     case "sent":
       return {
         ...state,
@@ -213,6 +224,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         missed: false,
         fixed: false,
         support: null,
+        withdrawn: false,
         checkIn: false,
         failure: null,
         retry: null,
@@ -316,10 +328,12 @@ function guidance(state: SessionState, from: Guidance): Pick<SessionState, "trac
   };
 }
 
+const noHint = { hintStep: 0, hintFor: null, hintSentence: null, mistakeType: null, rule: null, revealed: false } as const;
+
 function withTutor(state: SessionState, result: TurnResult): SessionState {
   const captions = [...state.captions, { who: "tutor" as const, text: result.message }];
   if (result.kind === "hint") {
-    // Only the words with the mistake, never the whole answer: the hint stays the focus.
+    // The words with the mistake (never the correction), inside the learner's latest try of the sentence.
     const said = result.mistake ?? null;
     const first = state.hintStep === 0 || state.revealed;
     return {
@@ -327,17 +341,18 @@ function withTutor(state: SessionState, result: TurnResult): SessionState {
       captions,
       hintStep: first ? 1 : Math.min(2, state.hintStep + 1),
       hintFor: first ? said : (state.hintFor ?? said),
+      hintSentence: state.captions.findLast((c) => c.who === "you")?.text ?? null,
       mistakeType: result.mistakeType ?? (first ? null : state.mistakeType),
-      rule: null,
+      rule: result.rule ?? (first ? null : state.rule),
       revealed: false,
       fixed: false,
     };
   }
   if (result.kind === "reveal") {
     const mistakeType = result.mistakeType ?? state.mistakeType;
-    return { ...state, captions, mistakeType, rule: result.rule ?? null, revealed: true, fixed: false };
+    return { ...state, captions, mistakeType, rule: result.rule ?? state.rule, revealed: true, fixed: false };
   }
-  return { ...state, captions, hintStep: 0, hintFor: null, mistakeType: null, rule: null, revealed: false, fixed: result.selfCorrected };
+  return { ...state, captions, ...noHint, fixed: result.selfCorrected };
 }
 
 /** After a failure, what "Try again" should do so the learner does not repeat themselves for nothing. */

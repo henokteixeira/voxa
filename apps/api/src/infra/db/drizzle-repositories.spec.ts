@@ -378,6 +378,22 @@ describe("DrizzleMistakeRepository as the mistake bank", () => {
     expect((await mistakes.list("en"))[0].sessionsCorrect).toBe(2);
   });
 
+  it("withdraws a session's occurrences of a mistake, and drops one that came up only there", async () => {
+    const s1 = await sessions.create({ language: "en", mode: "daily" });
+    const s2 = await sessions.create({ language: "en", mode: "daily" });
+    await mistakes.record(goed, { sessionId: s1.id, severity: "minor" });
+    await mistakes.record(goed, { sessionId: s2.id, severity: "serious" });
+
+    await mistakes.withdraw(s2.id, goed);
+    expect(await mistakes.forSession(s2.id)).toEqual([]);
+    expect((await mistakes.mostFrequent("en", 5)).map((m) => [m.original, m.occurrences])).toEqual([["I goed", 1]]);
+
+    await mistakes.withdraw(s1.id, goed);
+    expect(await mistakes.mostFrequent("en", 5)).toEqual([]);
+    // Unknown mistakes are ignored.
+    await mistakes.withdraw(s1.id, { language: "en", original: "never said" });
+  });
+
   it("gives no correct use to a dismissed mistake", async () => {
     const s1 = await sessions.create({ language: "en", mode: "daily" });
     const saved = (await mistakes.record(goed, { sessionId: s1.id, severity: "serious" }))!;

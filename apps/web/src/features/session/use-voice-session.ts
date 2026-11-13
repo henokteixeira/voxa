@@ -380,6 +380,18 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
     }
   }, [api, state.sessionId, speech]);
 
+  /** "I said it right" on a hint card: the mistake no longer counts and the learner goes on; best effort. */
+  const withdrawHint = useCallback(async () => {
+    const id = state.sessionId;
+    if (!id) return;
+    try {
+      await api.withdrawPending(id);
+      dispatch({ type: "withdrawn" });
+    } catch {
+      // The hint stays: the learner can still retry the sentence.
+    }
+  }, [api, state.sessionId]);
+
   /** "Keep going" on the tutor's stop-or-keep-going question: the conversation just goes on. */
   const keepGoing = useCallback(() => dispatch({ type: "keep_going" }), []);
 
@@ -400,5 +412,6 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
     autoRetry,
     end,
     keepGoing,
+    withdrawHint,
   };
 }

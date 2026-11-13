@@ -232,6 +232,11 @@ class FakeMistakes implements MistakeRepository {
     });
     return [...last.values()];
   }
+  withdrawn: { sessionId: string; original: string }[] = [];
+  async withdraw(sessionId: string, mistake: { language: string; original: string }) {
+    this.withdrawn.push({ sessionId, original: mistake.original });
+    this.events = this.events.filter((e) => !(e.sessionId === sessionId && e.original === mistake.original));
+  }
   async patterns(language: string, limit: number): Promise<KnownPattern[]> {
     const seen = this.bank.filter((m) => m.language === language && m.pattern).map((m) => m.pattern!);
     return [...new Map(seen.map((p) => [p.key, { key: p.key, name: p.name }])).values()].slice(0, limit);
@@ -818,8 +823,8 @@ describe("TurnService.respond", () => {
     expect((await sessions.get(session.id))?.pending).toMatchObject({ revealed: true });
   });
 
-  it("names the mistake's type on every hint, and gives its rule only with the correct form", async () => {
-    const pattern = { key: "past_simple", name: "Past for finished actions", rule: "Ação terminada: passado (go → went)." };
+  it("names the mistake's type and its rule on every hint and with the correct form", async () => {
+    const pattern = { key: "past_simple", name: "Past for finished actions", rule: "Ação terminada: passado (eat → ate)." };
     const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [{ ...goed, pattern }] }), verdict({ issues: [goed] }), verdict({ issues: [goed] }));
 
@@ -828,12 +833,32 @@ describe("TurnService.respond", () => {
     const reveal = await turns.respond(session.id, "I goed to the meeting");
 
     expect([first, second].map((r) => [r.kind, r.mistakeType, r.rule])).toEqual([
-      ["hint", goed.category, null],
-      ["hint", goed.category, null],
+      ["hint", goed.category, { name: pattern.name, rule: pattern.rule }],
+      ["hint", goed.category, { name: pattern.name, rule: pattern.rule }],
     ]);
     expect(reveal).toMatchObject({ kind: "reveal", mistakeType: goed.category, rule: { name: pattern.name, rule: pattern.rule } });
     // After a reload, the screen gets the type and the rule back.
     expect((await starts.resume(session.id)).hint).toMatchObject({ mistakeType: goed.category, rule: { name: pattern.name, rule: pattern.rule } });
+  });
+
+  it("keeps a rule that would give the correction away for the correct form", async () => {
+    const pattern = { key: "past_simple", name: "Past for finished actions", rule: `Use o passado: "${goed.correction}".` };
+    const { session } = await starts.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [{ ...goed, pattern }] }));
+    expect(await turns.respond(session.id, "I goed to the meeting")).toMatchObject({ kind: "hint", rule: null });
+    expect((await starts.resume(session.id)).hint).toMatchObject({ rule: null });
+  });
+
+  it("lets the learner say they said it right: the mistake no longer counts and no hint is pending", async () => {
+    const { session } = await starts.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    await turns.respond(session.id, "I goed to the meeting");
+    await turns.withdrawPending(session.id);
+    expect((await sessions.get(session.id))?.pending).toBeNull();
+    expect(mistakes.withdrawn).toEqual([{ sessionId: session.id, original: goed.original }]);
+    // Nothing pending: nothing to do.
+    await turns.withdrawPending(session.id);
+    expect(mistakes.withdrawn).toHaveLength(1);
   });
 
   it("gives the correct form without a rule for a hint saved before patterns", async () => {

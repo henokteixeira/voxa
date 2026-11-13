@@ -125,8 +125,28 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
     bottom = <RevealCard message={lastTutor.text} help={state.support} rule={state.rule} />;
     helpInCard = true;
   } else if (state.hintStep > 0 && lastTutor) {
-    bottom = <HintCard step={state.hintStep} said={state.hintFor} tip={lastTutor.text} help={state.support} type={state.mistakeType} />;
+    bottom = (
+      <HintCard
+        step={state.hintStep}
+        said={state.hintFor}
+        sentence={state.hintSentence}
+        tip={lastTutor.text}
+        help={state.support}
+        type={state.mistakeType}
+        rule={state.rule}
+        onSaidItRight={yourTurn ? () => void session.withdrawHint() : undefined}
+      />
+    );
     helpInCard = true;
+  } else if (state.withdrawn && !showTranscript) {
+    bottom = (
+      <>
+        {yours}
+        <p role="status" className="m-0 rounded-md bg-sand-soft px-[18px] py-4 text-body">
+          {parts.withdrawn}
+        </p>
+      </>
+    );
   } else if (state.scaffold && !showTranscript) {
     // Words to say: one card with them replaces the tutor's line, which is in the transcript.
     bottom = (

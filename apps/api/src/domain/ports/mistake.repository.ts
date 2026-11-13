@@ -68,6 +68,11 @@ export interface MistakeRepository {
   sessionPatterns(sessionId: string): Promise<SessionPattern[]>;
   /** The patterns in this language's bank, most recently seen first, so the tutor reuses their keys. */
   patterns(language: string, limit: number): Promise<KnownPattern[]>;
+  /**
+   * The learner said "I said it right": this session's occurrences of the mistake no longer count. A mistake left with
+   * none (it came up only here) leaves the bank, as when the learner dismisses it as a transcript error.
+   */
+  withdraw(sessionId: string, mistake: { language: string; original: string }): Promise<void>;
 }
 
 export const MISTAKE_REPOSITORY = Symbol("MISTAKE_REPOSITORY");

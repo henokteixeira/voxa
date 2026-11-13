@@ -94,8 +94,40 @@ export function QuietLink({ onClick, children }: { onClick: () => void; children
   );
 }
 
-export function HintCard(props: { step: number; said: string | null; tip: string; help?: string | null; type?: string | null }) {
-  const { step, said, tip, help, type } = props;
+/**
+ * The learner's whole sentence with the words that hold the mistake in bold (found ignoring case), so they see exactly
+ * what they said and what to fix. Without the sentence, or when the words are not in it, only the words are shown.
+ */
+export function MarkedSentence({ sentence, mistake }: { sentence: string | null; mistake: string | null }) {
+  const at = sentence && mistake ? sentence.toLowerCase().indexOf(mistake.toLowerCase()) : -1;
+  if (sentence && mistake && at >= 0) {
+    return (
+      <span lang="en" className="text-small text-ink">
+        “{sentence.slice(0, at)}
+        <mark className="rounded-[6px] bg-honey/35 px-1 py-0.5 font-bold text-ink">{sentence.slice(at, at + mistake.length)}</mark>
+        {sentence.slice(at + mistake.length)}”
+      </span>
+    );
+  }
+  const text = mistake ?? sentence;
+  return text ? (
+    <mark lang="en" className="self-start rounded-[6px] bg-honey/35 px-1.5 py-0.5 text-small font-bold text-ink">
+      “{text}”
+    </mark>
+  ) : null;
+}
+
+export function HintCard(props: {
+  step: number;
+  said: string | null;
+  sentence?: string | null;
+  tip: string;
+  help?: string | null;
+  type?: string | null;
+  rule?: { name: string; rule: string } | null;
+  onSaidItRight?: () => void;
+}) {
+  const { step, said, sentence = null, tip, help, type, rule, onSaidItRight } = props;
   const { parts } = useCopy(SESSION_COPY);
   const { locale } = useLocale();
   return (
@@ -113,16 +145,20 @@ export function HintCard(props: { step: number; said: string | null; tip: string
           {type ? `${parts.hint} · ${categoryLabel(type, locale)}` : parts.hint}
         </span>
         <p lang="en" className="m-0 text-phrase">{tip}</p>
-        {said && (
+        {(said || sentence) && (
           <span className="flex flex-col gap-0.5">
             <span className="text-caption text-taupe">{parts.youSaid}</span>
-            <mark lang="en" className="self-start rounded-[6px] bg-honey/35 px-1.5 py-0.5 text-small text-ink">
-              “{said}”
-            </mark>
+            <MarkedSentence sentence={sentence} mistake={said} />
           </span>
+        )}
+        {rule && (
+          <p className="m-0 text-small text-ink-soft">
+            <b>{rule.name}.</b> {rule.rule}
+          </p>
         )}
         {help && <HelpLine text={help} divider="border-honey/30" />}
       </section>
+      {onSaidItRight && <QuietLink onClick={onSaidItRight}>{parts.saidItRight}</QuietLink>}
     </>
   );
 }
