@@ -50,6 +50,15 @@ describe("Review", () => {
     expect(router.state.location.pathname).toBe("/mistakes");
   });
 
+  it("names another mistake that kept the answer from counting", async () => {
+    const reviewCard = vi.fn().mockResolvedValue(card("p1", "Past"));
+    const answerReview = vi.fn().mockResolvedValue({ recalled: false, answer: "I finished the report.", rule: "Rule.", otherMistake: '"a report" → "the report"', nextDueAt: tomorrow(), xp: 1 });
+    renderReview("/review", { reviewOverview: vi.fn().mockResolvedValue({ due: [{ subject: { kind: "pattern", id: "p1" } }], nextDueAt: null }), reviewCard, answerReview });
+    await userEvent.type(await screen.findByLabelText("Your answer"), "I finished a report{Enter}");
+    expect(await screen.findByText("Almost")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "One way to say it" })).toHaveTextContent('Also fix: "a report" → "the report"');
+  });
+
   it("reviews one pattern from its address, and goes back when closed before answering", async () => {
     const reviewOverview = vi.fn();
     const reviewCard = vi.fn().mockResolvedValue(card("p9", "Past"));

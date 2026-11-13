@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ReviewItem } from "../../domain/ports/review.repository.js";
-import { buildCheckMessage, buildCueMessage, buildCuePrompt } from "./review-prompts.js";
+import { buildCheckMessage, buildCheckPrompt, buildCueMessage, buildCuePrompt } from "./review-prompts.js";
 
 const pattern: ReviewItem = {
   subject: { kind: "pattern", id: "p1" },
@@ -30,6 +30,13 @@ describe("review prompts", () => {
   it("describes a mission's expression with the model's sentence", () => {
     const taken = { ...pattern, subject: { kind: "expression" as const, id: "e1" }, category: "expression", name: "I'm blocked by…", rule: "I'm blocked by the API keys.", examples: [] };
     expect(buildCueMessage(taken, "")).toContain(`"I'm blocked by…" (a ready-made expression the learner took from a model that said: "I'm blocked by the API keys.")`);
+  });
+
+  it("counts an answer only when the whole sentence is correct, and names another mistake in the first language", () => {
+    const prompt = buildCheckPrompt("en", "pt-BR");
+    expect(prompt).toMatch(/true only when the whole answer is correct/);
+    expect(prompt).toMatch(/when another mistake is in the answer/);
+    expect(prompt).toMatch(/`otherMistake`: .* one short line in pt-BR/);
   });
 
   it("gives the checker the cue, one good answer and the learner's answer", () => {

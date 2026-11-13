@@ -34,8 +34,16 @@ describe("AnthropicReviewCoach", () => {
   });
 
   it("reads whether the answer was recalled", async () => {
-    const { coach: c, parse } = coach({ stop_reason: "end_turn", parsed_output: { recalled: true } });
-    expect(await c.check(item, { cue: "Eu fui ontem.", answer: "I went yesterday." }, "I went yesterday")).toBe(true);
+    const { coach: c, parse } = coach({ stop_reason: "end_turn", parsed_output: { recalled: true, otherMistake: null } });
+    expect(await c.check(item, { cue: "Eu fui ontem.", answer: "I went yesterday." }, "I went yesterday")).toEqual({ recalled: true, otherMistake: null });
     expect(parse.mock.calls[0][0].messages[0].content).toContain("<learner_answer>\nI went yesterday\n</learner_answer>");
+  });
+
+  it("does not count an answer with another mistake, and says what it was", async () => {
+    const { coach: c } = coach({ stop_reason: "end_turn", parsed_output: { recalled: true, otherMistake: ' "a" → "the": aqui é algo específico. ' } });
+    expect(await c.check(item, { cue: "Eu fui à reunião ontem.", answer: "I went to the meeting yesterday." }, "I went to a meeting yesterday")).toEqual({
+      recalled: false,
+      otherMistake: '"a" → "the": aqui é algo específico.',
+    });
   });
 });

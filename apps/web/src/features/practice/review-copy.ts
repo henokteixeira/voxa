@@ -13,6 +13,7 @@ export interface ReviewCopy {
   almost: string;
   youSaid: string;
   oneWay: string;
+  alsoFix: string;
   sayOnceMore: (when: string) => string;
   next: string;
   finish: string;
@@ -38,6 +39,7 @@ export const REVIEW_COPY: Copy<ReviewCopy> = {
     almost: "Almost",
     youSaid: "You said",
     oneWay: "One way to say it",
+    alsoFix: "Also fix",
     sayOnceMore: (when) => `Say it once more · this one comes back ${when}`,
     next: "Next",
     finish: "Finish",
@@ -61,6 +63,7 @@ export const REVIEW_COPY: Copy<ReviewCopy> = {
     almost: "Quase",
     youSaid: "Você disse",
     oneWay: "Um jeito de dizer",
+    alsoFix: "Ajuste também",
     sayOnceMore: (when) => `Diga mais uma vez · este volta ${when}`,
     next: "Próximo",
     finish: "Concluir",

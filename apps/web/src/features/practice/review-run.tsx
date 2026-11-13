@@ -225,6 +225,12 @@ export function ReviewRun({ subjects, onDone }: { subjects: ReviewSubject[]; onD
             <span className="text-small text-ink-soft">
               <b>{step.card.item.name}.</b> {step.answer.rule}
             </span>
+            {/* The whole sentence has to be right (2026-11-13): another mistake is named, so the miss makes sense. */}
+            {step.answer.otherMistake && (
+              <span className="border-t border-sage/40 pt-2 text-small text-ink-soft">
+                <b>{copy.alsoFix}:</b> {step.answer.otherMistake}
+              </span>
+            )}
           </section>
           {!step.answer.recalled && (
             <span className="text-center text-caption text-taupe">

@@ -58,12 +58,13 @@ class FakeReviews implements ReviewRepository {
 class FakeCoach implements ReviewCoachPort {
   checked: string[] = [];
   recalled = true;
+  otherMistake: string | null = null;
   async cue() {
     return cue;
   }
   async check(_item: ReviewItem, _cue: ReviewCue, utterance: string) {
     this.checked.push(utterance);
-    return this.recalled;
+    return { recalled: this.recalled, otherMistake: this.otherMistake };
   }
 }
 
@@ -96,7 +97,15 @@ describe("ReviewService", () => {
     const result = await service.answer(cardId, " I finished the report yesterday ", tz);
 
     expect(coach.checked).toEqual(["I finished the report yesterday"]);
-    expect(result).toEqual({ recalled: true, answer: cue.answer, rule: "Passado.", nextDueAt: day(7), xp: 1 });
+    expect(result).toEqual({ recalled: true, answer: cue.answer, rule: "Passado.", otherMistake: null, nextDueAt: day(7), xp: 1 });
+  });
+
+  it("does not move an item forward when another mistake is in the answer, and says which", async () => {
+    coach.recalled = false;
+    coach.otherMistake = '"a report" → "the report"';
+    const result = await service.answer(await cardFor({ step: 1, dueAt: day(-1) }), "I finished a report yesterday", tz);
+    expect(result).toMatchObject({ recalled: false, otherMistake: '"a report" → "the report"' });
+    expect(reviews.states.get("p1")?.step).toBe(0);
   });
 
   it("keeps a due item at its step when the right answer came after a long search", async () => {

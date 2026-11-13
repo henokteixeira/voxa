@@ -2,14 +2,14 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { z } from "zod";
 import type { Env } from "../../config/env.js";
-import type { ReviewCoachPort, ReviewCue } from "../../domain/ports/review-coach.port.js";
+import type { ReviewCheck, ReviewCoachPort, ReviewCue } from "../../domain/ports/review-coach.port.js";
 import type { ReviewItem } from "../../domain/ports/review.repository.js";
 import { TutorUnavailableError } from "../../domain/ports/tutor.port.js";
 import { ClaudeClient } from "./claude-client.js";
 import { buildCheckMessage, buildCheckPrompt, buildCueMessage, buildCuePrompt } from "./review-prompts.js";
 
 const CueSchema = z.object({ cue: z.string(), answer: z.string() });
-const CheckSchema = z.object({ recalled: z.boolean() });
+const CheckSchema = z.object({ recalled: z.boolean(), otherMistake: z.string().nullable() });
 
 @Injectable()
 export class AnthropicReviewCoach implements ReviewCoachPort {
@@ -29,9 +29,12 @@ export class AnthropicReviewCoach implements ReviewCoachPort {
     return text;
   }
 
-  async check(item: ReviewItem, cue: ReviewCue, utterance: string): Promise<boolean> {
-    const result = await this.ask("review_check", CheckSchema, buildCheckPrompt(item.language), buildCheckMessage(item, cue, utterance));
-    return result.recalled;
+  async check(item: ReviewItem, cue: ReviewCue, utterance: string): Promise<ReviewCheck> {
+    const prompt = buildCheckPrompt(item.language, this.firstLanguage);
+    const result = await this.ask("review_check", CheckSchema, prompt, buildCheckMessage(item, cue, utterance));
+    const otherMistake = result.otherMistake?.trim() || null;
+    // Another mistake means the answer is not whole yet, whatever the flag says.
+    return { recalled: result.recalled && otherMistake === null, otherMistake };
   }
 
   private ask<T>(task: "review_cue" | "review_check", schema: z.ZodType<T>, system: string, content: string): Promise<T> {
