@@ -97,7 +97,7 @@ export const SUPPORT_RULES: Record<SupportStep, string> = {
     "slowly. " +
     GUIDED_TRACK,
   build_light: "The learner speaks at about CEFR A2. Use short, simple sentences (up to twelve words). " + GUIDED_TRACK,
-  supported: `The learner speaks at about CEFR B1. Talk freely. ${B1_TALK} ${SENTENCE_START}`,
+  supported: `The learner speaks at about CEFR B1. ${B1_TALK} ${SENTENCE_START}`,
   conversation:
     `${NATURAL_TALK} Do not give sentences to say: help only with hints and ` +
     "first-language words, as above. Set `scaffold` to null.",
