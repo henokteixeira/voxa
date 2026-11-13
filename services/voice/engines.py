@@ -3,6 +3,7 @@
 Models load lazily on first use (or at startup when warmup is on).
 """
 
+import logging
 import threading
 from dataclasses import dataclass
 from typing import BinaryIO, Protocol
@@ -25,6 +26,9 @@ DEFAULT_WHISPER_MODEL = "medium"
 # compresses too well, which is Whisper stuck repeating a word ("some some some ...").
 GREEDY_THEN_FALLBACK = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
 LOOP_COMPRESSION_RATIO = 2.4
+
+
+logger = logging.getLogger("voxa.voice")
 
 
 class EngineError(Exception):
@@ -63,10 +67,22 @@ class WhisperStt:
     compare variants.
     """
 
-    def __init__(self, model: str, initial_prompt: str | None = None, cpu_threads: int | None = None):
+    def __init__(
+        self,
+        model: str,
+        initial_prompt: str | None = None,
+        cpu_threads: int | None = None,
+        native_language: str = "pt",
+        native_min_probability: float | None = None,
+    ):
         self.model_name = model
         self.cpu_threads = cpu_threads or 4
         self.initial_prompt = (initial_prompt or "").strip() or None
+        # A whole turn said in the learner's own language, with the language pinned to English,
+        # comes out translated. When Whisper is at least this sure the turn is in the native
+        # language, it is transcribed in that language instead. None leaves the language pinned.
+        self.native_language = native_language
+        self.native_min_probability = native_min_probability
         self._model = None
         self._lock = threading.Lock()
 
@@ -91,6 +107,14 @@ class WhisperStt:
         prompt = self.initial_prompt if initial_prompt is _NO_PROMPT else initial_prompt
         model = self.model
         try:
+            if self._may_switch(language):
+                audio = _decode(audio)  # decoded once, for detection and transcription
+                probability = self.native_probability(audio)
+                switch = probability >= self.native_min_probability
+                logger.info("stt %s probability=%.2f switched=%s", self.native_language, probability, switch)
+                if switch:
+                    # The mixed prompt is English; it would pull the Portuguese back to English.
+                    language, prompt = self.native_language, None
             segments, info = model.transcribe(
                 audio,
                 language=language,
@@ -105,6 +129,22 @@ class WhisperStt:
                 raise InputError(f"Bad audio or language: {e}") from e
             raise EngineError(f"Whisper failed: {e}") from e
         return SttResult(text=text, language=info.language, audio_ms=round(info.duration * 1000))
+
+    def native_probability(self, audio) -> float:
+        """How sure Whisper is that the audio is in the native language (0 to 1)."""
+        _, _, probabilities = self.model.detect_language(audio=_decode(audio))
+        return dict(probabilities).get(self.native_language, 0.0)
+
+    def _may_switch(self, language: str) -> bool:
+        return self.native_min_probability is not None and language != self.native_language
+
+
+def _decode(audio):
+    if isinstance(audio, np.ndarray):
+        return audio
+    from faster_whisper import decode_audio
+
+    return decode_audio(audio)
 
 
 def _is_input_error(e: Exception) -> bool:

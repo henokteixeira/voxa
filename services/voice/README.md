@@ -47,6 +47,8 @@ Read from the process environment (the root `.env` is not loaded here; export th
 | --- | --- | --- |
 | `WHISPER_MODEL` | `medium` | Whisper size (`base`, `small`, `medium`, ...). `small` is faster but mishears more Portuguese words |
 | `WHISPER_INITIAL_PROMPT` | a sentence with Portuguese words | Prompt that biases the transcription style. The default keeps Portuguese words as said (see the Portuguese words test); set it empty for none |
+| `WHISPER_NATIVE_MIN_PROBABILITY` | unset (off) | A turn said wholly in Portuguese comes out translated while the language is pinned to English. When Whisper is at least this sure (0 to 1) the turn is Portuguese, it transcribes it in Portuguese, without the mixed prompt. Set it from the language switch test below |
+| `WHISPER_NATIVE_LANGUAGE` | `pt` | The learner's own language for that switch |
 | `WHISPER_CPU_THREADS` | 4 | Threads Whisper decodes with. More is not faster: on a 12-core Mac, 10 threads took four times as long as 4 |
 | `KOKORO_VOICE` | `af_heart` | Kokoro voice |
 | `VOICE_WARMUP` | `1` | `0` loads the models on first use instead of at startup |
@@ -65,6 +67,8 @@ uvicorn main:app --port 8001 &                           # then, with the servic
 python -m eval.latency --runs 5 --out eval/results/latency.md
 python -m eval.record --mixed                            # record 10 English sentences with Portuguese words
 python -m eval.mixed_language --models small medium --out eval/results/mixed.md
+python -m eval.record --portuguese                       # record 10 whole turns in Portuguese
+python -m eval.language_switch --models medium --out eval/results/language.md
 ```
 
 - **Clean-up risk:** checks whether Whisper keeps 20 typical mistakes ("He don't have access") or
@@ -74,6 +78,10 @@ python -m eval.mixed_language --models small medium --out eval/results/mixed.md
 - **Portuguese words:** checks whether Whisper keeps the Portuguese words a learner says when stuck
   ("The prazo is Friday") or swaps them for English ("deadline"). Compares forced English, forced
   English with the mixed prompt (the service default), and language detection. Needs your own recordings.
+- **Language switch:** Whisper's probability that each recorded turn is Portuguese, for the whole
+  Portuguese turns, the mixed sentences and (if recorded) the plain English ones. Suggests a
+  `WHISPER_NATIVE_MIN_PROBABILITY` between the groups, or says they overlap. File names do not matter
+  here, so any recorder works (say, `.m4a` voice memos dropped into `eval/recordings/portuguese/`).
 - **Latency:** STT and TTS times (p50/p95) for a short, medium and long tutor line. Claude's time is
   not included, nor the browser's webm/opus encoding and the API hop; D4 measures the full loop.
 - **Full turn:** the API logs one line per turn, from the moment the API has the learner's speech to the

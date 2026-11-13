@@ -87,3 +87,11 @@ def test_every_mixed_case_portuguese_part_appears_in_its_own_text():
         assert fold(case.pt) in fold(case.text), case.id
         assert fold(case.anchor) in fold(case.text), case.id
         assert fold(case.anchor) not in fold(case.pt), case.id
+
+
+def test_language_switch_suggests_the_midpoint_between_the_groups():
+    from eval.language_switch import suggest
+
+    assert "=0.70 " in suggest([0.9, 0.95], [0.3, 0.5])
+    assert "overlap" in suggest([0.6, 0.95], [0.3, 0.7])
+    assert "Not enough" in suggest([0.9], [])

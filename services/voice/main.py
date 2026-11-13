@@ -1,6 +1,7 @@
 """Voxa local voice service: Whisper (speech-to-text) + Kokoro (text-to-speech)."""
 
 import io
+import logging
 import os
 import time
 from contextlib import asynccontextmanager
@@ -90,17 +91,30 @@ def create_app(stt: SpeechToText, tts: TextToSpeech, warmup: bool = False) -> Fa
 def whisper_from_env(env=os.environ) -> WhisperStt:
     """Unset WHISPER_INITIAL_PROMPT uses the mixed prompt; an empty one means no prompt.
 
-    WHISPER_CPU_THREADS sets the threads; unset uses 4.
+    WHISPER_CPU_THREADS sets the threads; unset uses 4. WHISPER_NATIVE_MIN_PROBABILITY (0 to 1)
+    turns on the switch to WHISPER_NATIVE_LANGUAGE (default pt); unset leaves it off.
     """
     threads = env.get("WHISPER_CPU_THREADS", "").strip()
     return WhisperStt(
         env.get("WHISPER_MODEL") or DEFAULT_WHISPER_MODEL,
         env.get("WHISPER_INITIAL_PROMPT", MIXED_PROMPT),
         cpu_threads=int(threads) if threads.isdigit() else None,
+        native_language=env.get("WHISPER_NATIVE_LANGUAGE") or "pt",
+        native_min_probability=_probability(env.get("WHISPER_NATIVE_MIN_PROBABILITY", "")),
     )
 
 
+def _probability(value: str) -> float | None:
+    """A number from 0 to 1; anything else (unset included) means off."""
+    try:
+        number = float(value)
+    except ValueError:
+        return None
+    return number if 0 <= number <= 1 else None
+
+
 def _default_app() -> FastAPI:
+    logging.basicConfig(level=logging.INFO)  # shows the native-language switch in the logs
     return create_app(
         whisper_from_env(),
         KokoroTts(os.getenv("KOKORO_VOICE", "af_heart")),
