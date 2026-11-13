@@ -1109,6 +1109,24 @@ describe("The conversation: help by the learner's level", () => {
     expect((await summaries.end(session.id)).signals.unaidedShare).toBe(0.5);
   });
 
+  it("at B1, allows surprise questions only after a few turns mostly answered without help", async () => {
+    levels.rows.push(placed("B1"));
+    const { session } = await starts.start("daily", "en");
+    tutor.verdicts.push(stuckAtB1, ...Array.from({ length: 5 }, () => verdict({})));
+    await turns.respond(session.id, "I don't know how to say it.");
+    for (let i = 0; i < 5; i++) await turns.respond(session.id, "Yesterday I worked on the export.");
+    // Turns saved before each request: 0, 1 (helped), 2, 3, 4 (3 of 4 alone), 5.
+    expect(tutor.requests.map((r) => r.surprises)).toEqual([false, false, false, false, true, true]);
+  });
+
+  it("always allows surprise questions from B2 up", async () => {
+    levels.rows.push(placed("B2"));
+    const { session } = await starts.start("daily", "en");
+    tutor.verdicts.push(verdict({}));
+    await turns.respond(session.id, "Yesterday I worked on the export.");
+    expect(tutor.requests[0].surprises).toBe(true);
+  });
+
   it("at B1, sends the sentence start to the screen, outside any track", async () => {
     levels.rows.push(placed("B1"));
     const { session } = await starts.start("daily", "en");

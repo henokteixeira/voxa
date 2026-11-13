@@ -46,10 +46,12 @@ const STUCK =
   "words without answering. Asking you to repeat, to explain a word, or for a moment to think is not being stuck.";
 
 const SENTENCE_START =
-  "When the learner is stuck, reassure them in a few words and, in `reply`, give only the start of a sentence they " +
-  "can finish with their own information (for example: \"You could start with: Yesterday I worked on...\"). " +
-  "Never the whole answer. Put that start in `scaffold`, exactly as you said it. When the utterance has a serious " +
-  "mistake or a minor one that breaks a pattern in `focus_patterns`, give no sentence start: `reply` is said before the hint, and the " +
+  "When the learner is stuck, reassure them in a few words. When they said what they mean mostly in their first " +
+  "language, give in `reply` that idea as one short, simple sentence (at most twelve words) in the language they " +
+  "practice and ask them to say it. Otherwise give in `reply` only the start of a sentence they can finish with " +
+  "their own information (for example: \"You could start with: Yesterday I worked on...\"), never the whole answer. " +
+  "Put that sentence or start in `scaffold`, exactly as you said it. When the utterance has a serious " +
+  "mistake or a minor one that breaks a pattern in `focus_patterns`, give no sentence: `reply` is said before the hint, and the " +
   "learner should retry their own sentence.";
 
 const GUIDED_TRACK =
@@ -59,18 +61,34 @@ const GUIDED_TRACK =
   "it in the scene. Whenever your reply asks the learner to say a sentence, put that sentence in `scaffold`, exactly as you " +
   "said it; otherwise set `scaffold` to null.";
 
-/** From B1 up the learner practices following real speech: natural length, and questions they did not prepare for. */
+/**
+ * Questions the learner did not prepare for. At B1 they wait until the session's answers are mostly given without help
+ * (the turn message says so in <surprise_questions>); from B2 up they are always allowed (decided on 2026-11-13).
+ */
+export const SURPRISES =
+  "Now and then (about one turn in four), and only when <surprise_questions> says allowed, ask an unexpected but " +
+  "natural question: a new angle, a \"what if\", your own different opinion, or a link to something they said earlier.";
+
+const GIVE_WAY =
+  "These give way to the other rules: when a hint follows or the learner is stuck, keep to the few words those turns " +
+  "ask for, and when `bring_back` lists a rule or a goal is still open, your question serves that, not a surprise.";
+
+/** From B2 up the learner practices following real speech: natural length, and questions they did not prepare for. */
 export const NATURAL_TALK =
   "Speak as people really do in this scene, not in short teaching lines: usually two to four spoken sentences, " +
   "sometimes a longer turn where you share your own view or a short story of your own before your question. " +
-  "Now and then (about one turn in four) ask an unexpected but natural question: a new angle, a \"what if\", " +
-  "your own different opinion, or a link to something they said earlier. The scene still sets the pace (a quick " +
-  "stand-up stays brief). These give way to the other rules: when a hint follows or the learner is stuck, keep to " +
-  "the few words those turns ask for, and when `bring_back` lists a rule or a goal is still open, your question " +
-  "serves that, not a surprise.";
+  `${SURPRISES} The scene still sets the pace (a quick stand-up stays brief). ${GIVE_WAY}`;
 
-/** The support steps where the tutor talks at natural length (B1 up); below, and in the placement interview, lines stay short. */
-export const NATURAL_STEPS: ReadonlySet<SupportStep> = new Set(["supported", "conversation", "demanding"]);
+/**
+ * At B1 the learner still builds each sentence with effort, so the tutor's turns stay short and easy to follow
+ * (decided on 2026-11-13, after long turns made conversations heavy).
+ */
+export const B1_TALK =
+  "Keep each turn to one or two short, clear spoken sentences with everyday words, and ask one simple question at a " +
+  `time. ${SURPRISES} ${GIVE_WAY}`;
+
+/** The support steps where the tutor talks at natural length (B2 up); below, and in the placement interview, lines stay short. */
+export const NATURAL_STEPS: ReadonlySet<SupportStep> = new Set(["conversation", "demanding"]);
 
 /** How much help the tutor gives at each support step (the learner's level picks it). */
 export const SUPPORT_RULES: Record<SupportStep, string> = {
@@ -79,7 +97,7 @@ export const SUPPORT_RULES: Record<SupportStep, string> = {
     "slowly. " +
     GUIDED_TRACK,
   build_light: "The learner speaks at about CEFR A2. Use short, simple sentences (up to twelve words). " + GUIDED_TRACK,
-  supported: `The learner speaks at about CEFR B1. Talk freely. ${NATURAL_TALK} ${SENTENCE_START}`,
+  supported: `The learner speaks at about CEFR B1. ${B1_TALK} ${SENTENCE_START}`,
   conversation:
     `${NATURAL_TALK} Do not give sentences to say: help only with hints and ` +
     "first-language words, as above. Set `scaffold` to null.",
@@ -176,7 +194,9 @@ export function buildSystemPrompt(
     "Tone: a warm, patient senior colleague. " +
       (step && NATURAL_STEPS.has(step)
         ? "Speak naturally. "
-        : "Speak naturally, in short spoken sentences (one to three). ") +
+        : step === "supported"
+          ? "Speak naturally, in one or two short spoken sentences. "
+          : "Speak naturally, in short spoken sentences (one to three). ") +
       "No lists, no markdown, no emojis: your reply is read aloud.",
     [
       "## A safe place to make mistakes",
@@ -340,6 +360,7 @@ export function buildTurnMessage(
     | "coveredGoals"
     | "scaffold"
     | "plan"
+    | "surprises"
   >,
 ): string {
   const known = request.knownMistakes.length
@@ -367,6 +388,7 @@ export function buildTurnMessage(
     `<covered_goals>\n${request.coveredGoals.length ? request.coveredGoals.join(", ") : "none"}\n</covered_goals>`,
     // The learner may be finishing these words: that is not stuck, and not a mistake in itself.
     `<words_given>\n${request.scaffold ?? "none"}\n</words_given>`,
+    `<surprise_questions>\n${request.surprises ? "allowed" : "not now"}\n</surprise_questions>`,
     ...(request.plan ? [`<guided_track>\n${buildTrackInstruction(request.plan)}\n</guided_track>`] : []),
     `<utterance>\n${request.utterance}\n</utterance>`,
   ].join("\n");

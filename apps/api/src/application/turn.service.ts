@@ -22,7 +22,7 @@ import {
 import { correctsMistakes } from "../domain/conversation/mode.js";
 import { checkInDue, checkInLine, describeGoal, goalsFor, mergeCovered } from "../domain/conversation/session-goals.js";
 import { SessionEndedError, TurnConflictError } from "../domain/conversation/session-errors.js";
-import { keptScaffold, wasAssisted } from "../domain/conversation/support.js";
+import { keptScaffold, surprisesAllowed, wasAssisted } from "../domain/conversation/support.js";
 import { NEW_WORD_CATEGORY, type PracticeTarget, type Session } from "../domain/conversation/types.js";
 import { hintFocus, metTargetsAfter } from "../domain/conversation/practice-targets.js";
 import { sameText, safeSupport } from "../domain/conversation/text.js";
@@ -73,7 +73,7 @@ export class TurnService {
 
   constructor(
     @Inject(TUTOR_PORT) private readonly tutor: Pick<TutorPort, "evaluate">,
-    @Inject(SESSION_REPOSITORY) private readonly sessions: Pick<SessionRepository, "get" | "history">,
+    @Inject(SESSION_REPOSITORY) private readonly sessions: Pick<SessionRepository, "get" | "history" | "outcome">,
     @Inject(MISTAKE_REPOSITORY) private readonly mistakes: Pick<MistakeRepository, "mostFrequent" | "patterns" | "sessionPatterns">,
     @Inject(LEARNER_CONTEXT_PORT) private readonly learnerContext: LearnerContextPort,
     @Inject(MISTAKE_BANK_REPOSITORY) private readonly bank: Pick<MistakeBankRepository, "list">,
@@ -95,7 +95,7 @@ export class TurnService {
     const session = await openSession(this.sessions, sessionId);
     const corrects = correctsMistakes(session.mode);
     const turnAt = this.clock.now();
-    const [history, known, knownPatterns, sessionPatterns, learnerContext, mission, entries, duePatterns, dueExpressions] = await Promise.all([
+    const [history, known, knownPatterns, sessionPatterns, learnerContext, mission, entries, duePatterns, dueExpressions, outcome] = await Promise.all([
       this.sessions.history(sessionId),
       // Twice the limit, so new words don't push real mistakes out of the list.
       this.mistakes.mostFrequent(session.language, KNOWN_MISTAKES_LIMIT * 2),
@@ -106,6 +106,7 @@ export class TurnService {
       corrects ? this.bank.list(session.language) : [],
       corrects ? this.reviews.duePatterns(session.language, turnAt) : new Set<string>(),
       corrects ? this.reviews.dueExpressions(session.language, turnAt) : [],
+      this.sessions.outcome(sessionId),
     ]);
     const learnerTurn = history.filter((t) => t.role === "user").length + 1;
 
@@ -156,6 +157,7 @@ export class TurnService {
       coveredGoals: session.coveredGoals,
       scaffold: session.scaffold,
       plan: outcomes && session.track ? turnPlan(session.track, outcomes, describeGoal) : null,
+      surprises: surprisesAllowed(session.step, outcome?.learnerTurns ?? { total: 0, assisted: 0 }),
     };
     let verdict: TutorVerdict;
     try {

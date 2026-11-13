@@ -36,3 +36,18 @@ export function keptScaffold(step: SupportStep | null, verdict: { scaffold: stri
 export function wasAssisted(turn: { scaffoldBefore: string | null; usedFirstLanguage: boolean }): boolean {
   return turn.scaffoldBefore !== null || turn.usedFirstLanguage;
 }
+
+/** At B1, surprise questions wait for this many learner turns in the session... */
+export const SURPRISE_MIN_TURNS = 4;
+/** ...and for this share of them answered without help. Design choices (2026-11-13), to tune with real use. */
+export const SURPRISE_UNAIDED_SHARE = 0.75;
+
+/**
+ * Whether the tutor may ask questions the learner did not prepare for. From B2 up always; at B1 only once the session's
+ * answers are mostly given without help, so a learner still building sentences is not thrown off; below B1 never.
+ */
+export function surprisesAllowed(step: SupportStep | null, learnerTurns: { total: number; assisted: number }): boolean {
+  if (step === "conversation" || step === "demanding") return true;
+  if (step !== "supported" || learnerTurns.total < SURPRISE_MIN_TURNS) return false;
+  return (learnerTurns.total - learnerTurns.assisted) / learnerTurns.total >= SURPRISE_UNAIDED_SHARE;
+}

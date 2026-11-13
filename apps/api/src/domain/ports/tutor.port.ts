@@ -66,6 +66,8 @@ export interface TutorRequest extends TutorContext {
   scaffold: string | null;
   /** In the guided track (A1–A2): what the next line does; null otherwise. */
   plan: TrackPlan | null;
+  /** Whether the next line may ask an unexpected question (see surprisesAllowed). */
+  surprises: boolean;
 }
 
 /** The AI tutor. Implementations live in infra/. */

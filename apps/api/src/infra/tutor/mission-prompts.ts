@@ -17,7 +17,7 @@ export const MODEL_TASKS: Record<MissionSituation, string> = {
 export const MODEL_LEVELS: Record<SupportStep, string> = {
   build_full: "The learner is a beginner (about CEFR A1): very short, simple sentences (five to eight words), common words, about 70 words.",
   build_light: "The learner speaks at about CEFR A2: short, simple sentences (up to twelve words), common words, about 100 words.",
-  supported: "The learner speaks at about CEFR B1: clear, natural sentences, everyday words, about 130 words.",
+  supported: "The learner speaks at about CEFR B1: clear, short sentences, everyday words, about 70 words.",
   conversation: "The learner speaks at about CEFR B2: natural speech with common idioms, about 150 words.",
   demanding: "The learner is advanced (CEFR C1 or above): natural, fluent speech with some richer vocabulary, about 160 words.",
 };
@@ -27,8 +27,9 @@ export function buildModelPrompt(language: string): string {
     `You write a short spoken model for a learner of ${language} (BCP 47). The learner listens to it before doing the same task, so it ` +
       "shows how a fluent speaker does it, without being a script to copy.",
     "`speaker`: a first name for the person speaking (a colleague or a friend, not the learner).",
-    "`text`: what they say, in the first person, as natural speech said aloud in about one minute: no headings, lists or stage directions. " +
-      "It is about the speaker's own life or work, close to the learner's world but never the learner's own facts.",
+    "`text`: what they say, in the first person, as natural speech said aloud: no headings, lists or stage directions. " +
+      "It is about the speaker's own life or work, close to the learner's world but never the learner's own facts. " +
+      "Say it in short parts, one for each part of the task, with a blank line between parts, so each part is easy to keep in mind.",
     "`expressions`: exactly 3 ready-made chunks from `text` that the learner can reuse in their own version of the task (for example " +
       "\"I'm still working on…\" or \"The main reason is…\"). Each `phrase` is the fixed part only, as it appears in the text, ending in " +
       "\"…\" where the learner's own words go. `example` is the sentence of `text` that uses it, exactly as written. Pick chunks that are " +

@@ -19,7 +19,7 @@ import {
   usesTrack,
 } from "../domain/conversation/guided-track.js";
 import { describeGoal, GOAL_DESCRIPTIONS, goalsFor, mergeCovered } from "../domain/conversation/session-goals.js";
-import { keptScaffold, sessionStep } from "../domain/conversation/support.js";
+import { keptScaffold, sessionStep, surprisesAllowed } from "../domain/conversation/support.js";
 import type { ChatTurn, PendingCorrection } from "../domain/conversation/types.js";
 import type { TutorPort } from "../domain/ports/tutor.port.js";
 import type { Scenario } from "./scenarios.js";
@@ -95,6 +95,7 @@ export async function runScenario(tutor: TutorPort, scenario: Scenario, learnerC
       scaffold,
       step,
       plan: outcomes && current ? turnPlan(current, outcomes, describeGoal) : null,
+      surprises: surprisesAllowed(step, { total: 0, assisted: 0 }),
     });
     const byMode = verdictForMode(scenario.mode, verdict);
     const decision = decide(pending, current && !pausesForHints(current.stage) ? notedOnly(byMode) : byMode);
