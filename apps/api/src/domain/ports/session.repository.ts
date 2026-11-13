@@ -61,6 +61,8 @@ export interface SessionRepository {
   appendTurn(sessionId: string, turn: NewTurn): Promise<void>;
   history(sessionId: string): Promise<ChatTurn[]>;
   setPending(sessionId: string, pending: PendingCorrection | null): Promise<void>;
+  /** The words the tutor gave for the learner's next turn (see SessionProgress.scaffold). */
+  setScaffold(sessionId: string, scaffold: string | null): Promise<void>;
   /** Clears the pending hint the learner answered with "I said it right", and keeps its words so it is not hinted again. */
   withdrawPending(sessionId: string, original: string): Promise<void>;
   /** Stores the goals covered so far, when the tutor last asked whether to stop, the targets met and the help given. */

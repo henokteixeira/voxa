@@ -275,22 +275,17 @@ export class TurnService {
   async help(sessionId: string): Promise<SentenceHelp> {
     const session = await openSession(this.sessions, sessionId);
     if (!correctsMistakes(session.mode)) throw new InvalidInputError("The placement interview gives no help with what to say.");
+    // A hint asks for the learner's own sentence, and the guided track already gives the words (A1–A2).
+    if (session.pending) throw new InvalidInputError("No help with what to say while a hint is pending.");
+    if (session.track) throw new InvalidInputError("The guided track already gives the words to say.");
     const [history, learnerContext, mission] = await Promise.all([
       this.sessions.history(sessionId),
       this.learnerContext.load(),
       session.missionId ? this.missions.get(session.missionId) : null,
     ]);
     const help = await this.tutor.help(tutorContext(session, learnerContext, phrasesOf(mission)), history);
-    await this.unitOfWork.run(({ sessions }) =>
-      sessions.setProgress(sessionId, {
-        coveredGoals: session.coveredGoals,
-        lastCheckInAt: session.lastCheckInAt,
-        metTargets: session.metTargets,
-        scaffold: help.start,
-        step: session.step,
-        track: session.track,
-      }),
-    );
+    // Only while the learner has not answered meanwhile: then the help was for a line already past.
+    await this.saveTurn(sessionId, history.length, ({ sessions }) => sessions.setScaffold(sessionId, help.start));
     return help;
   }
 

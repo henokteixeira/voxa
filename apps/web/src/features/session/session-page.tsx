@@ -196,9 +196,16 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
     tutorText.current?.focus();
   };
   const canType = yourTurn && !typing;
-  // Always on offer on the learner's turn, except while a hint asks for their own sentence (2026-11-13).
+  // On offer on the learner's turn (2026-11-13), except while a hint asks for their own sentence and in the guided
+  // track, which gives the words itself; after a failure it can be asked again.
   const canHelp =
-    yourTurn && mode !== "placement" && state.hintStep === 0 && !state.revealed && !state.checkIn && !helpNow;
+    yourTurn &&
+    mode !== "placement" &&
+    !state.track &&
+    state.hintStep === 0 &&
+    !state.revealed &&
+    !state.checkIn &&
+    (helpNow === null || helpNow === "failed");
 
   return (
     <Screen onPointerDown={session.unlock}>

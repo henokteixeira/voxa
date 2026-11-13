@@ -164,6 +164,10 @@ export class DrizzleSessionRepository implements SessionRepository {
     return rows.map((r) => ({ role: r.role === "user" ? "user" : "assistant", content: r.content }));
   }
 
+  async setScaffold(sessionId: string, scaffold: string | null): Promise<void> {
+    await this.db.update(sessions).set({ scaffold }).where(this.own(sessionId));
+  }
+
   async withdrawPending(sessionId: string, original: string): Promise<void> {
     await this.db
       .update(sessions)

@@ -119,6 +119,9 @@ class FakeSessions implements SessionRepository {
   async setPending(id: string, pending: PendingCorrection | null) {
     this.rows.get(id)!.pending = pending;
   }
+  async setScaffold(id: string, scaffold: string | null) {
+    this.rows.get(id)!.scaffold = scaffold;
+  }
   async withdrawPending(id: string, original: string) {
     const row = this.rows.get(id)!;
     row.pending = null;
@@ -1163,6 +1166,17 @@ describe("The conversation: help by the learner's level", () => {
     await turns.respond(session.id, "Yesterday I worked on the release.");
     expect(tutor.requests[0].scaffold).toBe("Yesterday I worked on…");
     expect(sessions.assisted.get(session.id)).toEqual([true]);
+  });
+
+  it("gives no help while a hint is pending, nor in the guided track", async () => {
+    levels.rows.push(placed("B1"));
+    const { session } = await starts.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    await turns.respond(session.id, "I goed to the meeting");
+    await expect(turns.help(session.id)).rejects.toMatchObject({ code: "invalid" });
+    levels.rows.push(placed("A1"));
+    const guided = await starts.start("daily", "en");
+    await expect(turns.help(guided.session.id)).rejects.toMatchObject({ code: "invalid" });
   });
 
   it("gives no help in the placement interview", async () => {
