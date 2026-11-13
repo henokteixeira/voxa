@@ -4,6 +4,7 @@
     python -m eval.record            # all sentences; existing ones are skipped
     python -m eval.record --redo     # record everything again
     python -m eval.record --mixed    # the English sentences with Portuguese words (eval/mixed_cases.py)
+    python -m eval.record --portuguese  # whole turns in Portuguese (eval/portuguese_cases.py)
 
 Say the sentence exactly as written, mistakes included, at your normal meeting pace.
 """
@@ -16,7 +17,7 @@ import soundfile as sf
 from eval.cases import CASES
 from eval.cleanup_risk import RECORDINGS
 from eval.mixed_cases import MIXED_CASES
-
+from eval.portuguese_cases import PORTUGUESE_CASES
 
 
 def record_until_enter() -> tuple[np.ndarray, int]:
@@ -33,9 +34,16 @@ def record_until_enter() -> tuple[np.ndarray, int]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--redo", action="store_true")
-    parser.add_argument("--mixed", action="store_true", help="record the sentences with Portuguese words")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--mixed", action="store_true", help="record the sentences with Portuguese words")
+    group.add_argument("--portuguese", action="store_true", help="record the whole turns in Portuguese")
     args = parser.parse_args()
-    cases, folder = (MIXED_CASES, RECORDINGS / "mixed") if args.mixed else (CASES, RECORDINGS)
+    if args.mixed:
+        cases, folder = MIXED_CASES, RECORDINGS / "mixed"
+    elif args.portuguese:
+        cases, folder = PORTUGUESE_CASES, RECORDINGS / "portuguese"
+    else:
+        cases, folder = CASES, RECORDINGS
     folder.mkdir(parents=True, exist_ok=True)
 
     for i, case in enumerate(cases, 1):
