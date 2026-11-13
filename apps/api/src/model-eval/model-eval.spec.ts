@@ -89,6 +89,7 @@ describe("timedTutor", () => {
     let clock = 0;
     const inner: TutorPort = {
       open: async () => ({ line: "Hi", scaffold: null }),
+      help: async () => ({ start: "", words: [] }),
       evaluate: async (_request, onReply) => {
         clock = 1200;
         onReply?.("Nice.");

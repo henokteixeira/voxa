@@ -61,6 +61,25 @@ const request: TutorRequest = {
   surprises: false,
 };
 
+describe("AnthropicTutorAdapter.help", () => {
+  it("asks for a sentence start and key words after the conversation so far, and keeps at most 4 words", async () => {
+    const words = ["the release", "the tests", "the review", "a bug", "the docs"].map((w) => ({ words: ` ${w} `, meaning: "x" }));
+    const { messages, parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: { start: " Yesterday I worked on… ", words } });
+    const adapter = new AnthropicTutorAdapter(new ClaudeClient(messages, config()), config());
+    const help = await adapter.help(request, request.history);
+    expect(help.start).toBe("Yesterday I worked on…");
+    expect(help.words.map((w) => w.words)).toEqual(["the release", "the tests", "the review", "a bug"]);
+    const sent = parse.mock.calls[0][0].messages;
+    expect(sent.at(-1).content).toMatch(/tapped "Help me".*\n`start`:.*Never the whole answer/s);
+    expect(sent.at(-1).content).toMatch(/meaning in pt-BR/);
+  });
+
+  it("fails when no start comes back", async () => {
+    const { messages } = fakeMessages({ stop_reason: "end_turn", parsed_output: { start: " ", words: [] } });
+    await expect(new AnthropicTutorAdapter(new ClaudeClient(messages, config()), config()).help(request, [])).rejects.toBeInstanceOf(TutorUnavailableError);
+  });
+});
+
 describe("AnthropicTutorAdapter.open", () => {
   it("asks for the opening line as structured output, so it never comes back as raw JSON text", async () => {
     const { messages, parse } = fakeMessages({ stop_reason: "end_turn", parsed_output: { reply: " Morning! ", scaffold: null } });

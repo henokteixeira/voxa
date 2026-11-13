@@ -31,6 +31,7 @@ const api = {
   fillerSpeech: vi.fn(),
   withdrawPending: vi.fn(),
   missionModel: vi.fn(),
+  sentenceHelp: vi.fn(),
   // A learner who already has a level: without one, Today opens the onboarding.
   level: () =>
     Promise.resolve({
@@ -44,7 +45,7 @@ const api = {
   // The mission page, after step 3: it stays loading in these tests.
   missionToday: vi.fn(() => new Promise(() => {})),
   voiceUrl: (id: string) => `ws://api/api/sessions/${id}/voice`,
-} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "saveTiming" | "resumeSession" | "fillerSpeech" | "withdrawPending" | "missionModel" | "todayProgress" | "reviewCard" | "answerReview" | "transcribe" | "missionToday"]: ReturnType<typeof vi.fn> };
+} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "saveTiming" | "resumeSession" | "fillerSpeech" | "withdrawPending" | "missionModel" | "sentenceHelp" | "todayProgress" | "reviewCard" | "answerReview" | "transcribe" | "missionToday"]: ReturnType<typeof vi.fn> };
 
 const deps: VoiceDeps = {
   openMicrophone: vi.fn(async (handlers: MicrophoneHandlers) => {
@@ -732,6 +733,21 @@ describe("live session", () => {
     // Unmounting the screen (e.g. the back button) closes the session.
     cleanupApp();
     expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ pausesMs: expect.any(Array) }));
+  });
+
+  it("gives help on request: a sentence start and key words, gone after the next turn", async () => {
+    api.sentenceHelp.mockResolvedValue({ start: "Yesterday I worked on…", words: [{ words: "the release", meaning: "a versão" }] });
+    await startAndListen();
+    await userEvent.click(screen.getByRole("button", { name: "Help me" }));
+    const card = await screen.findByRole("region", { name: "Help me" });
+    expect(api.sentenceHelp).toHaveBeenCalledWith("s1");
+    expect(card).toHaveTextContent("Yesterday I worked on…");
+    expect(card).toHaveTextContent("the release · a versão");
+    expect(screen.queryByRole("button", { name: "Help me" })).not.toBeInTheDocument();
+
+    act(() => micHandlers.onTurn(new ArrayBuffer(8)));
+    act(() => socketHandlers.onTranscript("Yesterday I worked on the release"));
+    expect(screen.queryByRole("region", { name: "Help me" })).not.toBeInTheDocument();
   });
 
   it("keeps the mission's 3 expressions on screen during its conversation", async () => {

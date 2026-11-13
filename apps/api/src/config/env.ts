@@ -8,6 +8,7 @@ const optional = <T extends z.ZodType>(schema: T) => z.preprocess((value) => (va
 export const CLAUDE_TASKS = [
   "tutor_open",
   "tutor_turn",
+  "tutor_help",
   "review_cue",
   "review_check",
   "mission_model",

@@ -33,7 +33,8 @@ import { MISSION_REPOSITORY, type MissionRepository } from "../domain/ports/miss
 import { MISTAKE_BANK_REPOSITORY, type MistakeBankRepository } from "../domain/ports/mistake-bank.repository.js";
 import { MISTAKE_REPOSITORY, type MistakeRepository } from "../domain/ports/mistake.repository.js";
 import { SESSION_REPOSITORY, type SessionRepository } from "../domain/ports/session.repository.js";
-import { TUTOR_PORT, type TutorPort, type TutorRequest } from "../domain/ports/tutor.port.js";
+import { type SentenceHelp, TUTOR_PORT, type TutorPort, type TutorRequest } from "../domain/ports/tutor.port.js";
+import { InvalidInputError } from "../domain/errors.js";
 import { UNIT_OF_WORK, type TransactionStores, type UnitOfWork } from "../domain/ports/unit-of-work.port.js";
 import { ReviewScheduler } from "./review-scheduler.js";
 import { openSession, phrasesOf, tutorContext } from "./session-context.js";
@@ -72,7 +73,7 @@ export class TurnService {
   private readonly logger = new Logger(TurnService.name);
 
   constructor(
-    @Inject(TUTOR_PORT) private readonly tutor: Pick<TutorPort, "evaluate">,
+    @Inject(TUTOR_PORT) private readonly tutor: Pick<TutorPort, "evaluate" | "help">,
     @Inject(SESSION_REPOSITORY) private readonly sessions: Pick<SessionRepository, "get" | "history" | "outcome">,
     @Inject(MISTAKE_REPOSITORY) private readonly mistakes: Pick<MistakeRepository, "mostFrequent" | "patterns" | "sessionPatterns">,
     @Inject(LEARNER_CONTEXT_PORT) private readonly learnerContext: LearnerContextPort,
@@ -265,6 +266,32 @@ export class TurnService {
       track: trackView(move?.track ?? session.track),
       scaffold,
     };
+  }
+
+  /**
+   * "Help me" (2026-11-13): the start of a sentence and key words for the learner's next answer. They become the words
+   * given, so the next answer counts as helped and the tutor reads it as finishing them.
+   */
+  async help(sessionId: string): Promise<SentenceHelp> {
+    const session = await openSession(this.sessions, sessionId);
+    if (!correctsMistakes(session.mode)) throw new InvalidInputError("The placement interview gives no help with what to say.");
+    const [history, learnerContext, mission] = await Promise.all([
+      this.sessions.history(sessionId),
+      this.learnerContext.load(),
+      session.missionId ? this.missions.get(session.missionId) : null,
+    ]);
+    const help = await this.tutor.help(tutorContext(session, learnerContext, phrasesOf(mission)), history);
+    await this.unitOfWork.run(({ sessions }) =>
+      sessions.setProgress(sessionId, {
+        coveredGoals: session.coveredGoals,
+        lastCheckInAt: session.lastCheckInAt,
+        metTargets: session.metTargets,
+        scaffold: help.start,
+        step: session.step,
+        track: session.track,
+      }),
+    );
+    return help;
   }
 
   /**

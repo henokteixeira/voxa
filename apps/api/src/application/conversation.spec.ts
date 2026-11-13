@@ -56,6 +56,11 @@ class FakeTutor implements TutorPort {
     if (this.speaksEarly) onReply?.(next.reply);
     return next;
   }
+  helped: { context: TutorContext; history: ChatTurn[] }[] = [];
+  async help(context: TutorContext, history: ChatTurn[]) {
+    this.helped.push({ context, history });
+    return { start: "Yesterday I worked on…", words: [{ words: "the release", meaning: "a versão" }] };
+  }
 }
 
 type Row = Session & { turns: ChatTurn[]; timing: SessionTiming | null };
@@ -1144,6 +1149,25 @@ describe("The conversation: help by the learner's level", () => {
     expect((await sessions.get(session.id))?.scaffold).toBeNull();
     expect(sessions.assisted.get(session.id)).toEqual([false, true]);
     expect((await summaries.end(session.id)).signals.unaidedShare).toBe(0.5);
+  });
+
+  it("gives help on request: a start and key words, and the next answer counts as helped", async () => {
+    levels.rows.push(placed("B1"));
+    const { session } = await starts.start("daily", "en");
+    const help = await turns.help(session.id);
+    expect(help).toEqual({ start: "Yesterday I worked on…", words: [{ words: "the release", meaning: "a versão" }] });
+    expect(tutor.helped[0].history.at(-1)).toEqual({ role: "assistant", content: "Tell me about your project." });
+    expect((await sessions.get(session.id))?.scaffold).toBe("Yesterday I worked on…");
+
+    tutor.verdicts.push(verdict({}));
+    await turns.respond(session.id, "Yesterday I worked on the release.");
+    expect(tutor.requests[0].scaffold).toBe("Yesterday I worked on…");
+    expect(sessions.assisted.get(session.id)).toEqual([true]);
+  });
+
+  it("gives no help in the placement interview", async () => {
+    const { session } = await starts.start("placement", "en");
+    await expect(turns.help(session.id)).rejects.toMatchObject({ code: "invalid" });
   });
 
   it("at B1, allows surprise questions only after a few turns mostly answered without help", async () => {

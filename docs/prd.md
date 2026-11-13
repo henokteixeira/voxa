@@ -103,7 +103,7 @@ Approved on 2026-11-07 (leveling and guided track design).
 The learner, placed at B1, found conversations heavy and discouraging: he still struggles to build sentences, words escape him, he could not keep the long model in mind, and three timed retellings were tiring. The jump from A2 (answers built step by step) to B1 (free talk, help only when stuck) took away almost all support at once. Approved changes:
 
 - **Try A2 first:** the learner sets A2 by hand for a few days and compares (no change in the app).
-- **"Help me" button:** always on screen in a conversation. It asks the tutor, in writing, for the start of a sentence and 3–4 key words for what he wants to say next; the turn after it counts as helped. Saying the idea in his first language also works: at B1, the tutor answers with one short sentence in the target language for him to say, then the scene goes on.
+- **"Help me" button:** on screen on the learner's turn in a conversation (not while a hint asks for his own sentence, and not in the placement interview). It asks the tutor, in writing, for the start of a sentence and 3–4 key words for what he wants to say next; the turn after it counts as helped. Saying the idea in his first language also works: at B1, the tutor answers with one short sentence in the target language for him to say, then the scene goes on.
 - **Shorter tutor lines at B1:** one or two spoken sentences. Unexpected questions start only once the session's answers are mostly given without help (B2 and up keep natural length and surprises as before).
 - **Shorter model and visible expressions:** see the mission table (steps 1 and 3).
 - **Say it faster:** 2 rounds and optional (see the mission table).

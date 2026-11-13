@@ -43,6 +43,10 @@ export interface SessionCopy {
     yourAnswer: string;
     send: string;
     typeInstead: string;
+    helpMe: string;
+    helpStart: string;
+    helpWords: string;
+    helpFailed: string;
     endSession: string;
     backToToday: string;
     paused: string;
@@ -225,6 +229,10 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       yourAnswer: "Your answer",
       send: "Send",
       typeInstead: "Type instead",
+      helpMe: "Help me",
+      helpStart: "You could start with",
+      helpWords: "Words that may help",
+      helpFailed: "Help couldn't come right now. Try again, or say it in Portuguese.",
       endSession: "End session",
       backToToday: "Back to Today",
       paused: "Paused",
@@ -279,6 +287,10 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       yourAnswer: "Sua resposta",
       send: "Enviar",
       typeInstead: "Digitar em vez de falar",
+      helpMe: "Me ajuda",
+      helpStart: "Você pode começar com",
+      helpWords: "Palavras que podem ajudar",
+      helpFailed: "A ajuda não veio agora. Tente de novo, ou diga em português.",
       endSession: "Encerrar sessão",
       backToToday: "Voltar para Hoje",
       paused: "Sessão pausada",

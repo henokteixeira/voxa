@@ -16,6 +16,7 @@ import type {
   SignalsHistoryEntry,
   StartedSession,
   TodayProgress,
+  SentenceHelp,
   TurnResult,
 } from "@voxa/contracts";
 import type { CheckInsController } from "./check-ins/check-ins.controller.js";
@@ -52,6 +53,7 @@ export type ResponseContracts = [
   Answers<StartedSession, Sent<SessionsController["start"]>>,
   Answers<ResumedSession, Sent<SessionsController["resume"]>>,
   Answers<TurnResult, Sent<SessionsController["turn"]>>,
+  Answers<SentenceHelp, Sent<SessionsController["help"]>>,
   Answers<SessionSummary, Sent<SessionsController["end"]>>,
   Answers<FasterRoundsView, Sent<FasterRoundsController["view"]>>,
   Answers<FasterRoundsView, Sent<FasterRoundsController["record"]>>,
