@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { keptScaffold, sessionStep, STEP_WITHOUT_LEVEL, wasAssisted } from "./support.js";
+import { keptScaffold, sessionStep, STEP_WITHOUT_LEVEL, surprisesAllowed, wasAssisted } from "./support.js";
 
 describe("sessionStep", () => {
   it("follows the level, helps as before without one, and gives none in the placement interview", () => {
@@ -33,5 +33,22 @@ describe("wasAssisted", () => {
     expect(wasAssisted({ scaffoldBefore: null, usedFirstLanguage: false })).toBe(false);
     expect(wasAssisted({ scaffoldBefore: "Yesterday I...", usedFirstLanguage: false })).toBe(true);
     expect(wasAssisted({ scaffoldBefore: null, usedFirstLanguage: true })).toBe(true);
+  });
+});
+
+describe("surprisesAllowed", () => {
+  it("always allows unexpected questions from B2 up and never below B1", () => {
+    const none = { total: 0, assisted: 0 };
+    expect(surprisesAllowed("conversation", none)).toBe(true);
+    expect(surprisesAllowed("demanding", none)).toBe(true);
+    expect(surprisesAllowed("build_light", { total: 10, assisted: 0 })).toBe(false);
+    expect(surprisesAllowed(null, { total: 10, assisted: 0 })).toBe(false);
+  });
+
+  it("at B1, waits for a few turns mostly answered without help", () => {
+    expect(surprisesAllowed("supported", { total: 3, assisted: 0 })).toBe(false);
+    expect(surprisesAllowed("supported", { total: 4, assisted: 0 })).toBe(true);
+    expect(surprisesAllowed("supported", { total: 4, assisted: 1 })).toBe(true);
+    expect(surprisesAllowed("supported", { total: 4, assisted: 2 })).toBe(false);
   });
 });

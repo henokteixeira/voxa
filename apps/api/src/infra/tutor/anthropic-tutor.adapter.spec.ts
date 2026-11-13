@@ -58,6 +58,7 @@ const request: TutorRequest = {
   step: "conversation",
   scaffold: null,
   plan: null,
+  surprises: false,
 };
 
 describe("AnthropicTutorAdapter.open", () => {

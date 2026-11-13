@@ -84,7 +84,7 @@ export function ListenStep(props: { missionId: string; model: MissionModel; onLi
         </span>
       </div>
       {textShown && (
-        <p lang="en" className="m-0 rounded-md bg-paper px-5 py-4 font-serif text-[18px] leading-relaxed shadow-card">
+        <p lang="en" className="m-0 rounded-md bg-paper px-5 py-4 font-serif text-[18px] leading-relaxed whitespace-pre-line shadow-card">
           {model.text}
         </p>
       )}

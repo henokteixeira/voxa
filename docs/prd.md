@@ -38,10 +38,10 @@ The daily mission is the next priority (approved on 2026-11-09), ahead of the re
 
 | # | Step | Strand | Time at a 30-minute goal | What happens |
 | --- | --- | --- | --- | --- |
-| 1 | Listen | Meaning-focused input | about 4 min | The tutor does the task first, at the learner's level. Audio only; the text shows when tapped. |
+| 1 | Listen | Meaning-focused input | about 4 min | The tutor does the task first, at the learner's level, in short parts (one per part of the task; about 70 words at B1). Audio only; the text shows when tapped. |
 | 2 | Take 3 expressions | Language-focused learning | about 3 min | 3 ready-made expressions from the model; the learner says each aloud in a sentence of his own. They join the spaced review. |
-| 3 | Do the task | Meaning-focused output | about 10 min | The conversation with hints, as today. The tutor invites the 3 expressions and, when answers stay very simple, asks for a slightly fuller one (an invitation, never a correction). |
-| 4 | Say it faster | Fluency development | about 5 min | The learner tells the same content 3 times, in 2, 1.5 and 1 minute (a shortened 4/3/2; half that at A1–A2, whose answers don't fill 2 minutes), with no correction. The app shows how the pace changed. |
+| 3 | Do the task | Meaning-focused output | about 10 min | The conversation with hints, as today. The 3 expressions stay on screen as a crib sheet; the tutor invites them and, when answers stay very simple, asks for a slightly fuller one (an invitation, never a correction). |
+| 4 | Say it faster (optional) | Fluency development | about 3 min | The learner tells the same content 2 times, in 2 and 1 minute (half that at A1–A2, whose answers don't fill 2 minutes), with no correction. The app shows how the pace changed. The step can be skipped and the mission is done without it (2026-11-13: 3 rounds were tiring while sentences still take effort to build). |
 | 5 | Review | Retrieval practice | about 3 min | The existing voice review. |
 
 - **Benchmark task every 2 weeks:** always the same prompt (for example, present your project in 2 minutes), compared with earlier runs: pace, pauses, mistakes per 100 words, linking words per 100 words (because, but, although, if…; not "so" or "then", which are also fillers: answers that link ideas say more than a list of short sentences), and the old recording to listen to. Right after it, 1 minute on a topic never given before (last weekend, a problem solved, explaining something you know well, a change you'd like, a place you remember, someone you admire, next month's plans, a recommendation, a childhood memory, a hard decision; then the one whose last time is the oldest), so speech that was not rehearsed is measured too; it is compared only with the earlier topic tasks, and if skipped it waits for the next check-in (2026-11-10, Henok chose 1 minute). In the app, the check-in result offers "One more minute: a new topic" or "Not now"; opened later the same day, the check-in goes straight to the open topic task.
@@ -97,6 +97,18 @@ Approved on 2026-11-07 (leveling and guided track design).
 - **Level:** shown in the Progress tab, where the user can also set it by hand.
 - **Support step by level,** inside the existing modes: A1 a full guided track (repeat a model sentence, with the sentence hidden until tapped; say it with his own information; add a piece; answer alone; say the answer again); A2 the model only when he is stuck; B1 free talk plus the start of a sentence when stuck; B2 conversation as before; C1–C2 more demanding. From B1 up the tutor talks as people really do (usually two to four sentences, sometimes its own view or a short story) and about one turn in four asks an unexpected but natural question (a new angle, a "what if", a different opinion), so the learner practices following real speech and answering what they did not prepare; below B1 its lines stay short (one to three sentences).
 - **Step changes in a session:** two goals answered without help skip the model; stuck twice brings it back.
+
+### More support for building sentences (approved on 2026-11-13)
+
+The learner, placed at B1, found conversations heavy and discouraging: he still struggles to build sentences, words escape him, he could not keep the long model in mind, and three timed retellings were tiring. The jump from A2 (answers built step by step) to B1 (free talk, help only when stuck) took away almost all support at once. Approved changes:
+
+- **Try A2 first:** the learner sets A2 by hand for a few days and compares (no change in the app).
+- **"Help me" button:** always on screen in a conversation. It asks the tutor, in writing, for the start of a sentence and 3–4 key words for what he wants to say next; the turn after it counts as helped. Saying the idea in his first language also works: from B1 down, the tutor answers with one short sentence in the target language for him to say, then the scene goes on.
+- **Shorter tutor lines at B1:** one or two spoken sentences. Unexpected questions start only once the session's answers are mostly given without help (B2 and up keep natural length and surprises as before).
+- **Shorter model and visible expressions:** see the mission table (steps 1 and 3).
+- **Say it faster:** 2 rounds and optional (see the mission table).
+- **Hint card with his own sentence:** the card shows the whole sentence as transcribed, with the words that hold the mistake in bold, and the mistake's type and one-line rule right away, before the retry; never the corrected words. An "I said it right" link drops the mistake (for when the speech-to-text or the tutor got it wrong): it leaves the bank and the conversation goes on.
+- **Stricter review:** an answer counts as recalled only when the whole sentence is correct; when another mistake is in it, the result shows that one too, and the item does not move forward.
 
 ## Voice loop
 

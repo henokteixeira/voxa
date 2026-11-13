@@ -10,8 +10,10 @@ import {
   PLACEMENT_RULES,
   SCENES,
   strategiesSection,
+  B1_TALK,
   NATURAL_STEPS,
   NATURAL_TALK,
+  SURPRISES,
   SUPPORT_RULES,
 } from "./tutor-prompts.js";
 
@@ -173,16 +175,30 @@ describe("buildSystemPrompt: help by support step", () => {
   it("gives the start of a sentence at B1 when the learner is stuck, never the whole answer", () => {
     expect(prompt("supported")).toContain(SUPPORT_RULES.supported);
     expect(SUPPORT_RULES.supported).toMatch(/only the start of a sentence/);
-    expect(SUPPORT_RULES.supported).toMatch(/Never the whole answer/);
-    expect(SUPPORT_RULES.supported).toMatch(/serious mistake .* give no sentence start/);
+    expect(SUPPORT_RULES.supported).toMatch(/never the whole answer/);
+    expect(SUPPORT_RULES.supported).toMatch(/serious mistake .* give no sentence:/);
   });
 
-  it("talks at natural length and asks unexpected questions from B1 up, and keeps lines short below", () => {
-    expect([...NATURAL_STEPS]).toEqual(["supported", "conversation", "demanding"]);
+  it("turns an idea said in the first language into one short sentence to say, at B1", () => {
+    expect(SUPPORT_RULES.supported).toMatch(/mostly in their first language, give in `reply` that idea as one short, simple sentence/);
+    expect(SUPPORT_RULES.supported).toMatch(/Put that sentence or start in `scaffold`/);
+  });
+
+  it("keeps the tutor's turns short at B1, with surprises only when the turn message allows them", () => {
+    expect(SUPPORT_RULES.supported).toContain(B1_TALK);
+    expect(B1_TALK).toMatch(/one or two short, clear spoken sentences/);
+    expect(B1_TALK).toContain(SURPRISES);
+    expect(NATURAL_TALK).toContain(SURPRISES);
+    expect(SURPRISES).toMatch(/only when <surprise_questions> says allowed/);
+    expect(prompt("supported")).toMatch(/Speak naturally, in one or two short spoken sentences\./);
+  });
+
+  it("talks at natural length from B2 up, and keeps lines short below", () => {
+    expect([...NATURAL_STEPS]).toEqual(["conversation", "demanding"]);
     for (const step of SUPPORT_STEPS) {
       const natural = NATURAL_STEPS.has(step);
       expect(prompt(step).includes(NATURAL_TALK)).toBe(natural);
-      expect(prompt(step).includes("short spoken sentences (one to three)")).toBe(!natural);
+      expect(prompt(step).includes("short spoken sentences (one to three)")).toBe(!natural && step !== "supported");
     }
     // The placement interview (no step) keeps short lines.
     expect(prompt(null)).not.toContain(NATURAL_TALK);
@@ -237,7 +253,7 @@ describe("buildTrackInstruction", () => {
 
   it("goes into the turn message only in the track", () => {
     const step = { stage: "answer" as const, retry: false, goal: null };
-    const base = { utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], knownPatterns: [], bringBack: [], focusPatterns: [], reviewExpressions: [], coveredGoals: [], scaffold: null };
+    const base = { utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], knownPatterns: [], bringBack: [], focusPatterns: [], reviewExpressions: [], coveredGoals: [], scaffold: null, surprises: false };
     expect(buildTurnMessage({ ...base, plan: { otherwise: step, ifStuck: step, hintsPause: false } })).toMatch(
       /<guided_track>\nAsk the scene's question for the goal, with no model sentence\. Goal: a short topic/,
     );
@@ -275,7 +291,9 @@ describe("buildTurnMessage", () => {
       coveredGoals: ["yesterday"],
       scaffold: "Yesterday I...",
       plan: null,
+      surprises: true,
     });
+    expect(message).toContain("<surprise_questions>\nallowed\n</surprise_questions>");
     expect(message).toContain("<words_given>\nYesterday I...\n</words_given>");
     expect(message).toContain("<known_patterns>\n- past_simple_finished_action: Past for finished actions\n</known_patterns>");
     expect(message).toContain("<bring_back>\n- past_simple_finished_action: Past for finished actions\n</bring_back>");
@@ -289,7 +307,8 @@ describe("buildTurnMessage", () => {
   });
 
   it("says none when there is nothing to check against", () => {
-    const message = buildTurnMessage({ utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], knownPatterns: [], bringBack: [], focusPatterns: [], reviewExpressions: [], coveredGoals: [], scaffold: null, plan: null });
+    const message = buildTurnMessage({ utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], knownPatterns: [], bringBack: [], focusPatterns: [], reviewExpressions: [], coveredGoals: [], scaffold: null, plan: null, surprises: false });
+    expect(message).toContain("<surprise_questions>\nnot now\n</surprise_questions>");
     expect(message).toContain("<words_given>\nnone\n</words_given>");
     expect(message).toContain("<new_words>\nnone\n</new_words>");
     expect(message).toContain("<known_mistakes>\nnone\n</known_mistakes>");
