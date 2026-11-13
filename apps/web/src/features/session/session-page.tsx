@@ -10,6 +10,7 @@ import { useCopy } from "@/lib/i18n/locale";
 import { CheckInCard, GoalsStrip, PartsBar } from "./goals";
 import { ScaffoldCard, TrackBar } from "./guided-track";
 import { ballTipSeen, markBallTipSeen } from "./ball-tip";
+import { MissionExpressions } from "./mission-expressions";
 import { isMode, useModeInfo } from "./modes";
 import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-copy";
 import { CaptionCard, FadingCaption, HintCard, IconButton, PauseIcon, QuietLink, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
@@ -199,6 +200,7 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
       ) : (
         <GoalsStrip goals={state.goals} covered={state.coveredGoals} />
       )}
+      {missionId && <MissionExpressions missionId={missionId} />}
       {state.track && <TrackBar track={state.track} />}
       {/* Always mounted, so screen readers announce each toast; it floats over the ball or the transcript. */}
       <div aria-live="polite" className="pointer-events-none relative z-10 h-0">

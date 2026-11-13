@@ -30,6 +30,7 @@ const api = {
   resumeSession: vi.fn(),
   fillerSpeech: vi.fn(),
   withdrawPending: vi.fn(),
+  missionModel: vi.fn(),
   // A learner who already has a level: without one, Today opens the onboarding.
   level: () =>
     Promise.resolve({
@@ -43,7 +44,7 @@ const api = {
   // The mission page, after step 3: it stays loading in these tests.
   missionToday: vi.fn(() => new Promise(() => {})),
   voiceUrl: (id: string) => `ws://api/api/sessions/${id}/voice`,
-} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "saveTiming" | "resumeSession" | "fillerSpeech" | "withdrawPending" | "todayProgress" | "reviewCard" | "answerReview" | "transcribe" | "missionToday"]: ReturnType<typeof vi.fn> };
+} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "saveTiming" | "resumeSession" | "fillerSpeech" | "withdrawPending" | "missionModel" | "todayProgress" | "reviewCard" | "answerReview" | "transcribe" | "missionToday"]: ReturnType<typeof vi.fn> };
 
 const deps: VoiceDeps = {
   openMicrophone: vi.fn(async (handlers: MicrophoneHandlers) => {
@@ -126,6 +127,7 @@ beforeEach(() => {
   api.endSession.mockResolvedValue(summaryWith([]));
   api.saveTiming.mockResolvedValue(undefined);
   api.fillerSpeech.mockResolvedValue([]);
+  api.missionModel.mockRejectedValue(new Error("no mission"));
   api.todayProgress.mockResolvedValue(todayWith(20));
   api.startSession.mockResolvedValue({
     sessionId: "s1",
@@ -730,6 +732,15 @@ describe("live session", () => {
     // Unmounting the screen (e.g. the back button) closes the session.
     cleanupApp();
     expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ pausesMs: expect.any(Array) }));
+  });
+
+  it("keeps the mission's 3 expressions on screen during its conversation", async () => {
+    const phrases = ["I'm still working on…", "I'm blocked by…", "By the end of the day, I'll…"];
+    api.missionModel.mockResolvedValue({ speaker: "Alex", text: "…", expressions: phrases.map((phrase, i) => ({ id: `e${i}`, position: i + 1, phrase, example: phrase, saidAt: null })) });
+    await startAndListen({ path: "/session/daily?mission=m1" });
+    const list = await screen.findByRole("list", { name: "Today's expressions" });
+    expect(within(list).getAllByRole("listitem").map((li) => li.textContent)).toEqual(phrases);
+    expect(api.missionModel).toHaveBeenCalledWith("m1");
   });
 
   it("keeps the mission's conversation paused when the learner leaves mid-session", async () => {
