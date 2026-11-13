@@ -43,6 +43,10 @@ export interface SessionCopy {
     yourAnswer: string;
     send: string;
     typeInstead: string;
+    helpMe: string;
+    helpStart: string;
+    helpWords: string;
+    helpFailed: string;
     endSession: string;
     backToToday: string;
     paused: string;
@@ -65,6 +69,8 @@ export interface SessionCopy {
     correctForm: string;
     savedToBank: string;
     help: string;
+    saidItRight: string;
+    withdrawn: string;
   };
 }
 
@@ -223,6 +229,10 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       yourAnswer: "Your answer",
       send: "Send",
       typeInstead: "Type instead",
+      helpMe: "Help me",
+      helpStart: "You could start with",
+      helpWords: "Words that may help",
+      helpFailed: "Help couldn't come right now. Try again, or say it in Portuguese.",
       endSession: "End session",
       backToToday: "Back to Today",
       paused: "Paused",
@@ -243,6 +253,8 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       correctForm: "The correct form",
       savedToBank: "Saved to your mistake bank",
       help: "Help",
+      saidItRight: "I said it right",
+      withdrawn: "Got it: that doesn't count as a mistake. Go on.",
     },
   },
   "pt-BR": {
@@ -275,6 +287,10 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       yourAnswer: "Sua resposta",
       send: "Enviar",
       typeInstead: "Digitar em vez de falar",
+      helpMe: "Me ajuda",
+      helpStart: "Você pode começar com",
+      helpWords: "Palavras que podem ajudar",
+      helpFailed: "A ajuda não veio agora. Tente de novo, ou diga em português.",
       endSession: "Encerrar sessão",
       backToToday: "Voltar para Hoje",
       paused: "Sessão pausada",
@@ -295,6 +311,8 @@ export const SESSION_COPY: Copy<SessionCopy> = {
       correctForm: "A forma correta",
       savedToBank: "Salvo no seu banco de erros",
       help: "Ajuda",
+      saidItRight: "Eu disse certo",
+      withdrawn: "Certo: isso não conta como erro. Pode continuar.",
     },
   },
 };

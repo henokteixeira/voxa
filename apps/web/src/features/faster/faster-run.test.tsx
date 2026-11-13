@@ -11,14 +11,13 @@ const view = (nextRound: number | null, result: FasterRoundsView["result"] = nul
   language: "en",
   rounds: [],
   nextRound,
-  nextLimitMs: nextRound ? [120_000, 90_000, 60_000][nextRound - 1] : null,
+  nextLimitMs: nextRound ? [120_000, 60_000][nextRound - 1] : null,
   result,
 });
 const result = {
   rounds: [
     { round: 1, wordsPerMinute: 72, longPauses: 6 },
-    { round: 2, wordsPerMinute: 84, longPauses: 4 },
-    { round: 3, wordsPerMinute: 92, longPauses: 2 },
+    { round: 2, wordsPerMinute: 92, longPauses: 2 },
   ],
   paceChangePercent: 28,
   fewerLongPauses: true,
@@ -65,12 +64,12 @@ describe("Say it faster", () => {
     );
     expect(transcribe).toHaveBeenCalledWith(expect.any(ArrayBuffer), "en");
 
-    await userEvent.click(await screen.findByRole("button", { name: "Start · 1:30" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Start · 1:00" }));
     say([]);
     await userEvent.click(screen.getByRole("button", { name: "I'm done" }));
 
     expect(await screen.findByRole("heading", { name: "You said it 28% faster, with fewer long pauses." })).toBeInTheDocument();
-    expect(screen.getByText("Long pauses: 6 → 4 → 2")).toBeInTheDocument();
+    expect(screen.getByText("Long pauses: 6 → 2")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(onDone).toHaveBeenCalled();
   });

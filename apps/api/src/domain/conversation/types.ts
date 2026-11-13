@@ -61,6 +61,8 @@ export interface Session {
   language: string;
   mode: Mode;
   pending: PendingCorrection | null;
+  /** The words of each hint the learner answered with "I said it right" in this session: never hinted again. */
+  withdrawnMistakes: string[];
   startedAt: Date;
   endedAt: Date | null;
   /** Goals of the mode the learner has covered so far. */

@@ -23,7 +23,7 @@ afterEach(() => app.close());
 
 describe("/sessions/:id/faster-rounds", () => {
   it("records a told round", async () => {
-    const view = { rounds: [], nextRound: 2, nextLimitMs: 90_000, result: null };
+    const view = { rounds: [], nextRound: 2, nextLimitMs: 60_000, result: null };
     service.record.mockResolvedValue(view);
     const round = { round: 1, transcript: " I finished it ", speechMs: 5000, longPausesMs: [1200] };
     const res = await request(app.getHttpServer()).post(`/sessions/${id}/faster-rounds`).send(round);

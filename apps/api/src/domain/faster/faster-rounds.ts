@@ -2,17 +2,18 @@ import type { SupportStep } from "../level/speaking-level.js";
 import { wordsPerMinute } from "../conversation/fluency.js";
 
 /**
- * "Say it faster" (a shortened 4/3/2): after a conversation the learner tells the same content 3 times,
- * each time with less time, and with no correction. The app shows how his pace changed.
+ * "Say it faster" (a shortened 4/3/2): after a conversation the learner tells the same content twice,
+ * the second time with half the time, and with no correction. The app shows how his pace changed.
+ * It was 3 rounds until 2026-11-13, when they proved tiring while sentences still take effort to build.
  */
 
-/** The time of each round: 2:00, 1:30, 1:00 (rounds are numbered from 1). */
-export const FASTER_ROUND_LIMITS_MS = [120_000, 90_000, 60_000] as const;
+/** The time of each round: 2:00, 1:00 (rounds are numbered from 1). */
+export const FASTER_ROUND_LIMITS_MS = [120_000, 60_000] as const;
 /**
  * At the guided track's steps (A1–A2) answers are a few short sentences, which don't fill 2 minutes: the rounds take
- * half the time, 1:00, 0:45, 0:30 (decided on 2026-11-10).
+ * half the time, 1:00, 0:30 (decided on 2026-11-10).
  */
-export const GUIDED_FASTER_ROUND_LIMITS_MS = [60_000, 45_000, 30_000] as const;
+export const GUIDED_FASTER_ROUND_LIMITS_MS = [60_000, 30_000] as const;
 export const FASTER_ROUNDS = FASTER_ROUND_LIMITS_MS.length;
 
 /** Speech measured a little past the limit still counts: the last turn is cut when the time runs out. */
@@ -23,7 +24,7 @@ export const LONG_PAUSE_MS = 1_000;
 
 /** One told round, as measured by the web app. */
 export interface FasterRound {
-  /** 1, 2 or 3. */
+  /** 1 or 2. */
   round: number;
   timeLimitMs: number;
   /** What the learner said, from speech to text. */
@@ -42,7 +43,7 @@ export interface RoundPace {
   longPauses: number;
 }
 
-/** How the pace changed from the first round to the last; null until the 3 rounds are told. */
+/** How the pace changed from the first round to the last; null until every round is told. */
 export interface FasterResult {
   rounds: RoundPace[];
   /** How much faster the last round was than the first, in percent (negative when slower); null without both paces. */
@@ -65,7 +66,7 @@ export function roundPace(round: Pick<FasterRound, "round" | "spokenWords" | "sp
   return { round: round.round, wordsPerMinute: wordsPerMinute(round.spokenWords, round.speechMs), longPauses: round.longPauses };
 }
 
-/** The result of the 3 rounds (given in order), or null while some are missing. */
+/** The result of the rounds (given in order), or null while some are missing. Older sessions told 3: all are shown. */
 export function fasterResult(rounds: readonly FasterRound[]): FasterResult | null {
   if (rounds.length < FASTER_ROUNDS) return null;
   const paces = rounds.map(roundPace);

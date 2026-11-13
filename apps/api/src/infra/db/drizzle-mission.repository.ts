@@ -8,7 +8,12 @@ import { missionExpressions, missions } from "./schema.js";
 
 type MissionRow = typeof missions.$inferSelect;
 
-const STEP_COLUMNS = { listen: "listenedAt", expressions: "expressionsDoneAt", review: "reviewDoneAt" } as const satisfies Record<
+const STEP_COLUMNS = {
+  listen: "listenedAt",
+  expressions: "expressionsDoneAt",
+  faster: "fasterSkippedAt",
+  review: "reviewDoneAt",
+} as const satisfies Record<
   MarkedStep,
   keyof MissionRow
 >;

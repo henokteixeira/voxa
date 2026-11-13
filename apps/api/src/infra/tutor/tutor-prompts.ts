@@ -265,7 +265,8 @@ export function buildSystemPrompt(
         "short snake_case id in English (e.g. `past_simple_finished_action`); when the rule is one in the known " +
         "patterns list, copy its key exactly. `name`: a label of two to six words, in plain " +
         `${language} (e.g. \"Past for finished actions\"). \`rule\`: the rule in one short line, in ${firstLanguage}, ` +
-        "with one tiny example; it is shown only after the learner tries, so it may hold the correct form.",
+        "with one tiny example about something else; it is shown with the hint, before the learner retries, so it " +
+        "must never hold the corrected words of this mistake.",
       "Do not report style preferences or correct language that a fluent speaker would accept.",
       "List in `correctUses` each known mistake the learner avoided (the utterance says the same thing correctly), " +
         `and each new word they now said in ${language}. Copy its \`original\` text from the known mistakes or new ` +
@@ -297,6 +298,21 @@ export function buildSystemPrompt(
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+/**
+ * "Help me" (decided on 2026-11-13): the learner asks for a way in, so the help is a start and words, never the whole
+ * answer, and it is about what they would say, not a new turn of the scene.
+ */
+export function buildHelpRequest(firstLanguage: string): string {
+  return [
+    "The learner tapped \"Help me\": they want to answer your last line but can't build the sentence. Do not go on with " +
+      "the scene and do not correct anything.",
+    "`start`: the first words (at most eight) of a natural sentence that answers your last line, about the learner's " +
+      "real life or work when you know it, ending in \"…\" where their own words go. Never the whole answer.",
+    `\`words\`: three or four words or short chunks they will likely need to finish it, each with its meaning in ` +
+      `${firstLanguage}. Common, spoken words at the learner's level; not the words already in \`start\`.`,
+  ].join("\n");
 }
 
 /** The opening request, also replayed as the first user message so history alternates correctly. */

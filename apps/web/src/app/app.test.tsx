@@ -137,7 +137,7 @@ describe("Today", () => {
     renderApp("/", up());
     expect(await screen.findByRole("heading", { name: "Daily stand-up" })).toBeInTheDocument();
     expect(screen.getByText("Today's mission")).toBeInTheDocument();
-    expect(screen.getByText("5 steps · 25 min")).toBeInTheDocument();
+    expect(screen.getByText("5 steps · 23 min")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Start" })).toHaveAttribute("href", "/mission");
     // The date is the page's heading: no greeting.
     expect(screen.getByRole("heading", { level: 1 })).not.toHaveTextContent(/Good (morning|afternoon|evening)/);

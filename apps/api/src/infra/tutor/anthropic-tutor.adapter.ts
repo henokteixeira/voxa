@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { TutorVerdict } from "../../domain/conversation/correction-policy.js";
 import { MISTAKE_TYPES } from "../../domain/mistakes/mistake-type.js";
 import {
+  type SentenceHelp,
   type TrackPlan,
   type TutorContext,
   type TutorOpening,
@@ -14,9 +15,14 @@ import {
   TutorUnavailableError,
 } from "../../domain/ports/tutor.port.js";
 import { ClaudeClient } from "./claude-client.js";
-import { buildSystemPrompt, buildTrackInstruction, buildTurnMessage, OPENING_REQUEST } from "./tutor-prompts.js";
+import { buildHelpRequest, buildSystemPrompt, buildTrackInstruction, buildTurnMessage, OPENING_REQUEST } from "./tutor-prompts.js";
 
 const OpeningSchema = z.object({ reply: z.string(), scaffold: z.string().nullable() });
+
+const HelpSchema = z.object({ start: z.string(), words: z.array(z.object({ words: z.string(), meaning: z.string() })) });
+
+/** At most this many key words reach the screen. */
+const HELP_WORDS = 4;
 
 const VerdictSchema = z.object({
   reply: z.string(),
@@ -125,6 +131,26 @@ export class AnthropicTutorAdapter implements TutorPort {
       },
       onText,
     );
+  }
+
+  async help(context: TutorContext, history: TutorRequest["history"]): Promise<SentenceHelp> {
+    const help = await this.claude.parse("tutor_help", {
+      schema: HelpSchema,
+      maxTokens: 2000,
+      system: this.system(context),
+      messages: [
+        { role: "user", content: OPENING_REQUEST },
+        ...cachedHistory(history),
+        { role: "user", content: buildHelpRequest(this.firstLanguage) },
+      ],
+    });
+    const start = help.start.trim();
+    if (!start) throw new TutorUnavailableError("The tutor returned no help.");
+    const words = help.words
+      .map((w) => ({ words: w.words.trim(), meaning: w.meaning.trim() }))
+      .filter((w) => w.words && w.meaning)
+      .slice(0, HELP_WORDS);
+    return { start, words };
   }
 
   private system(context: TutorContext): Anthropic.TextBlockParam[] {

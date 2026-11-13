@@ -30,6 +30,7 @@ describe("DrizzleSessionRepository", () => {
       language: "en",
       mode: "daily",
       pending: null,
+      withdrawnMistakes: [],
       startedAt: expect.any(Date),
       endedAt: null,
       coveredGoals: [],
@@ -197,6 +198,15 @@ describe("DrizzleSessionRepository", () => {
 
   it("has no outcome for an unknown session", async () => {
     expect(await sessions.outcome("6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b")).toBeNull();
+  });
+});
+
+describe("DrizzleSessionRepository.withdrawPending", () => {
+  it("clears the pending hint and keeps its words", async () => {
+    const s = await sessions.create({ language: "en", mode: "daily" });
+    await sessions.setPending(s.id, { original: "I goed", correction: "I went", category: "verb_tense", hintsGiven: 1, revealed: false });
+    await sessions.withdrawPending(s.id, "I goed");
+    expect(await sessions.get(s.id)).toMatchObject({ pending: null, withdrawnMistakes: ["I goed"] });
   });
 });
 
@@ -376,6 +386,24 @@ describe("DrizzleMistakeRepository as the mistake bank", () => {
     await mistakes.recordCorrectUse(s3.id, { ...goed, original: "not in the bank" });
 
     expect((await mistakes.list("en"))[0].sessionsCorrect).toBe(2);
+  });
+
+  it("withdraws a session's occurrences of a mistake, and drops one that came up only there", async () => {
+    const s1 = await sessions.create({ language: "en", mode: "daily" });
+    const s2 = await sessions.create({ language: "en", mode: "daily" });
+    await mistakes.record(goed, { sessionId: s1.id, severity: "minor" });
+    await mistakes.record(goed, { sessionId: s2.id, severity: "serious" });
+
+    await mistakes.withdraw(s2.id, goed);
+    expect(await mistakes.forSession(s2.id)).toEqual([]);
+    expect((await mistakes.mostFrequent("en", 5)).map((m) => [m.original, m.occurrences])).toEqual([["I goed", 1]]);
+
+    await mistakes.withdraw(s1.id, goed);
+    expect(await mistakes.mostFrequent("en", 5)).toEqual([]);
+    // A dismissed mistake is left as the learner dismissed it.
+    await mistakes.withdraw(s1.id, goed);
+    // Unknown mistakes are ignored.
+    await mistakes.withdraw(s1.id, { language: "en", original: "never said" });
   });
 
   it("gives no correct use to a dismissed mistake", async () => {

@@ -70,6 +70,12 @@ export interface TutorRequest extends TutorContext {
   surprises: boolean;
 }
 
+/** "Help me": the start of a sentence for the learner's next answer, and key words with their meaning. */
+export interface SentenceHelp {
+  start: string;
+  words: { words: string; meaning: string }[];
+}
+
 /** The AI tutor. Implementations live in infra/. */
 export interface TutorPort {
   /** The tutor's first line, which opens the scene for the mode (and, in the guided track, does its first step). */
@@ -79,6 +85,8 @@ export interface TutorPort {
    * `onReply` gets the next line as soon as it is written, while the rest of the reading goes on.
    */
   evaluate(request: TutorRequest, onReply?: (reply: string) => void): Promise<TutorVerdict>;
+  /** "Help me": the learner wants to answer the tutor's last line but can't build the sentence. */
+  help(context: TutorContext, history: ChatTurn[]): Promise<SentenceHelp>;
 }
 
 /** The tutor could not answer (provider down, refusal, cut-off or invalid output). */

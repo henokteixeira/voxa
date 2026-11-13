@@ -59,6 +59,8 @@ export const sessions = pgTable(
     mode: varchar("mode", { length: 32 }).notNull(), // a Mode: free_talk, my_day, story, opinion, presentation, daily, review or placement
     /** The serious mistake the conversation is paused on, if any. */
     pending: jsonb("pending").$type<PendingCorrection>(),
+    /** The words of each hint the learner answered with "I said it right": they get no hint again in this session. */
+    withdrawnMistakes: text("withdrawn_mistakes").array().notNull().default(sql`'{}'::text[]`),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     endedAt: timestamp("ended_at", { withTimezone: true }),
     /** When the session last changed: a turn, the web app saving the timing, or its end. */
@@ -368,7 +370,7 @@ export const fasterRounds = pgTable(
     sessionId: uuid("session_id")
       .notNull()
       .references(() => sessions.id, { onDelete: "cascade" }),
-    round: smallint("round").notNull(), // 1 to FASTER_ROUNDS (3); the check below must follow it
+    round: smallint("round").notNull(), // 1 to 3: FASTER_ROUNDS is 2 since 2026-11-13, older sessions told 3
     language: varchar("language", { length: 16 }).notNull(),
     timeLimitMs: integer("time_limit_ms").notNull(),
     transcript: text("transcript").notNull(),
@@ -442,6 +444,8 @@ export const missions = pgTable(
     listenedAt: timestamp("listened_at", { withTimezone: true }),
     expressionsDoneAt: timestamp("expressions_done_at", { withTimezone: true }),
     reviewDoneAt: timestamp("review_done_at", { withTimezone: true }),
+    /** Step 4 ("say it faster") is optional: when the learner skipped it. */
+    fasterSkippedAt: timestamp("faster_skipped_at", { withTimezone: true }),
   },
   (t) => [
     unique("missions_learner_language_day").on(t.learnerId, t.language, t.day),

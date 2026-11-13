@@ -28,13 +28,17 @@ export function buildCueMessage(item: ReviewItem, learnerContext: string): strin
   return `${describeItem(item)}\n<about_the_learner>\n${about}\n</about_the_learner>`;
 }
 
-export function buildCheckPrompt(language: string): string {
+export function buildCheckPrompt(language: string, firstLanguage: string): string {
   return [
-    `You check one spoken answer in a review for a learner of ${language} (BCP 47).`,
+    `You check one spoken answer in a review for a learner of ${language} (BCP 47) whose first language is ${firstLanguage}.`,
     "The text comes from speech recognition: ignore punctuation, capitalization and filler words.",
-    "`recalled`: true when the answer says what the cue asks and uses the pattern, new word or expression given correctly, " +
-      "even with other words than the answer given. Other small slips do not count against it. False when the " +
-      "pattern, word or expression is wrong or missing, or the answer is mostly in another language.",
+    "`recalled`: true only when the whole answer is correct: it says what the cue asks, uses the pattern, new word or " +
+      "expression given correctly, and has no other mistake a fluent speaker would not make (other words than the answer " +
+      "given are fine). False when the pattern, word or expression is wrong or missing, when another mistake is in the " +
+      "answer, or when the answer is mostly in another language.",
+    `\`otherMistake\`: when the pattern, word or expression is right but another mistake is in the answer, one short line in ` +
+      `${firstLanguage} that quotes the learner's words with it and says what to change (for example: "has" → "have": com ` +
+      "\"they\", o verbo fica \"have\"). Otherwise null.",
   ].join("\n");
 }
 

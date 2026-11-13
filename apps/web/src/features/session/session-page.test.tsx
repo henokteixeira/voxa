@@ -29,6 +29,9 @@ const api = {
   saveTiming: vi.fn(),
   resumeSession: vi.fn(),
   fillerSpeech: vi.fn(),
+  withdrawPending: vi.fn(),
+  missionModel: vi.fn(),
+  sentenceHelp: vi.fn(),
   // A learner who already has a level: without one, Today opens the onboarding.
   level: () =>
     Promise.resolve({
@@ -42,7 +45,7 @@ const api = {
   // The mission page, after step 3: it stays loading in these tests.
   missionToday: vi.fn(() => new Promise(() => {})),
   voiceUrl: (id: string) => `ws://api/api/sessions/${id}/voice`,
-} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "saveTiming" | "resumeSession" | "fillerSpeech" | "todayProgress" | "reviewCard" | "answerReview" | "transcribe" | "missionToday"]: ReturnType<typeof vi.fn> };
+} as unknown as ApiClient & { [K in "health" | "startSession" | "endSession" | "saveTiming" | "resumeSession" | "fillerSpeech" | "withdrawPending" | "missionModel" | "sentenceHelp" | "todayProgress" | "reviewCard" | "answerReview" | "transcribe" | "missionToday"]: ReturnType<typeof vi.fn> };
 
 const deps: VoiceDeps = {
   openMicrophone: vi.fn(async (handlers: MicrophoneHandlers) => {
@@ -125,6 +128,7 @@ beforeEach(() => {
   api.endSession.mockResolvedValue(summaryWith([]));
   api.saveTiming.mockResolvedValue(undefined);
   api.fillerSpeech.mockResolvedValue([]);
+  api.missionModel.mockRejectedValue(new Error("no mission"));
   api.todayProgress.mockResolvedValue(todayWith(20));
   api.startSession.mockResolvedValue({
     sessionId: "s1",
@@ -396,13 +400,38 @@ describe("live session", () => {
     await act(async () => finishPlayback());
 
     const card = screen.getByRole("region", { name: "Hint 1 of 2" });
-    // The hint leads; only the words with the mistake follow, not the whole answer.
+    // The hint leads; the learner's whole sentence follows, with the words that hold the mistake in bold.
     expect(card.querySelector("p")).toHaveTextContent("When did this happen?");
-    expect(within(card).getByText("“I finish”")).toBeInTheDocument();
+    expect(within(card).getByText("I finish", { selector: "mark" })).toBeInTheDocument();
+    expect(card).toHaveTextContent("“Yesterday I finish the upload screen”");
     expect(card).toHaveTextContent("Say it again, fixing these words");
-    expect(card).not.toHaveTextContent("upload screen");
     expect(screen.queryByRole("button", { name: "Show what the tutor said" })).not.toBeInTheDocument();
     expect(screen.getByText("Hint · say it again")).toBeInTheDocument();
+  });
+
+  it("shows the rule with the hint, and lets the learner say they said it right", async () => {
+    api.withdrawPending.mockResolvedValue(undefined);
+    await startAndListen();
+    act(() => micHandlers.onTurn(new ArrayBuffer(8)));
+    act(() => socketHandlers.onTranscript("I have 30 years"));
+    act(() =>
+      socketHandlers.onTutor({
+        kind: "hint",
+        message: "Which verb tells age in English?",
+        selfCorrected: false,
+        mistake: "I have 30 years",
+        mistakeType: "expression",
+        rule: { name: "Age with be", rule: "Idade usa be: she is ten." },
+      }),
+    );
+    act(() => socketHandlers.onDone());
+
+    const card = screen.getByRole("region", { name: "Hint 1 of 2" });
+    expect(card).toHaveTextContent("Age with be. Idade usa be: she is ten.");
+    await userEvent.click(screen.getByRole("button", { name: "I said it right" }));
+    expect(api.withdrawPending).toHaveBeenCalledWith("s1");
+    expect(screen.queryByRole("region", { name: "Hint 1 of 2" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("that doesn't count as a mistake");
   });
 
   it("says a filler line while a slow answer comes, and cuts it for the answer", async () => {
@@ -704,6 +733,30 @@ describe("live session", () => {
     // Unmounting the screen (e.g. the back button) closes the session.
     cleanupApp();
     expect(api.endSession).toHaveBeenCalledWith("s1", expect.objectContaining({ pausesMs: expect.any(Array) }));
+  });
+
+  it("gives help on request: a sentence start and key words, gone after the next turn", async () => {
+    api.sentenceHelp.mockResolvedValue({ start: "Yesterday I worked on…", words: [{ words: "the release", meaning: "a versão" }] });
+    await startAndListen();
+    await userEvent.click(screen.getByRole("button", { name: "Help me" }));
+    const card = await screen.findByRole("region", { name: "Help me" });
+    expect(api.sentenceHelp).toHaveBeenCalledWith("s1");
+    expect(card).toHaveTextContent("Yesterday I worked on…");
+    expect(card).toHaveTextContent("the release · a versão");
+    expect(screen.queryByRole("button", { name: "Help me" })).not.toBeInTheDocument();
+
+    act(() => micHandlers.onTurn(new ArrayBuffer(8)));
+    act(() => socketHandlers.onTranscript("Yesterday I worked on the release"));
+    expect(screen.queryByRole("region", { name: "Help me" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the mission's 3 expressions on screen during its conversation", async () => {
+    const phrases = ["I'm still working on…", "I'm blocked by…", "By the end of the day, I'll…"];
+    api.missionModel.mockResolvedValue({ speaker: "Alex", text: "…", expressions: phrases.map((phrase, i) => ({ id: `e${i}`, position: i + 1, phrase, example: phrase, saidAt: null })) });
+    await startAndListen({ path: "/session/daily?mission=m1" });
+    const list = await screen.findByRole("list", { name: "Today's expressions" });
+    expect(within(list).getAllByRole("listitem").map((li) => li.textContent)).toEqual(phrases);
+    expect(api.missionModel).toHaveBeenCalledWith("m1");
   });
 
   it("keeps the mission's conversation paused when the learner leaves mid-session", async () => {
@@ -1275,7 +1328,8 @@ describe("after a reload", () => {
     expect(api.startSession).not.toHaveBeenCalled();
     expect(deps.openVoiceSocket).not.toHaveBeenCalled();
     // The hint the learner was working on is still there.
-    expect(screen.getByText("“I goed”")).toBeInTheDocument();
+    expect(screen.getByText("I goed", { selector: "mark" })).toBeInTheDocument();
+    expect(screen.getByText(/to the meeting/)).toBeInTheDocument();
     expect(screen.getByText("When did it happen?")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Resume" }));

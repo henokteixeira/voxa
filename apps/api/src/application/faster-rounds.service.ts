@@ -32,7 +32,7 @@ export interface FasterRoundsView {
   /** The session's language: the rounds are told in it. */
   language: string;
   rounds: FasterRound[];
-  /** The round to tell next, or null when the 3 are told. */
+  /** The round to tell next, or null when every round is told. */
   nextRound: number | null;
   nextLimitMs: number | null;
   result: FasterResult | null;

@@ -8,12 +8,20 @@ export interface ReviewCue {
   answer: string;
 }
 
+/** How an answer went. */
+export interface ReviewCheck {
+  /** The whole answer is correct and uses the pattern, word or expression (stricter since 2026-11-13). */
+  recalled: boolean;
+  /** Another mistake in the answer, in one short line in the learner's first language; null when none. */
+  otherMistake: string | null;
+}
+
 /** Writes review cues and checks the learner's answers. Implementations live in infra/. */
 export interface ReviewCoachPort {
   /** A new cue for the item, different from the learner's own sentences, so the rule is practiced, not one sentence. */
   cue(item: ReviewItem, learnerContext: string): Promise<ReviewCue>;
-  /** True when the learner's answer says the cue with the pattern (or the word) right; other small slips don't count. */
-  check(item: ReviewItem, cue: ReviewCue, utterance: string): Promise<boolean>;
+  /** Whether the learner's whole answer says the cue correctly, and the other mistake in it, if any. */
+  check(item: ReviewItem, cue: ReviewCue, utterance: string): Promise<ReviewCheck>;
 }
 
 export const REVIEW_COACH_PORT = Symbol("REVIEW_COACH_PORT");

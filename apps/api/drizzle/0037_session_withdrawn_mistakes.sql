@@ -1,0 +1,1 @@
+ALTER TABLE "sessions" ADD COLUMN "withdrawn_mistakes" text[] DEFAULT '{}'::text[] NOT NULL;

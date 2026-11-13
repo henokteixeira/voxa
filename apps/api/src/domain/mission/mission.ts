@@ -73,6 +73,8 @@ export interface Mission {
   listenedAt: Date | null;
   expressionsDoneAt: Date | null;
   reviewDoneAt: Date | null;
+  /** Step 4 is optional: when the learner skipped it, or null. */
+  fasterSkippedAt: Date | null;
 }
 
 /** Which steps are done. `checkIn` is step 0, only on check-in day: null on the other days. */
@@ -94,14 +96,17 @@ export interface MissionFacts {
   fasterRounds: number;
 }
 
-export function missionSteps(mission: Pick<Mission, "listenedAt" | "expressionsDoneAt" | "reviewDoneAt">, facts: MissionFacts): MissionSteps {
+export function missionSteps(
+  mission: Pick<Mission, "listenedAt" | "expressionsDoneAt" | "reviewDoneAt" | "fasterSkippedAt">,
+  facts: MissionFacts,
+): MissionSteps {
   const { due, doneToday } = facts.checkIn;
   return {
     checkIn: doneToday ? true : due ? false : null,
     listen: mission.listenedAt !== null,
     expressions: mission.expressionsDoneAt !== null,
     task: facts.taskEnded,
-    faster: facts.fasterRounds >= FASTER_ROUNDS,
+    faster: facts.fasterRounds >= FASTER_ROUNDS || mission.fasterSkippedAt !== null,
     review: mission.reviewDoneAt !== null,
   };
 }

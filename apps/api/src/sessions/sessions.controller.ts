@@ -49,6 +49,20 @@ export class SessionsController {
     return this.turns.respond(sessionId, text);
   }
 
+  /** "Help me": the start of a sentence and key words for the learner's next answer. */
+  @Post(":id/help")
+  @HttpCode(200)
+  async help(@Param("id") id: string) {
+    return this.turns.help(parse(SessionId, id));
+  }
+
+  /** "I said it right": the pending mistake no longer counts, and the conversation goes on. */
+  @Post(":id/pending/withdraw")
+  @HttpCode(204)
+  async withdrawPending(@Param("id") id: string): Promise<void> {
+    await this.turns.withdrawPending(parse(SessionId, id));
+  }
+
   /** The timing so far, sent after each turn, so a session left open keeps it. */
   @Put(":id/timing")
   @HttpCode(204)

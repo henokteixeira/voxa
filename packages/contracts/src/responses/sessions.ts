@@ -40,6 +40,14 @@ export interface ResumedSession extends Guidance {
   hint: { hintsGiven: number; revealed: boolean; mistake?: string; mistakeType?: string; rule?: { name: string; rule: string } | null } | null;
 }
 
+/** "Help me": what the learner can start with for their next answer, and a few key words for it. */
+export interface SentenceHelp {
+  /** The first words of a sentence that answers the tutor's last line, ending in "…". */
+  start: string;
+  /** 3 or 4 words or short chunks in the language being learned, each with its meaning in the learner's first language. */
+  words: { words: string; meaning: string }[];
+}
+
 export interface TurnResult extends Guidance {
   kind: "reply" | "hint" | "reveal";
   message: string;

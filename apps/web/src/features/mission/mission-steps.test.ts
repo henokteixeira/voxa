@@ -24,8 +24,8 @@ describe("mission steps", () => {
     expect(stepsDone(steps({ checkIn: true, listen: true }))).toBe(1);
   });
 
-  it("takes 25 minutes", () => {
-    expect(MISSION_MINUTES).toBe(25);
+  it("takes 23 minutes", () => {
+    expect(MISSION_MINUTES).toBe(23);
   });
 
   it("keeps step 3's takeaways for step 5", () => {

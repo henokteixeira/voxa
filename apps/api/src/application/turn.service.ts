@@ -25,7 +25,7 @@ import { SessionEndedError, TurnConflictError } from "../domain/conversation/ses
 import { keptScaffold, surprisesAllowed, wasAssisted } from "../domain/conversation/support.js";
 import { NEW_WORD_CATEGORY, type PracticeTarget, type Session } from "../domain/conversation/types.js";
 import { hintFocus, metTargetsAfter } from "../domain/conversation/practice-targets.js";
-import { sameText, safeSupport } from "../domain/conversation/text.js";
+import { sameText, safeSupport, shownRule } from "../domain/conversation/text.js";
 import { patternsToBringBack } from "../domain/mistakes/bring-back.js";
 import { CLOCK, type Clock } from "../domain/ports/clock.port.js";
 import { LEARNER_CONTEXT_PORT, type LearnerContextPort } from "../domain/ports/learner-context.port.js";
@@ -33,7 +33,8 @@ import { MISSION_REPOSITORY, type MissionRepository } from "../domain/ports/miss
 import { MISTAKE_BANK_REPOSITORY, type MistakeBankRepository } from "../domain/ports/mistake-bank.repository.js";
 import { MISTAKE_REPOSITORY, type MistakeRepository } from "../domain/ports/mistake.repository.js";
 import { SESSION_REPOSITORY, type SessionRepository } from "../domain/ports/session.repository.js";
-import { TUTOR_PORT, type TutorPort, type TutorRequest } from "../domain/ports/tutor.port.js";
+import { type SentenceHelp, TUTOR_PORT, type TutorPort, type TutorRequest } from "../domain/ports/tutor.port.js";
+import { InvalidInputError } from "../domain/errors.js";
 import { UNIT_OF_WORK, type TransactionStores, type UnitOfWork } from "../domain/ports/unit-of-work.port.js";
 import { ReviewScheduler } from "./review-scheduler.js";
 import { openSession, phrasesOf, tutorContext } from "./session-context.js";
@@ -54,7 +55,7 @@ export interface TurnResult {
   mistake: string | null;
   /** On a hint or the correct form: the mistake's type (e.g. verb_tense), named on the card. */
   mistakeType: string | null;
-  /** With the correct form only (it may hold it): the rule the mistake breaks, in one line. */
+  /** With a hint or the correct form: the rule the mistake breaks, in one line (see shownRule). */
   rule: { name: string; rule: string } | null;
   /** True when the tutor asked whether to stop or keep going. */
   checkIn: boolean;
@@ -72,7 +73,7 @@ export class TurnService {
   private readonly logger = new Logger(TurnService.name);
 
   constructor(
-    @Inject(TUTOR_PORT) private readonly tutor: Pick<TutorPort, "evaluate">,
+    @Inject(TUTOR_PORT) private readonly tutor: Pick<TutorPort, "evaluate" | "help">,
     @Inject(SESSION_REPOSITORY) private readonly sessions: Pick<SessionRepository, "get" | "history" | "outcome">,
     @Inject(MISTAKE_REPOSITORY) private readonly mistakes: Pick<MistakeRepository, "mostFrequent" | "patterns" | "sessionPatterns">,
     @Inject(LEARNER_CONTEXT_PORT) private readonly learnerContext: LearnerContextPort,
@@ -169,7 +170,9 @@ export class TurnService {
     }
     // The placement interview only observes: every mistake is recorded as minor, so none stops it with a hint.
     // In the guided track, saying the words given (the model, the longer sentence) never stops for a hint either.
-    const byMode = verdictForMode(session.mode, focusedVerdict(verdict, focus));
+    // A mistake the learner said they said right is not raised again in this session, nor recorded.
+    const kept = withoutWithdrawn(verdict, session.withdrawnMistakes);
+    const byMode = verdictForMode(session.mode, focusedVerdict(kept, focus));
     const observed = session.track && !pausesForHints(session.track.stage) ? notedOnly(byMode) : byMode;
     const decision = decide(session.pending, observed);
     // The track moves on a plain reply only: while a hint is pending, the learner retries the same answer.
@@ -257,12 +260,47 @@ export class TurnService {
       support: safeSupport(verdict.support, decision.nextPending?.correction),
       mistake: decision.kind === "hint" ? (decision.nextPending?.original ?? null) : null,
       mistakeType: decision.kind === "reply" ? null : (decision.nextPending?.category ?? null),
-      rule: decision.kind === "reveal" ? (decision.nextPending?.pattern ?? null) : null,
+      rule: decision.kind === "reply" ? null : shownRule(decision.nextPending),
       checkIn: checkIn !== null,
       coveredGoals,
       track: trackView(move?.track ?? session.track),
       scaffold,
     };
+  }
+
+  /**
+   * "Help me" (2026-11-13): the start of a sentence and key words for the learner's next answer. They become the words
+   * given, so the next answer counts as helped and the tutor reads it as finishing them.
+   */
+  async help(sessionId: string): Promise<SentenceHelp> {
+    const session = await openSession(this.sessions, sessionId);
+    if (!correctsMistakes(session.mode)) throw new InvalidInputError("The placement interview gives no help with what to say.");
+    // A hint asks for the learner's own sentence, and the guided track already gives the words (A1–A2).
+    if (session.pending) throw new InvalidInputError("No help with what to say while a hint is pending.");
+    if (session.track) throw new InvalidInputError("The guided track already gives the words to say.");
+    const [history, learnerContext, mission] = await Promise.all([
+      this.sessions.history(sessionId),
+      this.learnerContext.load(),
+      session.missionId ? this.missions.get(session.missionId) : null,
+    ]);
+    const help = await this.tutor.help(tutorContext(session, learnerContext, phrasesOf(mission)), history);
+    // Only while the learner has not answered meanwhile: then the help was for a line already past.
+    await this.saveTurn(sessionId, history.length, ({ sessions }) => sessions.setScaffold(sessionId, help.start));
+    return help;
+  }
+
+  /**
+   * "I said it right": the learner says the tutor (or the speech-to-text) got the pending mistake wrong. The mistake no
+   * longer counts for this session and the conversation goes on, with no more hints about it. Nothing to do without one.
+   */
+  async withdrawPending(sessionId: string): Promise<void> {
+    const session = await openSession(this.sessions, sessionId);
+    const pending = session.pending;
+    if (!pending) return;
+    await this.unitOfWork.run(async (stores) => {
+      await stores.mistakes.withdraw(sessionId, { language: session.language, original: pending.original });
+      await stores.sessions.withdrawPending(sessionId, pending.original);
+    });
   }
 
   /** Saves one turn's writes in a single transaction, after checking no other turn of the session was saved meanwhile. */
@@ -308,4 +346,10 @@ export class TurnService {
     const nextGoal = nextGoalAfter(goalsFor(session.mode), track.goal, session.coveredGoals);
     return trackOutcomes({ track, step, model: session.scaffold, utterance, nextGoal });
   }
+}
+
+/** The verdict without the mistakes the learner answered with "I said it right" earlier in the session. */
+export function withoutWithdrawn(verdict: TutorVerdict, withdrawn: readonly string[]): TutorVerdict {
+  if (!withdrawn.length) return verdict;
+  return { ...verdict, issues: verdict.issues.filter((issue) => !withdrawn.some((w) => sameText(w, issue.original))) };
 }

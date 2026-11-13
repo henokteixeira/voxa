@@ -56,6 +56,11 @@ class FakeTutor implements TutorPort {
     if (this.speaksEarly) onReply?.(next.reply);
     return next;
   }
+  helped: { context: TutorContext; history: ChatTurn[] }[] = [];
+  async help(context: TutorContext, history: ChatTurn[]) {
+    this.helped.push({ context, history });
+    return { start: "Yesterday I worked on…", words: [{ words: "the release", meaning: "a versão" }] };
+  }
 }
 
 type Row = Session & { turns: ChatTurn[]; timing: SessionTiming | null };
@@ -69,6 +74,7 @@ class FakeSessions implements SessionRepository {
       language: input.language,
       mode: input.mode,
       pending: null,
+      withdrawnMistakes: [],
       startedAt: input.startedAt ?? new Date(),
       endedAt: null,
       coveredGoals: [],
@@ -112,6 +118,14 @@ class FakeSessions implements SessionRepository {
   }
   async setPending(id: string, pending: PendingCorrection | null) {
     this.rows.get(id)!.pending = pending;
+  }
+  async setScaffold(id: string, scaffold: string | null) {
+    this.rows.get(id)!.scaffold = scaffold;
+  }
+  async withdrawPending(id: string, original: string) {
+    const row = this.rows.get(id)!;
+    row.pending = null;
+    row.withdrawnMistakes = [...row.withdrawnMistakes, original];
   }
   async saveTiming(id: string, timing: SessionTiming) {
     const row = this.rows.get(id);
@@ -231,6 +245,11 @@ class FakeMistakes implements MistakeRepository {
       }
     });
     return [...last.values()];
+  }
+  withdrawn: { sessionId: string; original: string }[] = [];
+  async withdraw(sessionId: string, mistake: { language: string; original: string }) {
+    this.withdrawn.push({ sessionId, original: mistake.original });
+    this.events = this.events.filter((e) => !(e.sessionId === sessionId && e.original === mistake.original));
   }
   async patterns(language: string, limit: number): Promise<KnownPattern[]> {
     const seen = this.bank.filter((m) => m.language === language && m.pattern).map((m) => m.pattern!);
@@ -421,6 +440,7 @@ describe("SessionStartService.start in a daily mission", () => {
     listenedAt: null,
     expressionsDoneAt: null,
     reviewDoneAt: null,
+    fasterSkippedAt: null,
     ...over,
   });
 
@@ -817,8 +837,8 @@ describe("TurnService.respond", () => {
     expect((await sessions.get(session.id))?.pending).toMatchObject({ revealed: true });
   });
 
-  it("names the mistake's type on every hint, and gives its rule only with the correct form", async () => {
-    const pattern = { key: "past_simple", name: "Past for finished actions", rule: "Ação terminada: passado (go → went)." };
+  it("names the mistake's type and its rule on every hint and with the correct form", async () => {
+    const pattern = { key: "past_simple", name: "Past for finished actions", rule: "Ação terminada: passado (eat → ate)." };
     const { session } = await starts.start("daily", "en");
     tutor.verdicts.push(verdict({ issues: [{ ...goed, pattern }] }), verdict({ issues: [goed] }), verdict({ issues: [goed] }));
 
@@ -827,12 +847,37 @@ describe("TurnService.respond", () => {
     const reveal = await turns.respond(session.id, "I goed to the meeting");
 
     expect([first, second].map((r) => [r.kind, r.mistakeType, r.rule])).toEqual([
-      ["hint", goed.category, null],
-      ["hint", goed.category, null],
+      ["hint", goed.category, { name: pattern.name, rule: pattern.rule }],
+      ["hint", goed.category, { name: pattern.name, rule: pattern.rule }],
     ]);
     expect(reveal).toMatchObject({ kind: "reveal", mistakeType: goed.category, rule: { name: pattern.name, rule: pattern.rule } });
     // After a reload, the screen gets the type and the rule back.
     expect((await starts.resume(session.id)).hint).toMatchObject({ mistakeType: goed.category, rule: { name: pattern.name, rule: pattern.rule } });
+  });
+
+  it("keeps a rule that would give the correction away for the correct form", async () => {
+    const pattern = { key: "past_simple", name: "Past for finished actions", rule: `Use o passado: "${goed.correction}".` };
+    const { session } = await starts.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [{ ...goed, pattern }] }));
+    expect(await turns.respond(session.id, "I goed to the meeting")).toMatchObject({ kind: "hint", rule: null });
+    expect((await starts.resume(session.id)).hint).toMatchObject({ rule: null });
+  });
+
+  it("lets the learner say they said it right: the mistake no longer counts and no hint is pending", async () => {
+    const { session } = await starts.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    await turns.respond(session.id, "I goed to the meeting");
+    await turns.withdrawPending(session.id);
+    expect((await sessions.get(session.id))?.pending).toBeNull();
+    expect(mistakes.withdrawn).toEqual([{ sessionId: session.id, original: goed.original }]);
+    // Nothing pending: nothing to do.
+    await turns.withdrawPending(session.id);
+    expect(mistakes.withdrawn).toHaveLength(1);
+    // Said again, it gets no new hint and is not counted again.
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    const again = await turns.respond(session.id, "I goed to the meeting");
+    expect(again.kind).toBe("reply");
+    expect(mistakes.events.filter((e) => e.original === goed.original)).toHaveLength(0);
   });
 
   it("gives the correct form without a rule for a hint saved before patterns", async () => {
@@ -1107,6 +1152,36 @@ describe("The conversation: help by the learner's level", () => {
     expect((await sessions.get(session.id))?.scaffold).toBeNull();
     expect(sessions.assisted.get(session.id)).toEqual([false, true]);
     expect((await summaries.end(session.id)).signals.unaidedShare).toBe(0.5);
+  });
+
+  it("gives help on request: a start and key words, and the next answer counts as helped", async () => {
+    levels.rows.push(placed("B1"));
+    const { session } = await starts.start("daily", "en");
+    const help = await turns.help(session.id);
+    expect(help).toEqual({ start: "Yesterday I worked on…", words: [{ words: "the release", meaning: "a versão" }] });
+    expect(tutor.helped[0].history.at(-1)).toEqual({ role: "assistant", content: "Tell me about your project." });
+    expect((await sessions.get(session.id))?.scaffold).toBe("Yesterday I worked on…");
+
+    tutor.verdicts.push(verdict({}));
+    await turns.respond(session.id, "Yesterday I worked on the release.");
+    expect(tutor.requests[0].scaffold).toBe("Yesterday I worked on…");
+    expect(sessions.assisted.get(session.id)).toEqual([true]);
+  });
+
+  it("gives no help while a hint is pending, nor in the guided track", async () => {
+    levels.rows.push(placed("B1"));
+    const { session } = await starts.start("daily", "en");
+    tutor.verdicts.push(verdict({ issues: [goed] }));
+    await turns.respond(session.id, "I goed to the meeting");
+    await expect(turns.help(session.id)).rejects.toMatchObject({ code: "invalid" });
+    levels.rows.push(placed("A1"));
+    const guided = await starts.start("daily", "en");
+    await expect(turns.help(guided.session.id)).rejects.toMatchObject({ code: "invalid" });
+  });
+
+  it("gives no help in the placement interview", async () => {
+    const { session } = await starts.start("placement", "en");
+    await expect(turns.help(session.id)).rejects.toMatchObject({ code: "invalid" });
   });
 
   it("at B1, allows surprise questions only after a few turns mostly answered without help", async () => {

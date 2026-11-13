@@ -5,14 +5,16 @@ import { Link, Navigate, useParams, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { VoiceBall } from "@/components/voice-ball";
-import type { Mode } from "@/lib/api";
+import { useApi } from "@/hooks/use-api";
+import type { Mode, SentenceHelp } from "@/lib/api";
 import { useCopy } from "@/lib/i18n/locale";
 import { CheckInCard, GoalsStrip, PartsBar } from "./goals";
 import { ScaffoldCard, TrackBar } from "./guided-track";
 import { ballTipSeen, markBallTipSeen } from "./ball-tip";
+import { MissionExpressions } from "./mission-expressions";
 import { isMode, useModeInfo } from "./modes";
 import { FINAL_FAILURES, labelClass, SESSION_COPY, stageFor } from "./session-copy";
-import { CaptionCard, FadingCaption, HintCard, IconButton, PauseIcon, QuietLink, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
+import { CaptionCard, FadingCaption, HelpCard, HintCard, IconButton, PauseIcon, QuietLink, RevealCard, SupportNote, TranscriptIcon } from "./session-parts";
 import { SummaryFlow } from "./session-summary";
 import { TurnRing } from "./turn-ring";
 import { type FailureCode, tutorSpeaking } from "./session-state";
@@ -43,6 +45,18 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
   const xpCopy = useCopy(XP_COPY);
   const toastXp: unknown = toast && today?.points[toast.reason];
   const [showTranscript, setShowTranscript] = useState(false);
+  const api = useApi();
+  // "Help me": kept for the turn it was asked on; a new line in the conversation clears it.
+  const [help, setHelp] = useState<{ at: number; value: SentenceHelp | "loading" | "failed" } | null>(null);
+  const helpNow = help && help.at === state.captions.length ? help.value : null;
+  const askHelp = () => {
+    const id = state.sessionId;
+    if (!id) return;
+    const at = state.captions.length;
+    const settle = (value: SentenceHelp | "failed") => setHelp((h) => (h?.at === at ? { at, value } : h));
+    setHelp({ at, value: "loading" });
+    api.sentenceHelp(id).then(settle, () => settle("failed"));
+  };
   // Which caption the learner chose to read: a new tutor line starts hidden again.
   const [shownCaption, setShownCaption] = useState(-1);
   const tutorText = useRef<HTMLParagraphElement>(null);
@@ -125,8 +139,35 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
     bottom = <RevealCard message={lastTutor.text} help={state.support} rule={state.rule} />;
     helpInCard = true;
   } else if (state.hintStep > 0 && lastTutor) {
-    bottom = <HintCard step={state.hintStep} said={state.hintFor} tip={lastTutor.text} help={state.support} type={state.mistakeType} />;
+    bottom = (
+      <HintCard
+        step={state.hintStep}
+        said={state.hintFor}
+        sentence={state.hintSentence}
+        tip={lastTutor.text}
+        help={state.support}
+        type={state.mistakeType}
+        rule={state.rule}
+        onSaidItRight={yourTurn ? () => void session.withdrawHint() : undefined}
+      />
+    );
     helpInCard = true;
+  } else if (state.withdrawn && !showTranscript) {
+    bottom = (
+      <>
+        {yours}
+        <p role="status" className="m-0 rounded-md bg-sand-soft px-[18px] py-4 text-body">
+          {parts.withdrawn}
+        </p>
+      </>
+    );
+  } else if (helpNow && !showTranscript) {
+    bottom = (
+      <>
+        {yours}
+        <HelpCard help={helpNow} />
+      </>
+    );
   } else if (state.scaffold && !showTranscript) {
     // Words to say: one card with them replaces the tutor's line, which is in the transcript.
     bottom = (
@@ -155,6 +196,16 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
     tutorText.current?.focus();
   };
   const canType = yourTurn && !typing;
+  // On offer on the learner's turn (2026-11-13), except while a hint asks for their own sentence and in the guided
+  // track, which gives the words itself; after a failure it can be asked again.
+  const canHelp =
+    yourTurn &&
+    mode !== "placement" &&
+    !state.track &&
+    state.hintStep === 0 &&
+    !state.revealed &&
+    !state.checkIn &&
+    (helpNow === null || helpNow === "failed");
 
   return (
     <Screen onPointerDown={session.unlock}>
@@ -179,6 +230,7 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
       ) : (
         <GoalsStrip goals={state.goals} covered={state.coveredGoals} />
       )}
+      {missionId && <MissionExpressions missionId={missionId} />}
       {state.track && <TrackBar track={state.track} />}
       {/* Always mounted, so screen readers announce each toast; it floats over the ball or the transcript. */}
       <div aria-live="polite" className="pointer-events-none relative z-10 h-0">
@@ -230,8 +282,14 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
           {bottom}
           {state.support && !helpInCard && state.phase !== "failed" && <SupportNote text={state.support} />}
         </div>
-        {(tutorLine >= 0 || canType) && (
+        {(tutorLine >= 0 || canType || canHelp) && (
           <div className="flex flex-wrap items-center justify-center">
+            {canHelp && <QuietLink onClick={askHelp}>{page.helpMe}</QuietLink>}
+            {canHelp && (tutorLine >= 0 || canType) && (
+              <span aria-hidden="true" className="text-caption text-sand">
+                ·
+              </span>
+            )}
             {tutorLine >= 0 && (
               <QuietLink onClick={toggleTutorLine}>
                 {shownCaption === tutorLine ? parts.hideTutorLine : parts.showTutorLine}

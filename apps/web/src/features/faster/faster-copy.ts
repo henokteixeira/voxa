@@ -1,6 +1,6 @@
 import type { Copy } from "@/lib/i18n/locale";
 
-/** Copy for "say it faster": the same content told 3 times with less time, then how the pace changed. */
+/** Copy for "say it faster": the same content told twice, the second time with less time, then how the pace changed. */
 export interface FasterCopy {
   title: string;
   subtitle: string;
@@ -46,7 +46,7 @@ export const FASTER_COPY: Copy<FasterCopy> = {
     result: (percent, fewer) => {
       if (percent !== null && percent > 0) return `You said it ${percent}% faster${fewer ? ", with fewer long pauses" : ""}.`;
       if (fewer) return "You said it with fewer long pauses.";
-      return "You told it 3 times. The repetition is what trains fluency.";
+      return "You told it twice. The repetition is what trains fluency.";
     },
     wordsPerMinute: "Words per minute",
     round: (n) => `Round ${n}`,
@@ -73,7 +73,7 @@ export const FASTER_COPY: Copy<FasterCopy> = {
     result: (percent, fewer) => {
       if (percent !== null && percent > 0) return `Você falou ${percent}% mais rápido${fewer ? ", com menos pausas longas" : ""}.`;
       if (fewer) return "Você falou com menos pausas longas.";
-      return "Você contou 3 vezes. É a repetição que treina a fluência.";
+      return "Você contou 2 vezes. É a repetição que treina a fluência.";
     },
     wordsPerMinute: "Palavras por minuto",
     round: (n) => `Rodada ${n}`,

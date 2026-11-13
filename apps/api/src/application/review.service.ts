@@ -56,6 +56,8 @@ export interface ReviewAnswer {
   /** One way to say the cue, shown after the answer. */
   answer: string;
   rule: string;
+  /** Another mistake in the answer, in one line in the learner's first language; null when none. */
+  otherMistake: string | null;
   /** When the item comes back. */
   nextDueAt: Date;
   /**
@@ -104,18 +106,21 @@ export class ReviewService {
     if (card.recalled !== null) return this.result(card.recalled, card, item, timeZone);
 
     const said = utterance?.trim();
-    const recalled = said ? await this.coach.check(item, card, said) : false;
+    const { recalled, otherMistake } = said ? await this.coach.check(item, card, said) : { recalled: false, otherMistake: null };
     const now = this.clock.now();
     if (!(await this.reviews.answerCard(card.id, recalled, now))) {
       const first = await this.reviews.card(card.id);
       return this.result(first?.recalled ?? recalled, card, await this.find(card.subject), timeZone);
     }
     const next = await this.scheduler.answered(item.language, card.subject, recallOutcome(recalled, startDelayMs), now);
-    return { recalled, answer: card.answer, rule: item.rule, nextDueAt: next.dueAt, xp: await this.xpFor(card.id, item.language, timeZone) };
+    const xp = await this.xpFor(card.id, item.language, timeZone);
+    return { recalled, answer: card.answer, rule: item.rule, otherMistake, nextDueAt: next.dueAt, xp };
   }
 
   private async result(recalled: boolean, card: StoredReviewCard, item: ReviewItem, timeZone: string): Promise<ReviewAnswer> {
-    return { recalled, answer: card.answer, rule: item.rule, nextDueAt: item.dueAt, xp: await this.xpFor(card.id, item.language, timeZone) };
+    // An answer sent again gets the first result back; the other mistake was shown then.
+    const xp = await this.xpFor(card.id, item.language, timeZone);
+    return { recalled, answer: card.answer, rule: item.rule, otherMistake: null, nextDueAt: item.dueAt, xp };
   }
 
   /** Whether the card was its item's first answer of the learner's day (a local day spans at most 26 hours). */

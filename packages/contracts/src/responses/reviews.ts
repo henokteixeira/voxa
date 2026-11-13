@@ -33,6 +33,8 @@ export interface ReviewAnswer {
   /** One way to say it. */
   answer: string;
   rule: string;
+  /** Another mistake in the answer, in one line in the learner's first language (it kept the answer from counting); null when none. */
+  otherMistake: string | null;
   /** ISO 8601 date-time: when the item comes back. */
   nextDueAt: string;
   /** XP the answer earned, right or wrong. */

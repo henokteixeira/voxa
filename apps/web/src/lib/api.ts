@@ -23,6 +23,7 @@ import type {
   SignalsHistoryEntry,
   StartedSession,
   TodayProgress,
+  SentenceHelp,
   TurnResult,
 } from "@voxa/contracts";
 import { reportError } from "./report-error";
@@ -80,6 +81,7 @@ export type {
   TrackStage,
   TrackView,
   Trend,
+  SentenceHelp,
   TurnResult,
   XpAward,
   XpReason,
@@ -212,6 +214,11 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
     resumeSession: (sessionId: string) => request<ResumedSession>(`/sessions/${encodeURIComponent(sessionId)}`),
     sendTurn: (sessionId: string, text: string) =>
       request<TurnResult>(`/sessions/${encodeURIComponent(sessionId)}/turns`, { method: "POST", body: { text } }),
+    /** "Help me": the start of a sentence and key words for the next answer. */
+    sentenceHelp: (sessionId: string) => request<SentenceHelp>(`/sessions/${encodeURIComponent(sessionId)}/help`, { method: "POST" }),
+    /** "I said it right": the pending mistake no longer counts, and the conversation goes on. */
+    withdrawPending: (sessionId: string) =>
+      request<void>(`/sessions/${encodeURIComponent(sessionId)}/pending/withdraw`, { method: "POST" }),
     /** The timing so far, after each turn. */
     saveTiming: (sessionId: string, timing: SessionTiming) =>
       request<void>(`/sessions/${encodeURIComponent(sessionId)}/timing`, { method: "PUT", body: timing }),

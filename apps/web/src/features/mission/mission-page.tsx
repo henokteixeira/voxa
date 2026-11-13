@@ -121,7 +121,7 @@ function Step({ view, mark, onView }: { view: MissionView; mark: (step: MarkedMi
       {step === "checkIn" && <CheckInStep />}
       {(step === "listen" || step === "expressions") && <ModelSteps view={view} step={step} mark={mark} />}
       {step === "task" && <TaskStep view={view} />}
-      {step === "faster" && (view.sessionId ? <FasterStep sessionId={view.sessionId} onView={onView} /> : <Navigate to="/" replace />)}
+      {step === "faster" && (view.sessionId ? <FasterStep sessionId={view.sessionId} onView={onView} onSkip={() => mark("faster")} /> : <Navigate to="/" replace />)}
       {step === "review" && <ReviewStep view={view} onDone={() => mark("review")} />}
     </>
   );
@@ -201,8 +201,8 @@ function TaskStep({ view }: { view: MissionView }) {
   );
 }
 
-/** Step 4. Skipping leaves the mission for now: the step stays open for later today. */
-function FasterStep({ sessionId, onView }: { sessionId: string; onView: (view: MissionView) => void }) {
+/** Step 4 is optional (2026-11-13): skipping it marks it done, and the mission goes on to the review. */
+function FasterStep({ sessionId, onView, onSkip }: { sessionId: string; onView: (view: MissionView) => void; onSkip: () => void }) {
   const api = useApi();
   const copy = useCopy(MISSION_COPY);
   const navigate = useNavigate();
@@ -214,7 +214,7 @@ function FasterStep({ sessionId, onView }: { sessionId: string; onView: (view: M
   return (
     <>
       <h1 className="m-0 text-title">{copy.fasterTitle}</h1>
-      <FasterRun sessionId={sessionId} onDone={() => void finished()} />
+      <FasterRun sessionId={sessionId} onDone={() => void finished()} onSkip={onSkip} />
     </>
   );
 }
