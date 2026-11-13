@@ -23,7 +23,7 @@ type Step =
   | { kind: "saving"; round: number; limitMs: number }
   | { kind: "result"; result: Result };
 
-const ROUND_LIMITS_MS = [120_000, 90_000, 60_000];
+const ROUND_LIMITS_MS = [120_000, 60_000];
 const BALL = 180;
 
 const clock = (ms: number) => {
@@ -32,11 +32,12 @@ const clock = (ms: number) => {
 };
 
 /**
- * "Say it faster" after a session: the learner tells the same content 3 times in 2:00, 1:30 and 1:00 (half that at A1–A2),
+ * "Say it faster" after a session: the learner tells the same content twice, in 2:00 and 1:00 (half that at A1–A2),
  * with no correction, then sees how his pace changed. A round may take several microphone turns;
- * it ends when the time is up or on "I'm done". `onDone` is called when he continues or skips.
+ * it ends when the time is up or on "I'm done". `onDone` is called when he continues, `onSkip` (by default `onDone`)
+ * when he skips.
  */
-export function FasterRun({ sessionId, onDone }: { sessionId: string; onDone: () => void }) {
+export function FasterRun({ sessionId, onDone, onSkip = onDone }: { sessionId: string; onDone: () => void; onSkip?: () => void }) {
   const api = useApi();
   const copy = useCopy(FASTER_COPY);
   const { openMicrophone } = useContext(VoiceDepsContext);
@@ -157,7 +158,7 @@ export function FasterRun({ sessionId, onDone }: { sessionId: string; onDone: ()
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
         <p className="m-0 text-body text-ink-soft">{step.reason === "microphone" ? copy.noMicrophone : copy.loadFailed}</p>
-        <Button variant="ghost" onClick={onDone}>
+        <Button variant="ghost" onClick={onSkip}>
           {copy.skip}
         </Button>
       </div>
@@ -209,7 +210,7 @@ export function FasterRun({ sessionId, onDone }: { sessionId: string; onDone: ()
           <Button block onClick={() => start(round, limitMs)}>
             {step.problem ? copy.retry : copy.start(clock(limitMs))}
           </Button>
-          <Button block variant="ghost" onClick={onDone}>
+          <Button block variant="ghost" onClick={onSkip}>
             {copy.skip}
           </Button>
         </>

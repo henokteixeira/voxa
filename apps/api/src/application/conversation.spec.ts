@@ -421,6 +421,7 @@ describe("SessionStartService.start in a daily mission", () => {
     listenedAt: null,
     expressionsDoneAt: null,
     reviewDoneAt: null,
+    fasterSkippedAt: null,
     ...over,
   });
 

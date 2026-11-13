@@ -253,6 +253,13 @@
       "when": 1794366026036,
       "tag": "0035_learners",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794532037396,
+      "tag": "0036_mission_faster_skipped",
+      "breakpoints": true
     }
   ]
 }

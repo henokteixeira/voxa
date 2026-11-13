@@ -32,20 +32,19 @@ const told = (round: number, transcript = "I finished the login screen", speechM
 });
 
 describe("FasterRoundsService", () => {
-  it("stores each round in order and gives the result after the third", async () => {
+  it("stores each round in order and gives the result after the second", async () => {
     const { service, rounds } = setup();
     expect(await service.view("s1")).toMatchObject({ language: "en", rounds: [], nextRound: 1, nextLimitMs: 120_000, result: null });
 
     const afterOne = await service.record("s1", told(1));
-    expect(afterOne).toMatchObject({ nextRound: 2, nextLimitMs: 90_000, result: null });
+    expect(afterOne).toMatchObject({ nextRound: 2, nextLimitMs: 60_000, result: null });
     // Words are counted here and only the long pauses count.
     expect(rounds.rows[0]).toMatchObject({ language: "en", timeLimitMs: 120_000, spokenWords: 5, longPauses: 1, recordedAt: now });
 
-    await service.record("s1", told(2));
-    const done = await service.record("s1", told(3, "I finished the login screen", 4_000));
+    const done = await service.record("s1", told(2, "I finished the login screen", 4_000));
     expect(done).toMatchObject({ nextRound: null, nextLimitMs: null, result: { paceChangePercent: 25 } });
     // A retry of the last round, even with other numbers, gives the same result.
-    expect(await service.record("s1", told(3, "x", 200_000))).toEqual(done);
+    expect(await service.record("s1", told(2, "x", 200_000))).toEqual(done);
   });
 
   it("ignores a round sent again and refuses one out of order", async () => {
@@ -54,23 +53,22 @@ describe("FasterRoundsService", () => {
     await service.record("s1", told(1, "sent again"));
     expect(rounds.rows.map((r) => r.transcript)).toEqual(["first try"]);
     await expect(service.record("s1", told(3))).rejects.toMatchObject({ code: "invalid" });
-    await expect(service.record("s1", told(4))).rejects.toMatchObject({ code: "invalid" });
   });
 
   it("shows the XP the rounds earned: 1 a minute of speech, like the conversation", async () => {
     const { service } = setup();
     expect((await service.view("s1")).xp).toBe(0);
-    await service.record("s1", told(1, "words", 100_000));
-    const view = await service.record("s1", told(2, "words", 80_000));
+    await service.record("s1", told(1, "words", 120_000));
+    const view = await service.record("s1", told(2, "words", 60_000));
     expect(view.xp).toBe(3);
   });
 
   it("gives half the time at the guided track's steps (A1–A2)", async () => {
     const { service, rounds } = setup({ step: "build_light" });
     expect(await service.view("s1")).toMatchObject({ nextLimitMs: 60_000 });
-    expect(await service.record("s1", told(1))).toMatchObject({ nextLimitMs: 45_000 });
+    expect(await service.record("s1", told(1))).toMatchObject({ nextLimitMs: 30_000 });
     expect(rounds.rows[0].timeLimitMs).toBe(60_000);
-    await expect(service.record("s1", told(2, "words", 51_000))).rejects.toMatchObject({ code: "invalid" });
+    await expect(service.record("s1", told(2, "words", 36_000))).rejects.toMatchObject({ code: "invalid" });
   });
 
   it("refuses speech longer than the round allows", async () => {

@@ -11,7 +11,7 @@ export const STEP_MINUTES: Record<(typeof MISSION_STEPS)[number], number> = {
   listen: 4,
   expressions: 3,
   task: 10,
-  faster: 5,
+  faster: 3,
   review: 3,
 };
 export const MISSION_MINUTES = Object.values(STEP_MINUTES).reduce((sum, n) => sum + n, 0);

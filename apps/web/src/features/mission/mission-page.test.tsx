@@ -156,6 +156,18 @@ describe("the daily mission", () => {
     expect(screen.getByRole("link", { name: "Talk more" })).toHaveAttribute("href", "/talk");
   });
 
+  it("lets the learner skip say it faster, which marks the step and goes on", async () => {
+    const markMissionStep = vi.fn().mockResolvedValue(view({ listen: true, expressions: true, task: true, faster: true }));
+    renderMission({
+      missionToday: vi.fn().mockResolvedValue(view({ listen: true, expressions: true, task: true }, { sessionId: "s1" })),
+      fasterRounds: vi.fn().mockResolvedValue({ language: "en", rounds: [], nextRound: 1, nextLimitMs: 120_000, result: null, xp: 0 }),
+      reviewOverview: vi.fn().mockResolvedValue({ due: [], nextDueAt: null }),
+      markMissionStep,
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Skip" }));
+    expect(markMissionStep).toHaveBeenCalledWith("m1", "faster");
+  });
+
   it("keeps step 5 open when the review is closed before the end", async () => {
     const markMissionStep = vi.fn();
     const router = renderMission({

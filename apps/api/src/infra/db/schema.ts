@@ -368,7 +368,7 @@ export const fasterRounds = pgTable(
     sessionId: uuid("session_id")
       .notNull()
       .references(() => sessions.id, { onDelete: "cascade" }),
-    round: smallint("round").notNull(), // 1 to FASTER_ROUNDS (3); the check below must follow it
+    round: smallint("round").notNull(), // 1 to 3: FASTER_ROUNDS is 2 since 2026-11-13, older sessions told 3
     language: varchar("language", { length: 16 }).notNull(),
     timeLimitMs: integer("time_limit_ms").notNull(),
     transcript: text("transcript").notNull(),
@@ -442,6 +442,8 @@ export const missions = pgTable(
     listenedAt: timestamp("listened_at", { withTimezone: true }),
     expressionsDoneAt: timestamp("expressions_done_at", { withTimezone: true }),
     reviewDoneAt: timestamp("review_done_at", { withTimezone: true }),
+    /** Step 4 ("say it faster") is optional: when the learner skipped it. */
+    fasterSkippedAt: timestamp("faster_skipped_at", { withTimezone: true }),
   },
   (t) => [
     unique("missions_learner_language_day").on(t.learnerId, t.language, t.day),

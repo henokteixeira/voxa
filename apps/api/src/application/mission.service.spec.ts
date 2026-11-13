@@ -13,7 +13,7 @@ class FakeMissions implements MissionRepository {
   async create(mission: NewMission) {
     const existing = await this.forDay(mission.language, mission.day);
     if (existing) return existing;
-    const row: Mission = { ...mission, id: `m${this.rows.length + 1}`, model: null, listenedAt: null, expressionsDoneAt: null, reviewDoneAt: null };
+    const row: Mission = { ...mission, id: `m${this.rows.length + 1}`, model: null, listenedAt: null, expressionsDoneAt: null, reviewDoneAt: null, fasterSkippedAt: null };
     this.rows.push(row);
     return row;
   }
@@ -33,7 +33,7 @@ class FakeMissions implements MissionRepository {
   }
   async markStep(id: string, step: MarkedStep, at: Date) {
     const row = this.rows.find((m) => m.id === id)!;
-    const key = ({ listen: "listenedAt", expressions: "expressionsDoneAt", review: "reviewDoneAt" } as const)[step];
+    const key = ({ listen: "listenedAt", expressions: "expressionsDoneAt", faster: "fasterSkippedAt", review: "reviewDoneAt" } as const)[step];
     row[key] ??= at;
   }
   async markSaid(expressionId: string, at: Date) {

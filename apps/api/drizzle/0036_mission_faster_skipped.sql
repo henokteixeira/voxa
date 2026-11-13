@@ -1,0 +1,1 @@
+ALTER TABLE "missions" ADD COLUMN "faster_skipped_at" timestamp with time zone;

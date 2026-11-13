@@ -8,8 +8,11 @@ export type TrackStage = (typeof TRACK_STAGES)[number];
 export const LEVEL_SOURCES = ["placement", "manual", "step_change"] as const;
 export type LevelSource = (typeof LEVEL_SOURCES)[number];
 
-/** The daily mission steps whose end the learner marks; the task and "say it faster" are read from the session. */
-export const MARKED_STEPS = ["listen", "expressions", "review"] as const;
+/**
+ * The daily mission steps whose end the learner marks; the task is read from the session. "Say it faster" is done by
+ * its rounds, or marked when the learner skips it (it is optional since 2026-11-13).
+ */
+export const MARKED_STEPS = ["listen", "expressions", "faster", "review"] as const;
 export type MarkedStep = (typeof MARKED_STEPS)[number];
 
 /** Why the learner says a record is not a mistake. */
