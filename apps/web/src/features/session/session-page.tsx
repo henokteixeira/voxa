@@ -70,7 +70,6 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
   const yourTurn = state.phase === "listening" || state.phase === "hearing";
   const ballAction =
     state.phase === "hearing" ? page.sendNow : tutorSpeaking(state) ? page.stopTutor : undefined;
-  const ballSize = !ballAction && state.hintStep > 0 ? 180 : 200;
   // First session only: say once that the ball can be tapped, until the learner taps it or the session ends.
   const [ballTip, setBallTip] = useState(() => !ballTipSeen());
   const tapBall = () => {
@@ -121,6 +120,8 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
       <FadingCaption key={yoursIndex} caption={yoursCaption} onGone={() => setFadedCaption(yoursIndex)} />
     ) : null;
   let tutorLine = -1;
+  // The last branch below shows only chat lines, not a card.
+  let onlyLines = false;
   // A correction card carries the help itself, so the screen shows one card, not two.
   let helpInCard = false;
   if (state.phase === "failed" && state.failure) {
@@ -177,14 +178,21 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
       </>
     );
   } else if (lastCaption && !showTranscript) {
+    onlyLines = true;
     tutorLine = lastCaption.who === "tutor" ? state.captions.length - 1 : -1;
     bottom = (
       <>
         {yours}
-        {tutorLine >= 0 && shownCaption === tutorLine && <CaptionCard caption={lastCaption} textRef={tutorText} scroll />}
+        {tutorLine >= 0 && shownCaption === tutorLine && <CaptionCard caption={lastCaption} textRef={tutorText} />}
       </>
     );
   }
+
+  // With a card open the ball steps back, so the card has room; the screen itself never grows (see below).
+  // The learner's own fading line alone does not count, so the ball does not jump when it fades.
+  const supportShown = Boolean(state.support && !helpInCard && state.phase !== "failed");
+  const cardOpen = supportShown || (bottom !== null && (!onlyLines || (tutorLine >= 0 && shownCaption === tutorLine)));
+  const ballSize = cardOpen ? 140 : 200;
 
   // The tutor's words stay hidden until a tap, so the learner listens first; another tap hides them again.
   const toggleTutorLine = () => {
@@ -277,10 +285,16 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
         </div>
       )}
 
-      <div inert={state.phase === "paused"} className="flex flex-col gap-3">
-        <div aria-live="polite" className="flex flex-col gap-3">
+      {/* The cards scroll inside the room left under the ball, so a long card never makes the screen grow. */}
+      <div inert={state.phase === "paused"} className="flex min-h-0 flex-col gap-3">
+        {/* Capped at half the screen, so the transcript keeps room above it; focusable so a keyboard can scroll it. */}
+        <div
+          aria-live="polite"
+          tabIndex={cardOpen ? 0 : undefined}
+          className={`-mx-1 flex max-h-[50dvh] min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain px-1 outline-none ${cardOpen ? "scroll-mask pb-6" : ""}`}
+        >
           {bottom}
-          {state.support && !helpInCard && state.phase !== "failed" && <SupportNote text={state.support} />}
+          {supportShown && state.support && <SupportNote text={state.support} />}
         </div>
         {(tutorLine >= 0 || canType || canHelp) && (
           <div className="flex flex-wrap items-center justify-center">

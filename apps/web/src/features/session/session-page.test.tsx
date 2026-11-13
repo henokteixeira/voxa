@@ -159,8 +159,8 @@ describe("live session", () => {
     expect(screen.getByText("I fixed the login bug")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Show what the tutor said" }));
     expect(screen.getByText("Nice. What's next?")).toHaveFocus();
-    // A long line scrolls inside its card, so the screen does not grow with it.
-    expect(screen.getByText("Nice. What's next?")).toHaveClass("overflow-y-auto");
+    // The cards scroll inside the room under the ball, so a long line does not make the screen grow.
+    expect(screen.getByText("Nice. What's next?").closest(".overflow-y-auto")).toHaveClass("min-h-0");
 
     // The same link hides the line again.
     await userEvent.click(screen.getByRole("button", { name: "Hide what the tutor said" }));
