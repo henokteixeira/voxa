@@ -7,7 +7,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { VoiceBall } from "@/components/voice-ball";
 import { useModeInfo } from "@/features/session/modes";
 import { MemoryLink } from "@/features/memory/memory-link";
-import { DailyGoalSetting, SoundSetting } from "@/features/settings/practice-settings";
+import { DailyGoalSetting, GuidedSetting, SoundSetting } from "@/features/settings/practice-settings";
 import { TodayGoalCard } from "@/features/xp/today-goal-card";
 import { useTodayProgress } from "@/features/xp/use-today-progress";
 import { takeSavedSession } from "@/features/session/saved-session";
@@ -161,6 +161,7 @@ export function TodayPage() {
           <DailyGoalSetting onSaved={progress.set} />
           <PauseSetting title={copy.pauseTitle} hint={copy.pauseHint} seconds={copy.seconds} />
           <SoundSetting />
+          <GuidedSetting />
           <MemoryLink />
         </Sheet>
       )}

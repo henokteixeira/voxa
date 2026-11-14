@@ -67,7 +67,7 @@ export class SessionStartService {
   ) {}
 
   /** Starts a session; with `missionId`, it is that daily mission's step 3, with the model's 3 expressions to invite. */
-  async start(mode: Mode, language: string, missionId?: string): Promise<SessionStart> {
+  async start(mode: Mode, language: string, missionId?: string, guidedAtB2 = false): Promise<SessionStart> {
     const mission = missionId ? await this.missionFor(missionId, mode, language) : null;
     // Picks up sessions a failed or interrupted run left unremembered, in the background.
     void this.memory.sweep();
@@ -80,7 +80,8 @@ export class SessionStartService {
       this.levels.current(language),
     ]);
     const step = sessionStep(mode, level?.level ?? null);
-    const track = startTrack(step, goalsFor(mode));
+    // The B2 option needs a level of B2: without a level the session also talks freely, but the option is not about it.
+    const track = startTrack(step, goalsFor(mode), guidedAtB2 && level?.level === "B2");
     const startedAt = this.clock.now();
     const [learnerContext, memory] = await Promise.all([this.learnerContext.load(), this.memory.recall({ startedAt })]);
     const created = await this.sessions.create({ mode, language, startedAt, targets, step, track, memory, missionId: mission?.id ?? null });

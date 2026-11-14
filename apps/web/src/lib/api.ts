@@ -197,8 +197,12 @@ export function createApiClient(baseUrl: string, fetchImpl: typeof fetch = (...a
   return {
     health: () => request<{ status: string }>("/health"),
     /** With `missionId`, the session is that daily mission's conversation (step 3). */
-    startSession: (mode: Mode, language = "en", missionId?: string) =>
-      request<StartedSession>("/sessions", { method: "POST", body: { mode, language, ...(missionId ? { missionId } : {}) } }),
+    /** `guided`: at B2, follow the step-by-step script too (the server ignores it at other levels). */
+    startSession: (mode: Mode, language = "en", missionId?: string, guided = false) =>
+      request<StartedSession>("/sessions", {
+        method: "POST",
+        body: { mode, language, ...(missionId ? { missionId } : {}), ...(guided ? { guided } : {}) },
+      }),
     missionToday: (language = "en", timeZone = deviceTimeZone()) =>
       request<MissionView>(`/missions/today?language=${encodeURIComponent(language)}&timeZone=${encodeURIComponent(timeZone)}`),
     missionModel: (missionId: string) => request<MissionModel>(`/missions/${encodeURIComponent(missionId)}/model`),

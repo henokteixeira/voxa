@@ -254,7 +254,7 @@ describe("live session", () => {
 
   it("starts the session, speaks the opening line, then listens", async () => {
     await startAndListen();
-    expect(api.startSession).toHaveBeenCalledWith("daily", undefined, undefined);
+    expect(api.startSession).toHaveBeenCalledWith("daily", undefined, undefined, false);
     expect(deps.openVoiceSocket).toHaveBeenCalledWith("ws://api/api/sessions/s1/voice", expect.anything());
     expect(socket.speakLast).toHaveBeenCalled();
     expect(speaker.play).toHaveBeenCalled();
@@ -1009,7 +1009,7 @@ describe("session summary", () => {
   it("as the mission's conversation, shows the takeaways once with no try, then goes back to the mission", async () => {
     api.endSession.mockResolvedValue(summaryWith(patterned, { takeaways }));
     await startAndListen({ path: "/session/daily?mission=m1" });
-    expect(api.startSession).toHaveBeenCalledWith("daily", undefined, "m1");
+    expect(api.startSession).toHaveBeenCalledWith("daily", undefined, "m1", false);
     expect(JSON.parse(localStorage.getItem("voxa.liveSession") ?? "{}")).toMatchObject({ missionId: "m1" });
     await endFromPause();
 
@@ -1386,7 +1386,7 @@ describe("after a reload", () => {
     localStorage.setItem("voxa.liveSession", JSON.stringify(savedDaily));
     api.resumeSession.mockRejectedValue(error);
     await startAndListen();
-    expect(api.startSession).toHaveBeenCalledWith("daily", undefined, undefined);
+    expect(api.startSession).toHaveBeenCalledWith("daily", undefined, undefined, false);
   });
 
   it("ends a session left more than 2 hours ago and starts a new one", async () => {
@@ -1400,7 +1400,7 @@ describe("after a reload", () => {
     localStorage.setItem("voxa.liveSession", JSON.stringify(savedDaily));
     api.resumeSession.mockRejectedValue(new ApiError("ended", "This session has ended.", 409));
     await startAndListen();
-    expect(api.startSession).toHaveBeenCalledWith("daily", undefined, undefined);
+    expect(api.startSession).toHaveBeenCalledWith("daily", undefined, undefined, false);
   });
 
   it("closes a saved session of another meeting type and starts the one asked for", async () => {
@@ -1408,7 +1408,7 @@ describe("after a reload", () => {
     await startAndListen();
     expect(api.resumeSession).not.toHaveBeenCalled();
     expect(api.endSession).toHaveBeenCalledWith("old", savedDaily.timing);
-    expect(api.startSession).toHaveBeenCalledWith("daily", undefined, undefined);
+    expect(api.startSession).toHaveBeenCalledWith("daily", undefined, undefined, false);
   });
 });
 

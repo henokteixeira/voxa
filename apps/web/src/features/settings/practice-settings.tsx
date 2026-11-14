@@ -4,6 +4,7 @@ import { useApi } from "@/hooks/use-api";
 import { DAILY_MINUTES, type DailyMinutes, type TodayProgress } from "@/lib/api";
 import { useCopy } from "@/lib/i18n/locale";
 import { useSounds } from "@/lib/sound/sounds";
+import { readGuidedAtB2, saveGuidedAtB2 } from "./guided-setting";
 import { SETTINGS_COPY } from "./settings-copy";
 
 /** How long the learner wants to practice a day. Stored on the server: the daily XP goal follows from it. */
@@ -63,6 +64,27 @@ export function DailyGoalSetting({ onSaved }: { onSaved?: (today: TodayProgress)
         </p>
       )}
     </div>
+  );
+}
+
+/** Whether conversations at B2 follow the step-by-step script too, on this device. A1–B1 always do. */
+export function GuidedSetting() {
+  const copy = useCopy(SETTINGS_COPY);
+  const [on, setOn] = useState(readGuidedAtB2);
+  return (
+    <SegmentedSetting
+      title={copy.guidedTitle}
+      hint={copy.guidedHint}
+      options={[
+        { value: true, label: copy.on },
+        { value: false, label: copy.off },
+      ]}
+      value={on}
+      onChange={(next) => {
+        setOn(next);
+        saveGuidedAtB2(next);
+      }}
+    />
   );
 }
 

@@ -54,11 +54,11 @@ const SENTENCE_START =
   "mistake or a minor one that breaks a pattern in `focus_patterns`, give no sentence: `reply` is said before the hint, and the " +
   "learner should retry their own sentence.";
 
-/** The step-by-step script (A1–B1, approved on 2026-11-14): turns that carry <guided_track> follow it. */
+/** The step-by-step script (A1–B1, and B2 when turned on; approved on 2026-11-14): messages that carry <guided_track> follow it. */
 const GUIDED_TRACK =
   "When a message carries <guided_track>, the conversation is a step-by-step script and your reply does what it " +
-  "says, inside the scene, without naming steps or the script. While it is present, the rule above about what to give a " +
-  "stuck learner does not apply: the step says which words to give. " +
+  "says, inside the scene, without naming steps or the script. While it is present it wins over the rules above about " +
+  "which words to give, about `scaffold` and about how long your turns are. " +
   "Start the reply by reacting to the learner's last answer in one short sentence (not in the opening line), then do " +
   "the step. Put the words the step gives in `scaffold` as it says, or null; put key words in `keyWords` only when " +
   "the step asks for them, else [].";
@@ -101,7 +101,7 @@ export const SUPPORT_RULES: Record<SupportStep, string> = {
   supported: `The learner speaks at about CEFR B1. ${B1_TALK} ${SENTENCE_START} ${GUIDED_TRACK}`,
   conversation:
     `${NATURAL_TALK} Do not give sentences to say: help only with hints and ` +
-    "first-language words, as above. Set `scaffold` to null.",
+    `first-language words, as above. Set \`scaffold\` to null. ${GUIDED_TRACK}`,
   demanding:
     `The learner is advanced (CEFR C1 or above). ${NATURAL_TALK} Ask harder follow-ups too: the reasons behind ` +
     "a choice, trade-offs, what they would do differently. Do not give sentences to say. Set `scaffold` to null.",
@@ -151,7 +151,8 @@ export function memorySection(memory: TutorMemory | undefined): string {
  */
 export function missionSection(expressions: string[] | undefined, step: SupportStep | null): string {
   if (!expressions?.length) return "";
-  const guided = step === "build_full" || step === "build_light" || step === "supported";
+  // The script runs from A1 to B1, and at B2 when the learner turned it on.
+  const guided = step === "build_full" || step === "build_light" || step === "supported" || step === "conversation";
   return [
     "## Today's expressions",
     "Before this conversation the learner heard someone do the same task and took these ready-made expressions from it:",

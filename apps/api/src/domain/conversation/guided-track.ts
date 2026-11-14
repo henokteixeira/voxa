@@ -42,19 +42,19 @@ export const FADE_STREAK = 2;
 /** A step the learner is stuck at is asked once more, then the script moves on. */
 export const MAX_EXTRA_TRIES = 1;
 
-/** The script runs from A1 to B1, in conversations that have goals. */
-export function usesTrack(step: SupportStep | null): boolean {
-  return step === "build_full" || step === "build_light" || step === "supported";
+/** The script runs from A1 to B1, and at B2 when the learner turned it on, in conversations that have goals. */
+export function usesTrack(step: SupportStep | null, guidedAtB2 = false): boolean {
+  return step === "build_full" || step === "build_light" || step === "supported" || (step === "conversation" && guidedAtB2);
 }
 
-/** The words a session's first step gives: the example at A1, the sentence to complete at A2 and B1. */
+/** The words a session's first step gives: the example at A1, the sentence to complete at A2 and B1, a start at B2. */
 export function firstSupport(step: SupportStep): TrackSupport {
-  return step === "build_full" ? "example" : "frame";
+  return step === "build_full" ? "example" : step === "conversation" ? "start" : "frame";
 }
 
-/** The script's first step, or null where it does not run (from B2 up, or a mode without goals). */
-export function startTrack(step: SupportStep | null, goals: readonly string[]): TrackState | null {
-  if (!step || !usesTrack(step) || goals.length === 0) return null;
+/** The script's first step, or null where it does not run (from B2 up unless turned on, or a mode without goals). */
+export function startTrack(step: SupportStep | null, goals: readonly string[], guidedAtB2 = false): TrackState | null {
+  if (!step || !usesTrack(step, guidedAtB2) || goals.length === 0) return null;
   return { stage: "answer", goal: goals[0], support: firstSupport(step), tries: 0, unaidedStreak: 0 };
 }
 
