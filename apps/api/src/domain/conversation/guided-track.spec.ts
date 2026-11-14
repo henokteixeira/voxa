@@ -20,6 +20,11 @@ describe("startTrack", () => {
     expect(startTrack("supported", GOALS)?.support).toBe("frame");
   });
 
+  it("runs at B2 only when turned on, with a sentence start, and never from C1 up", () => {
+    expect(startTrack("conversation", GOALS, true)?.support).toBe("start");
+    expect(startTrack("demanding", GOALS, true)).toBeNull();
+  });
+
   it("does not run from B2 up, in free talk or in the placement interview", () => {
     expect(startTrack("conversation", GOALS)).toBeNull();
     expect(startTrack("demanding", GOALS)).toBeNull();

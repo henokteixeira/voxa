@@ -1348,11 +1348,14 @@ describe("The conversation: the step-by-step script (A1–B1)", () => {
     expect(tutor.requests[0].surprises).toBe(false);
   });
 
-  it("does not run from B2 up", async () => {
+  it("does not run from B2 up, unless the learner turned it on at B2, where it starts with a sentence start", async () => {
     levels.rows.push(placed("B2"));
     const { session } = await starts.start("daily", "en");
     expect(session.track).toBeNull();
     expect(tutor.openPlans[0]).toBeNull();
+    expect((await starts.start("daily", "en", undefined, true)).session.track).toMatchObject({ support: "start" });
+    levels.rows.push(placed("C1"));
+    expect((await starts.start("daily", "en", undefined, true)).session.track).toBeNull();
   });
 });
 

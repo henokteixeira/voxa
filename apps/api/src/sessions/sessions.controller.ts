@@ -21,8 +21,8 @@ export class SessionsController {
 
   @Post()
   async start(@Body() body: unknown) {
-    const { mode, language, missionId } = parse(StartSessionBody, body);
-    const { session, message, goals } = await this.starts.start(mode, language, missionId);
+    const { mode, language, missionId, guided } = parse(StartSessionBody, body);
+    const { session, message, goals } = await this.starts.start(mode, language, missionId, guided ?? false);
     return {
       sessionId: session.id,
       mode: session.mode,

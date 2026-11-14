@@ -30,6 +30,8 @@ export const StartSessionBody = z.object({
   language: Language,
   /** A daily mission's step 3: the session is that mission's conversation. */
   missionId: z.uuid().optional(),
+  /** At B2, follow the step-by-step script anyway (a setting, off by default). Ignored at other levels. */
+  guided: z.boolean().optional(),
 });
 export type StartSessionRequest = z.input<typeof StartSessionBody>;
 

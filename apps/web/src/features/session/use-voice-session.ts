@@ -5,6 +5,7 @@ import { reportError } from "@/lib/report-error";
 import { type Microphone, MicrophoneUnavailableError } from "@/lib/voice/microphone";
 import { createFillerPlayer } from "@/lib/voice/filler-player";
 import { readPauseMs } from "@/lib/voice/pause-setting";
+import { readGuidedAtB2 } from "@/features/settings/guided-setting";
 import type { Speaker } from "@/lib/voice/speaker";
 import type { VoiceSocket } from "@/lib/voice/voice-socket";
 import { FluencyClock } from "./fluency-clock";
@@ -222,7 +223,7 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
         }
       }
       try {
-        const started = await api.startSession(mode, undefined, missionId ?? undefined);
+        const started = await api.startSession(mode, undefined, missionId ?? undefined, readGuidedAtB2());
         sessionId.current = started.sessionId;
         // The learner left or ended before the session existed: close it on the server too.
         if (cancelled || ended.current) return void api.endSession(started.sessionId).catch(() => {});

@@ -210,9 +210,9 @@ describe("buildSystemPrompt: help by support step", () => {
     expect(SUPPORT_RULES.demanding).not.toMatch(/sponsor/);
   });
 
-  it("follows the step-by-step script from A1 to B1, and not from B2 up", () => {
-    for (const step of ["build_full", "build_light", "supported"] as const) expect(prompt(step)).toMatch(/step-by-step script/);
-    for (const step of ["conversation", "demanding"] as const) expect(prompt(step)).not.toMatch(/step-by-step script/);
+  it("follows the step-by-step script from A1 to B1, and at B2 when turned on; never from C1 up", () => {
+    for (const step of ["build_full", "build_light", "supported", "conversation"] as const) expect(prompt(step)).toMatch(/step-by-step script/);
+    expect(prompt("demanding")).not.toMatch(/step-by-step script/);
   });
 
   it("gives no words to say from B2 up, and none in the placement interview", () => {

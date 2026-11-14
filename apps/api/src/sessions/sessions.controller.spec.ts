@@ -56,7 +56,7 @@ describe("POST /sessions", () => {
       track: null,
       scaffold: null,
     });
-    expect(service.start).toHaveBeenCalledWith("daily", "en", undefined);
+    expect(service.start).toHaveBeenCalledWith("daily", "en", undefined, false);
   });
 
   it("starts a daily mission's conversation", async () => {
@@ -66,7 +66,17 @@ describe("POST /sessions", () => {
       goals: [],
     });
     await request(app.getHttpServer()).post("/sessions").send({ mode: "daily", missionId: id });
-    expect(service.start).toHaveBeenCalledWith("daily", "en", id);
+    expect(service.start).toHaveBeenCalledWith("daily", "en", id, false);
+  });
+
+  it("passes on the learner's choice of the step-by-step script at B2", async () => {
+    service.start.mockResolvedValue({
+      session: { id, language: "en", mode: "daily", pending: null, endedAt: null, track: null, scaffold: null },
+      message: "Morning!",
+      goals: [],
+    });
+    await request(app.getHttpServer()).post("/sessions").send({ mode: "daily", guided: true });
+    expect(service.start).toHaveBeenCalledWith("daily", "en", undefined, true);
   });
 
   it.each([[{ mode: "karaoke" }], [{}], [{ mode: "daily", language: "English" }], [{ mode: "daily", missionId: "m1" }]])("rejects %j", async (body) => {
