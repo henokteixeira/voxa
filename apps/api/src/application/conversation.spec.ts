@@ -1354,7 +1354,12 @@ describe("The conversation: the step-by-step script (A1–B1)", () => {
     expect(session.track).toBeNull();
     expect(tutor.openPlans[0]).toBeNull();
     expect((await starts.start("daily", "en", undefined, true)).session.track).toMatchObject({ support: "start" });
+    expect(tutor.openPlans.at(-1)?.otherwise?.support).toBe("start");
     levels.rows.push(placed("C1"));
+    expect((await starts.start("daily", "en", undefined, true)).session.track).toBeNull();
+  });
+
+  it("ignores the B2 option without a level", async () => {
     expect((await starts.start("daily", "en", undefined, true)).session.track).toBeNull();
   });
 });

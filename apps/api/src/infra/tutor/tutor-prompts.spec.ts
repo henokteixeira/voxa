@@ -217,6 +217,9 @@ describe("buildSystemPrompt: help by support step", () => {
 
   it("gives no words to say from B2 up, and none in the placement interview", () => {
     expect(prompt("conversation")).toContain(SUPPORT_RULES.conversation);
+    expect(SUPPORT_RULES.conversation).toMatch(/Do not give sentences to say.*Set `scaffold` to null/);
+    // The B2 option's script, when on, wins over that.
+    expect(SUPPORT_RULES.conversation).toMatch(/While it is present it wins over the rules above about which words to give, about `scaffold`/);
     expect(prompt("demanding")).toMatch(/harder follow-ups/);
     expect(prompt(null)).toMatch(/Give no help with what to say/);
   });

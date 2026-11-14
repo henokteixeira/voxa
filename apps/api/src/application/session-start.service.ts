@@ -80,7 +80,8 @@ export class SessionStartService {
       this.levels.current(language),
     ]);
     const step = sessionStep(mode, level?.level ?? null);
-    const track = startTrack(step, goalsFor(mode), guidedAtB2);
+    // The B2 option needs a level of B2: without a level the session also talks freely, but the option is not about it.
+    const track = startTrack(step, goalsFor(mode), guidedAtB2 && level?.level === "B2");
     const startedAt = this.clock.now();
     const [learnerContext, memory] = await Promise.all([this.learnerContext.load(), this.memory.recall({ startedAt })]);
     const created = await this.sessions.create({ mode, language, startedAt, targets, step, track, memory, missionId: mission?.id ?? null });
