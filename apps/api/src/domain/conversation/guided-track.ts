@@ -1,255 +1,192 @@
-import { TRACK_STAGES, type TrackStage } from "@voxa/contracts";
+import { TRACK_STAGES, TRACK_SUPPORTS, type TrackStage, type TrackSupport } from "@voxa/contracts";
 import type { SupportStep } from "../level/speaking-level.js";
 
 /**
- * The guided track for A1–A2 (leveling and guided track design, approved by the learner on 2026-11-07).
- * Each goal of the session goes through short stages, named by what the learner does in them:
- * - model: repeat a short model sentence the tutor says (shadowing);
- * - swap: say the same sentence with their own information;
- * - extend: say a longer sentence (the tutor adds a reason, an "and then" or a result);
- * - answer: answer the scene's question alone, without a model;
- * - again: say that answer once more, more smoothly.
- * At A1 (build_full) a goal starts at `model`; at A2 (build_light) it starts at `answer`, and the model comes only
- * when the learner is stuck there. The thresholds below are design choices, to tune with real use.
+ * The step-by-step script for A1–B1 (approved by the learner on 2026-11-14; it replaced the earlier guided track).
+ * Each goal of the session is one step: the tutor asks one short question for it and gives words to answer with,
+ * from most to least (`TRACK_SUPPORTS`):
+ * - example: a short example sentence the learner changes with their own information;
+ * - frame: a sentence to complete, with ___ blanks and up to 3 key words;
+ * - start: only the start of a sentence;
+ * - alone: only the question.
+ * Answered without being stuck, the goal is covered and the next one starts; `FADE_STREAK` goals in a row like that
+ * move one level down. Stuck, the same goal is asked once more with one level more, then the script moves on.
+ * After the goals, the last step (`retell`) asks the learner to put it all together in one short talk.
+ * The thresholds below are design choices, to tune with real use.
  */
-export { TRACK_STAGES, type TrackStage };
+export { TRACK_STAGES, TRACK_SUPPORTS, type TrackStage, type TrackSupport };
 
 export function isTrackStage(value: unknown): value is TrackStage {
   return typeof value === "string" && (TRACK_STAGES as readonly string[]).includes(value);
 }
 
-/** Where the learner is in the track. */
-export interface TrackState {
-  /** What the learner is doing on their next turn. */
-  stage: TrackStage;
-  /** The goal being built (an id of the mode's goals), or null when the mode has none (free talk). */
-  goal: string | null;
-  /** Extra tries at this stage (the model said again more slowly, or the same request once more). */
-  tries: number;
-  /** The learner was stuck at this goal's answer, so the answer was built from the model. */
-  helped: boolean;
-  /** Goals in a row the learner answered alone. */
-  unaidedStreak: number;
-  /** Goals in a row the learner was stuck at the answer. */
-  stuckStreak: number;
+export function isTrackSupport(value: unknown): value is TrackSupport {
+  return typeof value === "string" && (TRACK_SUPPORTS as readonly string[]).includes(value);
 }
 
-/** What the screen shows of the track: the stage the learner is at, as "step 2 of 5". */
+/** Where the learner is in the script. */
+export interface TrackState {
+  stage: TrackStage;
+  /** The goal of this step (an id of the mode's goals); null at the last step. */
+  goal: string | null;
+  /** The words given for the next answer. */
+  support: TrackSupport;
+  /** Extra tries at this step (asked again with more help). */
+  tries: number;
+  /** Goals in a row answered without being stuck, at the current level of support. */
+  unaidedStreak: number;
+}
+
+/** Goals in a row answered without being stuck that move the support one level down. */
+export const FADE_STREAK = 2;
+/** A step the learner is stuck at is asked once more, then the script moves on. */
+export const MAX_EXTRA_TRIES = 1;
+
+/** The script runs from A1 to B1, in conversations that have goals. */
+export function usesTrack(step: SupportStep | null): boolean {
+  return step === "build_full" || step === "build_light" || step === "supported";
+}
+
+/** The words a session's first step gives: the example at A1, the sentence to complete at A2 and B1. */
+export function firstSupport(step: SupportStep): TrackSupport {
+  return step === "build_full" ? "example" : "frame";
+}
+
+/** The script's first step, or null where it does not run (from B2 up, or a mode without goals). */
+export function startTrack(step: SupportStep | null, goals: readonly string[]): TrackState | null {
+  if (!step || !usesTrack(step) || goals.length === 0) return null;
+  return { stage: "answer", goal: goals[0], support: firstSupport(step), tries: 0, unaidedStreak: 0 };
+}
+
+const fewer = (support: TrackSupport): TrackSupport => TRACK_SUPPORTS[Math.min(TRACK_SUPPORTS.indexOf(support) + 1, TRACK_SUPPORTS.length - 1)];
+const more = (support: TrackSupport): TrackSupport => TRACK_SUPPORTS[Math.max(TRACK_SUPPORTS.indexOf(support) - 1, 0)];
+
+/** What the screen shows: "step 2 of 5 · goal"; the last step is putting it all together. */
 export interface TrackView {
   stage: TrackStage;
-  /** 1-based position of the stage in the track. */
+  support: TrackSupport;
+  goal: string | null;
+  /** 1-based number of the step. */
   number: number;
   total: number;
 }
 
-export function trackView(track: TrackState | null): TrackView | null {
-  return track ? { stage: track.stage, number: TRACK_STAGES.indexOf(track.stage) + 1, total: TRACK_STAGES.length } : null;
-}
-
-/** A stage the learner is stuck at is tried once more, then the track moves on. */
-export const MAX_EXTRA_TRIES = 1;
-/** Goals in a row that move the session one step (A1 skips the model; A2 brings it back). */
-export const STEP_CHANGE_STREAK = 2;
-/** Share of the model's words the learner must say for a repetition to count. */
-export const REPEAT_MATCH = 0.7;
-
-export function usesTrack(step: SupportStep | null): step is "build_full" | "build_light" {
-  return step === "build_full" || step === "build_light";
-}
-
-/** The stage a goal starts at. */
-export function firstStage(step: "build_full" | "build_light"): TrackStage {
-  return step === "build_full" ? "model" : "answer";
-}
-
-export function startTrack(step: SupportStep | null, goal: string | null): TrackState | null {
-  return usesTrack(step)
-    ? { stage: firstStage(step), goal, tries: 0, helped: false, unaidedStreak: 0, stuckStreak: 0 }
-    : null;
-}
-
-const words = (text: string) =>
-  text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}' ]+/gu, " ")
-    .split(/\s+/)
-    .filter(Boolean);
-
-/** Whether the learner said enough of the model sentence (speech recognition may drop or change a word). */
-export function repeatedModel(model: string, utterance: string): boolean {
-  const target = words(model);
-  if (target.length === 0) return true;
-  const said = words(utterance);
-  const found = target.filter((w) => said.includes(w)).length;
-  return found / target.length >= REPEAT_MATCH;
-}
-
-/** In stages where the learner says words the tutor gave, mistakes are only noted: no hint stops the track. */
-export function pausesForHints(stage: TrackStage): boolean {
-  return stage === "answer" || stage === "again";
-}
-
-/** Whether the learner's turn at this stage can cover a goal: only their own answer counts. */
-export function coversGoals(stage: TrackStage): boolean {
-  return stage === "answer" || stage === "again";
-}
-
-export interface TrackTurn {
-  /** The tutor saw the learner as stuck. */
-  stuck: boolean;
-  /** At `model`: whether the learner repeated the model sentence. Ignored at other stages. */
-  repeated: boolean;
-  /** The goal to build after this one (the first one not covered yet), or null. */
-  nextGoal: string | null;
+export function trackView(track: TrackState | null, goals: readonly string[]): TrackView | null {
+  if (!track) return null;
+  const total = goals.length + 1;
+  const number = track.stage === "retell" ? total : Math.max(goals.indexOf(track.goal ?? ""), 0) + 1;
+  return { stage: track.stage, support: track.support, goal: track.stage === "retell" ? null : track.goal, number, total };
 }
 
 export interface TrackMove {
-  track: TrackState;
-  /** The session's step after the move: it changes only between A1 and A2. */
-  step: "build_full" | "build_light";
-  /** The goal the learner covered with this turn (their own answer), or null. */
+  /** The next step, or null once the learner put it all together (the script is over). */
+  track: TrackState | null;
+  /** The goal the learner covered with this turn, or null. */
   covered: string | null;
 }
 
-/** The next stage after one learner turn; when a goal ends, the streaks and the step change. */
-export function advance(state: TrackState, step: "build_full" | "build_light", turn: TrackTurn): TrackMove {
-  const stay = (): TrackMove => ({ track: { ...state, tries: state.tries + 1 }, step, covered: null });
-  const go = (stage: TrackStage, over: Partial<TrackState> = {}, covered: string | null = null): TrackMove => ({
-    track: { ...state, ...over, stage, tries: 0 },
-    step,
-    covered,
-  });
+/** The next step after one learner turn. `nextGoal` is the goal after this one not covered yet, or null. */
+export function advance(state: TrackState, turn: { stuck: boolean; nextGoal: string | null }): TrackMove {
   const canRetry = state.tries < MAX_EXTRA_TRIES;
-
-  switch (state.stage) {
-    case "model":
-      return turn.repeated || !canRetry ? go("swap") : stay();
-    case "swap":
-      return turn.stuck && canRetry ? stay() : go("extend");
-    case "extend":
-      return turn.stuck && canRetry ? stay() : go("answer");
-    case "answer":
-      if (!turn.stuck) return go("again", {}, state.goal);
-      // Stuck at the answer: build it from the model, once; stuck again, the goal ends and the next one starts.
-      return state.helped ? endGoal(state, step, turn.nextGoal) : go("model", { helped: true });
-    case "again":
-      return endGoal(state, step, turn.nextGoal);
+  if (state.stage === "retell") {
+    return turn.stuck && canRetry ? { track: { ...state, tries: state.tries + 1 }, covered: null } : { track: null, covered: null };
   }
+  if (turn.stuck && canRetry) {
+    return { track: { ...state, support: more(state.support), tries: state.tries + 1, unaidedStreak: 0 }, covered: null };
+  }
+  // Answered, or stuck twice: the next step. An answer covers the goal; only one given at the first try fades the help.
+  // The extra help a retry gave stays until the learner does well again.
+  const answered = !turn.stuck;
+  const streak = answered && state.tries === 0 ? state.unaidedStreak + 1 : 0;
+  const fade = streak >= FADE_STREAK;
+  const support = fade ? fewer(state.support) : state.support;
+  const next: TrackState = turn.nextGoal
+    ? { stage: "answer", goal: turn.nextGoal, support, tries: 0, unaidedStreak: fade ? 0 : streak }
+    : { stage: "retell", goal: null, support, tries: 0, unaidedStreak: 0 };
+  return { track: next, covered: answered ? state.goal : null };
+}
+
+/** Whether the tutor gives words for this step: all but a goal answered alone (the last step gives the parts' starts). */
+export function givesWords(track: TrackState): boolean {
+  return track.stage === "retell" || track.support !== "alone";
+}
+
+/** What the tutor's next line does in the script. */
+export interface TrackStep {
+  stage: TrackStage;
+  support: TrackSupport;
+  /** The learner did not manage it the first time: asked again, with more help. */
+  retry: boolean;
+  /** The goal of this step, or null at the last step. */
+  goal: { id: string; description: string } | null;
+  /** Today's expressions to work into the words given, when they fit. */
+  expressions: string[];
+}
+
+/** The tutor's next line in the script, which depends on whether it sees the learner as stuck. */
+export interface TrackPlan {
+  otherwise: TrackStep | null;
+  ifStuck: TrackStep | null;
 }
 
 /**
- * A goal ends: it counts as answered alone unless the learner was stuck at its answer. A1 that answers alone
- * a few goals in a row skips the model from then on; A2 stuck a few goals in a row gets it back.
+ * The goal after the current one: the next of the mode's goals, in order, not covered yet. A goal the script moved past
+ * (the learner was stuck twice) does not come back.
  */
-function endGoal(state: TrackState, step: "build_full" | "build_light", nextGoal: string | null): TrackMove {
-  const unaidedStreak = state.helped ? 0 : state.unaidedStreak + 1;
-  const stuckStreak = state.helped ? state.stuckStreak + 1 : 0;
-  let next = step;
-  if (step === "build_full" && unaidedStreak >= STEP_CHANGE_STREAK) next = "build_light";
-  if (step === "build_light" && stuckStreak >= STEP_CHANGE_STREAK) next = "build_full";
-  const changed = next !== step;
-  return {
-    track: {
-      stage: firstStage(next),
-      goal: nextGoal,
-      tries: 0,
-      helped: false,
-      unaidedStreak: changed ? 0 : unaidedStreak,
-      stuckStreak: changed ? 0 : stuckStreak,
-    },
-    step: next,
-    covered: null,
-  };
-}
-
-/** Stages where the tutor gives the learner words to say (the model, or the longer sentence). */
-export function givesWords(stage: TrackStage): boolean {
-  return stage === "model" || stage === "swap" || stage === "extend";
-}
-
-/** What the tutor's next line does in the guided track. */
-export interface TrackStep {
-  stage: TrackStage;
-  /** The learner did not manage it the first time: say it again, slower or with a little more help. */
-  retry: boolean;
-  /** The goal being built, or null in free talk. */
-  goal: { id: string; description: string } | null;
-}
-
-/** The tutor's next line in the guided track, which depends on whether it sees the learner as stuck. */
-export interface TrackPlan {
-  otherwise: TrackStep;
-  ifStuck: TrackStep;
-  /** The learner's turn is their own answer: a serious mistake in it gets a hint, so the reply stays short. */
-  hintsPause: boolean;
-}
-
-/** The goal to build after the current one: the first of the mode's goals not covered yet. */
 export function nextGoalAfter(goals: readonly string[], current: string | null, covered: readonly string[]): string | null {
-  return goals.find((g) => g !== current && !covered.includes(g)) ?? null;
+  return goals.slice(goals.indexOf(current ?? "") + 1).find((g) => !covered.includes(g)) ?? null;
 }
 
-/** Both ways one learner turn can move the track: the tutor's verdict on `stuck` picks one. */
+/** Both ways one learner turn can move the script: the tutor's verdict on `stuck` picks one. */
 export interface TrackOutcomes {
   ok: TrackMove;
   stuck: TrackMove;
 }
 
-/** The track's two possible moves for a learner turn, computed before the tutor answers so it can follow either. */
-export function trackOutcomes(input: {
-  track: TrackState;
-  step: "build_full" | "build_light";
-  /** The model sentence the learner is repeating, if any. */
-  model: string | null;
-  utterance: string;
-  nextGoal: string | null;
-}): TrackOutcomes {
-  const repeated = input.track.stage === "model" ? repeatedModel(input.model ?? "", input.utterance) : false;
-  const turn = (stuck: boolean) => advance(input.track, input.step, { stuck, repeated, nextGoal: input.nextGoal });
-  return { ok: turn(false), stuck: turn(true) };
+export function trackOutcomes(track: TrackState, nextGoal: string | null): TrackOutcomes {
+  return { ok: advance(track, { stuck: false, nextGoal }), stuck: advance(track, { stuck: true, nextGoal }) };
 }
 
-export function trackStep(track: TrackState, describe: (goal: string) => string | undefined): TrackStep {
+export function trackStep(
+  track: TrackState,
+  describe: (goal: string) => string | undefined,
+  expressions: readonly string[] = [],
+): TrackStep {
   const description = track.goal ? describe(track.goal) : undefined;
   return {
     stage: track.stage,
+    support: track.support,
     retry: track.tries > 0,
     goal: track.goal && description ? { id: track.goal, description } : null,
+    expressions: [...expressions],
   };
 }
 
-/** The plan for the tutor's line that opens the track (or a stage with nothing to choose). */
-export function openingPlan(track: TrackState, describe: (goal: string) => string | undefined): TrackPlan {
-  const step = trackStep(track, describe);
-  return { otherwise: step, ifStuck: step, hintsPause: false };
+/** The plan for the line that opens the script. */
+export function openingPlan(track: TrackState, describe: (goal: string) => string | undefined, expressions?: readonly string[]): TrackPlan {
+  const step = trackStep(track, describe, expressions);
+  return { otherwise: step, ifStuck: step };
 }
 
-export function turnPlan(
-  track: TrackState,
-  outcomes: TrackOutcomes,
-  describe: (goal: string) => string | undefined,
-): TrackPlan {
-  return {
-    otherwise: trackStep(outcomes.ok.track, describe),
-    ifStuck: trackStep(outcomes.stuck.track, describe),
-    hintsPause: pausesForHints(track.stage),
-  };
+export function turnPlan(outcomes: TrackOutcomes, describe: (goal: string) => string | undefined, expressions?: readonly string[]): TrackPlan {
+  const step = (move: TrackMove) => (move.track ? trackStep(move.track, describe, expressions) : null);
+  return { otherwise: step(outcomes.ok), ifStuck: step(outcomes.stuck) };
 }
 
 /**
- * What a learner turn leaves in the track, once the tutor answered: the move (none while a hint is pending),
- * the goals it covers (only the learner's own answer counts) and the words given for the next turn.
+ * What a learner turn leaves in the script, once the tutor answered: the move (none while a hint is pending),
+ * the goal it covers and the words given for the next turn.
  */
 export function resolveTrackTurn(input: {
-  track: TrackState;
   outcomes: TrackOutcomes;
   /** The turn ended in a plain reply (not a hint or the correct form). */
   replied: boolean;
-  verdict: { stuck: boolean; scaffold: string | null; coveredGoals: string[] };
-}): { move: TrackMove | null; reportedGoals: string[]; scaffold: string | null } {
-  const { track, outcomes, replied, verdict } = input;
+  verdict: { stuck: boolean; scaffold: string | null; keyWords: string[] };
+}): { move: TrackMove | null; scaffold: string | null; keyWords: string[] } {
+  const { outcomes, replied, verdict } = input;
   const move = replied ? (verdict.stuck ? outcomes.stuck : outcomes.ok) : null;
-  const reportedGoals = [...(coversGoals(track.stage) ? verdict.coveredGoals : []), ...(move?.covered ? [move.covered] : [])];
-  const scaffold = move && givesWords(move.track.stage) ? verdict.scaffold?.trim() || null : null;
-  return { move, reportedGoals, scaffold };
+  const gives = move?.track ? givesWords(move.track) : false;
+  const scaffold = gives ? verdict.scaffold?.trim() || null : null;
+  const keyWords = scaffold && move?.track?.stage === "answer" && move.track.support === "frame" ? verdict.keyWords.slice(0, 3) : [];
+  return { move, scaffold, keyWords };
 }

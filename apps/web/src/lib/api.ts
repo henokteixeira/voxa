@@ -79,6 +79,7 @@ export type {
   Takeaway,
   TodayProgress,
   TrackStage,
+  TrackSupport,
   TrackView,
   Trend,
   SentenceHelp,

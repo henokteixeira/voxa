@@ -209,6 +209,7 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
             hint: resumed.hint,
             track: resumed.track,
             scaffold: resumed.scaffold,
+            keyWords: resumed.keyWords,
           });
           return;
         } catch (error) {
@@ -235,6 +236,7 @@ export function useVoiceSession(mode: Mode, missionId: string | null = null) {
           goals: started.goals,
           track: started.track,
           scaffold: started.scaffold,
+          keyWords: started.keyWords,
         });
         connect(started.sessionId, { kind: "speak" });
       } catch (error) {

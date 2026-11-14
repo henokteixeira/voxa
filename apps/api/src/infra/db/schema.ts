@@ -1,4 +1,4 @@
-import { CEFR_LEVELS, DISMISS_REASONS, LEVEL_SOURCES, MODES, TRACK_STAGES } from "@voxa/contracts";
+import { CEFR_LEVELS, DISMISS_REASONS, LEVEL_SOURCES, MODES, TRACK_STAGES, TRACK_SUPPORTS } from "@voxa/contracts";
 import { type SQL, sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
@@ -75,17 +75,18 @@ export const sessions = pgTable(
     supportStep: varchar("support_step", { length: 16 }),
     /** Words the tutor's last line gave the learner to say (a model sentence or a sentence start). */
     scaffold: text("scaffold"),
-    /** The guided track (A1–A2): the stage (model | swap | extend | answer | again), null outside the track. */
+    /** Key words shown with a sentence to complete (the script's `frame`); empty otherwise. */
+    keyWords: text("key_words").array().notNull().default(sql`'{}'::text[]`),
+    /** The step-by-step script (A1–B1): the stage (answer | retell), null outside the script. */
     trackStage: varchar("track_stage", { length: 16 }),
-    /** The goal the track is building (a goal id of the mode), null in free talk. */
+    /** The goal of the current step (a goal id of the mode), null at the last step. */
     trackGoal: varchar("track_goal", { length: 32 }),
-    /** Extra tries at the current stage. */
+    /** The words given for the next answer (example | frame | start | alone), null outside the script. */
+    trackSupport: varchar("track_support", { length: 16 }),
+    /** Extra tries at the current step. */
     trackTries: smallint("track_tries").notNull().default(0),
-    /** The learner was stuck at the current goal's answer, so it was built from the model. */
-    trackHelped: boolean("track_helped").notNull().default(false),
-    /** Goals in a row answered alone, and stuck at the answer: they move the step between A1 and A2. */
+    /** Goals in a row answered without being stuck: they fade the support. */
     trackUnaidedStreak: smallint("track_unaided_streak").notNull().default(0),
-    trackStuckStreak: smallint("track_stuck_streak").notNull().default(0),
     /** What the tutor remembered when the session started. */
     memory: jsonb("memory").$type<TutorMemory>().notNull().default({ facts: [], recentSessions: [] }),
     /** When what the learner said about themselves was saved to memory; null until then. */
@@ -103,6 +104,9 @@ export const sessions = pgTable(
     check("sessions_mode", oneOf(t.mode, MODES)),
     check("sessions_support_step", oneOf(t.supportStep, SUPPORT_STEPS)),
     check("sessions_track_stage", oneOf(t.trackStage, TRACK_STAGES)),
+    check("sessions_track_support", oneOf(t.trackSupport, TRACK_SUPPORTS)),
+    // A step always says what words it gives.
+    check("sessions_track_complete", sql`(${t.trackStage} is null) = (${t.trackSupport} is null)`),
   ],
 );
 

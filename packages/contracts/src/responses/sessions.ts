@@ -1,21 +1,27 @@
 import type { Mode } from "../modes.js";
-import type { TrackStage } from "../values.js";
+import type { TrackStage, TrackSupport } from "../values.js";
 import type { SpeakingLevel } from "./levels.js";
 import type { SessionXp } from "./progress.js";
 
-/** Where the learner is in the guided track: the stage, as "step 2 of 5". */
+/** Where the learner is in the step-by-step script, as "step 2 of 5 · goal". */
 export interface TrackView {
   stage: TrackStage;
+  /** The words given for the next answer. */
+  support: TrackSupport;
+  /** The goal of this step; null at the last step (putting it all together). */
+  goal: string | null;
   number: number;
   total: number;
 }
 
-/** The guided track and the words the tutor gave for the next turn. Missing from servers older than them. */
+/** The script and the words the tutor gave for the next turn. Missing from servers older than them. */
 export interface Guidance {
-  /** Null outside the guided track. */
+  /** Null outside the script. */
   track?: TrackView | null;
-  /** A model sentence, or a sentence start when stuck; null when there are no words to say. */
+  /** The words to say (an example, a sentence with ___ blanks, a start, or the parts to put together); null when none. */
   scaffold?: string | null;
+  /** Up to 3 key words for a sentence to complete. */
+  keyWords?: string[];
 }
 
 export interface StartedSession extends Guidance {

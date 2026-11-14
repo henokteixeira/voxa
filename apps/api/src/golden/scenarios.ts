@@ -201,8 +201,8 @@ export const ALL_SCENARIOS: Scenario[] = [
   },
   {
     name: "B1 support: the start of a sentence when the learner is stuck",
-    rule: "At B1, when the learner is stuck, the tutor gives only the start of a sentence to finish, never the whole answer.",
-    mode: "daily",
+    rule: "At B1, outside the step-by-step script, when the learner is stuck, the tutor gives only the start of a sentence to finish, never the whole answer.",
+    mode: "free_talk",
     step: "supported",
     turns: [
       { utterance: "Hmm, yesterday I... I don't know how to say it.", expect: { kind: "reply", stuck: true, scaffold: true } },
@@ -210,22 +210,20 @@ export const ALL_SCENARIOS: Scenario[] = [
     ],
   },
   {
-    name: "A1 guided track: repeat the model, then say it with your own information",
-    rule: "At A1 a goal starts with a short model sentence to repeat; after the repetition the tutor asks for the same sentence with the learner's own information.",
+    name: "A1 script: an example to change for each goal",
+    rule: "At A1 each goal is one step: a short question and an example answer the learner changes with their own information; answered, the next goal gets its own.",
     mode: "daily",
     step: "build_full",
     openingGivesWords: true,
-    turns: [
-      { utterance: "Yesterday I worked on the login screen.", expect: { kind: "reply", stage: "swap", scaffold: true } },
-      { utterance: "Yesterday I worked on the report export.", expect: { kind: "reply", stage: "extend", scaffold: true } },
-    ],
+    turns: [{ utterance: "Yesterday I worked on the report export.", expect: { kind: "reply", stage: "answer", scaffold: true } }],
   },
   {
-    name: "A2 guided track: the model comes only when the learner is stuck",
-    rule: "At A2 the tutor asks the meeting question first and gives a model sentence only when the learner can't answer.",
+    name: "A2 script: a sentence to complete, and more words when stuck",
+    rule: "At A2 a step gives a sentence to complete; when the learner can't answer, the same goal comes again with an example to change.",
     mode: "daily",
     step: "build_light",
-    turns: [{ utterance: "Hmm... I don't know how to say.", expect: { kind: "reply", stuck: true, stage: "model", scaffold: true } }],
+    openingGivesWords: true,
+    turns: [{ utterance: "Hmm... I don't know how to say.", expect: { kind: "reply", stuck: true, stage: "answer", scaffold: true } }],
   },
   {
     name: "B2 conversation: no words to say, even when stuck",
@@ -244,6 +242,6 @@ export const SCENARIOS: Scenario[] = ALL_SCENARIOS.filter((s) =>
     "fluent utterance: nothing to correct",
     "placement: the interviewer only observes, never corrects",
     "B1 support: the start of a sentence when the learner is stuck",
-    "A1 guided track: repeat the model, then say it with your own information",
+    "A1 script: an example to change for each goal",
   ].includes(s.name),
 );

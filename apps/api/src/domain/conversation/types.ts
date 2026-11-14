@@ -76,7 +76,9 @@ export interface Session {
   step: SupportStep | null;
   /** Words the tutor's last line gave the learner to say (a model sentence or a sentence start), or null. */
   scaffold: string | null;
-  /** Where the learner is in the guided track (A1–A2 steps only), or null. */
+  /** Key words for a sentence to complete, shown with `scaffold`; empty otherwise. */
+  keyWords: string[];
+  /** Where the learner is in the step-by-step script (A1–B1, in conversations with goals), or null. */
   track: TrackState | null;
   /** What the tutor remembered when the session started; kept all session, so its prompt stays the same. */
   memory: TutorMemory;

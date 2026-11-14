@@ -1,8 +1,12 @@
 /** The value lists the API and the web app both use. */
 
-/** The stages of the guided track (A1–A2), in order. */
-export const TRACK_STAGES = ["model", "swap", "extend", "answer", "again"] as const;
+/** The stages of the step-by-step script (A1–B1): one answer per goal, then putting it all together. */
+export const TRACK_STAGES = ["answer", "retell"] as const;
 export type TrackStage = (typeof TRACK_STAGES)[number];
+
+/** The words the script gives for an answer, from most to least: an example to change, a sentence to complete, a start, none. */
+export const TRACK_SUPPORTS = ["example", "frame", "start", "alone"] as const;
+export type TrackSupport = (typeof TRACK_SUPPORTS)[number];
 
 /** How a level was set: the placement session, the learner by hand, or a step change they confirmed. */
 export const LEVEL_SOURCES = ["placement", "manual", "step_change"] as const;

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MODES } from "../../domain/conversation/mode.js";
 import { MISTAKE_TYPES } from "../../domain/mistakes/mistake-type.js";
 import { SUPPORT_STEPS, type SupportStep } from "../../domain/level/speaking-level.js";
+import type { TrackStep } from "../../domain/ports/tutor.port.js";
 import {
   buildSystemPrompt,
   memorySection,
@@ -54,10 +55,9 @@ describe("buildSystemPrompt: a daily mission's conversation", () => {
     expect(prompt).toMatch(/never a hint or a correction/);
   });
 
-  it("lets the guided track build fuller answers, and its model sentences may use an expression", () => {
+  it("lets the script build fuller answers while it runs, and invites them after", () => {
     const prompt = buildSystemPrompt({ ...context, step: "build_light", expressions: ["I'm blocked by…"] }, "pt-BR");
-    expect(prompt).toMatch(/guided track already builds fuller answers/);
-    expect(prompt).not.toMatch(/invite a slightly fuller one/);
+    expect(prompt).toMatch(/While <guided_track> is present it builds the answers step by step.* Without it: When the learner's answer/);
     expect(prompt).toMatch(/a model sentence or a sentence start they ask for may use an expression/);
   });
 
@@ -210,10 +210,9 @@ describe("buildSystemPrompt: help by support step", () => {
     expect(SUPPORT_RULES.demanding).not.toMatch(/sponsor/);
   });
 
-  it("follows the guided track at A1–A2", () => {
-    expect(prompt("build_full")).toMatch(/guided track/);
-    expect(prompt("build_light")).toMatch(/guided track/);
-    expect(prompt("supported")).not.toMatch(/guided track/);
+  it("follows the step-by-step script from A1 to B1, and not from B2 up", () => {
+    for (const step of ["build_full", "build_light", "supported"] as const) expect(prompt(step)).toMatch(/step-by-step script/);
+    for (const step of ["conversation", "demanding"] as const) expect(prompt(step)).not.toMatch(/step-by-step script/);
   });
 
   it("gives no words to say from B2 up, and none in the placement interview", () => {
@@ -229,33 +228,38 @@ describe("buildSystemPrompt: help by support step", () => {
 
 describe("buildTrackInstruction", () => {
   const goal = { id: "yesterday", description: "said what they did yesterday" };
+  const step = (over: Partial<TrackStep> = {}): TrackStep => ({ stage: "answer", support: "frame", retry: false, goal, expressions: [], ...over });
 
   it("gives one instruction when it does not depend on the learner being stuck", () => {
-    const step = { stage: "model" as const, retry: true, goal };
-    const text = buildTrackInstruction({ otherwise: step, ifStuck: step, hintsPause: false });
-    expect(text).toMatch(/^Say the same model sentence again, slowly/);
+    const text = buildTrackInstruction({ otherwise: step({ retry: true }), ifStuck: step({ retry: true }) });
+    expect(text).toMatch(/^The learner was stuck at this step: ask again, more slowly/);
+    expect(text).toContain('in `scaffold` write it with "___" at each blank');
     expect(text).toContain("Goal: the learner said what they did yesterday.");
     expect(text).not.toContain("If the learner is stuck");
-    expect(text).not.toContain("warm words only");
   });
 
-  it("gives both branches when it does", () => {
-    const text = buildTrackInstruction({
-      otherwise: { stage: "again", retry: false, goal },
-      ifStuck: { stage: "model", retry: false, goal },
-      hintsPause: true,
-    });
-    expect(text).toMatch(/^If the learner is stuck: Say one short model sentence/);
-    expect(text).toMatch(/\nOtherwise: React in a few words, then ask the learner to say their answer once more/);
-    // Only the learner's own answer stops for a hint, so only then does the reply stay short.
+  it("gives both branches when it does, and keeps the reply short when a hint follows", () => {
+    const text = buildTrackInstruction({ otherwise: step({ support: "start" }), ifStuck: step({ support: "example", retry: true }) });
+    expect(text).toMatch(/^If the learner is stuck: The learner was stuck at this step: .*one short example answer/);
+    expect(text).toMatch(/\nOtherwise: .*only the start of an answer/);
     expect(text).toMatch(/serious mistake .* reply with a few warm words only/);
+    // The opening has no answer to hint about.
+    expect(buildTrackInstruction({ otherwise: step(), ifStuck: step() }, true)).not.toContain("warm words only");
   });
 
-  it("goes into the turn message only in the track", () => {
-    const step = { stage: "answer" as const, retry: false, goal: null };
+  it("works today's expressions into the words given, asks for the parts at the last step, and says when it is over", () => {
+    expect(buildTrackInstruction({ otherwise: step({ expressions: ["on top of that"] }), ifStuck: step({ expressions: ["on top of that"] }) })).toContain(
+      'build the words you give around it: "on top of that"',
+    );
+    const last = step({ stage: "retell", goal: null });
+    expect(buildTrackInstruction({ otherwise: last, ifStuck: last })).toMatch(/put it all together.* separated by " \/ "/);
+    expect(buildTrackInstruction({ otherwise: null, ifStuck: last })).toMatch(/Otherwise: The script is over/);
+  });
+
+  it("goes into the turn message only in the script", () => {
     const base = { utterance: "Hi", pending: null, knownMistakes: [], knownNewWords: [], knownPatterns: [], bringBack: [], focusPatterns: [], reviewExpressions: [], coveredGoals: [], scaffold: null, surprises: false };
-    expect(buildTurnMessage({ ...base, plan: { otherwise: step, ifStuck: step, hintsPause: false } })).toMatch(
-      /<guided_track>\nAsk the scene's question for the goal, with no model sentence\. Goal: a short topic/,
+    expect(buildTurnMessage({ ...base, plan: { otherwise: step({ support: "alone" }), ifStuck: step({ support: "alone" }) } })).toMatch(
+      /<guided_track>\nAsk the scene's question for the goal in one short sentence\. Give no words to say/,
     );
     expect(buildTurnMessage({ ...base, plan: null })).not.toContain("<guided_track>");
   });

@@ -1,7 +1,7 @@
 import type { Mode } from "../../domain/conversation/mode.js";
 import type { SupportStep } from "../../domain/level/speaking-level.js";
 import type { TutorMemory } from "../../domain/memory/learner-fact.js";
-import type { TrackStage } from "../../domain/conversation/guided-track.js";
+import type { TrackSupport } from "../../domain/conversation/guided-track.js";
 import type { TrackPlan, TrackStep, TutorContext, TutorRequest } from "../../domain/ports/tutor.port.js";
 
 /** The scene the tutor plays in each mode. */
@@ -54,12 +54,14 @@ const SENTENCE_START =
   "mistake or a minor one that breaks a pattern in `focus_patterns`, give no sentence: `reply` is said before the hint, and the " +
   "learner should retry their own sentence.";
 
+/** The step-by-step script (A1–B1, approved on 2026-11-14): turns that carry <guided_track> follow it. */
 const GUIDED_TRACK =
-  "This session uses a guided track: the learner builds each answer step by step. Each turn message says in " +
-  "<guided_track> what your reply must do; follow it, inside the scene, without naming steps or the track. A model " +
-  "sentence is short and simple, in the first person, about the learner's real life or work, as they would say " +
-  "it in the scene. Whenever your reply asks the learner to say a sentence, put that sentence in `scaffold`, exactly as you " +
-  "said it; otherwise set `scaffold` to null.";
+  "When a message carries <guided_track>, the conversation is a step-by-step script and your reply does what it " +
+  "says, inside the scene, without naming steps or the script. While it is present, the rule above about what to give a " +
+  "stuck learner does not apply: the step says which words to give. " +
+  "Start the reply by reacting to the learner's last answer in one short sentence (not in the opening line), then do " +
+  "the step. Put the words the step gives in `scaffold` as it says, or null; put key words in `keyWords` only when " +
+  "the step asks for them, else [].";
 
 /**
  * Questions the learner did not prepare for. At B1 they wait until the session's answers are mostly given without help
@@ -94,10 +96,9 @@ export const NATURAL_STEPS: ReadonlySet<SupportStep> = new Set(["conversation", 
 export const SUPPORT_RULES: Record<SupportStep, string> = {
   build_full:
     "The learner is a beginner (about CEFR A1). Use very short, simple sentences (five to eight words) and speak " +
-    "slowly. " +
-    GUIDED_TRACK,
-  build_light: "The learner speaks at about CEFR A2. Use short, simple sentences (up to twelve words). " + GUIDED_TRACK,
-  supported: `The learner speaks at about CEFR B1. ${B1_TALK} ${SENTENCE_START}`,
+    `slowly. ${SENTENCE_START} ${GUIDED_TRACK}`,
+  build_light: `The learner speaks at about CEFR A2. Use short, simple sentences (up to twelve words). ${SENTENCE_START} ${GUIDED_TRACK}`,
+  supported: `The learner speaks at about CEFR B1. ${B1_TALK} ${SENTENCE_START} ${GUIDED_TRACK}`,
   conversation:
     `${NATURAL_TALK} Do not give sentences to say: help only with hints and ` +
     "first-language words, as above. Set `scaffold` to null.",
@@ -150,20 +151,23 @@ export function memorySection(memory: TutorMemory | undefined): string {
  */
 export function missionSection(expressions: string[] | undefined, step: SupportStep | null): string {
   if (!expressions?.length) return "";
-  const guided = step === "build_full" || step === "build_light";
+  const guided = step === "build_full" || step === "build_light" || step === "supported";
   return [
     "## Today's expressions",
     "Before this conversation the learner heard someone do the same task and took these ready-made expressions from it:",
     ...expressions.map((e) => `- "${e}"`),
     "Ask the kind of question whose natural answer uses one of them, so each one gets a chance. Do not remind the " +
       "learner of them or ask them to use one, and never treat not using one as a mistake. The help rules above still " +
-      "apply: a model sentence or a sentence start they ask for may use an expression.",
-    guided
-      ? "The guided track already builds fuller answers step by step: follow it, and add no other push for longer answers."
-      : "When the learner's answer stays very short or simple (a few words) and they are not stuck, sometimes invite a " +
-        'slightly fuller one in `reply`, warmly and inside the scene (for example "Oh, how did that go?" or "Tell me a bit ' +
-        'more about that."). It is an invitation, never a hint or a correction: never on a turn with a hint, and not on ' +
-        "two turns in a row.",
+      "apply: a model sentence or a sentence start they ask for may use an expression, and so may the words a " +
+      "<guided_track> step gives.",
+    (guided
+      ? "While <guided_track> is present it builds the answers step by step: follow it, and add no other push for longer " +
+        "answers. Without it: "
+      : "") +
+      "When the learner's answer stays very short or simple (a few words) and they are not stuck, sometimes invite a " +
+      'slightly fuller one in `reply`, warmly and inside the scene (for example "Oh, how did that go?" or "Tell me a bit ' +
+      'more about that."). It is an invitation, never a hint or a correction: never on a turn with a hint, and not on ' +
+      "two turns in a row.",
   ].join("\n");
 }
 
@@ -318,47 +322,49 @@ export function buildHelpRequest(firstLanguage: string): string {
 /** The opening request, also replayed as the first user message so history alternates correctly. */
 export const OPENING_REQUEST = "Start the scene with your first line. Keep it short.";
 
-/** What the learner does in each stage of the guided track: the tutor's line that starts it, and a retry where one exists. */
-const TRACK_TASKS: Record<TrackStage, { first: string; retry?: string }> = {
-  model: {
-    first: "Say one short model sentence for the goal and ask the learner to repeat it.",
-    retry: "Say the same model sentence again, slowly, in two short pieces, and ask the learner to repeat it.",
-  },
-  swap: {
-    first: "Say a few warm words, then ask the learner to say the same sentence with their own information.",
-    retry: "Give one or two words that help, and ask again for the same sentence with their own information.",
-  },
-  extend: {
-    first:
-      "Add one short piece to the learner's last sentence (a reason, \"and then\", or a result), say the longer " +
-      "sentence and ask the learner to say it.",
-    retry: "Say the longer sentence again, slowly, and ask the learner to say it.",
-  },
-  answer: { first: "Ask the scene's question for the goal, with no model sentence." },
-  again: { first: "React in a few words, then ask the learner to say their answer once more, a little more smoothly." },
+const ASK = "Ask the scene's question for the goal in one short sentence.";
+
+/** What the next line gives the learner for each level of support of the script, and for its last step. */
+const TRACK_TASKS: Record<TrackSupport | "retell", string> = {
+  example:
+    `${ASK} Then say one short example answer in the first person (simple, at most twelve words) and ask the learner ` +
+    "to say theirs, changing it with their own information. `scaffold`: the example, exactly as you said it.",
+  frame:
+    `${ASK} Then give a sentence to complete: one or two short sentences with one or two blanks where the learner's ` +
+    'own information goes. In `reply` say it with "..." at each blank; in `scaffold` write it with "___" at each ' +
+    "blank. `keyWords`: up to 3 words or short chunks the learner may need for the blanks.",
+  start:
+    `${ASK} Then give only the start of an answer (three to six words) for the learner to finish. \`scaffold\`: that ` +
+    'start, ending in "...".',
+  alone: `${ASK} Give no words to say. \`scaffold\`: null.`,
+  retell:
+    "Ask the learner to put it all together: say everything from this conversation in one short talk, part by part. " +
+    '`scaffold`: the start of each part, three to five words taken from the learner\'s own answers, separated by " / ".',
 };
 
-function trackStepText(step: TrackStep): string {
-  const goal = step.goal ? `the learner ${step.goal.description}` : "a short topic from the learner's life or work";
-  const task = TRACK_TASKS[step.stage];
-  return `${(step.retry && task.retry) || task.first} Goal: ${goal}.`;
+function trackStepText(step: TrackStep | null): string {
+  if (!step) return "The script is over: thank the learner warmly in one short sentence, with no question and no words to say.";
+  const retry = step.retry ? "The learner was stuck at this step: ask again, more slowly and in simpler words. " : "";
+  const task = TRACK_TASKS[step.stage === "retell" ? "retell" : step.support];
+  const goal = step.goal ? ` Goal: the learner ${step.goal.description}.` : "";
+  const fits =
+    step.stage === "answer" && step.support !== "alone" && step.expressions.length
+      ? ` When one of today's expressions fits this goal, build the words you give around it: ${step.expressions.map((e) => `"${e}"`).join(", ")}.`
+      : "";
+  return `${retry}${task}${goal}${fits}`;
 }
 
 /** On the learner's own answer a serious mistake gets a hint right after the reply, so the reply waits for it. */
 const HINT_FIRST =
   "If the utterance has a serious mistake or a minor one that breaks a pattern in `focus_patterns`, do none of this: reply with a few " +
-  "warm words only, because the hint comes right after.";
+  "warm words only, give no words to say, because the hint comes right after.";
 
-/** The guided track's instruction for the next line; one line when it does not depend on the learner being stuck. */
-export function buildTrackInstruction(plan: TrackPlan): string {
-  const same =
-    plan.otherwise.stage === plan.ifStuck.stage &&
-    plan.otherwise.retry === plan.ifStuck.retry &&
-    plan.otherwise.goal?.id === plan.ifStuck.goal?.id;
-  const steps = same
-    ? trackStepText(plan.otherwise)
-    : `If the learner is stuck: ${trackStepText(plan.ifStuck)}\nOtherwise: ${trackStepText(plan.otherwise)}`;
-  return plan.hintsPause ? `${steps}\n${HINT_FIRST}` : steps;
+/** The script's instruction for the next line; one line when it does not depend on the learner being stuck. */
+export function buildTrackInstruction(plan: TrackPlan, opening = false): string {
+  const a = trackStepText(plan.otherwise);
+  const b = trackStepText(plan.ifStuck);
+  const steps = a === b ? a : `If the learner is stuck: ${b}\nOtherwise: ${a}`;
+  return opening ? steps : `${steps}\n${HINT_FIRST}`;
 }
 
 /** The per-turn message: the utterance plus what the tutor must check it against. */

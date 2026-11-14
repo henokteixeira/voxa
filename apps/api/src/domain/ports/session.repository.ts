@@ -18,7 +18,8 @@ export interface SessionProgress {
   metTargets: string[];
   /** Words the tutor's last line gave the learner to say, or null. */
   scaffold: string | null;
-  /** The step can move between A1 and A2 inside the guided track. */
+  /** Key words shown with a sentence to complete; empty otherwise. */
+  keyWords: string[];
   step: SupportStep | null;
   track: TrackState | null;
 }

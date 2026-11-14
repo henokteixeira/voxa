@@ -1,7 +1,6 @@
 import { safeSupport } from "../domain/conversation/text.js";
 import {
   decide,
-  notedOnly,
   type PolicyDecision,
   type TutorVerdict,
   verdictForMode,
@@ -10,13 +9,11 @@ import {
   givesWords,
   nextGoalAfter,
   openingPlan,
-  pausesForHints,
   resolveTrackTurn,
   startTrack,
   type TrackStage,
   trackOutcomes,
   turnPlan,
-  usesTrack,
 } from "../domain/conversation/guided-track.js";
 import { describeGoal, GOAL_DESCRIPTIONS, goalsFor, mergeCovered } from "../domain/conversation/session-goals.js";
 import { keptScaffold, sessionStep, surprisesAllowed } from "../domain/conversation/support.js";
@@ -33,13 +30,13 @@ export interface TurnRecord {
   support: string | null;
   /** The words given to say next, after the same filter the service applies. */
   scaffold: string | null;
-  /** In the guided track: the stage the learner is at after this turn. */
+  /** In the script: the stage the learner is at after this turn. */
   stage: TrackStage | null;
 }
 
 export interface Transcript {
   opening: string;
-  /** Words the opening gave the learner to say (the guided track's first model). */
+  /** Words the opening gave the learner to say (the script's first step). */
   openingScaffold: string | null;
   turns: TurnRecord[];
 }
@@ -57,29 +54,20 @@ export async function runScenario(tutor: TutorPort, scenario: Scenario, learnerC
     targets: [],
     step: scenario.step ?? sessionStep(scenario.mode, null),
   };
-  let step = context.step;
-  let track = startTrack(step, goalsFor(scenario.mode)[0] ?? null);
+  const step = context.step;
+  let track = startTrack(step, goalsFor(scenario.mode));
   const opened = await tutor.open(context, track ? openingPlan(track, describeGoal) : null);
   const opening = opened.line;
   const history: ChatTurn[] = [{ role: "assistant", content: opening }];
   let pending: PendingCorrection | null = null;
   let coveredGoals: string[] = [];
-  let scaffold: string | null = track && givesWords(track.stage) ? opened.scaffold : null;
+  let scaffold: string | null = track && givesWords(track) ? opened.scaffold : null;
   const openingScaffold = scaffold;
   const turns: TurnRecord[] = [];
 
   for (const { utterance } of scenario.turns) {
     const current = track;
-    const outcomes =
-      current && usesTrack(step)
-        ? trackOutcomes({
-            track: current,
-            step,
-            model: scaffold,
-            utterance,
-            nextGoal: nextGoalAfter(goalsFor(scenario.mode), current.goal, coveredGoals),
-          })
-        : null;
+    const outcomes = current ? trackOutcomes(current, nextGoalAfter(goalsFor(scenario.mode), current.goal, coveredGoals)) : null;
     const verdict = await tutor.evaluate({
       ...context,
       history: [...history],
@@ -94,27 +82,27 @@ export async function runScenario(tutor: TutorPort, scenario: Scenario, learnerC
       coveredGoals,
       scaffold,
       step,
-      plan: outcomes && current ? turnPlan(current, outcomes, describeGoal) : null,
-      surprises: surprisesAllowed(step, { total: 0, assisted: 0 }),
+      plan: outcomes ? turnPlan(outcomes, describeGoal) : null,
+      surprises: !current && surprisesAllowed(step, { total: 0, assisted: 0 }),
     });
     const byMode = verdictForMode(scenario.mode, verdict);
-    const decision = decide(pending, current && !pausesForHints(current.stage) ? notedOnly(byMode) : byMode);
-    const inTrack =
-      outcomes && current
-        ? resolveTrackTurn({ track: current, outcomes, replied: decision.kind === "reply", verdict })
-        : null;
+    const decision = decide(pending, byMode);
+    const inTrack = outcomes
+      ? resolveTrackTurn({
+          outcomes,
+          replied: decision.kind === "reply",
+          verdict: { stuck: verdict.stuck, scaffold: verdict.scaffold, keyWords: verdict.keyWords ?? [] },
+        })
+      : null;
     const move = inTrack?.move ?? null;
     const support = safeSupport(verdict.support, decision.nextPending?.correction);
     const given = inTrack ? inTrack.scaffold : decision.kind === "reply" ? keptScaffold(step, verdict) : null;
-    if (move) {
-      track = move.track;
-      step = move.step;
-    }
+    if (move) track = move.track;
     turns.push({ utterance, pendingBefore: pending, verdict, decision, support, scaffold: given, stage: track?.stage ?? null });
     scaffold = given;
     history.push({ role: "user", content: utterance }, { role: "assistant", content: decision.message });
     pending = decision.nextPending;
-    coveredGoals = mergeCovered(scenario.mode, coveredGoals, inTrack?.reportedGoals ?? verdict.coveredGoals);
+    coveredGoals = mergeCovered(scenario.mode, coveredGoals, inTrack ? (move?.covered ? [move.covered] : []) : verdict.coveredGoals);
   }
   return { opening, openingScaffold, turns };
 }

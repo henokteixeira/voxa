@@ -28,6 +28,8 @@ export interface TutorVerdict {
   stuck: boolean;
   /** Words `reply` gives the learner to say next (a model sentence or a sentence start), as spoken; or null. */
   scaffold: string | null;
+  /** Key words for a sentence to complete in the script; missing or empty otherwise. */
+  keyWords?: string[];
 }
 
 export type TurnKind = "reply" | "hint" | "reveal";

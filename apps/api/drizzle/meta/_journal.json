@@ -267,6 +267,13 @@
       "when": 1794533058355,
       "tag": "0037_session_withdrawn_mistakes",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794619721480,
+      "tag": "0038_session_step_by_step_script",
+      "breakpoints": true
     }
   ]
 }

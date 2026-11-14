@@ -1,96 +1,121 @@
 import { describe, expect, it } from "vitest";
-import { advance, repeatedModel, startTrack, type TrackState, type TrackTurn, trackView } from "./guided-track.js";
+import { advance, givesWords, nextGoalAfter, resolveTrackTurn, startTrack, type TrackState, trackOutcomes, trackView } from "./guided-track.js";
 
-const ok: TrackTurn = { stuck: false, repeated: true, nextGoal: "today" };
-const stuck: TrackTurn = { stuck: true, repeated: false, nextGoal: "today" };
-const at = (stage: TrackState["stage"], over: Partial<TrackState> = {}): TrackState => ({
-  stage,
+const GOALS = ["yesterday", "today", "blockers"];
+const at = (over: Partial<TrackState> = {}): TrackState => ({
+  stage: "answer",
   goal: "yesterday",
+  support: "frame",
   tries: 0,
-  helped: false,
   unaidedStreak: 0,
-  stuckStreak: 0,
   ...over,
 });
+const ok = (nextGoal: string | null = "today") => ({ stuck: false, nextGoal });
+const stuck = (nextGoal: string | null = "today") => ({ stuck: true, nextGoal });
 
-describe("trackView", () => {
-  it("numbers the stage in the track, and is null without a track", () => {
-    const track = startTrack("build_light", "yesterday");
-    expect(trackView(track)).toEqual({ stage: "answer", number: 4, total: 5 });
-    expect(trackView(null)).toBeNull();
+describe("startTrack", () => {
+  it("runs from A1 to B1 in a conversation with goals: the example at A1, the sentence to complete at A2 and B1", () => {
+    expect(startTrack("build_full", GOALS)).toMatchObject({ stage: "answer", goal: "yesterday", support: "example" });
+    expect(startTrack("build_light", GOALS)?.support).toBe("frame");
+    expect(startTrack("supported", GOALS)?.support).toBe("frame");
+  });
+
+  it("does not run from B2 up, in free talk or in the placement interview", () => {
+    expect(startTrack("conversation", GOALS)).toBeNull();
+    expect(startTrack("demanding", GOALS)).toBeNull();
+    expect(startTrack("supported", [])).toBeNull();
+    expect(startTrack(null, GOALS)).toBeNull();
   });
 });
 
-describe("startTrack", () => {
-  it("starts a goal at the model at A1, at the answer at A2, and not at all from B1 up", () => {
-    expect(startTrack("build_full", "yesterday")?.stage).toBe("model");
-    expect(startTrack("build_light", "yesterday")?.stage).toBe("answer");
-    expect(startTrack("supported", "yesterday")).toBeNull();
+describe("trackView", () => {
+  it("numbers one step per goal and the last step after them, which has no goal", () => {
+    expect(trackView(at({ goal: "today" }), GOALS)).toEqual({ stage: "answer", support: "frame", goal: "today", number: 2, total: 4 });
+    expect(trackView(at({ stage: "retell", goal: null }), GOALS)).toMatchObject({ goal: null, number: 4, total: 4 });
+    expect(trackView(null, GOALS)).toBeNull();
   });
 });
 
 describe("advance", () => {
-  it("goes model, swap, extend, answer, again, then the next goal, covering the goal with the learner's answer", () => {
-    let state = at("model");
-    const stages: string[] = [];
-    const covered: (string | null)[] = [];
-    for (let i = 0; i < 5; i++) {
-      const move = advance(state, "build_full", ok);
-      state = move.track;
-      stages.push(state.stage);
-      covered.push(move.covered);
-    }
-    expect(stages).toEqual(["swap", "extend", "answer", "again", "model"]);
-    expect(covered).toEqual([null, null, null, "yesterday", null]);
-    expect(state.goal).toBe("today");
+  it("covers the goal answered without being stuck and goes to the next one", () => {
+    const move = advance(at(), ok());
+    expect(move.covered).toBe("yesterday");
+    expect(move.track).toMatchObject({ stage: "answer", goal: "today", support: "frame", unaidedStreak: 1 });
   });
 
-  it("says the model again, slower, once when the repetition does not match, then moves on", () => {
-    const once = advance(at("model"), "build_full", { ...ok, repeated: false });
-    expect(once.track).toMatchObject({ stage: "model", tries: 1 });
-    expect(advance(once.track, "build_full", { ...ok, repeated: false }).track).toMatchObject({ stage: "swap", tries: 0 });
+  it("gives fewer words after two goals in a row answered without being stuck, down to none", () => {
+    expect(advance(at({ unaidedStreak: 1 }), ok()).track).toMatchObject({ support: "start", unaidedStreak: 0 });
+    expect(advance(at({ support: "start", unaidedStreak: 1 }), ok()).track?.support).toBe("alone");
+    expect(advance(at({ support: "alone", unaidedStreak: 1 }), ok()).track?.support).toBe("alone");
   });
 
-  it("builds the answer from the model once when the learner is stuck at it, then moves to the next goal", () => {
-    const first = advance(at("answer"), "build_light", stuck);
-    expect(first.track).toMatchObject({ stage: "model", helped: true });
-    expect(first.covered).toBeNull();
-    const again = advance(at("answer", { helped: true }), "build_light", stuck);
-    expect(again.track).toMatchObject({ stage: "answer", goal: "today", helped: false, stuckStreak: 1 });
+  it("asks the same goal once more with more words when stuck, then moves on without covering it", () => {
+    const again = advance(at({ unaidedStreak: 1 }), stuck());
+    expect(again.track).toMatchObject({ goal: "yesterday", support: "example", tries: 1, unaidedStreak: 0 });
+    expect(again.covered).toBeNull();
+    const on = advance(again.track!, stuck());
+    expect(on.track).toMatchObject({ goal: "today", support: "example", tries: 0 });
+    expect(on.covered).toBeNull();
   });
 
-  /** Plays one whole goal from its first stage, the learner stuck at the answer or not. */
-  const playGoal = (state: TrackState, step: "build_full" | "build_light", stuckAtAnswer: boolean, nextGoal: string) => {
-    let move = { track: state, step, covered: null as string | null };
-    for (let i = 0; i < 12 && move.track.goal === state.goal; i++) {
-      const atAnswer = move.track.stage === "answer" && !move.track.helped;
-      move = advance(move.track, move.step, { stuck: atAnswer && stuckAtAnswer, repeated: true, nextGoal });
-    }
-    return move;
-  };
-
-  it("skips the model after two goals answered alone at A1, but not when one needed the model", () => {
-    const one = playGoal(at("model"), "build_full", false, "today");
-    expect(one).toMatchObject({ step: "build_full", track: { stage: "model", unaidedStreak: 1 } });
-    const two = playGoal({ ...one.track }, "build_full", false, "blockers");
-    expect(two).toMatchObject({ step: "build_light", track: { stage: "answer", goal: "blockers", unaidedStreak: 0 } });
-
-    const helped = playGoal(at("model"), "build_full", true, "today");
-    expect(helped.track).toMatchObject({ unaidedStreak: 0, stuckStreak: 1 });
-    expect(playGoal(helped.track, "build_full", false, "blockers").step).toBe("build_full");
+  it("asks to put it all together after the last goal, then ends the script", () => {
+    const last = advance(at({ goal: "blockers" }), ok(null));
+    expect(last.track).toMatchObject({ stage: "retell", goal: null });
+    expect(last.covered).toBe("blockers");
+    expect(advance(last.track!, ok(null)).track).toBeNull();
   });
 
-  it("brings the model back at A2 after two goals in a row stuck at the answer", () => {
-    const one = playGoal(at("answer"), "build_light", true, "today");
-    expect(one).toMatchObject({ step: "build_light", track: { stage: "answer", stuckStreak: 1 } });
-    const two = playGoal(one.track, "build_light", true, "blockers");
-    expect(two).toMatchObject({ step: "build_full", track: { stage: "model", goal: "blockers", stuckStreak: 0 } });
+  it("asks once more to put it together when stuck, then ends anyway", () => {
+    const retell = at({ stage: "retell", goal: null });
+    const again = advance(retell, stuck(null));
+    expect(again.track).toMatchObject({ stage: "retell", tries: 1 });
+    expect(advance(again.track!, stuck(null)).track).toBeNull();
   });
 });
 
-describe("repeatedModel", () => {
-  it("accepts a repetition with most of the model's words, ignoring case and punctuation", () => {
-    expect(repeatedModel("Yesterday I worked on the login screen.", "yesterday I work on the login screen")).toBe(true);
-    expect(repeatedModel("Yesterday I worked on the login screen.", "I don't know")).toBe(false);
+describe("advance after a retry", () => {
+  it("covers a goal answered at its retry without fading the help, and keeps the extra help for the next goal", () => {
+    const move = advance(at({ support: "example", tries: 1, unaidedStreak: 0 }), ok());
+    expect(move.covered).toBe("yesterday");
+    expect(move.track).toMatchObject({ goal: "today", support: "example", unaidedStreak: 0 });
+  });
+});
+
+describe("nextGoalAfter", () => {
+  it("goes on in order and never back to a goal the script moved past", () => {
+    expect(nextGoalAfter(GOALS, "today", [])).toBe("blockers");
+    expect(nextGoalAfter(GOALS, "yesterday", ["today"])).toBe("blockers");
+    expect(nextGoalAfter(GOALS, "blockers", [])).toBeNull();
+  });
+});
+
+describe("givesWords", () => {
+  it("gives words at every step but a goal answered alone", () => {
+    expect(givesWords(at({ support: "start" }))).toBe(true);
+    expect(givesWords(at({ support: "alone" }))).toBe(false);
+    expect(givesWords(at({ stage: "retell", goal: null, support: "alone" }))).toBe(true);
+  });
+});
+
+describe("resolveTrackTurn", () => {
+  const outcomes = trackOutcomes(at(), "today");
+  const verdict = { stuck: false, scaffold: " I worked on ___. ", keyWords: ["fixed", "the login", "bug", "extra"] };
+
+  it("moves on a plain reply, with the words given and at most 3 key words for a sentence to complete", () => {
+    const turn = resolveTrackTurn({ outcomes, replied: true, verdict });
+    expect(turn.move?.track?.goal).toBe("today");
+    expect(turn.scaffold).toBe("I worked on ___.");
+    expect(turn.keyWords).toEqual(["fixed", "the login", "bug"]);
+  });
+
+  it("does not move while a hint is pending, and gives no words then", () => {
+    expect(resolveTrackTurn({ outcomes, replied: false, verdict })).toEqual({ move: null, scaffold: null, keyWords: [] });
+  });
+
+  it("gives no words for a goal answered alone, and no key words outside a sentence to complete", () => {
+    const alone = trackOutcomes(at({ support: "start", unaidedStreak: 1 }), "today");
+    expect(resolveTrackTurn({ outcomes: alone, replied: true, verdict })).toMatchObject({ scaffold: null, keyWords: [] });
+    const start = trackOutcomes(at({ support: "start" }), "today");
+    expect(resolveTrackTurn({ outcomes: start, replied: true, verdict })).toMatchObject({ scaffold: "I worked on ___.", keyWords: [] });
   });
 });

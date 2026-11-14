@@ -13,12 +13,12 @@ import { DomainError, type ErrorCode, InvalidInputError } from "../domain/errors
  * Client → server: a binary frame is one finished turn of speech (WAV, at most 10 MB); a text frame
  * is JSON, `{type:"text", text}` (a typed turn) or `{type:"speak"}` (say the tutor's last line again).
  *
- * Server → client, per request: `{type:"transcript", text}`, `{type:"tutor", kind, message, selfCorrected, support, mistake, checkIn, coveredGoals, track, scaffold}`,
+ * Server → client, per request: `{type:"transcript", text}`, `{type:"tutor", kind, message, selfCorrected, support, mistake, checkIn, coveredGoals, track, scaffold, keyWords}`,
  * the speech as binary WAV frames (a sentence or two each, to play in order), then `{type:"done"}`. A failure sends `{type:"error", code, message}`
  * before "done". Any part may be missing (no speech heard → only "done").
  *
  * When the tutor's reply comes before its analysis of the turn: "tutor", the reply's speech, then
- * `{type:"followup", kind, message, selfCorrected, support, mistake, checkIn, coveredGoals, track, scaffold}` (message null when
+ * `{type:"followup", kind, message, selfCorrected, support, mistake, checkIn, coveredGoals, track, scaffold, keyWords}` (message null when
  * nothing is said after the reply), the follow-up's speech when there is one, then "done".
  *
  * Out of band, never followed by "done": `{type:"error", code:"busy"}` answers a message sent while a
