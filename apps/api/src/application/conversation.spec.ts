@@ -1331,6 +1331,16 @@ describe("The conversation: the step-by-step script (A1–B1)", () => {
     expect(tutor.requests[3].plan).toEqual({ otherwise: null, ifStuck: expect.objectContaining({ stage: "retell", retry: true }) });
   });
 
+  it("asks whether to stop once the script ends, also after an earlier question about time", async () => {
+    const session = await startAt("A2", frame);
+    tutor.verdicts.push(...Array.from({ length: 4 }, () => verdict({ scaffold: "Words ___." })));
+    await turns.respond(session.id, "Yesterday I worked on the export.");
+    clock.advanceMinutes(16);
+    expect((await turns.respond(session.id, "Today I will test it.")).checkIn).toBe(true);
+    expect((await turns.respond(session.id, "Nothing blocks me.")).checkIn).toBe(false);
+    expect(await turns.respond(session.id, "All of it together.")).toMatchObject({ checkIn: true, track: null });
+  });
+
   it("asks no surprise questions while the script runs", async () => {
     const session = await startAt("B1", frame);
     tutor.verdicts.push(verdict({}));

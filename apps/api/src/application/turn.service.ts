@@ -205,16 +205,18 @@ export class TurnService {
     // In the script a goal is covered by its step answered without being stuck.
     const reported = inTrack ? (inTrack.move?.covered ? [inTrack.move.covered] : []) : verdict.coveredGoals;
     const coveredGoals = mergeCovered(session.mode, session.coveredGoals, reported);
-    // The goals all covered, the script still asks to put it all together before the stop-or-keep-going question.
+    // The script asks to put it all together before the stop-or-keep-going question, and asks it once that is said.
     const retelling = move?.track?.stage === "retell";
+    const scriptDone = session.track?.stage === "retell" && move !== null && move.track === null;
     const metTargets = metTargetsAfter({
       targets: session.targets,
       alreadyMet: session.metTargets,
       correctUses: verdict.correctUses,
       pending,
     });
-    const checkIn =
-      decision.kind === "reply" && !retelling
+    const checkIn = scriptDone
+      ? "goals_met"
+      : decision.kind === "reply" && !retelling
         ? checkInDue({
             mode: session.mode,
             coveredBefore: session.coveredGoals,

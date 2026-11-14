@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advance, givesWords, resolveTrackTurn, startTrack, type TrackState, trackOutcomes, trackView } from "./guided-track.js";
+import { advance, givesWords, nextGoalAfter, resolveTrackTurn, startTrack, type TrackState, trackOutcomes, trackView } from "./guided-track.js";
 
 const GOALS = ["yesterday", "today", "blockers"];
 const at = (over: Partial<TrackState> = {}): TrackState => ({
@@ -70,6 +70,22 @@ describe("advance", () => {
     const again = advance(retell, stuck(null));
     expect(again.track).toMatchObject({ stage: "retell", tries: 1 });
     expect(advance(again.track!, stuck(null)).track).toBeNull();
+  });
+});
+
+describe("advance after a retry", () => {
+  it("covers a goal answered at its retry without fading the help, and keeps the extra help for the next goal", () => {
+    const move = advance(at({ support: "example", tries: 1, unaidedStreak: 0 }), ok());
+    expect(move.covered).toBe("yesterday");
+    expect(move.track).toMatchObject({ goal: "today", support: "example", unaidedStreak: 0 });
+  });
+});
+
+describe("nextGoalAfter", () => {
+  it("goes on in order and never back to a goal the script moved past", () => {
+    expect(nextGoalAfter(GOALS, "today", [])).toBe("blockers");
+    expect(nextGoalAfter(GOALS, "yesterday", ["today"])).toBe("blockers");
+    expect(nextGoalAfter(GOALS, "blockers", [])).toBeNull();
   });
 });
 

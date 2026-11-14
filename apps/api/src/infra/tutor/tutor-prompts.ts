@@ -57,7 +57,8 @@ const SENTENCE_START =
 /** The step-by-step script (A1–B1, approved on 2026-11-14): turns that carry <guided_track> follow it. */
 const GUIDED_TRACK =
   "When a message carries <guided_track>, the conversation is a step-by-step script and your reply does what it " +
-  "says, inside the scene, without naming steps or the script. Then it replaces the rule about sentences to say above. " +
+  "says, inside the scene, without naming steps or the script. While it is present, the rule above about what to give a " +
+  "stuck learner does not apply: the step says which words to give. " +
   "Start the reply by reacting to the learner's last answer in one short sentence (not in the opening line), then do " +
   "the step. Put the words the step gives in `scaffold` as it says, or null; put key words in `keyWords` only when " +
   "the step asks for them, else [].";
@@ -157,7 +158,8 @@ export function missionSection(expressions: string[] | undefined, step: SupportS
     ...expressions.map((e) => `- "${e}"`),
     "Ask the kind of question whose natural answer uses one of them, so each one gets a chance. Do not remind the " +
       "learner of them or ask them to use one, and never treat not using one as a mistake. The help rules above still " +
-      "apply: a model sentence or a sentence start they ask for may use an expression.",
+      "apply: a model sentence or a sentence start they ask for may use an expression, and so may the words a " +
+      "<guided_track> step gives.",
     (guided
       ? "While <guided_track> is present it builds the answers step by step: follow it, and add no other push for longer " +
         "answers. Without it: "

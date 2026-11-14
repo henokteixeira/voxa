@@ -94,9 +94,10 @@ export function advance(state: TrackState, turn: { stuck: boolean; nextGoal: str
   if (turn.stuck && canRetry) {
     return { track: { ...state, support: more(state.support), tries: state.tries + 1, unaidedStreak: 0 }, covered: null };
   }
-  // Answered, or stuck twice: the next step. Only an answer given without being stuck covers the goal and fades the help.
+  // Answered, or stuck twice: the next step. An answer covers the goal; only one given at the first try fades the help.
+  // The extra help a retry gave stays until the learner does well again.
   const answered = !turn.stuck;
-  const streak = answered ? state.unaidedStreak + 1 : 0;
+  const streak = answered && state.tries === 0 ? state.unaidedStreak + 1 : 0;
   const fade = streak >= FADE_STREAK;
   const support = fade ? fewer(state.support) : state.support;
   const next: TrackState = turn.nextGoal
@@ -128,9 +129,12 @@ export interface TrackPlan {
   ifStuck: TrackStep | null;
 }
 
-/** The goal after the current one: the first of the mode's goals not covered yet. */
+/**
+ * The goal after the current one: the next of the mode's goals, in order, not covered yet. A goal the script moved past
+ * (the learner was stuck twice) does not come back.
+ */
 export function nextGoalAfter(goals: readonly string[], current: string | null, covered: readonly string[]): string | null {
-  return goals.find((g) => g !== current && !covered.includes(g)) ?? null;
+  return goals.slice(goals.indexOf(current ?? "") + 1).find((g) => !covered.includes(g)) ?? null;
 }
 
 /** Both ways one learner turn can move the script: the tutor's verdict on `stuck` picks one. */
