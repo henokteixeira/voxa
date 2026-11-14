@@ -100,7 +100,7 @@ export function openVoiceSocket(
 
 /** The fields of a tutor line the app uses; empty help and missing optional fields are left out. */
 function turnFields(fields: Omit<TurnResult, "message">) {
-  const { kind, selfCorrected, support, mistake, mistakeType, rule, checkIn, coveredGoals, track, scaffold } = fields;
+  const { kind, selfCorrected, support, mistake, mistakeType, rule, checkIn, coveredGoals, track, scaffold, keyWords } = fields;
   return {
     kind,
     selfCorrected,
@@ -113,5 +113,6 @@ function turnFields(fields: Omit<TurnResult, "message">) {
     // Null is kept: it clears the track or the words to say.
     ...(track !== undefined ? { track } : {}),
     ...(scaffold !== undefined ? { scaffold } : {}),
+    ...(keyWords !== undefined ? { keyWords } : {}),
   };
 }

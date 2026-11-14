@@ -98,16 +98,19 @@ describe("AnthropicTutorAdapter.open", () => {
     expect(params.messages).toEqual([{ role: "user", content: OPENING_REQUEST }]);
   });
 
-  it("sends the guided track's first step with the opening and returns its model sentence", async () => {
+  it("sends the script's first step with the opening and returns its words and key words", async () => {
     const { messages, parse } = fakeMessages({
       stop_reason: "end_turn",
-      parsed_output: { reply: "Hi! Repeat after me: Yesterday I worked on the login screen.", scaffold: " Yesterday I worked on the login screen. " },
+      parsed_output: { reply: "Hi! What did you do yesterday? Yesterday I worked on...", scaffold: " Yesterday I worked on ___. ", keyWords: ["the login"] },
     });
     const adapter = new AnthropicTutorAdapter(new ClaudeClient(messages, config()), config());
-    const step = { stage: "model" as const, retry: false, goal: null };
-    const opening = await adapter.open({ ...request, step: "build_full" }, { otherwise: step, ifStuck: step, hintsPause: false });
-    expect(opening.scaffold).toBe("Yesterday I worked on the login screen.");
-    expect(parse.mock.calls[0][0].messages[0].content).toMatch(/^Start the scene[\s\S]*<guided_track>\nSay one short model sentence/);
+    const step = { stage: "answer" as const, support: "frame" as const, retry: false, goal: null, expressions: [] };
+    const opening = await adapter.open({ ...request, step: "build_light" }, { otherwise: step, ifStuck: step });
+    expect(opening).toMatchObject({ scaffold: "Yesterday I worked on ___.", keyWords: ["the login"] });
+    const sent = parse.mock.calls[0][0].messages[0].content;
+    expect(sent).toMatch(/^Start the scene[\s\S]*<guided_track>\nAsk the scene's question/);
+    // The opening has no learner answer, so no hint can follow it.
+    expect(sent).not.toContain("warm words only");
   });
 
   it("fails on an empty opening line", async () => {

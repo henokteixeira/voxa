@@ -9,7 +9,7 @@ import { useApi } from "@/hooks/use-api";
 import type { Mode, SentenceHelp } from "@/lib/api";
 import { useCopy } from "@/lib/i18n/locale";
 import { CheckInCard, GoalsStrip, PartsBar } from "./goals";
-import { ScaffoldCard, TrackBar } from "./guided-track";
+import { ScaffoldCard, ScriptLine } from "./guided-track";
 import { ballTipSeen, markBallTipSeen } from "./ball-tip";
 import { MissionExpressions } from "./mission-expressions";
 import { isMode, useModeInfo } from "./modes";
@@ -174,7 +174,7 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
     bottom = (
       <>
         {yours}
-        <ScaffoldCard key={state.scaffold} text={state.scaffold} track={state.track} />
+        <ScaffoldCard key={state.scaffold} text={state.scaffold} track={state.track} keyWords={state.keyWords} />
       </>
     );
   } else if (lastCaption && !showTranscript) {
@@ -204,12 +204,12 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
     tutorText.current?.focus();
   };
   const canType = yourTurn && !typing;
-  // On offer on the learner's turn (2026-11-13), except while a hint asks for their own sentence and in the guided
-  // track, which gives the words itself; after a failure it can be asked again.
+  // On offer on the learner's turn (2026-11-13), except while a hint asks for their own sentence and while words to
+  // say are on screen (the script's, or a sentence start); after a failure it can be asked again.
   const canHelp =
     yourTurn &&
     mode !== "placement" &&
-    !state.track &&
+    !(state.track && state.scaffold) &&
     state.hintStep === 0 &&
     !state.revealed &&
     !state.checkIn &&
@@ -232,14 +232,18 @@ function LiveSession({ mode, missionId }: { mode: Mode; missionId: string | null
           <TranscriptIcon />
         </IconButton>
       </header>
-      {/* The placement interview's tasks are not goals to tick off: it shows only how far the chat has come. */}
+      {/* The placement interview's tasks are not goals to tick off: it shows only how far the chat has come.
+          The step-by-step script shows one line instead of the chips; its words to say carry the day's expressions. */}
       {mode === "placement" ? (
         <PartsBar parts={state.goals} done={state.coveredGoals} />
+      ) : state.track ? (
+        <ScriptLine track={state.track} />
       ) : (
-        <GoalsStrip goals={state.goals} covered={state.coveredGoals} />
+        <>
+          <GoalsStrip goals={state.goals} covered={state.coveredGoals} />
+          {missionId && <MissionExpressions missionId={missionId} />}
+        </>
       )}
-      {missionId && <MissionExpressions missionId={missionId} />}
-      {state.track && <TrackBar track={state.track} />}
       {/* Always mounted, so screen readers announce each toast; it floats over the ball or the transcript. */}
       <div aria-live="polite" className="pointer-events-none relative z-10 h-0">
         {toast && typeof toastXp === "number" && (

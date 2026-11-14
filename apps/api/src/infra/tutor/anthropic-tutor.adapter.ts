@@ -17,7 +17,7 @@ import {
 import { ClaudeClient } from "./claude-client.js";
 import { buildHelpRequest, buildSystemPrompt, buildTrackInstruction, buildTurnMessage, OPENING_REQUEST } from "./tutor-prompts.js";
 
-const OpeningSchema = z.object({ reply: z.string(), scaffold: z.string().nullable() });
+const OpeningSchema = z.object({ reply: z.string(), scaffold: z.string().nullable(), keyWords: z.array(z.string()) });
 
 const HelpSchema = z.object({ start: z.string(), words: z.array(z.object({ words: z.string(), meaning: z.string() })) });
 
@@ -46,6 +46,7 @@ const VerdictSchema = z.object({
   coveredGoals: z.array(z.string()),
   stuck: z.boolean(),
   scaffold: z.string().nullable(),
+  keyWords: z.array(z.string()),
 });
 
 /** The `reply` string at the start of a partial JSON answer, once its closing quote is written; else null. */
@@ -96,13 +97,13 @@ export class AnthropicTutorAdapter implements TutorPort {
       messages: [
         {
           role: "user",
-          content: plan ? `${OPENING_REQUEST}\n<guided_track>\n${buildTrackInstruction(plan)}\n</guided_track>` : OPENING_REQUEST,
+          content: plan ? `${OPENING_REQUEST}\n<guided_track>\n${buildTrackInstruction(plan, true)}\n</guided_track>` : OPENING_REQUEST,
         },
       ],
     });
     const text = opening.reply.trim();
     if (!text) throw new TutorUnavailableError("The tutor returned an empty opening line.");
-    return { line: text, scaffold: opening.scaffold?.trim() || null };
+    return { line: text, scaffold: opening.scaffold?.trim() || null, keyWords: opening.keyWords };
   }
 
   async evaluate(request: TutorRequest, onReply?: (reply: string) => void): Promise<TutorVerdict> {

@@ -47,6 +47,7 @@ export interface SessionResume {
   } | null;
   track: TrackView | null;
   scaffold: string | null;
+  keyWords: string[];
 }
 
 /** Starts a session with the tutor's opening line, and picks an open one up again. */
@@ -79,22 +80,24 @@ export class SessionStartService {
       this.levels.current(language),
     ]);
     const step = sessionStep(mode, level?.level ?? null);
-    const track = startTrack(step, goalsFor(mode)[0] ?? null);
+    const track = startTrack(step, goalsFor(mode));
     const startedAt = this.clock.now();
     const [learnerContext, memory] = await Promise.all([this.learnerContext.load(), this.memory.recall({ startedAt })]);
     const created = await this.sessions.create({ mode, language, startedAt, targets, step, track, memory, missionId: mission?.id ?? null });
-    const plan = track ? openingPlan(track, describeGoal) : null;
+    const plan = track ? openingPlan(track, describeGoal, phrasesOf(mission)) : null;
     const opening = await this.tutor.open(tutorContext(created, learnerContext, phrasesOf(mission)), plan);
     await this.sessions.appendTurn(created.id, { role: "assistant", content: opening.line });
-    // In the guided track the opening already gives the first model sentence.
-    const scaffold = track && givesWords(track.stage) ? opening.scaffold : null;
-    const session = { ...created, scaffold };
+    // In the script the opening already does the first step, with its words to say.
+    const scaffold = track && givesWords(track) ? opening.scaffold : null;
+    const keyWords = scaffold && track?.support === "frame" ? opening.keyWords.slice(0, 3) : [];
+    const session = { ...created, scaffold, keyWords };
     if (scaffold) {
       await this.sessions.setProgress(created.id, {
         coveredGoals: [],
         lastCheckInAt: null,
         metTargets: [],
         scaffold,
+        keyWords,
         step,
         track,
       });
@@ -124,8 +127,9 @@ export class SessionStartService {
             rule: shownRule(pending),
           }
         : null,
-      track: trackView(session.track),
+      track: trackView(session.track, goalsFor(session.mode)),
       scaffold: session.scaffold,
+      keyWords: session.keyWords,
     };
   }
 

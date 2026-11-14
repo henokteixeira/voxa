@@ -21,6 +21,7 @@ const session: Session = {
   metTargets: [],
   step: "conversation",
   scaffold: null,
+  keyWords: [],
   track: null,
   memory: { facts: [], recentSessions: [] },
 };

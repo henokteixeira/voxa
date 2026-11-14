@@ -42,10 +42,11 @@ class FakeTutor implements TutorPort {
   openPlans: (TrackPlan | null)[] = [];
   requests: TutorRequest[] = [];
   openingScaffold: string | null = null;
+  openingKeyWords: string[] = [];
   async open(context: TutorContext, plan: TrackPlan | null = null) {
     this.opened.push(context);
     this.openPlans.push(plan);
-    return { line: "Tell me about your project.", scaffold: this.openingScaffold };
+    return { line: "Tell me about your project.", scaffold: this.openingScaffold, keyWords: this.openingKeyWords };
   }
   /** False: behave like a tutor that cannot hand over its reply before the whole verdict. */
   speaksEarly = true;
@@ -83,6 +84,7 @@ class FakeSessions implements SessionRepository {
       metTargets: [],
       step: input.step ?? null,
       scaffold: null,
+      keyWords: [],
       track: input.track ?? null,
       memory: input.memory ?? NOTHING_REMEMBERED,
       missionId: input.missionId ?? null,
@@ -940,6 +942,7 @@ describe("TurnService.respond: the reply first, the analysis after", () => {
         coveredGoals: [],
         track: null,
         scaffold: null,
+        keyWords: [],
       },
     ]);
     expect(result).toEqual({
@@ -954,6 +957,7 @@ describe("TurnService.respond: the reply first, the analysis after", () => {
       coveredGoals: ["yesterday"],
       track: null,
       scaffold: null,
+      keyWords: [],
     });
     expect((await sessions.history(session.id)).at(-1)?.content).toBe("Nice. What happened next?");
   });
@@ -1131,10 +1135,11 @@ describe("The conversation: help by the learner's level", () => {
   });
   const stuckAtB1 = verdict({ reply: "No problem. You could start with: Yesterday I...", stuck: true, scaffold: "Yesterday I..." });
 
+  // Free talk has no goals, so no step-by-step script: these are the help rules outside it.
   it("starts each session at the step of the learner's level, and as before without a level", async () => {
-    expect((await starts.start("daily", "en")).session.step).toBe("conversation");
+    expect((await starts.start("free_talk", "en")).session.step).toBe("conversation");
     levels.rows.push(placed("B1"));
-    const { session } = await starts.start("daily", "en");
+    const { session } = await starts.start("free_talk", "en");
     expect(session.step).toBe("supported");
     expect(tutor.opened.at(-1)?.step).toBe("supported");
     expect((await starts.start("placement", "en")).session.step).toBeNull();
@@ -1142,7 +1147,7 @@ describe("The conversation: help by the learner's level", () => {
 
   it("at B1, keeps the sentence start the tutor gave and counts the learner's next turn as helped", async () => {
     levels.rows.push(placed("B1"));
-    const { session } = await starts.start("daily", "en");
+    const { session } = await starts.start("free_talk", "en");
     tutor.verdicts.push(stuckAtB1, verdict({}));
 
     await turns.respond(session.id, "I don't know how to say it.");
@@ -1156,7 +1161,7 @@ describe("The conversation: help by the learner's level", () => {
 
   it("gives help on request: a start and key words, and the next answer counts as helped", async () => {
     levels.rows.push(placed("B1"));
-    const { session } = await starts.start("daily", "en");
+    const { session } = await starts.start("free_talk", "en");
     const help = await turns.help(session.id);
     expect(help).toEqual({ start: "Yesterday I worked on…", words: [{ words: "the release", meaning: "a versão" }] });
     expect(tutor.helped[0].history.at(-1)).toEqual({ role: "assistant", content: "Tell me about your project." });
@@ -1168,13 +1173,13 @@ describe("The conversation: help by the learner's level", () => {
     expect(sessions.assisted.get(session.id)).toEqual([true]);
   });
 
-  it("gives no help while a hint is pending, nor in the guided track", async () => {
+  it("gives no help while a hint is pending, nor while the script has words on screen", async () => {
     levels.rows.push(placed("B1"));
-    const { session } = await starts.start("daily", "en");
+    const { session } = await starts.start("free_talk", "en");
     tutor.verdicts.push(verdict({ issues: [goed] }));
     await turns.respond(session.id, "I goed to the meeting");
     await expect(turns.help(session.id)).rejects.toMatchObject({ code: "invalid" });
-    levels.rows.push(placed("A1"));
+    tutor.openingScaffold = "Yesterday I worked on ___.";
     const guided = await starts.start("daily", "en");
     await expect(turns.help(guided.session.id)).rejects.toMatchObject({ code: "invalid" });
   });
@@ -1186,7 +1191,7 @@ describe("The conversation: help by the learner's level", () => {
 
   it("at B1, allows surprise questions only after a few turns mostly answered without help", async () => {
     levels.rows.push(placed("B1"));
-    const { session } = await starts.start("daily", "en");
+    const { session } = await starts.start("free_talk", "en");
     tutor.verdicts.push(stuckAtB1, ...Array.from({ length: 5 }, () => verdict({})));
     await turns.respond(session.id, "I don't know how to say it.");
     for (let i = 0; i < 5; i++) await turns.respond(session.id, "Yesterday I worked on the export.");
@@ -1196,15 +1201,15 @@ describe("The conversation: help by the learner's level", () => {
 
   it("always allows surprise questions from B2 up", async () => {
     levels.rows.push(placed("B2"));
-    const { session } = await starts.start("daily", "en");
+    const { session } = await starts.start("free_talk", "en");
     tutor.verdicts.push(verdict({}));
     await turns.respond(session.id, "Yesterday I worked on the export.");
     expect(tutor.requests[0].surprises).toBe(true);
   });
 
-  it("at B1, sends the sentence start to the screen, outside any track", async () => {
+  it("at B1, sends the sentence start to the screen, outside the script", async () => {
     levels.rows.push(placed("B1"));
-    const { session } = await starts.start("daily", "en");
+    const { session } = await starts.start("free_talk", "en");
     tutor.verdicts.push(stuckAtB1);
     expect(await turns.respond(session.id, "I don't know how to say it.")).toMatchObject({
       track: null,
@@ -1214,7 +1219,7 @@ describe("The conversation: help by the learner's level", () => {
 
   it("gives no words to say from B2 up, even if the tutor writes some", async () => {
     levels.rows.push(placed("B2"));
-    const { session } = await starts.start("daily", "en");
+    const { session } = await starts.start("free_talk", "en");
     tutor.verdicts.push(stuckAtB1);
     await turns.respond(session.id, "I don't know.");
     expect((await sessions.get(session.id))?.scaffold).toBeNull();
@@ -1222,21 +1227,21 @@ describe("The conversation: help by the learner's level", () => {
 
   it("drops the words to say when the turn is a hint: the learner retries their own sentence", async () => {
     levels.rows.push(placed("B1"));
-    const { session } = await starts.start("daily", "en");
+    const { session } = await starts.start("free_talk", "en");
     tutor.verdicts.push(verdict({ ...stuckAtB1, issues: [goed] }));
     expect((await turns.respond(session.id, "I goed to the meeting.")).kind).toBe("hint");
     expect((await sessions.get(session.id))?.scaffold).toBeNull();
   });
 
   it("counts a turn in the first language as helped", async () => {
-    const { session } = await starts.start("daily", "en");
+    const { session } = await starts.start("free_talk", "en");
     tutor.verdicts.push(verdict({ newWords: [{ said: "prazo", words: "deadline" }] }));
     await turns.respond(session.id, "The prazo is Friday.");
     expect(sessions.assisted.get(session.id)).toEqual([true]);
   });
 });
 
-describe("The conversation: the guided track (A1–A2)", () => {
+describe("The conversation: the step-by-step script (A1–B1)", () => {
   const placed = (level: SpeakingLevel["level"]): SpeakingLevel => ({
     language: "en",
     level,
@@ -1244,108 +1249,100 @@ describe("The conversation: the guided track (A1–A2)", () => {
     evidence: [],
     assessedAt: new Date(),
   });
-  const model = "Yesterday I worked on the login screen.";
+  const example = "Yesterday I worked on the login screen.";
+  const frame = "Yesterday I worked on ___.";
+  const yesterday = { id: "yesterday", description: "said what they did yesterday" };
 
-  async function startA1() {
-    levels.rows.push(placed("A1"));
-    tutor.openingScaffold = model;
+  async function startAt(level: SpeakingLevel["level"], scaffold: string) {
+    levels.rows.push(placed(level));
+    tutor.openingScaffold = scaffold;
     return (await starts.start("daily", "en")).session;
   }
 
-  it("opens at A1 with a model sentence for the first goal and keeps it to compare the repetition", async () => {
-    const session = await startA1();
-    expect(tutor.openPlans[0]?.otherwise).toEqual({
-      stage: "model",
-      retry: false,
-      goal: { id: "yesterday", description: "said what they did yesterday" },
-    });
-    expect((await sessions.get(session.id))?.scaffold).toBe(model);
+  it("opens at A1 with an example for the first goal, and keeps it as the words given", async () => {
+    const session = await startAt("A1", example);
+    expect(tutor.openPlans[0]?.otherwise).toEqual({ stage: "answer", support: "example", retry: false, goal: yesterday, expressions: [] });
+    expect((await sessions.get(session.id))?.scaffold).toBe(example);
   });
 
-  it("tells the screen the step and the words to say, on start, on each turn and on resume", async () => {
-    const session = await startA1();
-    expect(await starts.resume(session.id)).toMatchObject({ track: { stage: "model", number: 1, total: 5 }, scaffold: model });
+  it("opens at A2 and B1 with a sentence to complete and up to 3 key words, also on resume", async () => {
+    tutor.openingKeyWords = ["fixed", "the bug", "deployed", "tested"];
+    const session = await startAt("B1", frame);
+    expect(tutor.openPlans[0]?.otherwise?.support).toBe("frame");
+    expect(await starts.resume(session.id)).toMatchObject({
+      track: { stage: "answer", support: "frame", goal: "yesterday", number: 1, total: 4 },
+      scaffold: frame,
+      keyWords: ["fixed", "the bug", "deployed"],
+    });
+  });
 
-    tutor.verdicts.push(verdict({ scaffold: "Yesterday I worked on the audio upload." }));
-    const turn = await turns.respond(session.id, model);
+  it("covers the goal with the step's answer and goes to the next goal, telling the screen", async () => {
+    const session = await startAt("A2", frame);
+    tutor.verdicts.push(verdict({ scaffold: "Today I will ___.", keyWords: ["test"], coveredGoals: ["yesterday", "today"] }));
+    const turn = await turns.respond(session.id, "Yesterday I worked on the export.");
     expect(turn).toMatchObject({
-      track: { stage: "swap", number: 2, total: 5 },
-      scaffold: "Yesterday I worked on the audio upload.",
+      coveredGoals: ["yesterday"],
+      track: { goal: "today", number: 2, total: 4 },
+      scaffold: "Today I will ___.",
+      keyWords: ["test"],
     });
-  });
-
-  it("moves on once the learner repeats the model, and asks the tutor for the next step", async () => {
-    const session = await startA1();
-    tutor.verdicts.push(verdict({ scaffold: model }));
-    await turns.respond(session.id, "Yesterday I worked on the login screen.");
-
-    const plan = tutor.requests[0].plan;
-    expect(plan?.otherwise.stage).toBe("swap");
-    expect((await sessions.get(session.id))?.track).toMatchObject({ stage: "swap", goal: "yesterday" });
+    expect(tutor.requests[0].plan?.otherwise).toMatchObject({ support: "frame", goal: { id: "today" } });
     expect(sessions.assisted.get(session.id)).toEqual([true]);
   });
 
-  it("says the model again, slower, when the repetition does not match", async () => {
-    const session = await startA1();
-    tutor.verdicts.push(verdict({ scaffold: model }));
-    await turns.respond(session.id, "Yesterday I...");
-    expect(tutor.requests[0].plan?.otherwise).toMatchObject({ stage: "model", retry: true });
+  it("asks the same goal again with more words when the learner is stuck", async () => {
+    const session = await startAt("A2", frame);
+    tutor.verdicts.push(verdict({ stuck: true, scaffold: example }));
+    const turn = await turns.respond(session.id, "I don't know.");
+    expect(tutor.requests[0].plan?.ifStuck).toMatchObject({ support: "example", retry: true, goal: { id: "yesterday" } });
+    expect(turn).toMatchObject({ coveredGoals: [], track: { goal: "yesterday", support: "example" }, scaffold: example });
   });
 
-  it("covers a goal only with the learner's own answer, never while repeating", async () => {
-    const session = await startA1();
-    tutor.verdicts.push(verdict({ scaffold: model, coveredGoals: ["yesterday"] }));
-    expect((await turns.respond(session.id, model)).coveredGoals).toEqual([]);
-  });
-
-  it("does not stop for a hint while the learner says the words given", async () => {
-    const session = await startA1();
-    tutor.verdicts.push(verdict({ scaffold: model, issues: [goed] }));
-    expect((await turns.respond(session.id, "I goed to the meeting.")).kind).toBe("reply");
-  });
-
-  it("at A2, asks the question first and gives the model only when the learner is stuck", async () => {
-    levels.rows.push(placed("A2"));
-    const { session } = await starts.start("daily", "en");
-    expect(tutor.openPlans[0]?.otherwise.stage).toBe("answer");
-    tutor.verdicts.push(verdict({ stuck: true, scaffold: model }));
-
-    await turns.respond(session.id, "I don't know.");
-
-    expect(tutor.requests[0].plan?.ifStuck.stage).toBe("model");
-    expect(tutor.requests[0].plan?.otherwise.stage).toBe("again");
-    expect(await sessions.get(session.id)).toMatchObject({ scaffold: model, track: { stage: "model" } });
-  });
-
-  it("stops for a hint at the learner's own answer, and moves on once it is fixed", async () => {
-    levels.rows.push(placed("A2"));
-    const { session } = await starts.start("daily", "en");
-    tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true }));
-
-    expect((await turns.respond(session.id, "I goed to the meeting.")).kind).toBe("hint");
-    expect((await sessions.get(session.id))?.track?.stage).toBe("answer");
-    expect(tutor.requests[0].plan?.hintsPause).toBe(true);
+  it("stops for a hint at the step's answer, and moves on once it is fixed", async () => {
+    const session = await startAt("A2", frame);
+    tutor.verdicts.push(verdict({ issues: [goed] }), verdict({ pendingResolved: true, scaffold: "Today I will ___." }));
+    const hint = await turns.respond(session.id, "I goed to the meeting.");
+    expect(hint).toMatchObject({ kind: "hint", scaffold: null, track: { goal: "yesterday" } });
 
     const fixed = await turns.respond(session.id, "I went to the meeting.");
-    expect(fixed.selfCorrected).toBe(true);
-    expect(fixed.coveredGoals).toEqual(["yesterday"]);
-    expect((await sessions.get(session.id))?.track?.stage).toBe("again");
+    expect(fixed).toMatchObject({ selfCorrected: true, coveredGoals: ["yesterday"], track: { goal: "today" } });
   });
 
-  it("records a serious mistake made while repeating with its real severity, without a hint", async () => {
-    const session = await startA1();
-    tutor.verdicts.push(verdict({ scaffold: model, issues: [goed] }));
-    await turns.respond(session.id, "I goed to the meeting.");
-    expect(mistakes.events.at(-1)).toMatchObject({ original: goed.original, severity: "serious" });
+  it("asks to put it all together after the last goal, and only then whether to stop or keep going", async () => {
+    const session = await startAt("A2", frame);
+    tutor.verdicts.push(
+      verdict({ scaffold: "Today I will ___." }),
+      verdict({ scaffold: "Nothing blocks ___." }),
+      verdict({ scaffold: "Yesterday I... / Today I... / Nothing blocks..." }),
+      verdict({ scaffold: "ignored" }),
+    );
+    await turns.respond(session.id, "Yesterday I worked on the export.");
+    await turns.respond(session.id, "Today I will test it.");
+    const last = await turns.respond(session.id, "Nothing blocks me.");
+    expect(last).toMatchObject({
+      checkIn: false,
+      coveredGoals: ["yesterday", "today", "blockers"],
+      track: { stage: "retell", goal: null, number: 4, total: 4 },
+      scaffold: "Yesterday I... / Today I... / Nothing blocks...",
+    });
+
+    const told = await turns.respond(session.id, "Yesterday I worked on the export, today I will test it, nothing blocks me.");
+    expect(told).toMatchObject({ checkIn: true, track: null, scaffold: null });
+    expect(tutor.requests[3].plan).toEqual({ otherwise: null, ifStuck: expect.objectContaining({ stage: "retell", retry: true }) });
   });
 
-  it("covers the goal when the learner answers alone, and asks to say it again", async () => {
-    levels.rows.push(placed("A2"));
+  it("asks no surprise questions while the script runs", async () => {
+    const session = await startAt("B1", frame);
+    tutor.verdicts.push(verdict({}));
+    await turns.respond(session.id, "Yesterday I worked on the export.");
+    expect(tutor.requests[0].surprises).toBe(false);
+  });
+
+  it("does not run from B2 up", async () => {
+    levels.rows.push(placed("B2"));
     const { session } = await starts.start("daily", "en");
-    tutor.verdicts.push(verdict({ scaffold: "ignored" }));
-    const turn = await turns.respond(session.id, "Yesterday I fixed the upload bug.");
-    expect(turn.coveredGoals).toEqual(["yesterday"]);
-    expect(await sessions.get(session.id)).toMatchObject({ scaffold: null, track: { stage: "again" } });
+    expect(session.track).toBeNull();
+    expect(tutor.openPlans[0]).toBeNull();
   });
 });
 
@@ -1468,6 +1465,7 @@ describe("SessionStartService.resume", () => {
       hint: { hintsGiven: 1, revealed: false, mistake: goed.original, mistakeType: goed.category, rule: null },
       track: null,
       scaffold: null,
+      keyWords: [],
     });
     // The hints must not give the correction away.
     expect(JSON.stringify(resumed)).not.toContain(goed.correction);

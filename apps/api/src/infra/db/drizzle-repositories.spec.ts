@@ -39,6 +39,7 @@ describe("DrizzleSessionRepository", () => {
       metTargets: [],
       step: null,
       scaffold: null,
+      keyWords: [],
       track: null,
       memory: { facts: [], recentSessions: [] },
       missionId: null,
@@ -60,9 +61,10 @@ describe("DrizzleSessionRepository", () => {
     const { id } = await sessions.create({ language: "en", mode: "daily", startedAt, targets, step: "supported" });
     const askedAt = new Date("2026-11-07T10:09:00Z");
     await sessions.setProgress(id, { coveredGoals: ["yesterday", "today"], lastCheckInAt: askedAt, metTargets: ["I goed"],
-      scaffold: "Yesterday I...",
+      scaffold: "Yesterday I worked on ___.",
+      keyWords: ["fixed", "the bug"],
       step: "build_light",
-      track: { stage: "swap", goal: "yesterday", tries: 1, helped: true, unaidedStreak: 2, stuckStreak: 0 },
+      track: { stage: "answer", goal: "yesterday", support: "frame", tries: 1, unaidedStreak: 1 },
     });
     expect(await sessions.get(id)).toMatchObject({
       metTargets: ["I goed"],
@@ -71,8 +73,9 @@ describe("DrizzleSessionRepository", () => {
       coveredGoals: ["yesterday", "today"],
       lastCheckInAt: askedAt,
       step: "build_light",
-      scaffold: "Yesterday I...",
-      track: { stage: "swap", goal: "yesterday", tries: 1, helped: true, unaidedStreak: 2, stuckStreak: 0 },
+      scaffold: "Yesterday I worked on ___.",
+      keyWords: ["fixed", "the bug"],
+      track: { stage: "answer", goal: "yesterday", support: "frame", tries: 1, unaidedStreak: 1 },
     });
   });
 

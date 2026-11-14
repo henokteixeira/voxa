@@ -35,8 +35,10 @@ export interface TutorContext {
 
 export interface TutorOpening {
   line: string;
-  /** Words the opening gives the learner to say (the guided track's first model sentence), or null. */
+  /** Words the opening gives the learner to say (the script's first step), or null. */
   scaffold: string | null;
+  /** Key words for a sentence to complete; empty otherwise. */
+  keyWords: string[];
 }
 
 export interface TutorRequest extends TutorContext {
@@ -64,7 +66,7 @@ export interface TutorRequest extends TutorContext {
   coveredGoals: string[];
   /** Words the tutor's last line gave the learner to say (the learner may be completing them), or null. */
   scaffold: string | null;
-  /** In the guided track (A1–A2): what the next line does; null otherwise. */
+  /** In the step-by-step script (A1–B1): what the next line does; null otherwise. */
   plan: TrackPlan | null;
   /** Whether the next line may ask an unexpected question (see surprisesAllowed). */
   surprises: boolean;

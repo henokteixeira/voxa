@@ -46,27 +46,29 @@ describe("sessionReducer", () => {
     expect(state).toMatchObject({ support: "Ontem = yesterday.", coveredGoals: ["yesterday"], hintStep: 0 });
   });
 
-  it("follows the guided track and the words to say, which leave once the learner answers", () => {
-    const model = "Yesterday I worked on the login screen.";
-    let state = run({ ...started, track: { stage: "model", number: 1, total: 5 }, scaffold: model });
-    expect(state).toMatchObject({ track: { stage: "model" }, scaffold: model });
+  it("follows the script and the words to say, with their key words, which leave once the learner answers", () => {
+    const frame = "Yesterday I worked on ___.";
+    const step1 = { stage: "answer" as const, support: "frame" as const, goal: "yesterday", number: 1, total: 4 };
+    let state = run({ ...started, track: step1, scaffold: frame, keyWords: ["the login"] });
+    expect(state).toMatchObject({ track: { goal: "yesterday" }, scaffold: frame, keyWords: ["the login"] });
     state = run(
-      { ...started, track: { stage: "model", number: 1, total: 5 }, scaffold: model },
+      { ...started, track: step1, scaffold: frame, keyWords: ["the login"] },
       { type: "sent", request: "audio", audio: WAV },
-      { type: "transcript", text: model },
+      { type: "transcript", text: "Yesterday I worked on the login." },
     );
-    expect(state).toMatchObject({ track: { stage: "model" }, scaffold: null });
+    expect(state).toMatchObject({ track: { goal: "yesterday" }, scaffold: null, keyWords: [] });
     state = sessionReducer(state, {
       type: "tutor",
-      result: { kind: "reply", message: "Great. Now with your own work.", selfCorrected: false },
+      result: { kind: "reply", message: "Nice. And today?", selfCorrected: false },
     });
-    // An older server sends no track: the step stays.
-    expect(state).toMatchObject({ track: { stage: "model" }, scaffold: null });
+    // An older server sends no script: the step stays.
+    expect(state).toMatchObject({ track: { goal: "yesterday" }, scaffold: null });
     state = sessionReducer(state, {
       type: "followup",
-      result: { kind: "reply", message: null, selfCorrected: false, track: { stage: "swap", number: 2, total: 5 }, scaffold: null },
+      result: { kind: "reply", message: null, selfCorrected: false, track: { ...step1, goal: "today", number: 2 }, scaffold: "Today I will ___." },
     });
-    expect(state).toMatchObject({ track: { stage: "swap", number: 2 }, scaffold: null });
+    // New words to say without key words have none.
+    expect(state).toMatchObject({ track: { goal: "today", number: 2 }, scaffold: "Today I will ___.", keyWords: [] });
   });
 
   it("opens with the tutor's first line, speaks it, then hands over", () => {

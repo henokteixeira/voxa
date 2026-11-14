@@ -95,7 +95,7 @@ Approved on 2026-11-07 (leveling and guided track design).
 
 - **Placement interview:** a short OPI-style conversation that only observes and never corrects; it estimates a CEFR level with the user's own lines as evidence. A new one is suggested every 4 weeks.
 - **Level:** shown in the Progress tab, where the user can also set it by hand.
-- **Support step by level,** inside the existing modes: A1 a full guided track (repeat a model sentence, with the sentence hidden until tapped; say it with his own information; add a piece; answer alone; say the answer again); A2 the model only when he is stuck; B1 free talk plus the start of a sentence when stuck; B2 conversation as before; C1–C2 more demanding. From B2 up the tutor talks as people really do (usually two to four sentences, sometimes its own view or a short story) and about one turn in four asks an unexpected but natural question (a new angle, a "what if", a different opinion), so the learner practices following real speech and answering what they did not prepare; at B1 its turns are one or two short sentences and the unexpected questions wait (see below); below B1 its lines stay short (one to three sentences).
+- **Support step by level,** inside the existing modes: A1 to B1 the step-by-step script (see below; it replaced, on 2026-11-14, the earlier guided track of A1–A2 and the free talk of B1); B2 conversation as before; C1–C2 more demanding. From B2 up the tutor talks as people really do (usually two to four sentences, sometimes its own view or a short story) and about one turn in four asks an unexpected but natural question (a new angle, a "what if", a different opinion), so the learner practices following real speech and answering what they did not prepare; at B1 its turns are one or two short sentences and the unexpected questions wait (see below); below B1 its lines stay short (one to three sentences).
 - **Step changes in a session:** two goals answered without help skip the model; stuck twice brings it back.
 
 ### More support for building sentences (approved on 2026-11-13)
@@ -109,6 +109,17 @@ The learner, placed at B1, found conversations heavy and discouraging: he still 
 - **Say it faster:** 2 rounds and optional (see the mission table).
 - **Hint card with his own sentence:** the card shows the whole sentence as transcribed, with the words that hold the mistake in bold, and the mistake's type and one-line rule right away, before the retry; never the corrected words. An "I said it right" link drops the mistake (for when the speech-to-text or the tutor got it wrong): it leaves the bank and the conversation goes on.
 - **Stricter review:** an answer counts as recalled only when the whole sentence is correct; when another mistake is in it, the result shows that one too, and the item does not move forward.
+
+### Step-by-step script (approved on 2026-11-14)
+
+At A2 the learner felt little difference: the model came only when he was stuck, so the talk was still mostly free. He needs a structured conversation, not only a list of expressions, and the screen was crowded (goals at the top, expression chips under them). Approved:
+
+- **Where:** A1 to B1, in every conversation that has goals (scenarios and the mission's conversation; not free talk, not the placement interview). Optional at B2 (a setting, off by default); never from C1 up. Support fades as the learner succeeds.
+- **One step per goal:** the tutor reacts to the last answer in one short sentence, asks one short question for the goal and gives words to answer with. The learner answers; the next step starts.
+- **Words given, from most to least:** an example sentence to change with his own information; a sentence to complete, with blanks and up to 3 key words; only the start of a sentence; only the question. A1 starts at the example, A2 and B1 at the sentence to complete. Two goals in a row answered without being stuck move one level down; stuck, the same goal is asked again once with one level more, then the script moves on. Today's expressions go into these sentences when they fit.
+- **Last step, put it all together:** after the goals, the learner says everything in one short talk, with the start of each part on screen. Then the usual question to stop or keep going.
+- **Corrections** work as in any conversation (hints on his own answers). "Help me" is there when no words are on screen.
+- **Screen:** at the top only one line, "Step 2 of 5 · goal"; the words to say sit in one card under the ball. The goal chips and the expression chips are not shown while the script runs.
 
 ## Voice loop
 

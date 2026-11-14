@@ -657,46 +657,50 @@ describe("live session", () => {
     expect(screen.getByText("Next time")).toBeInTheDocument();
   });
 
-  it("shows the guided step and hides the model sentence until a tap, with the card at the bottom", async () => {
-    const model = "Yesterday I worked on the login screen.";
+  it("shows the script as one line instead of the chips, and the sentence to complete with its key words", async () => {
+    const frame = "Yesterday I worked on ___.";
     api.startSession.mockResolvedValueOnce({
       sessionId: "s1",
       mode: "daily",
       language: "en",
-      message: `Say it after me: ${model}`,
+      message: "What did you do yesterday? Yesterday I worked on...",
       goals: ["yesterday", "today", "blockers"],
-      track: { stage: "model", number: 1, total: 5 },
-      scaffold: model,
+      track: { stage: "answer", support: "frame", goal: "yesterday", number: 1, total: 4 },
+      scaffold: frame,
+      keyWords: ["the login", "fixed"],
     });
     renderSession();
-    // The words to say replace the tutor's line on the main screen.
-    await screen.findByRole("button", { name: "Show the sentence" });
+    expect(await screen.findByText("Complete the sentence")).toBeInTheDocument();
+    expect(screen.getByText("Step 1 of 4 ·", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("Yesterday")).toBeInTheDocument();
+    // No goal chips while the script runs.
+    expect(screen.queryByRole("list", { name: "Conversation goals" })).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "blank to complete" })).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Words that help" })).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "the login",
+      "fixed",
+    ]);
+    // Words are on screen: no "Help me".
     act(() => socketHandlers.onOpen());
     act(() => socketHandlers.onSpeech(new ArrayBuffer(8)));
     act(() => socketHandlers.onDone());
     await act(async () => finishPlayback());
-    expect(screen.getByText("Say it after me")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Step 1 of 5" })).toBeInTheDocument();
-    expect(screen.queryByText(model)).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Show the sentence" }));
-    expect(screen.getByText(model)).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Help me" })).not.toBeInTheDocument();
 
     act(() => micHandlers.onTurn(new ArrayBuffer(16)));
-    act(() => socketHandlers.onTranscript(model));
+    act(() => socketHandlers.onTranscript("Yesterday I worked on the login."));
     act(() =>
       socketHandlers.onTutor({
         kind: "reply",
-        message: "Great. Now say it with what you did.",
+        message: "Nice. Now put it all together.",
         selfCorrected: false,
-        track: { stage: "swap", number: 2, total: 5 },
-        scaffold: "Yesterday I worked on the audio upload.",
+        track: { stage: "retell", support: "frame", goal: null, number: 4, total: 4 },
+        scaffold: "Yesterday I... / Today I... / Nothing blocks...",
       }),
     );
-    expect(screen.getByRole("img", { name: "Step 2 of 5" })).toBeInTheDocument();
-    // Past the model, the words show at once, under the learner's own last words.
-    expect(screen.getByText("Swap in what you did")).toBeInTheDocument();
-    expect(screen.getByText(model)).toBeInTheDocument();
-    expect(screen.getByText("Yesterday I worked on the audio upload.")).toBeInTheDocument();
+    expect(screen.getByText("Put it all together")).toBeInTheDocument();
+    expect(screen.getByText("Say it all together, part by part")).toBeInTheDocument();
+    expect(screen.getByText("Today I...")).toBeInTheDocument();
   });
 
   it("shows a sentence start outside the track when the learner is stuck (B1)", async () => {
@@ -706,7 +710,7 @@ describe("live session", () => {
     act(() =>
       socketHandlers.onTutor({ kind: "reply", message: "No problem. Try: Today I'm going to...", selfCorrected: false, track: null, scaffold: "Today I'm going to…" }),
     );
-    expect(screen.getByText("Finish the sentence")).toBeInTheDocument();
+    expect(screen.getByText("Start like this")).toBeInTheDocument();
     expect(screen.getByText("Today I'm going to…")).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: /Step \d of 5/ })).not.toBeInTheDocument();
 
@@ -715,7 +719,7 @@ describe("live session", () => {
     await act(async () => finishPlayback());
     act(() => micHandlers.onTurn(new ArrayBuffer(16)));
     act(() => socketHandlers.onTranscript("Today I'm going to fix the upload."));
-    expect(screen.queryByText("Finish the sentence")).not.toBeInTheDocument();
+    expect(screen.queryByText("Start like this")).not.toBeInTheDocument();
   });
 
   it("keeps the microphone off while the learner types", async () => {

@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { SessionTiming } from "../../domain/conversation/fluency.js";
-import { isTrackStage, type TrackState } from "../../domain/conversation/guided-track.js";
+import { isTrackStage, isTrackSupport, type TrackState } from "../../domain/conversation/guided-track.js";
 import { isMode } from "../../domain/conversation/mode.js";
 import { isSupportStep, type SupportStep } from "../../domain/level/speaking-level.js";
 import type { TutorMemory } from "../../domain/memory/learner-fact.js";
@@ -41,6 +41,7 @@ function toSession(row: SessionRow, targets: TargetRow[]): Session {
     metTargets: targets.filter((target) => target.met).map((target) => target.original),
     step: row.supportStep,
     scaffold: row.scaffold,
+    keyWords: row.keyWords,
     track: toTrack(row),
     memory: row.memory,
     missionId: row.missionId,
@@ -50,25 +51,24 @@ function toSession(row: SessionRow, targets: TargetRow[]): Session {
 function toTrack(row: SessionRow): TrackState | null {
   if (row.trackStage === null) return null;
   if (!isTrackStage(row.trackStage)) throw new Error(`Unknown track stage in session ${row.id}: ${row.trackStage}`);
+  if (!isTrackSupport(row.trackSupport)) throw new Error(`Unknown track support in session ${row.id}: ${row.trackSupport}`);
   return {
     stage: row.trackStage,
     goal: row.trackGoal,
+    support: row.trackSupport,
     tries: row.trackTries,
-    helped: row.trackHelped,
     unaidedStreak: row.trackUnaidedStreak,
-    stuckStreak: row.trackStuckStreak,
   };
 }
 
-/** The track's columns; all cleared (stage null) outside the track. */
+/** The script's columns; all cleared (stage null) outside the script. */
 function trackColumns(track: TrackState | null) {
   return {
     trackStage: track?.stage ?? null,
     trackGoal: track?.goal ?? null,
+    trackSupport: track?.support ?? null,
     trackTries: track?.tries ?? 0,
-    trackHelped: track?.helped ?? false,
     trackUnaidedStreak: track?.unaidedStreak ?? 0,
-    trackStuckStreak: track?.stuckStreak ?? 0,
   };
 }
 
@@ -165,7 +165,7 @@ export class DrizzleSessionRepository implements SessionRepository {
   }
 
   async setScaffold(sessionId: string, scaffold: string | null): Promise<void> {
-    await this.db.update(sessions).set({ scaffold }).where(this.own(sessionId));
+    await this.db.update(sessions).set({ scaffold, keyWords: [] }).where(this.own(sessionId));
   }
 
   async withdrawPending(sessionId: string, original: string): Promise<void> {

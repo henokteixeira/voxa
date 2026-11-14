@@ -2,7 +2,6 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import {
   decide,
   focusedVerdict,
-  notedOnly,
   pausingPatterns,
   type TurnKind,
   type TutorVerdict,
@@ -10,14 +9,12 @@ import {
 } from "../domain/conversation/correction-policy.js";
 import {
   nextGoalAfter,
-  pausesForHints,
   resolveTrackTurn,
   type TrackOutcomes,
   trackOutcomes,
   type TrackView,
   trackView,
   turnPlan,
-  usesTrack,
 } from "../domain/conversation/guided-track.js";
 import { correctsMistakes } from "../domain/conversation/mode.js";
 import { checkInDue, checkInLine, describeGoal, goalsFor, mergeCovered } from "../domain/conversation/session-goals.js";
@@ -61,10 +58,12 @@ export interface TurnResult {
   checkIn: boolean;
   /** Goals of the mode the learner has covered so far. */
   coveredGoals: string[];
-  /** Where the learner is in the guided track (A1–A2), or null. */
+  /** Where the learner is in the step-by-step script (A1–B1), or null. */
   track: TrackView | null;
-  /** Words the tutor gave for the next turn (a model sentence, or a sentence start when stuck), or null. */
+  /** Words the tutor gave for the next turn (the script's words, or a sentence start when stuck), or null. */
   scaffold: string | null;
+  /** Key words shown with a sentence to complete; empty otherwise. */
+  keyWords: string[];
 }
 
 /** One learner turn: the tutor's answer, what the turn taught, and the session's progress, saved together. */
@@ -120,7 +119,8 @@ export class TurnService {
       ...session.targets.filter((t) => !knownMistakes.some((m) => sameText(m.original, t.original))),
     ];
     const focus = hintFocus({ entries, duePatterns, targets: session.targets, sessionPatterns });
-    const outcomes = this.trackOutcomes(session, utterance);
+    const goals = goalsFor(session.mode);
+    const outcomes = this.trackOutcomes(session);
     const early = { reply: null as string | null };
     const handOver =
       onReply && !session.pending
@@ -136,9 +136,10 @@ export class TurnService {
               rule: null,
               checkIn: false,
               coveredGoals: session.coveredGoals,
-              // The track moves once the turn is analysed; the follow-up carries where it went.
-              track: trackView(session.track),
+              // The script moves once the turn is analysed; the follow-up carries where it went.
+              track: trackView(session.track, goals),
               scaffold: session.scaffold,
+              keyWords: session.keyWords,
             });
           }
         : undefined;
@@ -149,7 +150,7 @@ export class TurnService {
       knownMistakes: watched,
       knownNewWords: knownNewWords.map(toKnown),
       knownPatterns,
-      // The reply asks for the learner's next turn. Not while a hint is pending or the guided track gives the
+      // The reply asks for the learner's next turn. Not while a hint is pending or the script gives the
       // next line: the reply has another job then.
       bringBack: session.pending || session.track ? [] : patternsToBringBack(sessionPatterns, learnerTurn + 1),
       focusPatterns: pausingPatterns(focus),
@@ -157,8 +158,9 @@ export class TurnService {
       utterance,
       coveredGoals: session.coveredGoals,
       scaffold: session.scaffold,
-      plan: outcomes && session.track ? turnPlan(session.track, outcomes, describeGoal) : null,
-      surprises: surprisesAllowed(session.step, outcome?.learnerTurns ?? { total: 0, assisted: 0 }),
+      plan: outcomes ? turnPlan(outcomes, describeGoal, phrasesOf(mission)) : null,
+      // The script asks its own questions: no surprises while it runs.
+      surprises: !session.track && surprisesAllowed(session.step, outcome?.learnerTurns ?? { total: 0, assisted: 0 }),
     };
     let verdict: TutorVerdict;
     try {
@@ -169,17 +171,18 @@ export class TurnService {
       throw error;
     }
     // The placement interview only observes: every mistake is recorded as minor, so none stops it with a hint.
-    // In the guided track, saying the words given (the model, the longer sentence) never stops for a hint either.
     // A mistake the learner said they said right is not raised again in this session, nor recorded.
     const kept = withoutWithdrawn(verdict, session.withdrawnMistakes);
     const byMode = verdictForMode(session.mode, focusedVerdict(kept, focus));
-    const observed = session.track && !pausesForHints(session.track.stage) ? notedOnly(byMode) : byMode;
-    const decision = decide(session.pending, observed);
-    // The track moves on a plain reply only: while a hint is pending, the learner retries the same answer.
-    const inTrack =
-      outcomes && session.track
-        ? resolveTrackTurn({ track: session.track, outcomes, replied: decision.kind === "reply", verdict })
-        : null;
+    const decision = decide(session.pending, byMode);
+    // The script moves on a plain reply only: while a hint is pending, the learner retries the same answer.
+    const inTrack = outcomes
+      ? resolveTrackTurn({
+          outcomes,
+          replied: decision.kind === "reply",
+          verdict: { stuck: verdict.stuck, scaffold: verdict.scaffold, keyWords: verdict.keyWords ?? [] },
+        })
+      : null;
     const move = inTrack?.move ?? null;
 
     const pending = session.pending;
@@ -199,8 +202,11 @@ export class TurnService {
     };
 
     // Goals and the stop-or-keep-going question, only on a turn where the conversation goes on.
-    // In the guided track a goal is covered by the learner's own answer, not by repeating the words given.
-    const coveredGoals = mergeCovered(session.mode, session.coveredGoals, inTrack?.reportedGoals ?? verdict.coveredGoals);
+    // In the script a goal is covered by its step answered without being stuck.
+    const reported = inTrack ? (inTrack.move?.covered ? [inTrack.move.covered] : []) : verdict.coveredGoals;
+    const coveredGoals = mergeCovered(session.mode, session.coveredGoals, reported);
+    // The goals all covered, the script still asks to put it all together before the stop-or-keep-going question.
+    const retelling = move?.track?.stage === "retell";
     const metTargets = metTargetsAfter({
       targets: session.targets,
       alreadyMet: session.metTargets,
@@ -208,7 +214,7 @@ export class TurnService {
       pending,
     });
     const checkIn =
-      decision.kind === "reply"
+      decision.kind === "reply" && !retelling
         ? checkInDue({
             mode: session.mode,
             coveredBefore: session.coveredGoals,
@@ -229,7 +235,9 @@ export class TurnService {
 
     const assisted = wasAssisted({ scaffoldBefore: session.scaffold, usedFirstLanguage: verdict.newWords.length > 0 });
     // Words to say only come with a plain reply: a hint or the correct form asks for the learner's own sentence.
+    // In the script the step gives them (none on the turn that ends it); outside it, a sentence start when stuck.
     const scaffold = inTrack ? inTrack.scaffold : decision.kind === "reply" ? keptScaffold(session.step, verdict) : null;
+    const keyWords = inTrack?.keyWords ?? [];
     // Everything the turn changes is saved together: a failure halfway leaves no mistake counted for a turn that was never saved.
     try {
       await this.saveTurn(sessionId, history.length, async (stores) => {
@@ -242,8 +250,9 @@ export class TurnService {
           lastCheckInAt: checkIn ? now : session.lastCheckInAt,
           metTargets,
           scaffold,
-          step: move?.step ?? session.step,
-          track: move?.track ?? session.track,
+          keyWords,
+          step: session.step,
+          track: move ? move.track : session.track,
         });
       });
     } catch (error) {
@@ -263,8 +272,9 @@ export class TurnService {
       rule: decision.kind === "reply" ? null : shownRule(decision.nextPending),
       checkIn: checkIn !== null,
       coveredGoals,
-      track: trackView(move?.track ?? session.track),
+      track: trackView(move ? move.track : session.track, goals),
       scaffold,
+      keyWords,
     };
   }
 
@@ -275,9 +285,9 @@ export class TurnService {
   async help(sessionId: string): Promise<SentenceHelp> {
     const session = await openSession(this.sessions, sessionId);
     if (!correctsMistakes(session.mode)) throw new InvalidInputError("The placement interview gives no help with what to say.");
-    // A hint asks for the learner's own sentence, and the guided track already gives the words (A1–A2).
+    // A hint asks for the learner's own sentence, and a script step with words on screen already gives them.
     if (session.pending) throw new InvalidInputError("No help with what to say while a hint is pending.");
-    if (session.track) throw new InvalidInputError("The guided track already gives the words to say.");
+    if (session.track && session.scaffold) throw new InvalidInputError("The script already gives the words to say.");
     const [history, learnerContext, mission] = await Promise.all([
       this.sessions.history(sessionId),
       this.learnerContext.load(),
@@ -330,6 +340,7 @@ export class TurnService {
           lastCheckInAt: session.lastCheckInAt,
           metTargets: session.metTargets,
           scaffold: null,
+          keyWords: [],
           step: session.step,
           track: session.track,
         });
@@ -339,12 +350,11 @@ export class TurnService {
     }
   }
 
-  /** In the guided track, the two ways this turn can move it (stuck or not), so the tutor can follow either. */
-  private trackOutcomes(session: Session, utterance: string): TrackOutcomes | null {
-    const { track, step } = session;
-    if (!track || !usesTrack(step)) return null;
-    const nextGoal = nextGoalAfter(goalsFor(session.mode), track.goal, session.coveredGoals);
-    return trackOutcomes({ track, step, model: session.scaffold, utterance, nextGoal });
+  /** In the script, the two ways this turn can move it (stuck or not), so the tutor can follow either. */
+  private trackOutcomes(session: Session): TrackOutcomes | null {
+    const { track } = session;
+    if (!track) return null;
+    return trackOutcomes(track, nextGoalAfter(goalsFor(session.mode), track.goal, session.coveredGoals));
   }
 }
 

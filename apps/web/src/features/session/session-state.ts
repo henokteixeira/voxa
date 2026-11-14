@@ -83,10 +83,12 @@ export interface SessionState {
   coveredGoals: string[];
   /** The tutor asked whether to stop or keep going, and the learner has not answered yet. */
   checkIn: boolean;
-  /** Where the learner is in the guided track (A1–A2), or null. */
+  /** Where the learner is in the step-by-step script (A1–B1), or null. */
   track: TrackView | null;
   /** Words the tutor gave for the next turn, or null. */
   scaffold: string | null;
+  /** Key words shown with a sentence to complete. */
+  keyWords: string[];
 }
 
 export type Retry =
@@ -165,6 +167,7 @@ export const initialSessionState: SessionState = {
   checkIn: false,
   track: null,
   scaffold: null,
+  keyWords: [],
 };
 
 /** Failures that do not stop the session: say "didn't catch that" and listen again. */
@@ -247,6 +250,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         turn: { ...state.turn, transcript: action.text, audio: null },
         // The words to say have done their job once the learner answers: they leave the screen.
         scaffold: null,
+        keyWords: [],
       };
     }
     case "tutor":
@@ -320,11 +324,14 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
   }
 }
 
-/** The track and the words to say, as the server sent them; an older server sends neither, so they stay. */
-function guidance(state: SessionState, from: Guidance): Pick<SessionState, "track" | "scaffold"> {
+/** The script and the words to say, as the server sent them; an older server sends none, so they stay. */
+function guidance(state: SessionState, from: Guidance): Pick<SessionState, "track" | "scaffold" | "keyWords"> {
+  const scaffold = from.scaffold === undefined ? state.scaffold : from.scaffold;
   return {
     track: from.track === undefined ? state.track : from.track,
-    scaffold: from.scaffold === undefined ? state.scaffold : from.scaffold,
+    scaffold,
+    // Key words go with their sentence: new words to say without them have none.
+    keyWords: scaffold === null ? [] : (from.keyWords ?? (from.scaffold === undefined ? state.keyWords : [])),
   };
 }
 

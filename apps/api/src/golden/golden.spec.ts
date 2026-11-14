@@ -122,7 +122,7 @@ describe("runScenario", () => {
     const requests: TutorRequest[] = [];
     const answers = [verdict({ issues: [bored] }), verdict({ pendingResolved: true })];
     const tutor: TutorPort = {
-      open: async () => ({ line: "Morning! How was yesterday?", scaffold: null }),
+      open: async () => ({ line: "Morning! How was yesterday?", scaffold: null, keyWords: [] }),
       help: async () => ({ start: "", words: [] }),
       evaluate: async (request) => {
         requests.push(request);

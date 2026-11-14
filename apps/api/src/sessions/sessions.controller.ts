@@ -29,8 +29,9 @@ export class SessionsController {
       language: session.language,
       message,
       goals,
-      track: trackView(session.track),
+      track: trackView(session.track, goals),
       scaffold: session.scaffold,
+      keyWords: session.keyWords,
     };
   }
 
