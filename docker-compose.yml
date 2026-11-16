@@ -54,7 +54,7 @@ services:
       WHISPER_MODEL: ${WHISPER_MODEL:-medium}
       # Passed only when set; empty means no prompt. Unset uses the service's mixed prompt.
       WHISPER_INITIAL_PROMPT:
-      # Off until measured on your voice (python -m eval.language_switch); see services/voice/README.md.
+      # Empty uses the service default (0.98); `off` turns it off. See services/voice/README.md.
       WHISPER_NATIVE_MIN_PROBABILITY: ${WHISPER_NATIVE_MIN_PROBABILITY:-}
       KOKORO_VOICE: ${KOKORO_VOICE:-af_heart}
     volumes:

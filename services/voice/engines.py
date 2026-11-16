@@ -21,6 +21,10 @@ KOKORO_SAMPLE_RATE = 24000
 # The words differ from the eval cases, so the eval stays fair.
 MIXED_PROMPT = "So, the planilha is ready and the diretoria wants to see it before the culto."
 DEFAULT_WHISPER_MODEL = "medium"
+# Chosen with eval/language_switch.py on a real voice (medium, 2026-11-16): whole Portuguese turns
+# scored 0.97-0.99 (one short "Esqueci a palavra" 0.82); English sentences with Portuguese words
+# scored up to 0.97. At 0.98 none of those English sentences switch.
+DEFAULT_NATIVE_MIN_PROBABILITY = 0.98
 
 # Greedy first, so the learner's mistakes survive. The hotter retries run only when a window
 # compresses too well, which is Whisper stuck repeating a word ("some some some ...").
