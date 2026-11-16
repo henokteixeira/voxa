@@ -11,7 +11,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from engines import DEFAULT_WHISPER_MODEL, KOKORO_LANG, MIXED_PROMPT, EngineError, InputError, KokoroTts, SpeechToText, TextToSpeech, WhisperStt
+from engines import DEFAULT_NATIVE_MIN_PROBABILITY, DEFAULT_WHISPER_MODEL, KOKORO_LANG, MIXED_PROMPT, EngineError, InputError, KokoroTts, SpeechToText, TextToSpeech, WhisperStt
 
 MAX_TTS_CHARS = 2000
 MAX_AUDIO_BYTES = 25 * 1024 * 1024
@@ -92,7 +92,8 @@ def whisper_from_env(env=os.environ) -> WhisperStt:
     """Unset WHISPER_INITIAL_PROMPT uses the mixed prompt; an empty one means no prompt.
 
     WHISPER_CPU_THREADS sets the threads; unset uses 4. WHISPER_NATIVE_MIN_PROBABILITY (0 to 1)
-    turns on the switch to WHISPER_NATIVE_LANGUAGE (default pt); unset leaves it off.
+    sets how sure Whisper must be to switch to WHISPER_NATIVE_LANGUAGE (default pt); unset or
+    empty uses the measured default, `off` (or anything not in 0 to 1) turns the switch off.
     """
     threads = env.get("WHISPER_CPU_THREADS", "").strip()
     return WhisperStt(
@@ -105,7 +106,9 @@ def whisper_from_env(env=os.environ) -> WhisperStt:
 
 
 def _probability(value: str) -> float | None:
-    """A number from 0 to 1; anything else (unset included) means off."""
+    """A number from 0 to 1; empty means the default; anything else means off."""
+    if not value.strip():
+        return DEFAULT_NATIVE_MIN_PROBABILITY
     try:
         number = float(value)
     except ValueError:

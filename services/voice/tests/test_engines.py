@@ -127,7 +127,9 @@ def test_whisper_skips_detection_when_the_switch_is_off():
 def test_whisper_from_env_reads_the_native_language_switch():
     from main import whisper_from_env
 
-    assert whisper_from_env({}).native_min_probability is None
+    assert whisper_from_env({}).native_min_probability == 0.98
+    assert whisper_from_env({"WHISPER_NATIVE_MIN_PROBABILITY": ""}).native_min_probability == 0.98
+    assert whisper_from_env({"WHISPER_NATIVE_MIN_PROBABILITY": "off"}).native_min_probability is None
     stt = whisper_from_env({"WHISPER_NATIVE_MIN_PROBABILITY": "0.8", "WHISPER_NATIVE_LANGUAGE": "es"})
     assert (stt.native_min_probability, stt.native_language) == (0.8, "es")
     assert whisper_from_env({"WHISPER_NATIVE_MIN_PROBABILITY": "high"}).native_min_probability is None

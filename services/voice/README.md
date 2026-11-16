@@ -47,7 +47,7 @@ Read from the process environment (the root `.env` is not loaded here; export th
 | --- | --- | --- |
 | `WHISPER_MODEL` | `medium` | Whisper size (`base`, `small`, `medium`, ...). `small` is faster but mishears more Portuguese words |
 | `WHISPER_INITIAL_PROMPT` | a sentence with Portuguese words | Prompt that biases the transcription style. The default keeps Portuguese words as said (see the Portuguese words test); set it empty for none |
-| `WHISPER_NATIVE_MIN_PROBABILITY` | unset (off) | A turn said wholly in Portuguese comes out translated while the language is pinned to English. When Whisper is at least this sure (0 to 1) the turn is Portuguese, it transcribes it in Portuguese, without the mixed prompt. Set it from the language switch test below |
+| `WHISPER_NATIVE_MIN_PROBABILITY` | `0.98` (`off` turns it off) | A turn said wholly in Portuguese comes out translated while the language is pinned to English. When Whisper is at least this sure (0 to 1) the turn is Portuguese, it transcribes it in Portuguese, without the mixed prompt. The default comes from the language switch test below on a real voice (Portuguese turns 0.97–0.99, English ones with Portuguese words up to 0.97) |
 | `WHISPER_NATIVE_LANGUAGE` | `pt` | The learner's own language for that switch |
 | `WHISPER_CPU_THREADS` | 4 | Threads Whisper decodes with. More is not faster: on a 12-core Mac, 10 threads took four times as long as 4 |
 | `KOKORO_VOICE` | `af_heart` | Kokoro voice |
